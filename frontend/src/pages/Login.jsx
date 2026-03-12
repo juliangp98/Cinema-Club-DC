@@ -92,7 +92,7 @@ export default function Login({ onLogin, apiBase, inviteToken }) {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <span className="auth-logo">DC CINEMA CLUB</span>
+        <span className="auth-logo">CINEMA CLUB DC</span>
         <p className="auth-subtitle">
           {isInvite ? "You've Been Invited" : mode === "signup" ? "Create Your Account" : "Private Cinema Schedule"}
         </p>

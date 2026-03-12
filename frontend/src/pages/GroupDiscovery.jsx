@@ -189,7 +189,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
         <section className="group-section">
           <h2 className="group-section-title">My Groups</h2>
           {myGroups.length === 0 ? (
-            <p className="group-empty">Welcome to DC Cinema Club! Find a group below to get started.</p>
+            <p className="group-empty">Welcome to Cinema Club DC! Find a group below to get started.</p>
           ) : (
             <div className="group-cards">
               {myGroups.map(g => (

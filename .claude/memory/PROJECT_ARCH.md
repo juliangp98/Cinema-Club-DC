@@ -1,5 +1,5 @@
 ---
-name: DC Cinema Club Architecture
+name: Cinema Club DC Architecture
 description: Tech stack, project structure, and key architectural decisions for the Cinema Club web app
 type: project
 ---

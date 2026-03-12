@@ -12,7 +12,7 @@ function AuthGuard({ user, loading, children, apiBase, onLogin }) {
   if (loading) {
     return (
       <div className="loading-screen">
-        <span className="marquee-text">DC CINEMA CLUB</span>
+        <span className="marquee-text">CINEMA CLUB DC</span>
       </div>
     );
   }
@@ -43,7 +43,7 @@ function CalendarOrRedirect({ user, setUser, apiBase, groupId, setGroupId, hasGr
     return (
       <div className="app-shell">
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", gap: "1rem" }}>
-          <h2 style={{ color: "var(--gold)" }}>Welcome to DC Cinema Club!</h2>
+          <h2 style={{ color: "var(--gold)" }}>Welcome to Cinema Club DC!</h2>
           <p style={{ color: "var(--muted)" }}>Join a group to see showtimes and RSVP with friends.</p>
           <button
             className="auth-btn"

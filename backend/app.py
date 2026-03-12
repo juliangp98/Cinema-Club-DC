@@ -63,7 +63,7 @@ def send_email(to, subject, html_body):
 
     try:
         msg = MIMEMultipart('alternative')
-        msg['From'] = f"DC Cinema Club <{SMTP_EMAIL}>"
+        msg['From'] = f"Cinema Club DC <{SMTP_EMAIL}>"
         msg['To'] = to
         msg['Subject'] = subject
         msg.attach(MIMEText(html_body, 'html'))
@@ -77,10 +77,10 @@ def send_email(to, subject, html_body):
 
 
 def email_invite(to_email, group_name, invite_url):
-    send_email(to_email, f"You're invited to {group_name} on DC Cinema Club",
+    send_email(to_email, f"You're invited to {group_name} on Cinema Club DC",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 DC Cinema Club</h2>
-        <p>You've been invited to join <strong>{group_name}</strong> on DC Cinema Club!</p>
+        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
+        <p>You've been invited to join <strong>{group_name}</strong> on Cinema Club DC!</p>
         <p><a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Accept Invite</a></p>
         <p style="color:#888;font-size:13px;">Or copy this link: {invite_url}</p>
@@ -90,19 +90,19 @@ def email_invite(to_email, group_name, invite_url):
 def email_added_to_group(to_email, group_name):
     send_email(to_email, f"You've been added to {group_name}",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 DC Cinema Club</h2>
-        <p>You've been added to <strong>{group_name}</strong>. Open DC Cinema Club to check out upcoming showtimes!</p>
+        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
+        <p>You've been added to <strong>{group_name}</strong>. Open Cinema Club DC to check out upcoming showtimes!</p>
         <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Open DC Cinema Club</a></p>
+        text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
         </div>""")
 
 
 def email_join_request(admin_email, requester_name, group_name):
     send_email(admin_email, f"{requester_name} wants to join {group_name}",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 DC Cinema Club</h2>
+        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
         <p><strong>{requester_name}</strong> has requested to join <strong>{group_name}</strong>.</p>
-        <p>Log in to DC Cinema Club to approve or deny the request.</p>
+        <p>Log in to Cinema Club DC to approve or deny the request.</p>
         <p><a href="{FRONTEND_URL}/groups" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Manage Group</a></p>
         </div>""")
@@ -111,10 +111,10 @@ def email_join_request(admin_email, requester_name, group_name):
 def email_approved(to_email, group_name):
     send_email(to_email, f"Welcome to {group_name}!",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 DC Cinema Club</h2>
+        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
         <p>Your request to join <strong>{group_name}</strong> has been approved! 🎉</p>
         <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Open DC Cinema Club</a></p>
+        text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
         </div>""")
 
 
@@ -516,7 +516,7 @@ def create_invite():
         return jsonify({'error': 'Email required'}), 400
 
     group = db.session.get(Group, group_id) if group_id else None
-    group_name = group.name if group else 'DC Cinema Club'
+    group_name = group.name if group else 'Cinema Club DC'
     existing = User.query.filter_by(email=email).first()
 
     if existing and existing.is_active:
@@ -1110,7 +1110,7 @@ def showtime_ical(sid):
 
     ics = f"""BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//DCCinemaClub//EN
+PRODID:-//CinemaClubDC//EN
 BEGIN:VEVENT
 DTSTART:{fmt_dt(start)}
 DTEND:{fmt_dt(end)}

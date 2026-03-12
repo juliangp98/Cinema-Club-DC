@@ -1,6 +1,6 @@
-# DC Cinema Club — Conversation Log
+# Cinema Club DC — Conversation Log
 
-This log captures the full history of building and iterating on the DC Cinema Club project across multiple Claude sessions. Use this to resume work in a new chat.
+This log captures the full history of building and iterating on the Cinema Club DC project across multiple Claude sessions. Use this to resume work in a new chat.
 
 ---
 
@@ -85,7 +85,7 @@ This log captures the full history of building and iterating on the DC Cinema Cl
 
 ### Changes Made
 
-1. **Renamed "Cinema Club" → "DC Cinema Club"** everywhere (frontend, backend, emails, package.json).
+1. **Renamed "Cinema Club" → "Cinema Club DC"** everywhere (frontend, backend, emails, package.json).
 
 2. **Calendar showtime merging**: `getGroupedShowtimes(date)` groups by `movie_id + theatre_id`. Single calendar pill per movie-per-theatre-per-day with comma-separated times. Attendee dots deduplicated.
 
@@ -170,6 +170,20 @@ Replaced the old theatre pill buttons in the header with a new **filter bar** be
 - Added `.filter-bar`, `.filter-dd`, `.filter-dd-btn`, `.filter-dd-menu`, `.filter-dd-item`, `.filter-dot`, `.filter-search-*`, `.filter-time-*`, `.filter-badge`, `.filter-clear` styles
 - Filter dropdown menu z-index: 60
 - Calendar grid: `scrollbar-gutter: stable`, scrollbar track/thumb with 4px right border for inset effect
+
+---
+
+## Session 7 (2026-03-12): Rename to Cinema Club DC, Custom Domain Planning
+
+### Changes Made
+
+1. **Renamed "DC Cinema Club" → "Cinema Club DC"** everywhere — backend emails, app.py fallback name, iCal PRODID, frontend headers/logos (App.jsx, Calendar.jsx, Login.jsx, GroupDiscovery.jsx), HTML title, package.json name, docker-compose comment, .env files, README, and Claude memory files.
+
+2. **Rationale**: Putting the location (DC) at the end allows for expandability to other cities (Cinema Club NYC, Cinema Club LA, etc.).
+
+3. **Custom domain planned**: `cinemaclubdc.com` via Namecheap, to be configured with Cloudflare DNS + Tunnel pointing to the self-hosted Synology NAS.
+
+4. **Project published on GitHub** and fully self-hosted on Synology NAS via Docker.
 
 ---
 

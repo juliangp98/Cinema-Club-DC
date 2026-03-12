@@ -1,4 +1,4 @@
-# DC Cinema Club
+# Cinema Club DC
 
 A private calendar app for tracking DC arthouse film showtimes at **Suns Cinema** and **AFI Silver Theatre**. Groups of friends can RSVP to screenings, react with emojis, chat about movies, and get smart genre-based recommendations.
 
@@ -202,14 +202,14 @@ To send real emails, create a Gmail App Password:
 ```bash
 crontab -e
 # Add (runs every 6 hours):
-0 */6 * * * cd /path/to/Cinema\ Club/backend && ./venv/bin/python scraper.py >> /var/log/dc-cinema-scraper.log 2>&1
+0 */6 * * * cd /path/to/Cinema\ Club/backend && ./venv/bin/python scraper.py >> /var/log/cinema-club-dc-scraper.log 2>&1
 ```
 
 ---
 
 ## Deployment on Synology NAS (Docker)
 
-The recommended way to self-host DC Cinema Club is via Docker on a Synology NAS using **Container Manager** (the built-in Docker UI). This gives you a persistent, auto-restarting deployment with a custom domain and HTTPS.
+The recommended way to self-host Cinema Club DC is via Docker on a Synology NAS using **Container Manager** (the built-in Docker UI). This gives you a persistent, auto-restarting deployment with a custom domain and HTTPS.
 
 ### Prerequisites
 
@@ -224,7 +224,7 @@ Copy the entire `Cinema Club` folder to a shared folder on your NAS. You can use
 
 ```bash
 # Example:
-scp -r "/Users/[user]/Documents/DC Cinema Club" your-nas-user@NAS-IP:/volume1/docker/dc-cinema-club
+scp -r "/Users/[user]/Documents/Cinema Club DC" your-nas-user@NAS-IP:/volume1/docker/cinema-club-dc
 ```
 
 Or drag the folder into a shared folder via Finder → Connect to Server → `smb://NAS-IP`.
@@ -294,7 +294,7 @@ Open a browser and go to:
 http://YOUR-NAS-IP:8080
 ```
 
-You should see the DC Cinema Club login page. Log in with `sunscinemafanclub@gmail.com`.
+You should see the Cinema Club DC login page. Log in with `sunscinemafanclub@gmail.com`.
 
 To check container status:
 
@@ -347,7 +347,7 @@ The scraper will now run automatically to keep showtimes up to date.
 
 ### Custom Domain Setup (Optional)
 
-If you want to access DC Cinema Club from outside your home network with a custom domain like `cinema.yourdomain.com`:
+If you want to access Cinema Club DC from outside your home network with a custom domain like `cinema.yourdomain.com`:
 
 #### Option A: Cloudflare Tunnel (Recommended — no port forwarding)
 
@@ -386,7 +386,7 @@ If you want to access DC Cinema Club from outside your home network with a custo
 3. **Set up Synology Reverse Proxy**:
    - DSM → Control Panel → Login Portal → Advanced tab → Reverse Proxy
    - Click **Create**:
-     - Description: `DC Cinema Club`
+     - Description: `Cinema Club DC`
      - Source: Protocol `HTTPS`, Hostname `cinema.yourdomain.com`, Port `443`
      - Destination: Protocol `HTTP`, Hostname `localhost`, Port `8080`
 4. **Set up SSL certificate**:

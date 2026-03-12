@@ -285,7 +285,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
     <div className="app-shell">
       {/* Header */}
       <header className="header">
-        <span className="header-logo">DC CINEMA CLUB</span>
+        <span className="header-logo">CINEMA CLUB DC</span>
         <div className="header-sep" />
 
         <div className="nav-week">
