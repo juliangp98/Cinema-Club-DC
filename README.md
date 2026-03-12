@@ -223,8 +223,8 @@ The recommended way to self-host DC Cinema Club is via Docker on a Synology NAS 
 Copy the entire `Cinema Club` folder to a shared folder on your NAS. You can use Finder (SMB), `scp`, or Synology Drive.
 
 ```bash
-# Example using scp from your Mac:
-scp -r "/Users/julianperez/Documents/Cinema Club" your-nas-user@NAS-IP:/volume1/docker/cinema-club
+# Example:
+scp -r "/Users/[user]/Documents/DC Cinema Club" your-nas-user@NAS-IP:/volume1/docker/dc-cinema-club
 ```
 
 Or drag the folder into a shared folder via Finder → Connect to Server → `smb://NAS-IP`.
