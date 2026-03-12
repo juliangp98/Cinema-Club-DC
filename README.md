@@ -229,7 +229,7 @@ scp -r "/Users/[user]/Documents/Cinema Club DC" your-nas-user@NAS-IP:/volume1/do
 
 Or drag the folder into a shared folder via Finder → Connect to Server → `smb://NAS-IP`.
 
-A good location is `/volume1/docker/cinema-club/`.
+A good location is `/volume1/docker/cinema-club-dc/`.
 
 ### Step 2: Create the production environment file
 
@@ -242,7 +242,7 @@ ssh your-nas-user@NAS-IP
 Navigate to the project and create your production config:
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 cp .env.production.example .env.production
 ```
 
@@ -273,7 +273,7 @@ SMTP_PASSWORD=your-gmail-app-password
 Still via SSH on your NAS:
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 sudo docker-compose up -d --build
 ```
 
@@ -336,7 +336,7 @@ Open **Synology DSM** in your browser → **Control Panel** → **Task Scheduler
 4. **Task Settings tab** → paste this script:
 
 ```bash
-docker exec cinemaclub-backend python scraper.py >> /volume1/docker/cinema-club/scraper.log 2>&1
+docker exec cinemaclub-backend python scraper.py >> /volume1/docker/cinema-club-dc/scraper.log 2>&1
 ```
 
 5. Click **OK**
@@ -371,7 +371,7 @@ If you want to access Cinema Club DC from outside your home network with a custo
    ```
 5. **Rebuild** to pick up the new FRONTEND_URL:
    ```bash
-   cd /volume1/docker/cinema-club
+   cd /volume1/docker/cinema-club-dc
    sudo docker-compose up -d --build
    ```
 
@@ -401,21 +401,21 @@ If you want to access Cinema Club DC from outside your home network with a custo
 #### Restart containers
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 sudo docker-compose restart
 ```
 
 #### Rebuild after code changes
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 sudo docker-compose up -d --build
 ```
 
 #### Stop everything
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 sudo docker-compose down
 ```
 
@@ -423,7 +423,7 @@ sudo docker-compose down
 
 ```bash
 # Find the volume location
-sudo docker volume inspect cinema-club_db-data
+sudo docker volume inspect cinema-club-dc_db-data
 
 # Open with sqlite3
 sudo docker exec cinemaclub-backend python -c "
@@ -444,7 +444,7 @@ sudo docker cp cinemaclub-backend:/app/instance/cinemaclub.db ./cinemaclub-backu
 #### Reset everything (fresh start)
 
 ```bash
-cd /volume1/docker/cinema-club
+cd /volume1/docker/cinema-club-dc
 sudo docker-compose down -v   # -v removes the database volume
 sudo docker-compose up -d --build
 sudo docker exec cinemaclub-backend python scraper.py
