@@ -21,6 +21,9 @@ services:
       dockerfile: Dockerfile.backend
     container_name: cinemaclub-backend
     env_file: .env.production
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - db-data:/app/instance
     restart: unless-stopped
