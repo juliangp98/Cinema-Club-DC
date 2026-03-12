@@ -251,6 +251,7 @@ Edit `.env.production` with your values:
 ```bash
 vi .env.production
 ```
+Press Esc and type :wq to save.
 
 ```env
 # Generate a secret key (run this on your Mac or NAS):
