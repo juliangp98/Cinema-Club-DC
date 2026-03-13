@@ -4,21 +4,31 @@ export default function UserProfileDrawer({ userId, apiBase, onClose }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [kernels, setKernels] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
     setError("");
     setUser(null);
-    fetch(`${apiBase}/api/users/${userId}/profile`, { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(d.error || "Could not load profile");
-        }
-        return r.json();
+    setKernels(null);
+    Promise.all([
+      fetch(`${apiBase}/api/users/${userId}/profile`, { credentials: "include" })
+        .then(async (r) => {
+          if (!r.ok) {
+            const d = await r.json().catch(() => ({}));
+            throw new Error(d.error || "Could not load profile");
+          }
+          return r.json();
+        }),
+      fetch(`${apiBase}/api/users/${userId}/kernels`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null),
+    ])
+      .then(([userData, kernelData]) => {
+        setUser(userData);
+        if (kernelData) setKernels(kernelData.kernels);
       })
-      .then((data) => setUser(data))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [userId, apiBase]);
@@ -63,6 +73,9 @@ export default function UserProfileDrawer({ userId, apiBase, onClose }) {
               </div>
               <div className="user-profile-name">{user.name}</div>
               <div className="user-profile-email">{user.email}</div>
+              {kernels !== null && (
+                <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
+              )}
             </div>
 
             <div className="user-profile-section">

@@ -58,12 +58,20 @@ export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId }) {
           ))}
           <div className="group-dropdown-actions">
             {activeGroup && (
-              <button
-                className="group-dropdown-action"
-                onClick={() => { setOpen(false); navigate("/members"); }}
-              >
-                Members
-              </button>
+              <>
+                <button
+                  className="group-dropdown-action"
+                  onClick={() => { setOpen(false); navigate("/members"); }}
+                >
+                  Members
+                </button>
+                <button
+                  className="group-dropdown-action"
+                  onClick={() => { setOpen(false); navigate("/polls"); }}
+                >
+                  Polls
+                </button>
+              </>
             )}
             <button
               className="group-dropdown-action"

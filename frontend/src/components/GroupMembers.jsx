@@ -5,6 +5,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [kernels, setKernels] = useState(null);
 
   useEffect(() => {
     fetchMembers();
@@ -46,6 +47,15 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
   const favoriteGenres = selectedUser && selectedUser.favorite_genres
     ? selectedUser.favorite_genres.split(",").filter(Boolean)
     : [];
+
+  // Fetch kernels for selected user
+  useEffect(() => {
+    if (!selectedUserId) { setKernels(null); return; }
+    fetch(`${apiBase}/api/users/${selectedUserId}/kernels`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setKernels(d.kernels); else setKernels(null); })
+      .catch(() => setKernels(null));
+  }, [selectedUserId, apiBase]);
 
   const content = (
     <>
@@ -127,6 +137,9 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                   <div className="profile-header-text">
                     <div className="profile-name">{selectedUser.name}</div>
                     <div className="profile-email">{selectedUser.email}</div>
+                    {kernels !== null && (
+                      <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
+                    )}
                   </div>
                 </div>
 

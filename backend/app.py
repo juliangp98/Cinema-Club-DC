@@ -352,6 +352,125 @@ class Message(db.Model):
     user = db.relationship('User', lazy=True)
 
 
+# ─── Poll Models ─────────────────────────────────────────────────────────────
+
+class Poll(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, default='')
+    poll_type = db.Column(db.String(20), default='standard')  # 'standard' | 'prediction'
+    scoring_mode = db.Column(db.String(20), default='none')   # 'none' | 'single' | 'ranked' | 'confidence'
+    status = db.Column(db.String(20), default='open')         # 'open' | 'closed' | 'scored'
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    closed_at = db.Column(db.DateTime, nullable=True)
+
+    group = db.relationship('Group', lazy=True)
+    creator = db.relationship('User', lazy=True)
+    categories = db.relationship('PollCategory', backref='poll', lazy=True, cascade='all, delete-orphan',
+                                 order_by='PollCategory.sort_order')
+
+    def to_dict(self, include_categories=False, user_id=None):
+        d = {
+            'id': self.id,
+            'group_id': self.group_id,
+            'created_by': self.created_by,
+            'creator_name': self.creator.name if self.creator else None,
+            'title': self.title,
+            'description': self.description or '',
+            'poll_type': self.poll_type,
+            'scoring_mode': self.scoring_mode,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'closed_at': self.closed_at.isoformat() if self.closed_at else None,
+            'category_count': len(self.categories),
+        }
+        if include_categories:
+            d['categories'] = [c.to_dict(user_id=user_id, show_winner=self.status == 'scored') for c in self.categories]
+        return d
+
+
+class PollCategory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    correct_option_id = db.Column(db.Integer, nullable=True)
+
+    options = db.relationship('PollOption', backref='category', lazy=True, cascade='all, delete-orphan',
+                              order_by='PollOption.sort_order')
+    votes = db.relationship('PollVote', backref='category', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self, user_id=None, show_winner=False):
+        d = {
+            'id': self.id,
+            'title': self.title,
+            'sort_order': self.sort_order,
+            'options': [o.to_dict() for o in self.options],
+            'correct_option_id': self.correct_option_id if show_winner else None,
+            'vote_count': len(self.votes),
+        }
+        if user_id:
+            user_votes = [v for v in self.votes if v.user_id == user_id]
+            if user_votes:
+                if self.poll.scoring_mode == 'ranked':
+                    d['user_votes'] = sorted(
+                        [{'option_id': v.option_id, 'rank': v.rank} for v in user_votes],
+                        key=lambda x: x['rank'] or 99
+                    )
+                else:
+                    uv = user_votes[0]
+                    d['user_vote'] = {
+                        'option_id': uv.option_id,
+                        'confidence': uv.confidence,
+                        'rank': uv.rank,
+                    }
+        # Vote distribution (visible after user has voted or poll closed)
+        if user_id or show_winner:
+            dist = {}
+            for v in self.votes:
+                dist[v.option_id] = dist.get(v.option_id, 0) + 1
+            d['vote_distribution'] = dist
+        return d
+
+
+class PollOption(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('poll_category.id'), nullable=False)
+    text = db.Column(db.String(300), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)
+    extra_data = db.Column(db.Text, nullable=True)  # JSON: poster_url, details, etc.
+
+    def to_dict(self):
+        import json as _json
+        extra = {}
+        if self.extra_data:
+            try:
+                extra = _json.loads(self.extra_data)
+            except Exception:
+                pass
+        return {
+            'id': self.id,
+            'text': self.text,
+            'sort_order': self.sort_order,
+            'extra': extra,
+        }
+
+
+class PollVote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('poll_category.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    option_id = db.Column(db.Integer, db.ForeignKey('poll_option.id'), nullable=False)
+    confidence = db.Column(db.Integer, default=1)  # 1-10 for confidence scoring
+    rank = db.Column(db.Integer, nullable=True)     # for ranked scoring
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship('User', lazy=True)
+    option = db.relationship('PollOption', lazy=True)
+    __table_args__ = (db.UniqueConstraint('category_id', 'user_id', 'rank'),)
+
+
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 
 def require_auth(f):
@@ -744,6 +863,13 @@ def delete_group(slug):
         return jsonify({'error': 'Admin access required'}), 403
 
     # Delete all group-scoped data in FK-safe order
+    # Delete poll data first (votes → options → categories → polls)
+    for poll in Poll.query.filter_by(group_id=group.id).all():
+        for cat in poll.categories:
+            PollVote.query.filter_by(category_id=cat.id).delete()
+            PollOption.query.filter_by(category_id=cat.id).delete()
+        PollCategory.query.filter_by(poll_id=poll.id).delete()
+    Poll.query.filter_by(group_id=group.id).delete()
     Message.query.filter_by(group_id=group.id).delete()
     Reaction.query.filter_by(group_id=group.id).delete()
     RSVP.query.filter_by(group_id=group.id).delete()
@@ -1165,6 +1291,322 @@ def showtime_gcal_url(sid):
     return jsonify({'url': url})
 
 
+# ─── Routes: Polls ────────────────────────────────────────────────────────────
+
+import json as _json
+
+def _require_group_member(group_id):
+    """Return (user, membership) or abort with JSON error."""
+    user = current_user()
+    membership = GroupMembership.query.filter_by(
+        user_id=user.id, group_id=group_id, status='active'
+    ).first()
+    return user, membership
+
+
+@app.route('/api/groups/<int:group_id>/polls', methods=['GET'])
+@require_auth
+def get_group_polls(group_id):
+    user, membership = _require_group_member(group_id)
+    if not membership:
+        return jsonify({'error': 'Not a group member'}), 403
+    polls = Poll.query.filter_by(group_id=group_id).order_by(Poll.created_at.desc()).all()
+    return jsonify([p.to_dict() for p in polls])
+
+
+@app.route('/api/groups/<int:group_id>/polls', methods=['POST'])
+@require_auth
+def create_poll(group_id):
+    user, membership = _require_group_member(group_id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.json
+    poll = Poll(
+        group_id=group_id,
+        created_by=user.id,
+        title=data.get('title', '').strip(),
+        description=data.get('description', ''),
+        poll_type=data.get('poll_type', 'standard'),
+        scoring_mode=data.get('scoring_mode', 'none'),
+    )
+    if not poll.title:
+        return jsonify({'error': 'Title required'}), 400
+    db.session.add(poll)
+    db.session.flush()  # get poll.id
+
+    for i, cat_data in enumerate(data.get('categories', [])):
+        cat = PollCategory(
+            poll_id=poll.id,
+            title=cat_data.get('title', '').strip(),
+            sort_order=i,
+        )
+        db.session.add(cat)
+        db.session.flush()
+        for j, opt_data in enumerate(cat_data.get('options', [])):
+            extra = opt_data.get('extra')
+            opt = PollOption(
+                category_id=cat.id,
+                text=opt_data.get('text', '').strip(),
+                sort_order=j,
+                extra_data=_json.dumps(extra) if extra else None,
+            )
+            db.session.add(opt)
+
+    db.session.commit()
+    return jsonify(poll.to_dict(include_categories=True)), 201
+
+
+@app.route('/api/groups/<int:group_id>/polls/oscars', methods=['POST'])
+@require_auth
+def create_oscars_poll(group_id):
+    user, membership = _require_group_member(group_id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    # Load template
+    template_path = os.path.join(os.path.dirname(__file__), 'oscars_2026.json')
+    if not os.path.exists(template_path):
+        return jsonify({'error': 'Oscars template not found'}), 404
+
+    with open(template_path) as f:
+        tmpl = _json.load(f)
+
+    data = request.json or {}
+    scoring_mode = data.get('scoring_mode', 'confidence')
+
+    poll = Poll(
+        group_id=group_id,
+        created_by=user.id,
+        title=tmpl.get('title', 'Oscar Predictions'),
+        description=tmpl.get('description', ''),
+        poll_type='prediction',
+        scoring_mode=scoring_mode,
+    )
+    db.session.add(poll)
+    db.session.flush()
+
+    for i, cat_data in enumerate(tmpl.get('categories', [])):
+        cat = PollCategory(
+            poll_id=poll.id,
+            title=cat_data['title'],
+            sort_order=i,
+        )
+        db.session.add(cat)
+        db.session.flush()
+        for j, nom in enumerate(cat_data.get('nominees', [])):
+            extra = nom.get('extra')
+            opt = PollOption(
+                category_id=cat.id,
+                text=nom['text'],
+                sort_order=j,
+                extra_data=_json.dumps(extra) if extra else None,
+            )
+            db.session.add(opt)
+
+    db.session.commit()
+    return jsonify(poll.to_dict(include_categories=True)), 201
+
+
+@app.route('/api/polls/<int:poll_id>', methods=['GET'])
+@require_auth
+def get_poll(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    user, membership = _require_group_member(poll.group_id)
+    if not membership:
+        return jsonify({'error': 'Not a group member'}), 403
+    return jsonify(poll.to_dict(include_categories=True, user_id=user.id))
+
+
+@app.route('/api/polls/<int:poll_id>', methods=['PUT'])
+@require_auth
+def update_poll(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    user, membership = _require_group_member(poll.group_id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.json
+    if 'title' in data:
+        poll.title = data['title'].strip()
+    if 'description' in data:
+        poll.description = data['description']
+    if 'poll_type' in data and data['poll_type'] in ('standard', 'prediction'):
+        poll.poll_type = data['poll_type']
+    if 'scoring_mode' in data and data['scoring_mode'] in ('none', 'single', 'ranked', 'confidence'):
+        poll.scoring_mode = data['scoring_mode']
+    if 'status' in data and data['status'] in ('open', 'closed'):
+        poll.status = data['status']
+        if data['status'] == 'closed':
+            poll.closed_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return jsonify(poll.to_dict())
+
+
+@app.route('/api/polls/<int:poll_id>', methods=['DELETE'])
+@require_auth
+def delete_poll(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    user, membership = _require_group_member(poll.group_id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    db.session.delete(poll)
+    db.session.commit()
+    return jsonify({'message': 'Poll deleted'})
+
+
+@app.route('/api/polls/<int:poll_id>/vote', methods=['POST'])
+@require_auth
+def submit_votes(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    if poll.status != 'open':
+        return jsonify({'error': 'Poll is not open for voting'}), 400
+    user, membership = _require_group_member(poll.group_id)
+    if not membership:
+        return jsonify({'error': 'Not a group member'}), 403
+
+    data = request.json  # { votes: [{ category_id, option_id, confidence?, rank? }] }
+    votes_data = data.get('votes', [])
+
+    # Validate all votes first, then delete-and-insert per category
+    valid_votes = []
+    seen_cats = set()
+    for v in votes_data:
+        cat_id = v.get('category_id')
+        opt_id = v.get('option_id')
+        confidence = max(1, min(10, int(v.get('confidence', 1))))
+        rank = v.get('rank')
+
+        cat = db.session.get(PollCategory, cat_id)
+        if not cat or cat.poll_id != poll.id:
+            continue
+        opt = db.session.get(PollOption, opt_id)
+        if not opt or opt.category_id != cat_id:
+            continue
+
+        valid_votes.append((cat_id, opt_id, confidence, rank))
+        seen_cats.add(cat_id)
+
+    # Delete existing votes for each mentioned category (handles ranked re-submissions cleanly)
+    for cat_id in seen_cats:
+        PollVote.query.filter_by(category_id=cat_id, user_id=user.id).delete()
+
+    for cat_id, opt_id, confidence, rank in valid_votes:
+        db.session.add(PollVote(
+            category_id=cat_id,
+            user_id=user.id,
+            option_id=opt_id,
+            confidence=confidence,
+            rank=rank,
+        ))
+
+    db.session.commit()
+    return jsonify({'message': 'Votes submitted', 'count': len(valid_votes)})
+
+
+@app.route('/api/polls/<int:poll_id>/score', methods=['POST'])
+@require_auth
+def score_poll(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    user, membership = _require_group_member(poll.group_id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.json  # { winners: { category_id: option_id } }
+    winners = data.get('winners', {})
+
+    for cat_id_str, opt_id in winners.items():
+        cat_id = int(cat_id_str)
+        cat = db.session.get(PollCategory, cat_id)
+        if cat and cat.poll_id == poll.id:
+            cat.correct_option_id = opt_id
+
+    poll.status = 'scored'
+    poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
+    db.session.commit()
+
+    return jsonify(poll.to_dict(include_categories=True))
+
+
+@app.route('/api/polls/<int:poll_id>/leaderboard', methods=['GET'])
+@require_auth
+def poll_leaderboard(poll_id):
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return jsonify({'error': 'Poll not found'}), 404
+    user, membership = _require_group_member(poll.group_id)
+    if not membership:
+        return jsonify({'error': 'Not a group member'}), 403
+
+    # Calculate scores per user
+    scores = {}
+    for cat in poll.categories:
+        correct_id = cat.correct_option_id
+        for vote in cat.votes:
+            uid = vote.user_id
+            if uid not in scores:
+                scores[uid] = {'correct': 0, 'kernels': 0, 'total': 0}
+            scores[uid]['total'] += 1
+            if correct_id and vote.option_id == correct_id:
+                scores[uid]['correct'] += 1
+                if poll.scoring_mode == 'confidence':
+                    scores[uid]['kernels'] += vote.confidence
+                elif poll.scoring_mode == 'single':
+                    scores[uid]['kernels'] += 1
+                elif poll.scoring_mode == 'ranked':
+                    # For ranked: award points based on rank (lower rank = more points)
+                    scores[uid]['kernels'] += max(1, 4 - (vote.rank or 1))
+
+    # Build leaderboard
+    leaderboard = []
+    for uid, s in scores.items():
+        u = db.session.get(User, uid)
+        if u:
+            leaderboard.append({
+                'user': u.to_dict(),
+                'correct': s['correct'],
+                'kernels': s['kernels'],
+                'total': s['total'],
+            })
+
+    leaderboard.sort(key=lambda x: (-x['kernels'], -x['correct']))
+    return jsonify(leaderboard)
+
+
+@app.route('/api/users/<int:user_id>/kernels', methods=['GET'])
+@require_auth
+def user_kernels(user_id):
+    """Get total popcorn kernels earned across all scored polls."""
+    total = 0
+    votes = PollVote.query.filter_by(user_id=user_id).all()
+    for vote in votes:
+        cat = vote.category
+        if not cat or not cat.correct_option_id:
+            continue
+        poll = cat.poll
+        if not poll or poll.status != 'scored':
+            continue
+        if vote.option_id == cat.correct_option_id:
+            if poll.scoring_mode == 'confidence':
+                total += vote.confidence
+            elif poll.scoring_mode == 'single':
+                total += 1
+            elif poll.scoring_mode == 'ranked':
+                total += max(1, 4 - (vote.rank or 1))
+    return jsonify({'user_id': user_id, 'kernels': total})
+
+
 # ─── Init ─────────────────────────────────────────────────────────────────────
 
 def migrate():
@@ -1182,6 +1624,44 @@ def migrate():
             db.session.execute(db.text(sql))
         except Exception:
             pass  # column already exists
+    db.session.commit()
+    _migrate_poll_vote_ranked_constraint()
+
+
+def _migrate_poll_vote_ranked_constraint():
+    """Recreate poll_vote with UNIQUE(category_id, user_id, rank) to support ranked voting."""
+    import re
+    row = db.session.execute(db.text(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='poll_vote'"
+    )).fetchone()
+    if not row or not row[0]:
+        return
+    create_sql = row[0].lower()
+    # Check if there's a UNIQUE constraint on (category_id, user_id) without rank
+    needs_migration = False
+    for match in re.finditer(r'unique\s*\(([^)]+)\)', create_sql):
+        cols = [c.strip() for c in match.group(1).split(',')]
+        if 'category_id' in cols and 'user_id' in cols and 'rank' not in cols:
+            needs_migration = True
+            break
+    if not needs_migration:
+        return
+    db.session.execute(db.text("DROP TABLE IF EXISTS poll_vote_new"))
+    db.session.execute(db.text("""
+        CREATE TABLE poll_vote_new (
+            id INTEGER PRIMARY KEY,
+            category_id INTEGER NOT NULL REFERENCES poll_category(id),
+            user_id INTEGER NOT NULL REFERENCES user(id),
+            option_id INTEGER NOT NULL REFERENCES poll_option(id),
+            confidence INTEGER DEFAULT 1,
+            rank INTEGER,
+            created_at DATETIME,
+            UNIQUE (category_id, user_id, rank)
+        )
+    """))
+    db.session.execute(db.text("INSERT OR IGNORE INTO poll_vote_new SELECT * FROM poll_vote"))
+    db.session.execute(db.text("DROP TABLE poll_vote"))
+    db.session.execute(db.text("ALTER TABLE poll_vote_new RENAME TO poll_vote"))
     db.session.commit()
 
 

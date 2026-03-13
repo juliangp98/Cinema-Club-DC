@@ -409,19 +409,38 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
           </button>
           {showTheatreDD && (
             <div className="filter-dd-menu">
-              {allTheatres
-                .filter(t => groupTheatres.includes(t.slug))
-                .map(t => (
-                  <label key={t.slug} className="filter-dd-item" data-theatre={t.slug}>
-                    <input
-                      type="checkbox"
-                      checked={activeTheatres.has(t.slug)}
-                      onChange={() => toggleTheatre(t.slug)}
-                    />
-                    <span className="filter-dot" data-theatre={t.slug} />
-                    {THEATRE_SHORT[t.slug] || t.name}
-                  </label>
-                ))}
+              {(() => {
+                const visible = allTheatres.filter(t => groupTheatres.includes(t.slug));
+                const allSelected = visible.every(t => activeTheatres.has(t.slug));
+                return (
+                  <>
+                    {visible.length > 1 && (
+                      <button
+                        className="filter-select-all"
+                        onClick={() => {
+                          setActiveTheatres(allSelected
+                            ? new Set()
+                            : new Set(visible.map(t => t.slug))
+                          );
+                        }}
+                      >
+                        {allSelected ? "Deselect All" : "Select All"}
+                      </button>
+                    )}
+                    {visible.map(t => (
+                      <label key={t.slug} className="filter-dd-item" data-theatre={t.slug}>
+                        <input
+                          type="checkbox"
+                          checked={activeTheatres.has(t.slug)}
+                          onChange={() => toggleTheatre(t.slug)}
+                        />
+                        <span className="filter-dot" data-theatre={t.slug} />
+                        {THEATRE_SHORT[t.slug] || t.name}
+                      </label>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -450,6 +469,20 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
             <div className="filter-dd-menu filter-member-menu">
               {groupMembers.length === 0 && (
                 <div className="filter-dd-empty">No members</div>
+              )}
+              {groupMembers.length > 1 && (
+                <button
+                  className="filter-select-all"
+                  onClick={() => {
+                    const allSelected = groupMembers.every(m => selectedMembers.has(m.id));
+                    setSelectedMembers(allSelected
+                      ? new Set()
+                      : new Set(groupMembers.map(m => m.id))
+                    );
+                  }}
+                >
+                  {groupMembers.every(m => selectedMembers.has(m.id)) ? "Deselect All" : "Select All"}
+                </button>
               )}
               {groupMembers.map(m => (
                 <label key={m.id} className="filter-dd-item filter-member-item">

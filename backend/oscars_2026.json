@@ -1,0 +1,253 @@
+{
+  "title": "98th Academy Awards Predictions",
+  "description": "Pick your winners for every Oscar category and earn kernels for each correct prediction!",
+  "year": 2026,
+  "ceremony_date": "2026-03-15",
+  "categories": [
+    {
+      "title": "Best Picture",
+      "nominees": [
+        { "text": "Bugonia" },
+        { "text": "F1" },
+        { "text": "Frankenstein" },
+        { "text": "Hamnet" },
+        { "text": "Marty Supreme" },
+        { "text": "One Battle After Another" },
+        { "text": "The Secret Agent" },
+        { "text": "Sentimental Value" },
+        { "text": "Sinners" },
+        { "text": "Train Dreams" }
+      ]
+    },
+    {
+      "title": "Best Director",
+      "nominees": [
+        { "text": "Paul Thomas Anderson — One Battle After Another" },
+        { "text": "Ryan Coogler — Sinners" },
+        { "text": "Josh Safdie — Marty Supreme" },
+        { "text": "Joachim Trier — Sentimental Value" },
+        { "text": "Chloé Zhao — Hamnet" }
+      ]
+    },
+    {
+      "title": "Best Actress",
+      "nominees": [
+        { "text": "Jessie Buckley — Hamnet" },
+        { "text": "Rose Byrne — If I Had Legs I'd Kick You" },
+        { "text": "Kate Hudson — Song Sung Blue" },
+        { "text": "Renate Reinsve — Sentimental Value" },
+        { "text": "Emma Stone — Bugonia" }
+      ]
+    },
+    {
+      "title": "Best Actor",
+      "nominees": [
+        { "text": "Timothée Chalamet — Marty Supreme" },
+        { "text": "Leonardo DiCaprio — One Battle After Another" },
+        { "text": "Ethan Hawke — Blue Moon" },
+        { "text": "Michael B. Jordan — Sinners" },
+        { "text": "Wagner Moura — The Secret Agent" }
+      ]
+    },
+    {
+      "title": "Best Supporting Actress",
+      "nominees": [
+        { "text": "Elle Fanning — Sentimental Value" },
+        { "text": "Inga Ibsdotter Lilleaas — Sentimental Value" },
+        { "text": "Amy Madigan — Weapons" },
+        { "text": "Wunmi Mosaku — Sinners" },
+        { "text": "Teyana Taylor — One Battle After Another" }
+      ]
+    },
+    {
+      "title": "Best Supporting Actor",
+      "nominees": [
+        { "text": "Benicio del Toro — One Battle After Another" },
+        { "text": "Jacob Elordi — Frankenstein" },
+        { "text": "Delroy Lindo — Sinners" },
+        { "text": "Sean Penn — One Battle After Another" },
+        { "text": "Stellan Skarsgård — Sentimental Value" }
+      ]
+    },
+    {
+      "title": "Best Casting",
+      "nominees": [
+        { "text": "Hamnet — Nina Gold" },
+        { "text": "Marty Supreme — Jennifer Venditti" },
+        { "text": "One Battle After Another — Cassandra Kulukundis" },
+        { "text": "The Secret Agent — Gabriel Domingues" },
+        { "text": "Sinners — Francine Maisler" }
+      ]
+    },
+    {
+      "title": "Best Animated Feature",
+      "nominees": [
+        { "text": "Arco" },
+        { "text": "Elio" },
+        { "text": "KPop Demon Hunters" },
+        { "text": "Little Amélie or the Character of Rain" },
+        { "text": "Zootopia 2" }
+      ]
+    },
+    {
+      "title": "Best Original Screenplay",
+      "nominees": [
+        { "text": "Blue Moon — Robert Kaplow" },
+        { "text": "It Was Just an Accident — Jafar Panahi" },
+        { "text": "Marty Supreme — Ronald Bronstein & Josh Safdie" },
+        { "text": "Sentimental Value — Eskil Vogt & Joachim Trier" },
+        { "text": "Sinners — Ryan Coogler" }
+      ]
+    },
+    {
+      "title": "Best Adapted Screenplay",
+      "nominees": [
+        { "text": "Bugonia — Will Tracy" },
+        { "text": "Frankenstein — Guillermo del Toro" },
+        { "text": "Hamnet — Chloé Zhao & Maggie O'Farrell" },
+        { "text": "One Battle After Another — Paul Thomas Anderson" },
+        { "text": "Train Dreams — Clint Bentley & Greg Kwedar" }
+      ]
+    },
+    {
+      "title": "Best International Feature Film",
+      "nominees": [
+        { "text": "It Was Just an Accident (France)" },
+        { "text": "The Secret Agent (Brazil)" },
+        { "text": "Sentimental Value (Norway)" },
+        { "text": "Sirāt (Spain)" },
+        { "text": "The Voice of Hind Rajab (Tunisia)" }
+      ]
+    },
+    {
+      "title": "Best Documentary Feature",
+      "nominees": [
+        { "text": "The Alabama Solution" },
+        { "text": "Come See Me in the Good Light" },
+        { "text": "Cutting Through Rocks" },
+        { "text": "Mr. Nobody Against Putin" },
+        { "text": "The Perfect Neighbor" }
+      ]
+    },
+    {
+      "title": "Best Cinematography",
+      "nominees": [
+        { "text": "Frankenstein — Dan Laustsen" },
+        { "text": "Marty Supreme — Darius Khondji" },
+        { "text": "One Battle After Another — Michael Bauman" },
+        { "text": "Sinners — Autumn Durald Arkapaw" },
+        { "text": "Train Dreams — Adolpho Veloso" }
+      ]
+    },
+    {
+      "title": "Best Film Editing",
+      "nominees": [
+        { "text": "F1" },
+        { "text": "Marty Supreme" },
+        { "text": "One Battle After Another" },
+        { "text": "Sentimental Value" },
+        { "text": "Sinners" }
+      ]
+    },
+    {
+      "title": "Best Original Score",
+      "nominees": [
+        { "text": "Bugonia — Jerskin Fendrix" },
+        { "text": "Frankenstein — Alexandre Desplat" },
+        { "text": "Hamnet — Max Richter" },
+        { "text": "One Battle After Another — Jonny Greenwood" },
+        { "text": "Sinners — Ludwig Göransson" }
+      ]
+    },
+    {
+      "title": "Best Original Song",
+      "nominees": [
+        { "text": "\"Dear Me\" — Diane Warren: Relentless" },
+        { "text": "\"Golden\" — KPop Demon Hunters" },
+        { "text": "\"I Lied To You\" — Sinners" },
+        { "text": "\"Sweet Dreams Of Joy\" — Viva Verdi!" },
+        { "text": "\"Train Dreams\" — Train Dreams" }
+      ]
+    },
+    {
+      "title": "Best Production Design",
+      "nominees": [
+        { "text": "Frankenstein" },
+        { "text": "Hamnet" },
+        { "text": "Marty Supreme" },
+        { "text": "One Battle After Another" },
+        { "text": "Sinners" }
+      ]
+    },
+    {
+      "title": "Best Costume Design",
+      "nominees": [
+        { "text": "Avatar: Fire and Ash" },
+        { "text": "Frankenstein" },
+        { "text": "Hamnet" },
+        { "text": "Marty Supreme" },
+        { "text": "Sinners" }
+      ]
+    },
+    {
+      "title": "Best Makeup and Hairstyling",
+      "nominees": [
+        { "text": "Frankenstein" },
+        { "text": "Kokuho" },
+        { "text": "Sinners" },
+        { "text": "The Smashing Machine" },
+        { "text": "The Ugly Stepsister" }
+      ]
+    },
+    {
+      "title": "Best Sound",
+      "nominees": [
+        { "text": "F1" },
+        { "text": "Frankenstein" },
+        { "text": "One Battle After Another" },
+        { "text": "Sinners" },
+        { "text": "Sirāt" }
+      ]
+    },
+    {
+      "title": "Best Visual Effects",
+      "nominees": [
+        { "text": "Avatar: Fire and Ash" },
+        { "text": "F1" },
+        { "text": "Jurassic World Rebirth" },
+        { "text": "The Lost Bus" },
+        { "text": "Sinners" }
+      ]
+    },
+    {
+      "title": "Best Documentary Short Film",
+      "nominees": [
+        { "text": "All the Empty Rooms" },
+        { "text": "Armed Only with a Camera: The Life and Death of Brent Renaud" },
+        { "text": "Children No More: Were and Are Gone" },
+        { "text": "The Devil Is Busy" },
+        { "text": "Perfectly a Strangeness" }
+      ]
+    },
+    {
+      "title": "Best Animated Short Film",
+      "nominees": [
+        { "text": "Butterfly" },
+        { "text": "Forevergreen" },
+        { "text": "The Girl Who Cried Pearls" },
+        { "text": "Retirement Plan" },
+        { "text": "The Three Sisters" }
+      ]
+    },
+    {
+      "title": "Best Live Action Short Film",
+      "nominees": [
+        { "text": "Butcher's Stain" },
+        { "text": "A Friend of Dorothy" },
+        { "text": "Jane Austen's Period Drama" },
+        { "text": "The Singers" },
+        { "text": "Two People Exchanging Saliva" }
+      ]
+    }
+  ]
+}
