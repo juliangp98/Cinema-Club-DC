@@ -19,11 +19,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def get_soup(url, timeout=15):
+def get_soup(url, timeout=15, retries=3):
     headers = {'User-Agent': 'Mozilla/5.0 (compatible; CinemaClubBot/1.0)'}
-    r = requests.get(url, headers=headers, timeout=timeout)
-    r.raise_for_status()
-    return BeautifulSoup(r.text, 'html.parser')
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, headers=headers, timeout=timeout)
+            r.raise_for_status()
+            return BeautifulSoup(r.text, 'html.parser')
+        except (requests.ConnectionError, requests.Timeout) as e:
+            if attempt < retries - 1:
+                wait = 2 ** attempt
+                print(f"  Retry {attempt + 1}/{retries} for {url} (waiting {wait}s)")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def safe_text(tag, strip=True):
