@@ -29,7 +29,8 @@
       "Bash(curl -svk --max-time 10 https://cinemaclubdc.com)",
       "Bash(curl -svk --max-time 15 https://cinemaclubdc.com)",
       "Bash(ls -la /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/*.py)",
-      "Bash(grep -E '\\\\.\\(env|txt|cfg|yaml|yml|json\\)$|requirements|Dockerfile')"
+      "Bash(grep -E '\\\\.\\(env|txt|cfg|yaml|yml|json\\)$|requirements|Dockerfile')",
+      "Bash(git rm:*)"
     ]
   }
 }
