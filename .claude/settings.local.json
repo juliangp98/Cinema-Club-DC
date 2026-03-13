@@ -33,7 +33,9 @@
       "Bash(git rm:*)",
       "Bash(lsof -ti:5173)",
       "Bash(xargs ls:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
