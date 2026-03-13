@@ -1103,6 +1103,10 @@ input { font-family: inherit; }
   border-radius: var(--radius);
   transition: all 0.15s;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
 }
 .group-switcher-btn:hover { border-color: var(--amber); }
 .group-switcher-caret {
@@ -1134,14 +1138,29 @@ input { font-family: inherit; }
 }
 .group-dropdown-item:hover { background: var(--bg3); }
 .group-dropdown-item.active { color: var(--amber); }
-.group-dropdown-item.browse {
-  color: var(--muted);
-  font-size: 0.6rem;
+.group-dropdown-name { flex: 1; }
+.group-dropdown-actions {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+}
+.group-dropdown-action {
+  flex: 1;
+  font-size: 0.55rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
 }
-.group-dropdown-item.browse:hover { color: var(--amber); }
-.group-dropdown-name { flex: 1; }
+.group-dropdown-action:hover { border-color: var(--amber); color: var(--amber); }
 .group-role-badge {
   font-size: 0.5rem;
   letter-spacing: 0.1em;
@@ -1152,9 +1171,7 @@ input { font-family: inherit; }
   border-radius: 8px;
 }
 .group-dropdown-divider {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 0.25rem 0;
+  display: none;
 }
 
 /* ── Group Discovery Page ──────────────────────────────────────────────── */
@@ -1846,9 +1863,7 @@ input { font-family: inherit; }
   .filter-time-label { display: none; }
   .filter-time-pill { padding: 0.25rem 0.45rem; }
   .group-switcher-btn {
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    max-width: none;
   }
   .group-dropdown {
     right: 0;
@@ -1995,7 +2010,7 @@ input { font-family: inherit; }
   .nav-range { font-size: 0.55rem; }
   .nav-week { gap: 0.3rem; }
   .user-avatar { width: 26px; height: 26px; font-size: 0.6rem; }
-  .group-switcher-btn { max-width: 120px; font-size: 0.52rem; }
+  .group-switcher-btn { font-size: 0.52rem; }
   .filter-dd-btn { font-size: 0.52rem; padding: 0.2rem 0.4rem; }
   .filter-time-pill { font-size: 0.48rem; }
   .filter-search-input { font-size: 0.55rem; }

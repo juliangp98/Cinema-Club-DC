@@ -59,21 +59,22 @@ export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId, onVi
                 {g.role === "admin" && <span className="group-role-badge">admin</span>}
               </button>
             ))}
-            <hr className="group-dropdown-divider" />
-            {activeGroup && (
+            <div className="group-dropdown-actions">
+              {activeGroup && (
+                <button
+                  className="group-dropdown-action"
+                  onClick={() => { setOpen(false); setShowMembers(true); }}
+                >
+                  Members
+                </button>
+              )}
               <button
-                className="group-dropdown-item"
-                onClick={() => { setOpen(false); setShowMembers(true); }}
+                className="group-dropdown-action"
+                onClick={() => { setOpen(false); navigate("/groups"); }}
               >
-                View Members
+                Browse
               </button>
-            )}
-            <button
-              className="group-dropdown-item browse"
-              onClick={() => { setOpen(false); navigate("/groups"); }}
-            >
-              Browse Groups
-            </button>
+            </div>
           </div>
         )}
       </div>

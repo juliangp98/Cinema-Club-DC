@@ -172,10 +172,16 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
     setYear(today.getFullYear());
     setMonth(today.getMonth());
     setSelected(null);
-    // scroll to today's cell after render
+    // scroll to today's cell within the calendar grid (not the whole page)
     setTimeout(() => {
       const el = document.querySelector(".cal-day.today");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const container = document.querySelector(".calendar-grid");
+      if (el && container) {
+        const elRect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const offset = elRect.top - containerRect.top + container.scrollTop - container.clientHeight / 2 + elRect.height / 2;
+        container.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+      }
     }, 100);
   }
 
