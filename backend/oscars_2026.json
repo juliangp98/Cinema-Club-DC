@@ -1,0 +1,213 @@
+{
+  "title": "97th Academy Awards Predictions",
+  "description": "Pick your winners for every Oscar category and earn kernels for each correct prediction!",
+  "year": 2025,
+  "ceremony_date": "2025-03-02",
+  "categories": [
+    {
+      "title": "Best Picture",
+      "nominees": [
+        { "text": "Anora" },
+        { "text": "The Brutalist" },
+        { "text": "A Complete Unknown" },
+        { "text": "Conclave" },
+        { "text": "Dune: Part Two" },
+        { "text": "Emilia Pérez" },
+        { "text": "I'm Still Here" },
+        { "text": "Nickel Boys" },
+        { "text": "The Substance" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Director",
+      "nominees": [
+        { "text": "Sean Baker — Anora" },
+        { "text": "Brady Corbet — The Brutalist" },
+        { "text": "James Mangold — A Complete Unknown" },
+        { "text": "Jacques Audiard — Emilia Pérez" },
+        { "text": "Coralie Fargeat — The Substance" }
+      ]
+    },
+    {
+      "title": "Best Actress",
+      "nominees": [
+        { "text": "Cynthia Erivo — Wicked" },
+        { "text": "Karla Sofía Gascón — Emilia Pérez" },
+        { "text": "Mikey Madison — Anora" },
+        { "text": "Demi Moore — The Substance" },
+        { "text": "Fernanda Torres — I'm Still Here" }
+      ]
+    },
+    {
+      "title": "Best Actor",
+      "nominees": [
+        { "text": "Adrien Brody — The Brutalist" },
+        { "text": "Timothée Chalamet — A Complete Unknown" },
+        { "text": "Colman Domingo — Sing Sing" },
+        { "text": "Ralph Fiennes — Conclave" },
+        { "text": "Sebastian Stan — The Apprentice" }
+      ]
+    },
+    {
+      "title": "Best Supporting Actress",
+      "nominees": [
+        { "text": "Monica Barbaro — A Complete Unknown" },
+        { "text": "Ariana Grande — Wicked" },
+        { "text": "Felicity Jones — The Brutalist" },
+        { "text": "Isabella Rossellini — Conclave" },
+        { "text": "Zoe Saldaña — Emilia Pérez" }
+      ]
+    },
+    {
+      "title": "Best Supporting Actor",
+      "nominees": [
+        { "text": "Yura Borisov — Anora" },
+        { "text": "Kieran Culkin — A Real Pain" },
+        { "text": "Edward Norton — A Complete Unknown" },
+        { "text": "Guy Pearce — The Brutalist" },
+        { "text": "Jeremy Strong — The Apprentice" }
+      ]
+    },
+    {
+      "title": "Best Animated Feature",
+      "nominees": [
+        { "text": "Flow" },
+        { "text": "Inside Out 2" },
+        { "text": "Memoir of a Snail" },
+        { "text": "Wallace & Gromit: Vengeance Most Fowl" },
+        { "text": "The Wild Robot" }
+      ]
+    },
+    {
+      "title": "Best Original Screenplay",
+      "nominees": [
+        { "text": "Anora — Sean Baker" },
+        { "text": "The Brutalist — Brady Corbet & Mona Fastvold" },
+        { "text": "A Real Pain — Jesse Eisenberg" },
+        { "text": "September 5 — Moritz Binder, Tim Fehlbaum & Alex David" },
+        { "text": "The Substance — Coralie Fargeat" }
+      ]
+    },
+    {
+      "title": "Best Adapted Screenplay",
+      "nominees": [
+        { "text": "A Complete Unknown — James Mangold & Jay Cocks" },
+        { "text": "Conclave — Peter Straughan" },
+        { "text": "Emilia Pérez — Jacques Audiard" },
+        { "text": "Nickel Boys — RaMell Ross & Joslyn Barnes" },
+        { "text": "Sing Sing — Clint Bentley & Greg Kwedar" }
+      ]
+    },
+    {
+      "title": "Best International Feature Film",
+      "nominees": [
+        { "text": "Emilia Pérez (France)" },
+        { "text": "The Girl with the Needle (Denmark)" },
+        { "text": "I'm Still Here (Brazil)" },
+        { "text": "The Seed of the Sacred Fig (Germany)" },
+        { "text": "Flow (Latvia)" }
+      ]
+    },
+    {
+      "title": "Best Documentary Feature",
+      "nominees": [
+        { "text": "Black Box Diaries" },
+        { "text": "No Other Land" },
+        { "text": "Porcelain War" },
+        { "text": "Soundtrack to a Coup d'Etat" },
+        { "text": "Sugarcane" }
+      ]
+    },
+    {
+      "title": "Best Cinematography",
+      "nominees": [
+        { "text": "The Brutalist — Lol Crawley" },
+        { "text": "Dune: Part Two — Greig Fraser" },
+        { "text": "Emilia Pérez — Paul Guilhaume" },
+        { "text": "Maria — Dave Garbett" },
+        { "text": "Nosferatu — Jarin Blaschke" }
+      ]
+    },
+    {
+      "title": "Best Film Editing",
+      "nominees": [
+        { "text": "Anora" },
+        { "text": "The Brutalist" },
+        { "text": "Conclave" },
+        { "text": "Emilia Pérez" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Original Score",
+      "nominees": [
+        { "text": "The Brutalist — Daniel Blumberg" },
+        { "text": "Conclave — Volker Bertelmann" },
+        { "text": "Emilia Pérez — Clément Ducol & Camille" },
+        { "text": "Wicked — John Powell & Stephen Schwartz" },
+        { "text": "The Wild Robot — Kris Bowers" }
+      ]
+    },
+    {
+      "title": "Best Original Song",
+      "nominees": [
+        { "text": "\"El Mal\" — Emilia Pérez" },
+        { "text": "\"The Journey\" — The Six Triple Eight" },
+        { "text": "\"Like a Bird\" — Sing Sing" },
+        { "text": "\"Mi Camino\" — Emilia Pérez" },
+        { "text": "\"Never Too Late\" — Elton John: Never Too Late" }
+      ]
+    },
+    {
+      "title": "Best Production Design",
+      "nominees": [
+        { "text": "The Brutalist" },
+        { "text": "Conclave" },
+        { "text": "Dune: Part Two" },
+        { "text": "Nosferatu" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Costume Design",
+      "nominees": [
+        { "text": "A Complete Unknown" },
+        { "text": "Conclave" },
+        { "text": "Gladiator II" },
+        { "text": "Nosferatu" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Makeup and Hairstyling",
+      "nominees": [
+        { "text": "A Different Man" },
+        { "text": "Emilia Pérez" },
+        { "text": "Nosferatu" },
+        { "text": "The Substance" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Sound",
+      "nominees": [
+        { "text": "A Complete Unknown" },
+        { "text": "Dune: Part Two" },
+        { "text": "Emilia Pérez" },
+        { "text": "The Wild Robot" },
+        { "text": "Wicked" }
+      ]
+    },
+    {
+      "title": "Best Visual Effects",
+      "nominees": [
+        { "text": "Alien: Romulus" },
+        { "text": "Better Man" },
+        { "text": "Dune: Part Two" },
+        { "text": "Kingdom of the Planet of the Apes" },
+        { "text": "Wicked" }
+      ]
+    }
+  ]
+}

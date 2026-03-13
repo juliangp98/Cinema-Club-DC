@@ -4,6 +4,8 @@ import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import GroupDiscovery from "./pages/GroupDiscovery";
 import MembersPage from "./pages/MembersPage";
+import PollsPage from "./pages/PollsPage";
+import PollDetailPage from "./pages/PollDetailPage";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -179,6 +181,32 @@ export default function App() {
                 setUser={setUser}
                 apiBase={API_BASE}
                 activeGroupId={activeGroupId}
+              />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/polls"
+          element={
+            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
+              <PollsPage
+                user={user}
+                setUser={setUser}
+                apiBase={API_BASE}
+                activeGroupId={activeGroupId}
+                setGroupId={handleSetGroupId}
+              />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/polls/:pollId"
+          element={
+            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
+              <PollDetailPage
+                user={user}
+                setUser={setUser}
+                apiBase={API_BASE}
               />
             </AuthGuard>
           }

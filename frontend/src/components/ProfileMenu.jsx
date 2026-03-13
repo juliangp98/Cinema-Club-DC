@@ -19,6 +19,7 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [kernels, setKernels] = useState(null);
 
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -32,6 +33,15 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
       window.removeEventListener("mousedown", onClick);
     };
   }, [onClose]);
+
+  // Fetch kernel count
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`${apiBase}/api/users/${user.id}/kernels`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setKernels(d.kernels); })
+      .catch(() => {});
+  }, [user?.id, apiBase]);
 
   function toggleGenre(g) {
     setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
@@ -74,7 +84,12 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
         >
           {(name || "?").slice(0, 2).toUpperCase()}
         </div>
-        <div className="profile-email">{user.email}</div>
+        <div className="profile-header-info">
+          <div className="profile-email">{user.email}</div>
+          {kernels !== null && (
+            <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
+          )}
+        </div>
       </div>
 
       <label className="profile-field-label">Name</label>
