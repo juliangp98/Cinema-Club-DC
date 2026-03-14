@@ -645,7 +645,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
                       );
                     })}
                   </div>
-                  {isAdmin && poll.status === "closed" && (
+                  {isAdmin && poll.status !== "scored" && (
                     <div className="poll-winner-select">
                       <label className="poll-form-label">Select winner:</label>
                       <select
@@ -701,7 +701,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
                   )}
                 </div>
                 <div className="poll-results-actions-right">
-                  {poll.status === "closed" && (
+                  {poll.status !== "scored" && (
                     <button
                       className="poll-submit-btn"
                       onClick={handleScoreWinners}
