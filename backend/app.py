@@ -1727,13 +1727,13 @@ def seed_admin():
         db.session.flush()
 
     # Seed the default group
-    slug = 'chuds-cinema'
+    slug = 'motion-picture-hate-and-derision-society'
     group = Group.query.filter_by(slug=slug).first()
     if not group:
         group = Group(
-            name='Chuds Cinema',
+            name='Motion Picture Hate and Derision Society',
             slug=slug,
-            description='DC arthouse cinema crew',
+            description='',
             created_by=user.id,
             is_public=True,
         )

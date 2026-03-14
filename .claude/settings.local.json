@@ -35,7 +35,18 @@
       "Bash(xargs ls:*)",
       "WebSearch",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ls -la /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/.env* | grep -v venv)",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"SELECT id, name, slug FROM 'group';\" 2>/dev/null || echo \"No group table or empty\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub.db \"SELECT id, name, slug FROM 'group';\" 2>/dev/null || echo \"No group table or empty\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \".tables\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub.db \".tables\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"\nPRAGMA foreign_keys = OFF;\nDELETE FROM poll_vote;\nDELETE FROM poll_option;\nDELETE FROM poll_category;\nDELETE FROM poll;\nDELETE FROM message;\nDELETE FROM reaction;\nUPDATE rsvp SET group_id = NULL;\nDELETE FROM group_membership;\nDELETE FROM 'group';\nPRAGMA foreign_keys = ON;\n\"\necho \"Dev DB cleaned\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub.db \"\nPRAGMA foreign_keys = OFF;\nDELETE FROM message;\nDELETE FROM reaction;\nUPDATE rsvp SET group_id = NULL;\nDELETE FROM group_membership;\nDELETE FROM 'group';\nPRAGMA foreign_keys = ON;\n\"\necho \"Prod DB cleaned\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"SELECT COUNT\\(*\\) FROM 'group'; SELECT COUNT\\(*\\) FROM group_membership;\" && sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub.db \"SELECT COUNT\\(*\\) FROM 'group'; SELECT COUNT\\(*\\) FROM group_membership;\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"SELECT id, name, slug FROM 'group'; SELECT * FROM group_membership;\")",
+      "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"\nPRAGMA foreign_keys = OFF;\nDELETE FROM poll_vote;\nDELETE FROM poll_option;\nDELETE FROM poll_category;\nDELETE FROM poll;\nDELETE FROM message;\nDELETE FROM reaction;\nUPDATE rsvp SET group_id = NULL;\nDELETE FROM group_membership;\nDELETE FROM 'group';\nPRAGMA foreign_keys = ON;\nSELECT 'groups remaining: ' || COUNT\\(*\\) FROM 'group';\n\")",
+      "Bash(grep -r \"gunicorn\\\\|wsgi\\\\|manage.py\\\\|flask\" /Users/julianperez/Documents/Development/Cinema-Club-DC --include=\"*.py\" -l 2>/dev/null | head -10)"
     ]
   }
 }
