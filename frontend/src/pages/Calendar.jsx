@@ -13,8 +13,17 @@ function normalize(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Shorthand theatre names for compact display
-const THEATRE_SHORT = { suns: "SUNS", afi: "AFI", estreet: "E ST" };
+// Deep links from Discord embeds: /?showtime=<id> opens the drawer,
+// /?theatre=<slug> pre-filters the calendar. Captured once at module load
+// (a component-level capture would be consumed by StrictMode's double-mount).
+const DEEP_LINK = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const link = { showtime: params.get("showtime"), theatre: params.get("theatre") };
+  if (link.showtime || link.theatre) {
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+  return link;
+})();
 
 // Time-of-day buckets
 const TIME_BUCKETS = [
@@ -87,6 +96,8 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
   const movieDDRef   = useRef(null);
   const memberDDRef  = useRef(null);
 
+  const deepLinkRef = useRef(DEEP_LINK);
+
   const calDays = buildCalendarDays(year, month);
 
   // Unique movies in current showtimes (for movie search dropdown)
@@ -150,13 +161,38 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
             }
           }
           setGroupTheatres(gTheatres);
-          setActiveTheatres(new Set(gTheatres));
+          // Deep-linked theatre (from a Discord embed) narrows the initial
+          // filter. Deliberately not consumed here — StrictMode runs this
+          // effect twice and both passes must produce the same result.
+          const linkTheatre = deepLinkRef.current.theatre;
+          if (linkTheatre && gTheatres.includes(linkTheatre)) {
+            setActiveTheatres(new Set([linkTheatre]));
+          } else {
+            setActiveTheatres(new Set(gTheatres));
+          }
         }
       } catch { /* ignore */ }
     }
     loadTheatreData();
     setSelectedMembers(new Set());
   }, [apiBase, groupId]);
+
+  // Deep link: open a specific showtime's drawer
+  useEffect(() => {
+    const stId = deepLinkRef.current.showtime;
+    if (!stId || !user) return;
+    deepLinkRef.current.showtime = null;
+    fetch(`${apiBase}/api/showtimes/${stId}${groupId ? `?group_id=${groupId}` : ""}`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (!data) return;
+        const dt = new Date(data.start_time);
+        setYear(dt.getFullYear());
+        setMonth(dt.getMonth());
+        setSelected([data]);
+      })
+      .catch(() => { /* ignore */ });
+  }, [apiBase, groupId, user]);
 
   const fetchShowtimes = useCallback(async () => {
     setLoading(true);
@@ -401,7 +437,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
               {allTheatres
                 .filter(t => groupTheatres.includes(t.slug) && activeTheatres.has(t.slug))
                 .map(t => (
-                  <span key={t.slug} className="filter-dot" data-theatre={t.slug} />
+                  <span key={t.slug} className="filter-dot" data-theatre={t.slug} style={{ "--tcolor": t.color }} />
                 ))}
             </span>
             Theatres
@@ -428,14 +464,14 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                       </button>
                     )}
                     {visible.map(t => (
-                      <label key={t.slug} className="filter-dd-item" data-theatre={t.slug}>
+                      <label key={t.slug} className="filter-dd-item" data-theatre={t.slug} style={{ "--tcolor": t.color }}>
                         <input
                           type="checkbox"
                           checked={activeTheatres.has(t.slug)}
                           onChange={() => toggleTheatre(t.slug)}
                         />
                         <span className="filter-dot" data-theatre={t.slug} />
-                        {THEATRE_SHORT[t.slug] || t.name}
+                        {t.short_name || t.name}
                       </label>
                     ))}
                   </>
@@ -603,6 +639,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                     key={group.key}
                     className={`cal-event${group.allSoldOut ? " cal-event-sold-out" : ""}${group.recommended ? " recommended" : ""}`}
                     data-theatre={group.theatre.slug}
+                    style={{ "--tcolor": group.theatre.color }}
                     onClick={() => setSelected(group.showtimes)}
                   >
                     <span className="cal-event-time">

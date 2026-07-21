@@ -20,6 +20,9 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [kernels, setKernels] = useState(null);
+  const [linkCode, setLinkCode] = useState(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [letterboxd, setLetterboxd] = useState(user.letterboxd_username || "");
 
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -60,6 +63,7 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
           bio,
           avatar_color: avatarColor,
           favorite_genres: genres.join(","),
+          letterboxd_username: letterboxd.trim(),
         }),
       });
       if (r.ok) {
@@ -135,10 +139,48 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
         placeholder="Tell the group about yourself..."
       />
 
+      <input
+        className="profile-input"
+        value={letterboxd}
+        onChange={e => { setLetterboxd(e.target.value); setSaved(false); }}
+        maxLength={60}
+        placeholder="Letterboxd username (optional)"
+      />
+
       <div className="profile-actions">
         <button className="profile-save-btn" onClick={handleSave} disabled={saving}>
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
         </button>
+      </div>
+
+      <hr className="profile-divider" />
+
+      <div className="profile-discord">
+        {user.discord_linked && !linkCode ? (
+          <div className="profile-discord-linked">✅ Discord linked</div>
+        ) : linkCode ? (
+          <div className="profile-discord-code">
+            In Discord, run <code>/link {linkCode}</code>
+            <div className="profile-discord-hint">Code expires in 10 minutes.</div>
+          </div>
+        ) : (
+          <button
+            className="profile-discord-btn"
+            disabled={linkLoading}
+            onClick={async () => {
+              setLinkLoading(true);
+              try {
+                const r = await fetch(`${apiBase}/api/me/discord-link-code`, {
+                  method: "POST", credentials: "include",
+                });
+                if (r.ok) setLinkCode((await r.json()).code);
+              } catch { /* ignore */ }
+              setLinkLoading(false);
+            }}
+          >
+            {linkLoading ? "..." : "🔗 Link Discord"}
+          </button>
+        )}
       </div>
 
       <hr className="profile-divider" />
