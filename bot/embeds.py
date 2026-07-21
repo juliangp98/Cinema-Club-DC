@@ -21,6 +21,18 @@ def _fmt_day(iso):
     return dt.strftime('%a %-m/%-d')
 
 
+def _image_url(url):
+    """Discord rejects an entire embed (400 Bad Request) if a thumbnail/image
+    URL isn't a valid absolute http(s) URL. Many scraped poster URLs are
+    relative paths or malformed, so drop anything that isn't clearly valid.
+    (A 404 on a valid URL is fine — Discord just shows no image.)"""
+    if isinstance(url, str):
+        url = url.strip()
+        if url.startswith(('http://', 'https://')) and ' ' not in url:
+            return url
+    return None
+
+
 def drop_embed(event):
     """Rich announcement for a 'new_drop' scrape event."""
     p = event['payload']
@@ -54,7 +66,8 @@ def drop_embed(event):
         colour=AMBER,
         url=f"{SITE_URL}/?theatre={p.get('theatre_slug', '')}",
     )
-    posters = [m.get('poster_url') for m in p.get('movie_summaries', []) if m.get('poster_url')]
+    posters = [_image_url(m.get('poster_url')) for m in p.get('movie_summaries', [])]
+    posters = [p for p in posters if p]
     if posters:
         embed.set_thumbnail(url=posters[0])
     embed.set_footer(text='Cinema Club DC — tap the title to open the calendar')
@@ -160,8 +173,9 @@ def movie_embed(showtimes, movie):
         colour=AMBER,
         url=f"{SITE_URL}/?showtime={first_id}" if first_id else SITE_URL,
     )
-    if movie.get('poster_url'):
-        embed.set_thumbnail(url=movie['poster_url'])
+    thumb = _image_url(movie.get('poster_url'))
+    if thumb:
+        embed.set_thumbnail(url=thumb)
 
     for day, day_shows in list(group_showtimes_by_day(showtimes).items())[:10]:
         heading = datetime.fromisoformat(day_shows[0]['start_time']).strftime('%A %-m/%-d')

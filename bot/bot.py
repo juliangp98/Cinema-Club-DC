@@ -50,11 +50,22 @@ class CinemaClubBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        if GUILD:
-            self.tree.copy_global_to(guild=GUILD)
-            await self.tree.sync(guild=GUILD)
-        else:
-            await self.tree.sync()
+        try:
+            # Global sync — slash commands work in every server the bot is added
+            # to (takes up to ~1h to first appear in a server; instant after).
+            # DISCORD_GUILD_ID is no longer needed for command registration; if
+            # it's set, we use it once to clear any leftover guild-scoped
+            # commands from a previous per-guild sync so they don't show up as
+            # duplicates next to the global ones.
+            if GUILD:
+                self.tree.clear_commands(guild=GUILD)
+                await self.tree.sync(guild=GUILD)
+                print(f'Cleared leftover guild-scoped commands from {DISCORD_GUILD_ID}')
+            synced = await self.tree.sync()
+            print(f'Synced {len(synced)} global commands '
+                  f'(every server the bot is in; up to ~1h to first appear)')
+        except Exception as e:
+            print(f'Command sync FAILED: {e!r}')
         announce_loop.start()
         digest_loop.start()
 
