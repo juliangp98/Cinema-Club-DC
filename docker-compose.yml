@@ -21,9 +21,10 @@ services:
       dockerfile: Dockerfile.backend
     container_name: cinemaclub-backend
     env_file: .env.production
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    # NOTE: no `dns:` override — the containers inherit the NAS host's resolver
+    # (via Docker's embedded DNS at 127.0.0.11). Forcing public DNS like 8.8.8.8
+    # breaks resolution on networks that block outbound port 53. If you ever DO
+    # need to pin DNS, use a server the NAS can actually reach (e.g. your router).
     volumes:
       - db-data:/app/instance
     restart: unless-stopped
@@ -51,9 +52,9 @@ services:
     env_file: .env.production
     environment:
       - BOT_API_BASE=http://backend:5001
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    # No `dns:` override — see the note on the backend service. The bot needs to
+    # reach discord.com (external) AND backend (internal); inheriting the host's
+    # resolver handles both, whereas a blocked 8.8.8.8 breaks external lookups.
     depends_on:
       - backend
     restart: unless-stopped
