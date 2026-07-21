@@ -628,16 +628,40 @@ input { font-family: inherit; }
   z-index: 1;
 }
 .drawer-close:hover { color: var(--cream); }
-.drawer-poster {
+/* ── Hero banner ───────────────────────────────────────────────────────── */
+.drawer-hero {
+  position: relative;
   width: 100%;
-  height: 240px;
+  height: 180px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg3);
+}
+.drawer-backdrop {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
-  flex-shrink: 0;
+}
+/* When there's no true backdrop we reuse the portrait poster: blur + darken
+   so it reads as a banner rather than a stretched poster. */
+.drawer-hero.poster-fallback .drawer-backdrop {
+  filter: blur(18px) brightness(0.55);
+  transform: scale(1.15);
+}
+.drawer-backdrop-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 35%, var(--bg2) 100%);
+}
+/* Shown when there's no usable image (missing or failed to load) — a plain
+   banner instead of a broken-image icon. */
+.drawer-hero-blank {
+  background: linear-gradient(135deg, var(--bg3) 0%, var(--bg2) 100%);
 }
 .drawer-poster-placeholder {
   width: 100%;
-  height: 180px;
+  height: 140px;
   background: var(--bg3);
   display: flex;
   align-items: center;
@@ -647,11 +671,49 @@ input { font-family: inherit; }
   letter-spacing: 0.2em;
   color: var(--muted);
   flex-shrink: 0;
+  text-align: center;
+  padding: 0 1rem;
 }
 .drawer-content {
   padding: 1.5rem;
   flex: 1;
 }
+
+/* ── Header: poster thumbnail + title block ────────────────────────────── */
+.drawer-header {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  margin-top: -2.75rem;      /* lift the poster to peek over the hero fade */
+  position: relative;
+  margin-bottom: 1rem;
+}
+.drawer-poster-thumb {
+  width: 68px;
+  height: 102px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+  background: var(--bg3);
+}
+.drawer-poster-thumb-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  object-fit: initial;
+}
+.drawer-header-text {
+  flex: 1;
+  min-width: 0;
+  align-self: flex-end;      /* keep title text below the hero, beside poster base */
+}
+.drawer-block { margin-bottom: 1.25rem; }
 .drawer-theatre-badge {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
@@ -684,25 +746,68 @@ input { font-family: inherit; }
   background: color-mix(in srgb, var(--amber) 10%, transparent);
 }
 
+.drawer-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
 .drawer-title {
   font-family: var(--font-serif);
-  font-size: 1.7rem;
+  font-size: 1.45rem;
   line-height: 1.15;
   color: var(--cream);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+.drawer-tagline {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 0.35rem;
 }
 .drawer-meta {
   font-size: 0.68rem;
   color: var(--muted);
   letter-spacing: 0.05em;
-  margin-bottom: 1rem;
 }
 .drawer-desc {
   font-size: 0.8rem;
   line-height: 1.65;
   color: var(--cream);
-  opacity: 0.75;
-  margin-bottom: 1.25rem;
+  opacity: 0.8;
+}
+.drawer-desc + .drawer-awards,
+.drawer-desc + .drawer-starring { margin-top: 0.75rem; }
+.drawer-awards-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.drawer-award-stat {
+  font-size: 0.7rem;
+  color: var(--cream);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.55rem;
+}
+.drawer-award-stat b { color: var(--amber); font-weight: 600; }
+.drawer-award-stat.marquee {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+.drawer-awards-raw {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.drawer-starring {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
 }
 .drawer-section-label {
   font-size: 0.58rem;
@@ -798,6 +903,129 @@ input { font-family: inherit; }
   transition: color 0.15s;
 }
 .trailer-link:hover { color: var(--cream); }
+
+/* ── Content-rating + ratings badges ───────────────────────────────────── */
+.drawer-content-rating {
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.1rem 0.35rem;
+}
+.drawer-ratings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+.drawer-rating-badge {
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  color: var(--cream);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.2rem 0.45rem;
+}
+.drawer-rating-badge.tmdb {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+.drawer-ratings-row .drawer-watch-btn { margin-left: auto; }
+
+/* ── Cast scroller ─────────────────────────────────────────────────────── */
+.drawer-cast-scroll {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  scrollbar-width: thin;
+}
+.drawer-cast-scroll::-webkit-scrollbar { height: 3px; }
+.drawer-cast-scroll::-webkit-scrollbar-track { background: transparent; }
+.drawer-cast-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.drawer-cast-card {
+  flex: 0 0 auto;
+  width: 64px;
+  text-align: center;
+}
+.drawer-cast-photo,
+.drawer-cast-photo-placeholder {
+  width: 64px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: block;
+  background: var(--bg3);
+}
+.drawer-cast-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.drawer-cast-name {
+  font-size: 0.6rem;
+  color: var(--cream);
+  margin-top: 0.3rem;
+  line-height: 1.2;
+}
+.drawer-cast-character {
+  font-size: 0.55rem;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+/* ── Trailer embed (16:9) ──────────────────────────────────────────────── */
+.drawer-trailer-embed {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+.drawer-trailer-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.drawer-trailer-embed + .trailer-link,
+.drawer-section-body .trailer-link { margin-top: 0; }
+
+/* ── Collapsible drawer sections ───────────────────────────────────────── */
+.drawer-section {
+  border-top: 1px solid var(--border);
+}
+.drawer-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.drawer-section-toggle:hover { color: var(--cream); }
+.drawer-section-count { color: var(--border-strong, var(--muted)); opacity: 0.7; }
+.drawer-section-caret { font-size: 0.7rem; letter-spacing: 0; }
+.drawer-section-body { padding-bottom: 1.1rem; }
+/* The screening block sits directly above the first section — give it a divider too */
+.drawer-block + .drawer-section { border-top: 1px solid var(--border); }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 .drawer::-webkit-scrollbar { width: 4px; }
@@ -2845,8 +3073,11 @@ input { font-family: inherit; }
   .drawer {
     width: 100vw;
   }
-  .drawer-poster { height: 180px; }
+  .drawer-hero { height: 150px; }
   .drawer-content { padding: 1rem; }
+  .drawer-header { margin-top: -2.5rem; }
+  .drawer-poster-thumb { width: 60px; height: 90px; }
+  .drawer-cast-scroll { margin: 0 -0.25rem; padding: 0 0.25rem 0.4rem; }
 
   /* ── User profile drawer → full-width ───────── */
   .user-profile-overlay .drawer {
@@ -2929,8 +3160,8 @@ input { font-family: inherit; }
   .cal-event-title { font-size: 0.65rem; }
   .cal-event-time { font-size: 0.5rem; }
 
-  .drawer-title { font-size: 1.3rem; }
-  .drawer-poster { height: 140px; }
+  .drawer-title { font-size: 1.25rem; }
+  .drawer-hero { height: 130px; }
 
   .group-discovery-title { font-size: 1.2rem; }
   .group-section-title { font-size: 0.95rem; }

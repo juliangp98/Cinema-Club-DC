@@ -28,11 +28,60 @@ const RATING_LABELS = {
   "Metacritic": "MC",
 };
 
+// Initials shown when a poster image is missing or fails to load.
+function posterInitials(title) {
+  const words = (title || "").replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  if (!words.length) return "🎬";
+  return words.slice(0, 2).map(w => w[0]).join("").toUpperCase();
+}
+
+// OMDb only gives a summary string (e.g. "Won 3 Oscars. 44 wins & 27
+// nominations total"). Pull out the marquee award + totals for a clean display.
+function parseAwards(str) {
+  if (!str || str === "N/A") return null;
+  const won = str.match(/Won (\d+) ([A-Za-z][A-Za-z ]*?)(?:\.|,|$)/);
+  const nom = str.match(/Nominated for (\d+) ([A-Za-z][A-Za-z ]*?)(?:\.|,|$)/);
+  const wins = str.match(/(\d+)\s+wins?/i);
+  const noms = str.match(/(\d+)\s+nominations?/i);
+  return {
+    raw: str,
+    headline: won ? `Won ${won[1]} ${won[2].trim()}`
+            : nom ? `Nominated for ${nom[1]} ${nom[2].trim()}`
+            : null,
+    wins: wins ? parseInt(wins[1], 10) : null,
+    nominations: noms ? parseInt(noms[1], 10) : null,
+  };
+}
+
+// Collapsible accordion section used for the drawer's informational blocks.
+function Collapsible({ title, count, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="drawer-section">
+      <button
+        type="button"
+        className="drawer-section-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span>
+          {title}
+          {count != null && <span className="drawer-section-count"> ({count})</span>}
+        </span>
+        <span className="drawer-section-caret">{open ? "▴" : "▾"}</span>
+      </button>
+      {open && <div className="drawer-section-body">{children}</div>}
+    </div>
+  );
+}
+
 export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onViewProfile }) {
   const drawerRef = useRef(null);
   const primary = showtimes[0];
   const [reactions, setReactions] = useState(primary.reactions || {});
   const [watching, setWatching] = useState(null); // null until watchlist loads
+  const [posterOk, setPosterOk] = useState(true);
+  const [heroOk, setHeroOk] = useState(true);
 
   useEffect(() => {
     fetch(`${apiBase}/api/watchlist`, { credentials: "include" })
@@ -72,6 +121,8 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
   useEffect(() => {
     setReactions(primary.reactions || {});
+    setPosterOk(true);
+    setHeroOk(true);
   }, [primary]);
 
   const { movie, theatre } = primary;
@@ -116,100 +167,184 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
   const cast = movie.cast || [];
   const ratings = movie.ratings || [];
-  const hasBackdrop = !!movie.backdrop_url;
+  const heroImage = movie.backdrop_url || movie.poster_url || "";
+  const hasTrailer = !!(movie.trailer_key || movie.trailer_link);
+  const whoCount = allAttendees.length + allMaybes.length;
+  const awards = parseAwards(movie.awards);
+  const DOT = "·";
 
   return (
     <div className="drawer-overlay" onClick={handleOverlayClick}>
       <div className="drawer" ref={drawerRef}>
         <button className="drawer-close" onClick={onClose}>&times;</button>
 
-        {/* Hero: backdrop + poster */}
-        {hasBackdrop ? (
-          <div className="drawer-hero">
-            <img className="drawer-backdrop" src={movie.backdrop_url} alt="" />
+        {/* Hero banner: backdrop, or the poster blurred as a fallback. If the
+            image is missing or fails to load, a plain gradient banner is shown
+            instead of a broken-image icon. */}
+        {heroImage && heroOk ? (
+          <div className={`drawer-hero${!movie.backdrop_url ? " poster-fallback" : ""}`}>
+            <img className="drawer-backdrop" src={heroImage} alt="" onError={() => setHeroOk(false)} />
             <div className="drawer-backdrop-fade" />
-            {movie.poster_url && (
-              <img className="drawer-hero-poster" src={movie.poster_url} alt={movie.title} />
-            )}
           </div>
-        ) : movie.poster_url ? (
-          <img className="drawer-poster" src={movie.poster_url} alt={movie.title} />
         ) : (
-          <div className="drawer-poster-placeholder">
-            {movie.title.toUpperCase()}
+          <div className="drawer-hero drawer-hero-blank">
+            <div className="drawer-backdrop-fade" />
           </div>
         )}
 
         <div className="drawer-content">
-          {/* Badge row */}
-          <div className="drawer-badge-row">
-            <span className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}>
-              {theatre.name}
-            </span>
-            {movie.content_rating && (
-              <span className="drawer-content-rating">{movie.content_rating}</span>
+          {/* Header: poster thumbnail + title block */}
+          <div className="drawer-header">
+            {movie.poster_url && posterOk ? (
+              <img
+                className="drawer-poster-thumb"
+                src={movie.poster_url}
+                alt={movie.title}
+                onError={() => setPosterOk(false)}
+              />
+            ) : (
+              <div className="drawer-poster-thumb drawer-poster-thumb-ph">
+                {posterInitials(movie.title)}
+              </div>
             )}
-            {primary.recommended && (
-              <span className="drawer-rec-badge">&#9733; Recommended for you</span>
-            )}
-            {watching !== null && (
-              <button
-                className={`drawer-watch-btn${watching ? " active" : ""}`}
-                onClick={toggleWatch}
-                title={watching ? "On your watchlist — you'll get pinged about new showtimes" : "Add to watchlist"}
-              >
-                {watching ? "👀 Watching" : "＋ Watchlist"}
-              </button>
-            )}
+            <div className="drawer-header-text">
+              <div className="drawer-badge-row">
+                <span className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}>
+                  {theatre.name}
+                </span>
+                {movie.content_rating && (
+                  <span className="drawer-content-rating">{movie.content_rating}</span>
+                )}
+                {primary.recommended && (
+                  <span className="drawer-rec-badge">&#9733; For you</span>
+                )}
+              </div>
+              <h2 className="drawer-title">{movie.title}</h2>
+              {movie.tagline && <p className="drawer-tagline">{movie.tagline}</p>}
+              {metaParts.length > 0 && (
+                <p className="drawer-meta">{metaParts.join(`  ${DOT}  `)}</p>
+              )}
+            </div>
           </div>
 
-          {/* Title */}
-          <h2 className="drawer-title">{movie.title}</h2>
-
-          {/* Tagline */}
-          {movie.tagline && (
-            <p className="drawer-tagline">{movie.tagline}</p>
-          )}
-
-          {/* Meta */}
-          {metaParts.length > 0 && (
-            <p className="drawer-meta">{metaParts.join("  \u00B7  ")}</p>
-          )}
-
-          {/* Ratings row */}
-          {ratings.length > 0 && (
+          {/* Ratings + watchlist */}
+          {(ratings.length > 0 || movie.vote_average > 0 || watching !== null) && (
             <div className="drawer-ratings-row">
               {movie.vote_average > 0 && (
-                <span className="drawer-rating-badge tmdb">
-                  TMDB {movie.vote_average.toFixed(1)}
-                </span>
+                <span className="drawer-rating-badge tmdb">TMDB {movie.vote_average.toFixed(1)}</span>
               )}
               {ratings.map((r, i) => (
                 <span key={i} className="drawer-rating-badge">
                   {RATING_LABELS[r.source] || r.source} {r.value}
                 </span>
               ))}
+              {watching !== null && (
+                <button
+                  className={`drawer-watch-btn${watching ? " active" : ""}`}
+                  onClick={toggleWatch}
+                  title={watching ? "On your watchlist — you'll get pinged about new showtimes" : "Add to watchlist"}
+                >
+                  {watching ? "👀 Watching" : "＋ Watchlist"}
+                </button>
+              )}
             </div>
           )}
 
-          {/* Awards */}
-          {movie.awards && (
-            <p className="drawer-awards">{movie.awards}</p>
+          {/* Screenings + RSVP (always visible) */}
+          <div className="drawer-block">
+            <span className="drawer-section-label">
+              {showtimes.length > 1 ? `Screenings (${showtimes.length})` : "This Screening"}
+            </span>
+            {showtimes.map(s => (
+              <div key={s.id} className="drawer-screening-item">
+                <div className="drawer-showtime-row">
+                  <div style={{ flex: 1 }}>
+                    <div className={`drawer-showtime-time${s.is_sold_out ? " sold-out" : ""}`}>
+                      {formatFullDate(s.start_time)} {DOT} {formatTime(s.start_time)}
+                      {s.end_time && ` – ${formatTime(s.end_time)}`}
+                      {s.is_sold_out && `  ${DOT} SOLD OUT`}
+                    </div>
+                    <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
+                      {RSVP_OPTIONS.map(opt => (
+                        <button
+                          key={opt.status}
+                          className={`rsvp-btn${s.user_rsvp === opt.status ? ` ${opt.status}` : ""}`}
+                          onClick={() => handleRsvpClick(s.id, opt.status, s.user_rsvp)}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {s.purchase_link && !s.is_sold_out && (
+                    <a
+                      href={s.purchase_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="drawer-ticket-link"
+                    >
+                      Tickets {"↗"}
+                    </a>
+                  )}
+                </div>
+                <div className="cal-export-row">
+                  <button className="cal-export-btn" onClick={() => handleGoogleCal(s.id)}>
+                    Google Calendar
+                  </button>
+                  <a
+                    className="cal-export-btn"
+                    href={`${apiBase}/api/showtimes/${s.id}/ical`}
+                    download
+                  >
+                    Apple Calendar
+                  </a>
+                </div>
+              </div>
+            ))}
+            <ReactionBar
+              reactions={reactions}
+              showtimeId={primary.id}
+              groupId={groupId}
+              apiBase={apiBase}
+              onUpdate={setReactions}
+            />
+          </div>
+
+          {/* About */}
+          {(movie.description || (!cast.length && movie.starring)) && (
+            <Collapsible title="About" defaultOpen>
+              {movie.description && <p className="drawer-desc">{movie.description}</p>}
+              {!cast.length && movie.starring && (
+                <p className="drawer-starring">Starring {movie.starring}</p>
+              )}
+            </Collapsible>
           )}
 
-          {/* Description */}
-          {movie.description && (
-            <p className="drawer-desc">
-              {movie.description.length > 400
-                ? movie.description.slice(0, 400) + "\u2026"
-                : movie.description}
-            </p>
+          {/* Awards */}
+          {awards && (
+            <Collapsible title="Awards" defaultOpen>
+              <div className="drawer-awards-stats">
+                {awards.headline && (
+                  <span className="drawer-award-stat marquee">🏆 {awards.headline}</span>
+                )}
+                {awards.wins != null && (
+                  <span className="drawer-award-stat">
+                    <b>{awards.wins}</b> win{awards.wins !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {awards.nominations != null && (
+                  <span className="drawer-award-stat">
+                    <b>{awards.nominations}</b> nomination{awards.nominations !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              <p className="drawer-awards-raw">{awards.raw}</p>
+            </Collapsible>
           )}
 
           {/* Cast */}
           {cast.length > 0 && (
-            <div style={{ marginBottom: "1.25rem" }}>
-              <span className="drawer-section-label">Cast</span>
+            <Collapsible title="Cast" count={cast.length}>
               <div className="drawer-cast-scroll">
                 {cast.map((c, i) => (
                   <div key={i} className="drawer-cast-card">
@@ -221,80 +356,41 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                       </div>
                     )}
                     <div className="drawer-cast-name">{c.name}</div>
-                    {c.character && (
-                      <div className="drawer-cast-character">{c.character}</div>
-                    )}
+                    {c.character && <div className="drawer-cast-character">{c.character}</div>}
                   </div>
                 ))}
               </div>
-            </div>
+            </Collapsible>
           )}
 
-          {/* Screenings */}
-          <span className="drawer-section-label">
-            {showtimes.length > 1 ? `Screenings (${showtimes.length})` : "This Screening"}
-          </span>
-
-          {showtimes.map(s => (
-            <div key={s.id} className="drawer-screening-item">
-              <div className="drawer-showtime-row">
-                <div style={{ flex: 1 }}>
-                  <div className={`drawer-showtime-time${s.is_sold_out ? " sold-out" : ""}`}>
-                    {formatFullDate(s.start_time)} &middot; {formatTime(s.start_time)}
-                    {s.end_time && ` \u2013 ${formatTime(s.end_time)}`}
-                    {s.is_sold_out && "  \u00B7 SOLD OUT"}
-                  </div>
-                  <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
-                    {RSVP_OPTIONS.map(opt => (
-                      <button
-                        key={opt.status}
-                        className={`rsvp-btn${s.user_rsvp === opt.status ? ` ${opt.status}` : ""}`}
-                        onClick={() => handleRsvpClick(s.id, opt.status, s.user_rsvp)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+          {/* Trailer */}
+          {hasTrailer && (
+            <Collapsible title="Trailer">
+              {movie.trailer_key ? (
+                <div className="drawer-trailer-embed">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${movie.trailer_key}`}
+                    title="Trailer"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
                 </div>
-                {s.purchase_link && !s.is_sold_out && (
-                  <a
-                    href={s.purchase_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="drawer-ticket-link"
-                  >
-                    Tickets ↗
-                  </a>
-                )}
-              </div>
-
-              <div className="cal-export-row">
-                <button className="cal-export-btn" onClick={() => handleGoogleCal(s.id)}>
-                  Google Calendar
-                </button>
+              ) : (
                 <a
-                  className="cal-export-btn"
-                  href={`${apiBase}/api/showtimes/${s.id}/ical`}
-                  download
+                  href={movie.trailer_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="trailer-link"
                 >
-                  Apple Calendar
+                  &#9654; Watch Trailer
                 </a>
-              </div>
-            </div>
-          ))}
-
-          {/* Reactions */}
-          <ReactionBar
-            reactions={reactions}
-            showtimeId={primary.id}
-            groupId={groupId}
-            apiBase={apiBase}
-            onUpdate={setReactions}
-          />
+              )}
+            </Collapsible>
+          )}
 
           {/* Who's going */}
-          {(allAttendees.length > 0 || allMaybes.length > 0) && (
-            <div style={{ marginTop: "1.25rem" }}>
+          {whoCount > 0 && (
+            <Collapsible title="Who's Going" count={whoCount} defaultOpen>
               {allAttendees.length > 0 && (
                 <>
                   <span className="drawer-section-label">Going ({allAttendees.length})</span>
@@ -305,10 +401,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                         className="attendee-chip clickable"
                         onClick={() => onViewProfile?.(a.id)}
                       >
-                        <div
-                          className="attendee-avatar"
-                          style={{ background: a.avatar_color, color: "#0d0c09" }}
-                        >
+                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "#0d0c09" }}>
                           {a.name.slice(0, 2).toUpperCase()}
                         </div>
                         {a.name}
@@ -328,10 +421,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                         style={{ opacity: 0.65 }}
                         onClick={() => onViewProfile?.(a.id)}
                       >
-                        <div
-                          className="attendee-avatar"
-                          style={{ background: a.avatar_color, color: "#0d0c09" }}
-                        >
+                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "#0d0c09" }}>
                           {a.name.slice(0, 2).toUpperCase()}
                         </div>
                         {a.name}
@@ -340,47 +430,18 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                   </div>
                 </div>
               )}
-            </div>
+            </Collapsible>
           )}
 
-          {/* Chat */}
-          <ChatSection
-            showtimeId={primary.id}
-            groupId={groupId}
-            apiBase={apiBase}
-            onViewProfile={onViewProfile}
-          />
-
-          {/* Starring (fallback if no cast cards) */}
-          {!cast.length && movie.starring && (
-            <div style={{ marginTop: "1.25rem" }}>
-              <span className="drawer-section-label">Starring</span>
-              <p style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.5 }}>
-                {movie.starring}
-              </p>
-            </div>
-          )}
-
-          {/* Trailer embed or link */}
-          {movie.trailer_key ? (
-            <div className="drawer-trailer-embed">
-              <iframe
-                src={`https://www.youtube.com/embed/${movie.trailer_key}`}
-                title="Trailer"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          ) : movie.trailer_link ? (
-            <a
-              href={movie.trailer_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="trailer-link"
-            >
-              &#9654; Watch Trailer
-            </a>
-          ) : null}
+          {/* Discussion */}
+          <Collapsible title="Discussion">
+            <ChatSection
+              showtimeId={primary.id}
+              groupId={groupId}
+              apiBase={apiBase}
+              onViewProfile={onViewProfile}
+            />
+          </Collapsible>
         </div>
       </div>
     </div>

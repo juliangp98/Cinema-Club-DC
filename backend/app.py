@@ -1248,6 +1248,7 @@ def emit_rsvp_activity(user, showtime, status):
     import json as _json
     payload = {
         'user_name': user.name,
+        'discord_user_id': user.discord_user_id,
         'status': status,
         'movie_title': showtime.movie.title if showtime.movie else '',
         'theatre_name': showtime.theatre.name if showtime.theatre else '',
