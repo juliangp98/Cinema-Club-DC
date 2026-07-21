@@ -95,7 +95,6 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
   const theatreDDRef = useRef(null);
   const movieDDRef   = useRef(null);
   const memberDDRef  = useRef(null);
-
   const deepLinkRef = useRef(DEEP_LINK);
 
   const calDays = buildCalendarDays(year, month);
@@ -519,6 +518,46 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                 >
                   {groupMembers.every(m => selectedMembers.has(m.id)) ? "Deselect All" : "Select All"}
                 </button>
+              )}
+              {groupMembers.map(m => (
+                <label key={m.id} className="filter-dd-item filter-member-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedMembers.has(m.id)}
+                    onChange={() => toggleMember(m.id)}
+                  />
+                  <span className="filter-member-dot" style={{ background: m.avatar_color }} />
+                  {m.name}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Members dropdown */}
+        <div className="filter-dd" ref={memberDDRef}>
+          <button
+            className="filter-dd-btn"
+            onClick={() => { setShowMemberDD(v => !v); setShowTheatreDD(false); setShowMovieDD(false); }}
+          >
+            {selectedMembers.size > 0 && (
+              <span className="filter-dd-dots">
+                {groupMembers
+                  .filter(m => selectedMembers.has(m.id))
+                  .slice(0, 3)
+                  .map(m => (
+                    <span key={m.id} className="filter-dot" style={{ background: m.avatar_color }} />
+                  ))}
+              </span>
+            )}
+            Members
+            {selectedMembers.size > 0 && <span className="filter-badge">{selectedMembers.size}</span>}
+            <span className="filter-dd-arrow">{showMemberDD ? "\u25B4" : "\u25BE"}</span>
+          </button>
+          {showMemberDD && (
+            <div className="filter-dd-menu filter-member-menu">
+              {groupMembers.length === 0 && (
+                <div className="filter-dd-empty">No members</div>
               )}
               {groupMembers.map(m => (
                 <label key={m.id} className="filter-dd-item filter-member-item">

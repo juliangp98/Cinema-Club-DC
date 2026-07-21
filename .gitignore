@@ -3,7 +3,17 @@ backend/venv/
 __pycache__/
 *.pyc
 node_modules/
+
+# Secrets — never commit real values
 .env
 .env.production
 .env.development
+backend/.env
+backend/.env.production
+backend/.env.development
+
+# Safe templates (committed)
+!.env.production.example
+!backend/.env.example
+
 backend/instance/cinemaclub_dev.db
