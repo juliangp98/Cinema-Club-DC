@@ -32,13 +32,12 @@ from api import InternalApi, ApiError
 import embeds
 
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
-DISCORD_GUILD_ID = int(os.environ.get('DISCORD_GUILD_ID', '0') or 0)
 DISCORD_CHANNEL_ID = int(os.environ.get('DISCORD_CHANNEL_ID', '0') or 0)
 DEFAULT_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
 SITE_URL = os.environ.get('SITE_URL', 'https://cinemaclubdc.com')
 
 ET = ZoneInfo('America/New_York')
-GUILD = discord.Object(id=DISCORD_GUILD_ID) if DISCORD_GUILD_ID else None
+# Commands are synced globally (see setup_hook) — no guild ID needed.
 
 api = InternalApi()
 
@@ -52,16 +51,27 @@ class CinemaClubBot(discord.Client):
 
     async def setup_hook(self):
         try:
-            # Global sync — slash commands work in every server the bot is added
-            # to (takes up to ~1h to first appear in a server; instant after).
-            # DISCORD_GUILD_ID is no longer needed for command registration; if
-            # it's set, we use it once to clear any leftover guild-scoped
-            # commands from a previous per-guild sync so they don't show up as
-            # duplicates next to the global ones.
-            if GUILD:
-                self.tree.clear_commands(guild=GUILD)
-                await self.tree.sync(guild=GUILD)
-                print(f'Cleared leftover guild-scoped commands from {DISCORD_GUILD_ID}')
+            # Sweep every server the bot is CURRENTLY in and clear any
+            # guild-scoped commands left over from earlier per-guild syncs
+            # (this bot was pointed at different guilds via DISCORD_GUILD_ID
+            # at different times while testing; a guild that isn't the
+            # *current* value never got cleaned up and keeps showing its old
+            # guild command definitions side-by-side with the new global
+            # ones). Uses fetch_guilds() (a direct API call) rather than
+            # self.guilds, since the gateway-populated cache isn't ready yet
+            # this early in startup. Cheap and a no-op once a guild is clean,
+            # so it's safe to run on every restart.
+            async for guild in self.fetch_guilds(limit=None):
+                try:
+                    self.tree.clear_commands(guild=guild)
+                    await self.tree.sync(guild=guild)
+                except Exception as e:
+                    print(f'Could not clear guild-scoped commands in '
+                          f'{guild.id} ({guild.name}): {e!r}')
+
+            # Global sync — slash commands work in every server the bot is
+            # added to (takes up to ~1h to first appear in a server; instant
+            # to update after that).
             synced = await self.tree.sync()
             print(f'Synced {len(synced)} global commands '
                   f'(every server the bot is in; up to ~1h to first appear)')

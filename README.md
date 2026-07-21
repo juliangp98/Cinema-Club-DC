@@ -125,8 +125,7 @@ OMDB_API_KEY=...          # omdbapi.com
 # Discord bot / internal API
 INTERNAL_API_TOKEN=...    # shared secret between backend and bot (any random hex)
 DISCORD_BOT_TOKEN=...     # from discord.com/developers/applications
-DISCORD_GUILD_ID=...      # your server id (right-click server → Copy Server ID)
-DISCORD_CHANNEL_ID=...    # the #movies channel id
+DISCORD_CHANNEL_ID=...    # the #movies channel id (announcements, RSVP callouts, digest)
 SITE_URL=https://cinemaclubdc.com
 DEFAULT_GROUP_ID=1
 
@@ -267,8 +266,10 @@ Bot setup (one-time):
 2. Enable no privileged intents (defaults are fine); copy the bot token.
 3. Invite it to the server with the `bot` + `applications.commands` scopes and
    Send Messages / Embed Links permissions.
-4. Set `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` (server id), `DISCORD_CHANNEL_ID`
-   (#movies channel id) in `.env.production`, then `docker-compose up -d --build bot`.
+4. Set `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` (#movies channel id) in
+   `.env.production`, then `docker-compose up -d --build bot`. Slash commands
+   sync globally (every server the bot is in) — first appearance in a new
+   server can take up to ~1h; updates after that apply within a minute or two.
 
 Deep links: `https://cinemaclubdc.com/?showtime=<id>` opens that screening's
 drawer; `/?theatre=<slug>` pre-filters the calendar.
