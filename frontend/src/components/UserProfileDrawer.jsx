@@ -99,6 +99,19 @@ export default function UserProfileDrawer({ userId, apiBase, onClose }) {
                 {user.bio || "No bio yet."}
               </div>
             </div>
+
+            {user.letterboxd_username && (
+              <div className="user-profile-section">
+                <a
+                  className="user-profile-letterboxd"
+                  href={`https://letterboxd.com/${user.letterboxd_username}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ▤ {user.letterboxd_username} on Letterboxd
+                </a>
+              </div>
+            )}
           </div>
         )}
       </div>

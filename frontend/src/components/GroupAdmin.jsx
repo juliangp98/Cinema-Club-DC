@@ -185,6 +185,7 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
                     type="button"
                     className={`theatre-pill${selectedTheatres.has(t.slug) ? " active" : ""}`}
                     data-theatre={t.slug}
+                    style={{ "--tcolor": t.color }}
                     onClick={() => {
                       setSelectedTheatres(prev => {
                         const next = new Set(prev);

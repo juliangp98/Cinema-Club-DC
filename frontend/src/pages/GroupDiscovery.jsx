@@ -366,6 +366,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                         type="button"
                         className={`theatre-pill${newTheatres.has(t.slug) ? " active" : ""}`}
                         data-theatre={t.slug}
+                        style={{ "--tcolor": t.color }}
                         onClick={() => setNewTheatres(prev => {
                           const next = new Set(prev);
                           if (next.has(t.slug)) { if (next.size > 1) next.delete(t.slug); }

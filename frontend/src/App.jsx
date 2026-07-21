@@ -6,6 +6,7 @@ import GroupDiscovery from "./pages/GroupDiscovery";
 import MembersPage from "./pages/MembersPage";
 import PollsPage from "./pages/PollsPage";
 import PollDetailPage from "./pages/PollDetailPage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -195,6 +196,19 @@ export default function App() {
                 apiBase={API_BASE}
                 activeGroupId={activeGroupId}
                 setGroupId={handleSetGroupId}
+              />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/leaderboard"
+          element={
+            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
+              <LeaderboardPage
+                user={user}
+                setUser={setUser}
+                apiBase={API_BASE}
+                activeGroupId={activeGroupId}
               />
             </AuthGuard>
           }

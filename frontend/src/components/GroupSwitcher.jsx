@@ -71,6 +71,12 @@ export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId }) {
                 >
                   Polls
                 </button>
+                <button
+                  className="group-dropdown-action"
+                  onClick={() => { setOpen(false); navigate("/leaderboard"); }}
+                >
+                  Leaderboard
+                </button>
               </>
             )}
             <button

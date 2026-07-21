@@ -39,6 +39,25 @@ services:
       - backend
     restart: unless-stopped
 
+  # Discord bot — announces schedule drops to #movies and serves slash
+  # commands. Talks to the backend over the internal Docker network only.
+  # Requires DISCORD_BOT_TOKEN / DISCORD_GUILD_ID / DISCORD_CHANNEL_ID /
+  # INTERNAL_API_TOKEN in .env.production.
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: cinemaclub-bot
+    env_file: .env.production
+    environment:
+      - BOT_API_BASE=http://backend:5001
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   db-data:
     driver: local

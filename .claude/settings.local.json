@@ -46,7 +46,14 @@
       "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"SELECT COUNT\\(*\\) FROM 'group'; SELECT COUNT\\(*\\) FROM group_membership;\" && sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub.db \"SELECT COUNT\\(*\\) FROM 'group'; SELECT COUNT\\(*\\) FROM group_membership;\")",
       "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"SELECT id, name, slug FROM 'group'; SELECT * FROM group_membership;\")",
       "Bash(sqlite3 /Users/julianperez/Documents/Development/Cinema-Club-DC/backend/instance/cinemaclub_dev.db \"\nPRAGMA foreign_keys = OFF;\nDELETE FROM poll_vote;\nDELETE FROM poll_option;\nDELETE FROM poll_category;\nDELETE FROM poll;\nDELETE FROM message;\nDELETE FROM reaction;\nUPDATE rsvp SET group_id = NULL;\nDELETE FROM group_membership;\nDELETE FROM 'group';\nPRAGMA foreign_keys = ON;\nSELECT 'groups remaining: ' || COUNT\\(*\\) FROM 'group';\n\")",
-      "Bash(grep -r \"gunicorn\\\\|wsgi\\\\|manage.py\\\\|flask\" /Users/julianperez/Documents/Development/Cinema-Club-DC --include=\"*.py\" -l 2>/dev/null | head -10)"
+      "Bash(grep -r \"gunicorn\\\\|wsgi\\\\|manage.py\\\\|flask\" /Users/julianperez/Documents/Development/Cinema-Club-DC --include=\"*.py\" -l 2>/dev/null | head -10)",
+      "Bash(find /Users/julianperez/Documents/Development/Cinema-Club-DC -name .env* -type f)",
+      "Bash(python3 -c \":*)",
+      "Bash(ls *.db instance/*.db)",
+      "Bash(set -a)",
+      "Bash(source .env)",
+      "Bash(set +a)",
+      "Bash(./venv/bin/python backfill_enrichment.py)"
     ]
   }
 }

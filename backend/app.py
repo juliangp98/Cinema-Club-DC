@@ -52,6 +52,9 @@ CINEMA_EMOJIS = [
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 SMTP_EMAIL = os.environ.get('SMTP_EMAIL', '')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+TMDB_API_TOKEN = os.environ.get('TMDB_API_TOKEN', '')
+OMDB_API_KEY = os.environ.get('OMDB_API_KEY', '')
+INTERNAL_API_TOKEN = os.environ.get('INTERNAL_API_TOKEN', '')
 
 
 # ─── Email Helper ─────────────────────────────────────────────────────────────
@@ -136,6 +139,10 @@ class User(db.Model):
     invite_token = db.Column(db.String(64), unique=True)
     is_active = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    discord_user_id = db.Column(db.String(30), unique=True)
+    discord_link_code = db.Column(db.String(12))
+    discord_link_code_expires = db.Column(db.DateTime)
+    letterboxd_username = db.Column(db.String(60))
     rsvps = db.relationship('RSVP', backref='user', lazy=True)
 
     def to_dict(self):
@@ -147,6 +154,8 @@ class User(db.Model):
             'avatar_url': self.avatar_url,
             'bio': self.bio or '',
             'favorite_genres': self.favorite_genres or '',
+            'discord_linked': bool(self.discord_user_id),
+            'letterboxd_username': self.letterboxd_username or '',
         }
 
 
@@ -205,6 +214,8 @@ class Theatre(db.Model):
     address = db.Column(db.String(200))
     website = db.Column(db.String(200))
     color = db.Column(db.String(20), default='#e8a838')
+    short_name = db.Column(db.String(20))
+    is_active = db.Column(db.Boolean, default=True)
     showtimes = db.relationship('Showtime', backref='theatre', lazy=True)
 
     def to_dict(self):
@@ -215,6 +226,8 @@ class Theatre(db.Model):
             'address': self.address,
             'website': self.website,
             'color': self.color,
+            'short_name': self.short_name or self.name,
+            'is_active': bool(self.is_active),
         }
 
 
@@ -229,10 +242,24 @@ class Movie(db.Model):
     trailer_link = db.Column(db.String(500))
     poster_url = db.Column(db.String(500))
     genres = db.Column(db.Text, default='')
+    title_normalized = db.Column(db.String(220), index=True)
     last_updated = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # TMDB / OMDb enrichment fields
+    tmdb_id = db.Column(db.Integer)
+    imdb_id = db.Column(db.String(20))
+    backdrop_url = db.Column(db.String(500))
+    tagline = db.Column(db.String(500))
+    vote_average = db.Column(db.Float)
+    content_rating = db.Column(db.String(10))
+    cast_json = db.Column(db.Text)       # JSON: [{name, character, profile_path}]
+    crew_json = db.Column(db.Text)       # JSON: [{name, job}]
+    awards = db.Column(db.String(500))
+    ratings_json = db.Column(db.Text)    # JSON: [{source, value}]
+    trailer_key = db.Column(db.String(50))  # YouTube video key
     showtimes = db.relationship('Showtime', backref='movie', lazy=True)
 
     def to_dict(self):
+        import json as _json
         return {
             'id': self.id,
             'title': self.title,
@@ -244,6 +271,17 @@ class Movie(db.Model):
             'trailer_link': self.trailer_link,
             'poster_url': self.poster_url,
             'genres': self.genres or '',
+            'tmdb_id': self.tmdb_id,
+            'imdb_id': self.imdb_id,
+            'backdrop_url': self.backdrop_url,
+            'tagline': self.tagline,
+            'vote_average': self.vote_average,
+            'content_rating': self.content_rating,
+            'cast': _json.loads(self.cast_json) if self.cast_json else [],
+            'crew': _json.loads(self.crew_json) if self.crew_json else [],
+            'awards': self.awards,
+            'ratings': _json.loads(self.ratings_json) if self.ratings_json else [],
+            'trailer_key': self.trailer_key,
         }
 
 
@@ -255,6 +293,7 @@ class Showtime(db.Model):
     end_time = db.Column(db.DateTime)
     purchase_link = db.Column(db.String(500))
     is_sold_out = db.Column(db.Boolean, default=False)
+    is_cancelled = db.Column(db.Boolean, default=False)
     rsvps = db.relationship('RSVP', backref='showtime', lazy=True)
     reactions = db.relationship('Reaction', backref='showtime', lazy=True)
     messages = db.relationship('Message', backref='showtime', lazy=True)
@@ -319,6 +358,59 @@ class Showtime(db.Model):
             'message_count': len(group_messages),
             'recommended': recommended,
         }
+
+
+class ScrapeRun(db.Model):
+    """One scraper execution for one theatre, with diff stats."""
+    id = db.Column(db.Integer, primary_key=True)
+    theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'), nullable=False)
+    started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    finished_at = db.Column(db.DateTime)
+    status = db.Column(db.String(20), default='ok')  # 'ok', 'empty', 'error'
+    movies_found = db.Column(db.Integer, default=0)
+    new_movies = db.Column(db.Integer, default=0)
+    new_showtimes = db.Column(db.Integer, default=0)
+    cancelled_showtimes = db.Column(db.Integer, default=0)
+    prev_max_date = db.Column(db.DateTime)
+    new_max_date = db.Column(db.DateTime)
+    error_text = db.Column(db.Text)
+    theatre = db.relationship('Theatre', lazy=True)
+
+
+class ScrapeEvent(db.Model):
+    """A notable change detected by a scrape (schedule drop, error) for the bot to announce."""
+    id = db.Column(db.Integer, primary_key=True)
+    theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'), nullable=False)
+    run_id = db.Column(db.Integer, db.ForeignKey('scrape_run.id'))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    event_type = db.Column(db.String(30), nullable=False)  # 'new_drop', 'new_showtimes', 'scrape_error'
+    payload_json = db.Column(db.Text)
+    announced_at = db.Column(db.DateTime)
+    theatre = db.relationship('Theatre', lazy=True)
+    run = db.relationship('ScrapeRun', lazy=True)
+
+    def to_dict(self):
+        import json as _json
+        return {
+            'id': self.id,
+            'theatre_slug': self.theatre.slug if self.theatre else None,
+            'event_type': self.event_type,
+            'payload': _json.loads(self.payload_json) if self.payload_json else {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'announced_at': self.announced_at.isoformat() if self.announced_at else None,
+        }
+
+
+class Watchlist(db.Model):
+    """'I want to see this' — drives Discord pings when new showtimes appear."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_notified_at = db.Column(db.DateTime)
+    user = db.relationship('User', lazy=True)
+    movie = db.relationship('Movie', lazy=True)
+    __table_args__ = (db.UniqueConstraint('user_id', 'movie_id'),)
 
 
 class RSVP(db.Model):
@@ -484,6 +576,17 @@ def require_auth(f):
 def current_user():
     return db.session.get(User, session['user_id']) if 'user_id' in session else None
 
+def require_internal(f):
+    """Auth for /api/internal/* — shared-secret header used by the Discord bot
+    over the Docker network. Rejects everything when the token is unset."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        supplied = request.headers.get('X-Internal-Token', '')
+        if not INTERNAL_API_TOKEN or not secrets.compare_digest(supplied, INTERNAL_API_TOKEN):
+            return jsonify({'error': 'Forbidden'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
 def slugify(text):
     slug = re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
     return slug[:50]
@@ -602,9 +705,24 @@ def update_profile():
         # Validate genres
         genres = [g.strip().lower() for g in data['favorite_genres'].split(',') if g.strip().lower() in GENRE_LIST]
         user.favorite_genres = ','.join(genres)
+    if 'letterboxd_username' in data:
+        handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60]
+        user.letterboxd_username = handle or None
 
     db.session.commit()
     return jsonify({'user': user.to_dict()})
+
+
+@app.route('/api/me/discord-link-code', methods=['POST'])
+@require_auth
+def discord_link_code():
+    """Generate a short-lived code the user types into Discord's /link command."""
+    user = current_user()
+    code = ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
+    user.discord_link_code = code
+    user.discord_link_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+    db.session.commit()
+    return jsonify({'code': code, 'expires_in_minutes': 10})
 
 
 @app.route('/api/users/<int:user_id>/profile')
@@ -1013,7 +1131,7 @@ def remove_member(slug, uid):
 @app.route('/api/theatres')
 @require_auth
 def get_theatres():
-    theatres = Theatre.query.order_by(Theatre.name).all()
+    theatres = Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name).all()
     return jsonify([t.to_dict() for t in theatres])
 
 
@@ -1029,7 +1147,7 @@ def get_showtimes():
     movie_id = request.args.get('movie_id')
     group_id = request.args.get('group_id', type=int)
 
-    query = Showtime.query.join(Movie).join(Theatre)
+    query = Showtime.query.join(Movie).join(Theatre).filter(Showtime.is_cancelled.isnot(True))
 
     if start_str:
         query = query.filter(Showtime.start_time >= datetime.fromisoformat(start_str))
@@ -1047,6 +1165,18 @@ def get_showtimes():
     ])
 
 
+@app.route('/api/showtimes/<int:showtime_id>')
+@require_auth
+def get_showtime(showtime_id):
+    """Single showtime — used by ?showtime= deep links from Discord embeds."""
+    user = current_user()
+    group_id = request.args.get('group_id', type=int)
+    showtime = db.session.get(Showtime, showtime_id)
+    if not showtime:
+        return jsonify({'error': 'Showtime not found'}), 404
+    return jsonify(showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres))
+
+
 @app.route('/api/movies')
 @require_auth
 def get_movies():
@@ -1054,23 +1184,26 @@ def get_movies():
     return jsonify([m.to_dict() for m in movies])
 
 
+@app.route('/api/movies/<int:movie_id>')
+@require_auth
+def get_movie_detail(movie_id):
+    movie = db.session.get(Movie, movie_id)
+    if not movie:
+        return jsonify({'error': 'Movie not found'}), 404
+    return jsonify(movie.to_dict())
+
+
 # ─── Routes: RSVP ─────────────────────────────────────────────────────────────
 
-@app.route('/api/rsvp', methods=['POST'])
-@require_auth
-def rsvp():
-    user = current_user()
-    data = request.json
-    showtime_id = data.get('showtime_id')
-    status = data.get('status')
-    group_id = data.get('group_id')
-
+def apply_rsvp(user, showtime_id, status, group_id):
+    """Shared RSVP logic for the web route and the Discord bot's internal route.
+    Returns (showtime, error_response)."""
     if not showtime_id:
-        return jsonify({'error': 'showtime_id required'}), 400
+        return None, (jsonify({'error': 'showtime_id required'}), 400)
 
     showtime = db.session.get(Showtime, showtime_id)
     if not showtime:
-        return jsonify({'error': 'Showtime not found'}), 404
+        return None, (jsonify({'error': 'Showtime not found'}), 404)
 
     existing = RSVP.query.filter_by(user_id=user.id, showtime_id=showtime_id, group_id=group_id).first()
 
@@ -1086,10 +1219,20 @@ def rsvp():
             db.session.add(new_rsvp)
         db.session.commit()
     else:
-        return jsonify({'error': 'Invalid status'}), 400
+        return None, (jsonify({'error': 'Invalid status'}), 400)
 
-    showtime = db.session.get(Showtime, showtime_id)
-    return jsonify(showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres))
+    return db.session.get(Showtime, showtime_id), None
+
+
+@app.route('/api/rsvp', methods=['POST'])
+@require_auth
+def rsvp():
+    user = current_user()
+    data = request.json
+    showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), data.get('group_id'))
+    if err:
+        return err
+    return jsonify(showtime.to_dict(user_id=user.id, group_id=data.get('group_id'), user_genres=user.favorite_genres))
 
 
 # ─── Routes: Reactions ────────────────────────────────────────────────────────
@@ -1587,11 +1730,9 @@ def poll_leaderboard(poll_id):
     return jsonify(leaderboard)
 
 
-@app.route('/api/users/<int:user_id>/kernels', methods=['GET'])
-@require_auth
-def user_kernels(user_id):
-    """Get total popcorn kernels earned across all scored polls."""
-    total = 0
+def calc_user_kernels(user_id, group_id=None):
+    """Total popcorn kernels + correct picks across scored polls (optionally one group's)."""
+    total, correct = 0, 0
     votes = PollVote.query.filter_by(user_id=user_id).all()
     for vote in votes:
         cat = vote.category
@@ -1600,7 +1741,10 @@ def user_kernels(user_id):
         poll = cat.poll
         if not poll or poll.status != 'scored':
             continue
+        if group_id and poll.group_id != group_id:
+            continue
         if vote.option_id == cat.correct_option_id:
+            correct += 1
             if poll.scoring_mode == 'confidence':
                 total += vote.confidence
             elif poll.scoring_mode == 'single':
@@ -1610,7 +1754,345 @@ def user_kernels(user_id):
         elif poll.scoring_mode == 'confidence':
             # Wrong answer with confidence scoring: deduct the confidence value
             total -= vote.confidence
+    return total, correct
+
+
+@app.route('/api/users/<int:user_id>/kernels', methods=['GET'])
+@require_auth
+def user_kernels(user_id):
+    """Get total popcorn kernels earned across all scored polls."""
+    total, _ = calc_user_kernels(user_id)
     return jsonify({'user_id': user_id, 'kernels': total})
+
+
+def build_leaderboard(group):
+    now = datetime.now()
+    rows = []
+    for m in group.memberships:
+        if m.status != 'active' or not m.user:
+            continue
+        kernels, correct = calc_user_kernels(m.user_id, group_id=group.id)
+        attendance = (RSVP.query.join(Showtime)
+                      .filter(RSVP.user_id == m.user_id,
+                              RSVP.group_id == group.id,
+                              RSVP.status == 'going',
+                              Showtime.start_time < now)
+                      .count())
+        rows.append({
+            'user': m.user.to_dict(),
+            'kernels': kernels,
+            'correct': correct,
+            'attendance': attendance,
+        })
+    rows.sort(key=lambda r: (-r['kernels'], -r['correct'], -r['attendance']))
+    return rows
+
+
+@app.route('/api/groups/<int:group_id>/leaderboard')
+@require_auth
+def group_leaderboard(group_id):
+    """Season-long standings: kernels across all scored polls + attendance."""
+    group = db.session.get(Group, group_id)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    return jsonify(build_leaderboard(group))
+
+
+# ─── Routes: Watchlist ────────────────────────────────────────────────────────
+
+@app.route('/api/watchlist', methods=['POST'])
+@require_auth
+def toggle_watchlist():
+    user = current_user()
+    movie_id = (request.json or {}).get('movie_id')
+    movie = db.session.get(Movie, movie_id) if movie_id else None
+    if not movie:
+        return jsonify({'error': 'Movie not found'}), 404
+
+    existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
+    if existing:
+        db.session.delete(existing)
+        watching = False
+    else:
+        db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+        watching = True
+    db.session.commit()
+    return jsonify({'movie_id': movie.id, 'watching': watching})
+
+
+@app.route('/api/watchlist')
+@require_auth
+def get_watchlist():
+    user = current_user()
+    now = datetime.now()
+    items = []
+    for w in Watchlist.query.filter_by(user_id=user.id).all():
+        next_st = (Showtime.query
+                   .filter(Showtime.movie_id == w.movie_id,
+                           Showtime.start_time > now,
+                           Showtime.is_cancelled.isnot(True))
+                   .order_by(Showtime.start_time).first())
+        items.append({
+            'movie': w.movie.to_dict() if w.movie else None,
+            'added_at': w.created_at.isoformat() if w.created_at else None,
+            'next_showtime': next_st.to_dict() if next_st else None,
+        })
+    items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')
+    return jsonify(items)
+
+
+# ─── Routes: Internal API (Discord bot) ───────────────────────────────────────
+# Consumed by the bot container over the Docker network, authed by
+# X-Internal-Token (see require_internal). No session/cookies involved.
+
+def _utcnow_naive():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+@app.route('/api/internal/scrape-events')
+@require_internal
+def internal_scrape_events():
+    q = ScrapeEvent.query
+    if request.args.get('unannounced'):
+        q = q.filter(ScrapeEvent.announced_at.is_(None))
+    # Never announce stale events (e.g. backfill runs while the bot was down)
+    since_hours = request.args.get('since_hours', 48, type=int)
+    q = q.filter(ScrapeEvent.created_at > _utcnow_naive() - timedelta(hours=since_hours))
+    events = q.order_by(ScrapeEvent.created_at).limit(20).all()
+    return jsonify([e.to_dict() for e in events])
+
+
+@app.route('/api/internal/scrape-events/<int:event_id>/announced', methods=['POST'])
+@require_internal
+def internal_mark_announced(event_id):
+    event = db.session.get(ScrapeEvent, event_id)
+    if not event:
+        return jsonify({'error': 'Not found'}), 404
+    if not event.announced_at:
+        event.announced_at = _utcnow_naive()
+        db.session.commit()
+    return jsonify(event.to_dict())
+
+
+def _group_showtime_query(group):
+    """Showtimes filtered to a group's selected theatres (all when unset)."""
+    q = Showtime.query.join(Movie).join(Theatre).filter(
+        Showtime.is_cancelled.isnot(True),
+        Theatre.is_active.isnot(False),
+    )
+    slugs = [t.strip() for t in (group.theatres or '').split(',') if t.strip()] if group else []
+    if slugs:
+        q = q.filter(Theatre.slug.in_(slugs))
+    return q
+
+
+@app.route('/api/internal/showtimes')
+@require_internal
+def internal_showtimes():
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    q = _group_showtime_query(group)
+
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    search = (request.args.get('q') or '').strip()
+    if start_str:
+        q = q.filter(Showtime.start_time >= datetime.fromisoformat(start_str))
+    if end_str:
+        q = q.filter(Showtime.start_time <= datetime.fromisoformat(end_str))
+    if search:
+        q = q.filter(Movie.title.ilike(f'%{search}%'))
+
+    limit = min(request.args.get('limit', 200, type=int), 500)
+    showtimes = q.order_by(Showtime.start_time).limit(limit).all()
+    return jsonify([s.to_dict(group_id=group_id) for s in showtimes])
+
+
+@app.route('/api/internal/digest')
+@require_internal
+def internal_digest():
+    group_id = request.args.get('group_id', type=int)
+    days = request.args.get('days', 7, type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+
+    now = datetime.now()
+    showtimes = (_group_showtime_query(group)
+                 .filter(Showtime.start_time >= now,
+                         Showtime.start_time <= now + timedelta(days=days))
+                 .order_by(Showtime.start_time).limit(500).all())
+
+    open_polls = []
+    if group:
+        open_polls = [p.to_dict() for p in
+                      Poll.query.filter_by(group_id=group.id, status='open').all()]
+
+    recent_drops = [e.to_dict() for e in ScrapeEvent.query.filter(
+        ScrapeEvent.event_type == 'new_drop',
+        ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days),
+    ).order_by(ScrapeEvent.created_at.desc()).limit(10).all()]
+
+    return jsonify({
+        'group': group.to_dict() if group else None,
+        'showtimes': [s.to_dict(group_id=group_id) for s in showtimes],
+        'open_polls': open_polls,
+        'recent_drops': recent_drops,
+    })
+
+
+@app.route('/api/internal/link/verify', methods=['POST'])
+@require_internal
+def internal_link_verify():
+    data = request.json or {}
+    code = (data.get('code') or '').strip().upper()
+    discord_user_id = str(data.get('discord_user_id') or '').strip()
+    if not code or not discord_user_id:
+        return jsonify({'error': 'code and discord_user_id required'}), 400
+
+    user = User.query.filter_by(discord_link_code=code).first()
+    if not user:
+        return jsonify({'error': 'Invalid code'}), 404
+    if not user.discord_link_code_expires or user.discord_link_code_expires < _utcnow_naive():
+        return jsonify({'error': 'Code expired — generate a new one on the site'}), 410
+
+    # One site account per Discord account
+    for other in User.query.filter_by(discord_user_id=discord_user_id).all():
+        if other.id != user.id:
+            other.discord_user_id = None
+
+    user.discord_user_id = discord_user_id
+    user.discord_link_code = None
+    user.discord_link_code_expires = None
+    db.session.commit()
+    return jsonify({'user': user.to_dict()})
+
+
+@app.route('/api/internal/users/by-discord/<discord_id>')
+@require_internal
+def internal_user_by_discord(discord_id):
+    user = User.query.filter_by(discord_user_id=str(discord_id)).first()
+    if not user or not user.is_active:
+        return jsonify({'error': 'Not linked'}), 404
+    return jsonify(user.to_dict())
+
+
+@app.route('/api/internal/rsvp', methods=['POST'])
+@require_internal
+def internal_rsvp():
+    data = request.json or {}
+    user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
+    if not user or not user.is_active:
+        return jsonify({'error': 'Not linked'}), 404
+
+    group_id = data.get('group_id')
+    showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), group_id)
+    if err:
+        return err
+    result = showtime.to_dict(user_id=user.id, group_id=group_id)
+    result['user'] = user.to_dict()
+    return jsonify(result)
+
+
+@app.route('/api/internal/watch-matches')
+@require_internal
+def internal_watch_matches():
+    """Watchlist hits for a scrape event's new showtimes. Discord-linked
+    watchers are returned for the bot to @-mention; unlinked watchers get an
+    email right here. 7-day per-(user,movie) re-notify suppression."""
+    event = db.session.get(ScrapeEvent, request.args.get('event_id', type=int))
+    if not event:
+        return jsonify({'error': 'Event not found'}), 404
+
+    import json as _json
+    payload = _json.loads(event.payload_json or '{}')
+    movie_ids = payload.get('movie_ids') or []
+    if not movie_ids:
+        return jsonify([])
+
+    cutoff = _utcnow_naive() - timedelta(days=7)
+    now = datetime.now()
+    matches = []
+    for w in Watchlist.query.filter(Watchlist.movie_id.in_(movie_ids)).all():
+        if w.last_notified_at and w.last_notified_at > cutoff:
+            continue
+        if not w.user or not w.user.is_active or not w.movie:
+            continue
+        first_st = (Showtime.query
+                    .filter(Showtime.movie_id == w.movie_id,
+                            Showtime.theatre_id == event.theatre_id,
+                            Showtime.start_time > now,
+                            Showtime.is_cancelled.isnot(True))
+                    .order_by(Showtime.start_time).first())
+        if not first_st:
+            continue
+        w.last_notified_at = _utcnow_naive()
+
+        if w.user.discord_user_id:
+            matches.append({
+                'discord_user_id': w.user.discord_user_id,
+                'user_name': w.user.name,
+                'movie_title': w.movie.title,
+                'theatre_name': payload.get('theatre_name', ''),
+                'first_showtime': first_st.start_time.isoformat(),
+                'showtime_id': first_st.id,
+            })
+        else:
+            when = first_st.start_time.strftime('%A %b %-d at %-I:%M %p')
+            send_email(w.user.email,
+                       f"{w.movie.title} just got showtimes",
+                       f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+                       <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
+                       <p><strong>{w.movie.title}</strong> — a movie on your watchlist — just got showtimes
+                       at <strong>{payload.get('theatre_name', 'a theatre')}</strong>, starting {when}.</p>
+                       <p><a href="{FRONTEND_URL}/?showtime={first_st.id}" style="display:inline-block;padding:12px 24px;
+                       background:#e8a838;color:#0d0c09;text-decoration:none;border-radius:6px;font-weight:bold;">
+                       See showtimes</a></p></div>""")
+
+    db.session.commit()
+    return jsonify(matches)
+
+
+@app.route('/api/internal/polls')
+@require_internal
+def internal_polls():
+    group_id = request.args.get('group_id', type=int)
+    if not group_id:
+        return jsonify({'error': 'group_id required'}), 400
+    polls = Poll.query.filter_by(group_id=group_id, status='open').all()
+    return jsonify([p.to_dict() for p in polls])
+
+
+@app.route('/api/internal/leaderboard')
+@require_internal
+def internal_leaderboard():
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    return jsonify(build_leaderboard(group))
+
+
+@app.route('/api/internal/watch', methods=['POST'])
+@require_internal
+def internal_watch():
+    """Add to watchlist from Discord's /watch command (toggle)."""
+    data = request.json or {}
+    user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
+    if not user or not user.is_active:
+        return jsonify({'error': 'Not linked'}), 404
+    title = (data.get('title') or '').strip()
+    movie = Movie.query.filter(Movie.title.ilike(title)).first() \
+        or Movie.query.filter(Movie.title.ilike(f'%{title}%')).first()
+    if not movie:
+        return jsonify({'error': 'Movie not found'}), 404
+
+    existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
+    if existing:
+        db.session.delete(existing)
+        watching = False
+    else:
+        db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+        watching = True
+    db.session.commit()
+    return jsonify({'movie_title': movie.title, 'watching': watching, 'user_name': user.name})
 
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
@@ -1624,6 +2106,28 @@ def migrate():
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
         "ALTER TABLE 'group' ADD COLUMN theatres TEXT DEFAULT ''",
+        # TMDB / OMDb enrichment columns
+        "ALTER TABLE movie ADD COLUMN tmdb_id INTEGER",
+        "ALTER TABLE movie ADD COLUMN imdb_id VARCHAR(20)",
+        "ALTER TABLE movie ADD COLUMN backdrop_url VARCHAR(500)",
+        "ALTER TABLE movie ADD COLUMN tagline VARCHAR(500)",
+        "ALTER TABLE movie ADD COLUMN vote_average FLOAT",
+        "ALTER TABLE movie ADD COLUMN content_rating VARCHAR(10)",
+        "ALTER TABLE movie ADD COLUMN cast_json TEXT",
+        "ALTER TABLE movie ADD COLUMN crew_json TEXT",
+        "ALTER TABLE movie ADD COLUMN awards VARCHAR(500)",
+        "ALTER TABLE movie ADD COLUMN ratings_json TEXT",
+        "ALTER TABLE movie ADD COLUMN trailer_key VARCHAR(50)",
+        # Scraper platform / multi-theatre columns
+        "ALTER TABLE theatre ADD COLUMN short_name VARCHAR(20)",
+        "ALTER TABLE theatre ADD COLUMN is_active BOOLEAN DEFAULT 1",
+        "ALTER TABLE showtime ADD COLUMN is_cancelled BOOLEAN DEFAULT 0",
+        "ALTER TABLE movie ADD COLUMN title_normalized VARCHAR(220)",
+        # Discord account linking
+        "ALTER TABLE user ADD COLUMN discord_user_id VARCHAR(30)",
+        "ALTER TABLE user ADD COLUMN discord_link_code VARCHAR(12)",
+        "ALTER TABLE user ADD COLUMN discord_link_code_expires DATETIME",
+        "ALTER TABLE user ADD COLUMN letterboxd_username VARCHAR(60)",
     ]
     for sql in stmts:
         try:
@@ -1632,6 +2136,17 @@ def migrate():
             pass  # column already exists
     db.session.commit()
     _migrate_poll_vote_ranked_constraint()
+    _backfill_title_normalized()
+
+
+def _backfill_title_normalized():
+    """One-time fill of movie.title_normalized for rows created before the column existed."""
+    from scrapers.base import normalize_title
+    movies = Movie.query.filter(Movie.title_normalized.is_(None)).all()
+    for m in movies:
+        m.title_normalized = normalize_title(m.title)
+    if movies:
+        db.session.commit()
 
 
 def _migrate_poll_vote_ranked_constraint():
@@ -1672,15 +2187,28 @@ def _migrate_poll_vote_ranked_constraint():
 
 
 def seed_theatres():
-    theatres = [
-        {'name': 'Suns Cinema', 'slug': 'suns', 'address': '3327 Georgia Ave NW, Washington, DC 20010',
-         'website': 'https://sunscinema.com', 'color': '#e8a838'},
-        {'name': 'AFI Silver Theatre', 'slug': 'afi', 'address': '8633 Colesville Rd, Silver Spring, MD 20910',
-         'website': 'https://silver.afi.com', 'color': '#c45c3a'},
-    ]
-    for t in theatres:
-        if not Theatre.query.filter_by(slug=t['slug']).first():
-            db.session.add(Theatre(**t))
+    """Upsert theatres from the scraper registry; deactivate ones no longer registered
+    (e.g. the closed E Street Cinema) without deleting their showtime history."""
+    from scrapers import THEATRE_REGISTRY
+
+    registry_slugs = set()
+    for cfg in THEATRE_REGISTRY:
+        registry_slugs.add(cfg.slug)
+        theatre = Theatre.query.filter_by(slug=cfg.slug).first()
+        if not theatre:
+            theatre = Theatre(slug=cfg.slug)
+            db.session.add(theatre)
+        theatre.name = cfg.name
+        theatre.short_name = cfg.short_name
+        theatre.address = cfg.address
+        theatre.website = cfg.website
+        theatre.color = cfg.color
+        theatre.is_active = cfg.enabled
+
+    for theatre in Theatre.query.all():
+        if theatre.slug not in registry_slugs:
+            theatre.is_active = False
+
     db.session.commit()
 
 
@@ -1732,6 +2260,7 @@ def enable_wal():
     if not getattr(app, '_wal_enabled', False):
         try:
             db.session.execute(db.text("PRAGMA journal_mode=WAL"))
+            db.session.execute(db.text("PRAGMA busy_timeout=5000"))
             app._wal_enabled = True
         except Exception:
             pass

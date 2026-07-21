@@ -15,32 +15,61 @@ function formatTime(iso) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-const THEATRE_LABELS = { suns: "Suns Cinema", afi: "AFI Silver" };
-
 const RSVP_OPTIONS = [
   { status: "going",     label: "Going" },
   { status: "maybe",     label: "Maybe" },
   { status: "not_going", label: "Can't go" },
 ];
 
+// Rating source display helpers
+const RATING_LABELS = {
+  "Internet Movie Database": "IMDb",
+  "Rotten Tomatoes": "RT",
+  "Metacritic": "MC",
+};
+
 export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onViewProfile }) {
   const drawerRef = useRef(null);
   const primary = showtimes[0];
   const [reactions, setReactions] = useState(primary.reactions || {});
+  const [watching, setWatching] = useState(null); // null until watchlist loads
 
-  // Close on overlay click
+  useEffect(() => {
+    fetch(`${apiBase}/api/watchlist`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(items => {
+        setWatching(items.some(i => i.movie && i.movie.id === primary.movie.id));
+      })
+      .catch(() => setWatching(false));
+  }, [apiBase, primary.movie.id]);
+
+  async function toggleWatch() {
+    const next = !watching;
+    setWatching(next);
+    try {
+      const r = await fetch(`${apiBase}/api/watchlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ movie_id: primary.movie.id }),
+      });
+      if (r.ok) setWatching((await r.json()).watching);
+      else setWatching(!next);
+    } catch {
+      setWatching(!next);
+    }
+  }
+
   function handleOverlayClick(e) {
     if (e.target === e.currentTarget) onClose();
   }
 
-  // Close on Escape
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Sync reactions when primary showtime changes
   useEffect(() => {
     setReactions(primary.reactions || {});
   }, [primary]);
@@ -68,7 +97,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
     movie.runtime_minutes && `${movie.runtime_minutes} min`,
   ].filter(Boolean);
 
-  // Deduplicate attendees and maybes across all showtimes
   function dedupeUsers(showtimes, field) {
     const seen = new Set();
     const result = [];
@@ -86,13 +114,25 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const allAttendees = dedupeUsers(showtimes, "attendees");
   const allMaybes = dedupeUsers(showtimes, "maybes");
 
+  const cast = movie.cast || [];
+  const ratings = movie.ratings || [];
+  const hasBackdrop = !!movie.backdrop_url;
+
   return (
     <div className="drawer-overlay" onClick={handleOverlayClick}>
       <div className="drawer" ref={drawerRef}>
         <button className="drawer-close" onClick={onClose}>&times;</button>
 
-        {/* Poster or placeholder */}
-        {movie.poster_url ? (
+        {/* Hero: backdrop + poster */}
+        {hasBackdrop ? (
+          <div className="drawer-hero">
+            <img className="drawer-backdrop" src={movie.backdrop_url} alt="" />
+            <div className="drawer-backdrop-fade" />
+            {movie.poster_url && (
+              <img className="drawer-hero-poster" src={movie.poster_url} alt={movie.title} />
+            )}
+          </div>
+        ) : movie.poster_url ? (
           <img className="drawer-poster" src={movie.poster_url} alt={movie.title} />
         ) : (
           <div className="drawer-poster-placeholder">
@@ -101,22 +141,60 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         )}
 
         <div className="drawer-content">
-          {/* Theatre badge */}
-          <span className="drawer-theatre-badge" data-theatre={theatre.slug}>
-            {THEATRE_LABELS[theatre.slug] || theatre.name}
-          </span>
-
-          {/* Recommended badge */}
-          {primary.recommended && (
-            <span className="drawer-rec-badge">&#9733; Recommended for you</span>
-          )}
+          {/* Badge row */}
+          <div className="drawer-badge-row">
+            <span className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}>
+              {theatre.name}
+            </span>
+            {movie.content_rating && (
+              <span className="drawer-content-rating">{movie.content_rating}</span>
+            )}
+            {primary.recommended && (
+              <span className="drawer-rec-badge">&#9733; Recommended for you</span>
+            )}
+            {watching !== null && (
+              <button
+                className={`drawer-watch-btn${watching ? " active" : ""}`}
+                onClick={toggleWatch}
+                title={watching ? "On your watchlist — you'll get pinged about new showtimes" : "Add to watchlist"}
+              >
+                {watching ? "👀 Watching" : "＋ Watchlist"}
+              </button>
+            )}
+          </div>
 
           {/* Title */}
           <h2 className="drawer-title">{movie.title}</h2>
 
+          {/* Tagline */}
+          {movie.tagline && (
+            <p className="drawer-tagline">{movie.tagline}</p>
+          )}
+
           {/* Meta */}
           {metaParts.length > 0 && (
             <p className="drawer-meta">{metaParts.join("  \u00B7  ")}</p>
+          )}
+
+          {/* Ratings row */}
+          {ratings.length > 0 && (
+            <div className="drawer-ratings-row">
+              {movie.vote_average > 0 && (
+                <span className="drawer-rating-badge tmdb">
+                  TMDB {movie.vote_average.toFixed(1)}
+                </span>
+              )}
+              {ratings.map((r, i) => (
+                <span key={i} className="drawer-rating-badge">
+                  {RATING_LABELS[r.source] || r.source} {r.value}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Awards */}
+          {movie.awards && (
+            <p className="drawer-awards">{movie.awards}</p>
           )}
 
           {/* Description */}
@@ -126,6 +204,30 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                 ? movie.description.slice(0, 400) + "\u2026"
                 : movie.description}
             </p>
+          )}
+
+          {/* Cast */}
+          {cast.length > 0 && (
+            <div style={{ marginBottom: "1.25rem" }}>
+              <span className="drawer-section-label">Cast</span>
+              <div className="drawer-cast-scroll">
+                {cast.map((c, i) => (
+                  <div key={i} className="drawer-cast-card">
+                    {c.profile_path ? (
+                      <img className="drawer-cast-photo" src={c.profile_path} alt={c.name} />
+                    ) : (
+                      <div className="drawer-cast-photo-placeholder">
+                        {c.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="drawer-cast-name">{c.name}</div>
+                    {c.character && (
+                      <div className="drawer-cast-character">{c.character}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Screenings */}
@@ -142,7 +244,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                     {s.end_time && ` \u2013 ${formatTime(s.end_time)}`}
                     {s.is_sold_out && "  \u00B7 SOLD OUT"}
                   </div>
-                  {/* RSVP buttons */}
                   <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
                     {RSVP_OPTIONS.map(opt => (
                       <button
@@ -167,7 +268,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                 )}
               </div>
 
-              {/* Per-screening calendar export */}
               <div className="cal-export-row">
                 <button className="cal-export-btn" onClick={() => handleGoogleCal(s.id)}>
                   Google Calendar
@@ -183,7 +283,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </div>
           ))}
 
-          {/* Reactions (tied to primary showtime) */}
+          {/* Reactions */}
           <ReactionBar
             reactions={reactions}
             showtimeId={primary.id}
@@ -192,7 +292,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             onUpdate={setReactions}
           />
 
-          {/* Who's going (combined across all screenings) */}
+          {/* Who's going */}
           {(allAttendees.length > 0 || allMaybes.length > 0) && (
             <div style={{ marginTop: "1.25rem" }}>
               {allAttendees.length > 0 && (
@@ -243,7 +343,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </div>
           )}
 
-          {/* Chat (tied to primary showtime) */}
+          {/* Chat */}
           <ChatSection
             showtimeId={primary.id}
             groupId={groupId}
@@ -251,8 +351,8 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             onViewProfile={onViewProfile}
           />
 
-          {/* Starring */}
-          {movie.starring && (
+          {/* Starring (fallback if no cast cards) */}
+          {!cast.length && movie.starring && (
             <div style={{ marginTop: "1.25rem" }}>
               <span className="drawer-section-label">Starring</span>
               <p style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.5 }}>
@@ -261,8 +361,17 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </div>
           )}
 
-          {/* Trailer */}
-          {movie.trailer_link && (
+          {/* Trailer embed or link */}
+          {movie.trailer_key ? (
+            <div className="drawer-trailer-embed">
+              <iframe
+                src={`https://www.youtube.com/embed/${movie.trailer_key}`}
+                title="Trailer"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : movie.trailer_link ? (
             <a
               href={movie.trailer_link}
               target="_blank"
@@ -271,7 +380,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             >
               &#9654; Watch Trailer
             </a>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

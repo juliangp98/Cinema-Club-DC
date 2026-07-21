@@ -1,0 +1,192 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "Free Movie DB: The Free Movie Database API. The FM-DB API is a RESTful web service to obtain movie informations. All content and images on the site are contributed and maintained by our users. No API keys or Web Scrapping techniques are used in the generation of any responses by this API.",
+    "version": "0.3.1",
+    "title": "Free Movie DB - The Free Movie Database API",
+    "termsOfService": "/legal",
+    "contact": {
+      "email": "imdbot@iamidiotareyoutoo.com"
+    },
+    "license": {
+      "name": "GNU Affero General Public License 3.0",
+      "url": "https://github.com/TelegramPlayGround/Unofficial-IMDb-API/raw/main/LICENSE"
+    }
+  },
+  "basePath": "/",
+  "schemes": [
+    "https",
+    "http"
+  ],
+  "paths": {
+    "/search": {
+      "get": {
+        "summary": "Search Movies on IMDb",
+        "description": "search for tt titles on IMDb. Please note while both 'q' and 'tt' are optional at least one argument is required.",
+        "consumes": [
+          "application/x-www-form-urlencoded"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Enter a word or phrase to search on (Search Query)",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "tt",
+            "description": "Enter IMDb ID to display only one detailed result (Get more details of a particular IMDb ID)",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "lsn",
+            "description": "if IMDb ID is a series, provide a Season Number to fetch episodes of that (Season Number)",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "in": "query",
+            "name": "v",
+            "description": "API version (reserved for future use)",
+            "required": false,
+            "type": "integer",
+            "default": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "invalid parameters"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/justwatch": {
+      "get": {
+        "summary": "Search Streaming Titles on Justwatch",
+        "description": "Search the sources where a specific movie / show is streaming",
+        "consumes": [
+          "application/x-www-form-urlencoded"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "description": "Enter a word or phrase to search on (Search Query)",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "L",
+            "description": "Enter the language and country code (as mentioned in the given format). The default value is 'en_IN' if not specified.",
+            "required": false,
+            "type": "string",
+            "default": "en_IN"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "invalid parameters"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/photo/{id}": {
+      "get": {
+        "summary": "Get the poster photo (if available) of a IMDb ID",
+        "produces": [
+          "image/jpeg"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "IMDb ID of the title to get the poster photo",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "w",
+            "description": "Width of the photo",
+            "required": false,
+            "type": "number"
+          },
+          {
+            "in": "query",
+            "name": "h",
+            "description": "Height of the photo",
+            "required": false,
+            "type": "number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "invalid parameters"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    },
+    "/media/{id}": {
+      "get": {
+        "summary": "Get the trailer video (if available) of a IMDb ID",
+        "produces": [
+          "video/mp4",
+          "image/jpeg"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "IMDb ID of the title to get the trailer video",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation"
+          },
+          "400": {
+            "description": "invalid parameters"
+          },
+          "500": {
+            "description": "internal server error"
+          }
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Find out more about this API",
+    "url": "https://github.com/TelegramPlayGround/Unofficial-IMDb-API/"
+  }
+}

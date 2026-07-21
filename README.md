@@ -117,6 +117,22 @@ FRONTEND_URL=http://localhost:5173
 # Gmail SMTP (optional — falls back to console printing if not set)
 SMTP_EMAIL=SunsCinemaFanClub@gmail.com
 SMTP_PASSWORD=your-gmail-app-password
+
+# Movie metadata enrichment
+TMDB_API_TOKEN=...        # themoviedb.org v4 read token
+OMDB_API_KEY=...          # omdbapi.com
+
+# Discord bot / internal API
+INTERNAL_API_TOKEN=...    # shared secret between backend and bot (any random hex)
+DISCORD_BOT_TOKEN=...     # from discord.com/developers/applications
+DISCORD_GUILD_ID=...      # your server id (right-click server → Copy Server ID)
+DISCORD_CHANNEL_ID=...    # the #movies channel id
+SITE_URL=https://cinemaclubdc.com
+DEFAULT_GROUP_ID=1
+
+# AMC (only once your developer key is approved — then set enabled=True
+# for the AMC entries in backend/scrapers/__init__.py)
+AMC_API_KEY=
 ```
 
 To send real emails, create a Gmail App Password:
@@ -192,10 +208,70 @@ To send real emails, create a Gmail App Password:
 
 ## Scraper Notes
 
-- **Suns Cinema**: Parses `sunscinema.com/upcoming-films-3/` HTML — extracts from `div.showtimes-description`, `li[data-date]`, `span.showtime`
-- **AFI Silver**: Scrapes `silver.afi.com/now-playing/` listing page, then visits each individual film detail page to get showtimes from `div.show_wrap` / `span.select_show`
-- **E Street Cinema**: Removed (permanently closed)
-- Scraper fails gracefully — one broken source won't affect the other
+Scrapers live in `backend/scrapers/` as a pluggable registry (`THEATRE_REGISTRY`
+in `scrapers/__init__.py`). Each venue is a `TheatreConfig` (name, slug, color,
+scrape function, announce thresholds); `scraper.py` is a thin runner that
+iterates enabled venues and syncs via `scrapers/sync.py`. Adding a venue =
+one scraper module + one registry entry (theatres are seeded from the registry
+on backend start).
+
+| Venue | Source | Technique |
+|---|---|---|
+| Suns Cinema | sunscinema.com | static HTML |
+| AFI Silver | silver.afi.com | two-stage HTML crawl |
+| Alamo DC + Crystal City | drafthouse.com market feed | public JSON |
+| Regal Gallery Place | regmovies.com/api/getShowtimes | JSON via curl_cffi (Cloudflare) |
+| Lockheed Martin + Airbus IMAX | si.edu/theaters movie pages | HTML via curl_cffi |
+| Avalon | Agile Ticketing feed.ashx | public JSON |
+| National Gallery of Art | nga.gov film-programs (evd params) | HTML via curl_cffi |
+| Angelika Mosaic + Union Market | production-api.readingcinemas.com | JSON (anon bearer from /settings/6) |
+| AMC Georgetown + Hoffman | official API (Showtime v2) | **disabled** until `AMC_API_KEY` approved |
+
+Useful commands:
+
+```bash
+python scraper.py                 # all enabled venues
+python scraper.py --only suns     # one venue (works even if disabled)
+python scraper.py --list          # show the registry
+python scraper.py --emit-test-event suns   # synthetic drop event (bot testing)
+```
+
+Other behaviors:
+- Sync dedupes movies by exact title → TMDB id → normalized title + year.
+- Future showtimes that disappear from a venue's calendar are soft-cancelled
+  (`is_cancelled`), never deleted — RSVPs/chat survive.
+- Each run records a `ScrapeRun`; bursts of new showtimes emit a `ScrapeEvent`
+  (`new_drop`) that the Discord bot announces. Scrape failures emit rate-limited
+  `scrape_error` events.
+- One broken venue never affects the others.
+
+## Discord Bot
+
+`bot/` is a discord.py client (third Docker service, `cinemaclub-bot`) that
+talks to the backend's `/api/internal/*` endpoints over the Docker network
+(shared secret: `INTERNAL_API_TOKEN`). It never touches the database directly.
+
+- **Announcements**: polls for unannounced `ScrapeEvent`s every 60s and posts
+  rich embeds to `DISCORD_CHANNEL_ID` (#movies) — e.g. "Suns just dropped 23
+  new showtimes", with top titles, poster, and a deep link.
+- **Watchlist pings**: when a drop includes a movie someone watchlisted, the
+  bot @-mentions them (unlinked members get an email instead).
+- **Weekly digest**: Mondays 10:00 ET — who's going, what's playing, open polls.
+- **Slash commands**: `/showtimes`, `/movie`, `/rsvp`, `/whosgoing`, `/watch`,
+  `/polls`, `/leaderboard`, `/digest`, `/link`.
+- **Account linking**: profile menu on the site → "Link Discord" → 6-char code
+  → `/link <code>` in Discord. RSVPs from Discord then post publicly.
+
+Bot setup (one-time):
+1. Create an application + bot at https://discord.com/developers/applications.
+2. Enable no privileged intents (defaults are fine); copy the bot token.
+3. Invite it to the server with the `bot` + `applications.commands` scopes and
+   Send Messages / Embed Links permissions.
+4. Set `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID` (server id), `DISCORD_CHANNEL_ID`
+   (#movies channel id) in `.env.production`, then `docker-compose up -d --build bot`.
+
+Deep links: `https://cinemaclubdc.com/?showtime=<id>` opens that screening's
+drawer; `/?theatre=<slug>` pre-filters the calendar.
 
 ### Run scraper on a schedule
 
