@@ -94,6 +94,22 @@ async def announce_loop():
         except Exception as e:
             print(f"announce_loop: failed for event {event.get('id')}: {e}")
 
+    # Site activity — RSVPs and other actions taken on the website.
+    try:
+        activity = await api.get('/api/internal/activity-events', unannounced=1)
+    except Exception as e:
+        print(f'announce_loop: activity fetch failed: {e}')
+        activity = []
+
+    for ev in activity:
+        try:
+            msg = embeds.activity_message(ev)
+            if msg:
+                await channel.send(msg)
+            await api.post(f"/api/internal/activity-events/{ev['id']}/announced")
+        except Exception as e:
+            print(f"announce_loop: activity failed for {ev.get('id')}: {e}")
+
 
 async def notify_watchers(channel, event):
     """Ping members whose watchlisted movies just got showtimes."""

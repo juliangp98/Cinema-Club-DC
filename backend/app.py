@@ -401,6 +401,25 @@ class ScrapeEvent(db.Model):
         }
 
 
+class ActivityEvent(db.Model):
+    """A user action on the site worth announcing in Discord (e.g. an RSVP).
+    The bot polls these the same way it polls ScrapeEvents."""
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(30), nullable=False)  # 'rsvp'
+    payload_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    announced_at = db.Column(db.DateTime)
+
+    def to_dict(self):
+        import json as _json
+        return {
+            'id': self.id,
+            'kind': self.kind,
+            'payload': _json.loads(self.payload_json) if self.payload_json else {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class Watchlist(db.Model):
     """'I want to see this' — drives Discord pings when new showtimes appear."""
     id = db.Column(db.Integer, primary_key=True)
@@ -1224,15 +1243,44 @@ def apply_rsvp(user, showtime_id, status, group_id):
     return db.session.get(Showtime, showtime_id), None
 
 
+def emit_rsvp_activity(user, showtime, status):
+    """Queue a Discord announcement for a site RSVP (bot polls activity-events)."""
+    import json as _json
+    payload = {
+        'user_name': user.name,
+        'status': status,
+        'movie_title': showtime.movie.title if showtime.movie else '',
+        'theatre_name': showtime.theatre.name if showtime.theatre else '',
+        'start_time': showtime.start_time.isoformat() if showtime.start_time else None,
+        'showtime_id': showtime.id,
+    }
+    db.session.add(ActivityEvent(kind='rsvp', payload_json=_json.dumps(payload)))
+    db.session.commit()
+
+
 @app.route('/api/rsvp', methods=['POST'])
 @require_auth
 def rsvp():
     user = current_user()
     data = request.json
-    showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), data.get('group_id'))
+    showtime_id = data.get('showtime_id')
+    status = data.get('status')
+    group_id = data.get('group_id')
+
+    prev = RSVP.query.filter_by(user_id=user.id, showtime_id=showtime_id, group_id=group_id).first()
+    prev_status = prev.status if prev else None
+
+    showtime, err = apply_rsvp(user, showtime_id, status, group_id)
     if err:
         return err
-    return jsonify(showtime.to_dict(user_id=user.id, group_id=data.get('group_id'), user_genres=user.favorite_genres))
+
+    # Announce positive RSVPs from the site, but only on an actual change so
+    # re-submitting the same status doesn't repost. (RSVPs made via the Discord
+    # /rsvp command are announced by the command itself, not here.)
+    if status in ('going', 'maybe') and status != prev_status and showtime:
+        emit_rsvp_activity(user, showtime, status)
+
+    return jsonify(showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres))
 
 
 # ─── Routes: Reactions ────────────────────────────────────────────────────────
@@ -1901,6 +1949,31 @@ def internal_mark_announced(event_id):
         event.announced_at = _utcnow_naive()
         db.session.commit()
     return jsonify(event.to_dict())
+
+
+@app.route('/api/internal/activity-events')
+@require_internal
+def internal_activity_events():
+    q = ActivityEvent.query
+    if request.args.get('unannounced'):
+        q = q.filter(ActivityEvent.announced_at.is_(None))
+    # Don't announce stale actions if the bot was offline a while.
+    since_hours = request.args.get('since_hours', 6, type=int)
+    q = q.filter(ActivityEvent.created_at > _utcnow_naive() - timedelta(hours=since_hours))
+    events = q.order_by(ActivityEvent.created_at).limit(20).all()
+    return jsonify([e.to_dict() for e in events])
+
+
+@app.route('/api/internal/activity-events/<int:event_id>/announced', methods=['POST'])
+@require_internal
+def internal_mark_activity_announced(event_id):
+    ev = db.session.get(ActivityEvent, event_id)
+    if not ev:
+        return jsonify({'error': 'Not found'}), 404
+    if not ev.announced_at:
+        ev.announced_at = _utcnow_naive()
+        db.session.commit()
+    return jsonify(ev.to_dict())
 
 
 def _group_showtime_query(group):

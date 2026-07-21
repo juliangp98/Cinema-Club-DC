@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from .base import new_movie_dict, parse_ampm_time, make_showtime
+from .base import new_movie_dict, parse_ampm_time, make_showtime, with_retry
 
 BASE = 'https://www.si.edu'
 MOVIE_HREF_RE = re.compile(r'/(?:theaters|imax)/movie/[a-z0-9-]+$', re.I)
@@ -27,9 +27,13 @@ _page_cache = {}
 def _fetch(url):
     if url not in _page_cache:
         from curl_cffi import requests as cffi_requests
-        r = cffi_requests.get(url, impersonate='chrome', timeout=25)
-        r.raise_for_status()
-        _page_cache[url] = r.text
+
+        def go():
+            r = cffi_requests.get(url, impersonate='chrome', timeout=25)
+            r.raise_for_status()
+            return r.text
+
+        _page_cache[url] = with_retry(go, label=url)
         time.sleep(0.5)
     return _page_cache[url]
 

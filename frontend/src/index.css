@@ -257,6 +257,18 @@ input { font-family: inherit; }
   display: inline-block;
   background: var(--tcolor, var(--amber));
 }
+.filter-dd-more {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  margin-left: 1px;
+}
+.filter-dd-count {
+  font-size: 0.6rem;
+  color: var(--amber);
+  margin-left: 4px;
+  letter-spacing: 0.05em;
+}
 .filter-dd-arrow {
   font-size: 0.55rem;
   color: var(--muted);
@@ -2815,13 +2827,18 @@ input { font-family: inherit; }
     flex-direction: row;
     align-items: baseline;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
+  .cal-event > div { min-width: 0; flex: 1; }
   .cal-event-time {
     font-size: 0.65rem;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    flex-shrink: 0;
   }
   .cal-event-title {
     font-size: 0.8rem;
+    overflow-wrap: anywhere;
   }
 
   /* ── Drawers → full-width ───────────────────── */

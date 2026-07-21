@@ -37,6 +37,16 @@ function formatTime(iso) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
+// Condense a group's showtimes: list them when few, else first–last + count,
+// so a movie with many screenings doesn't fill the cell with a wall of times.
+function formatShowtimeList(showtimes) {
+  const times = [...showtimes]
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    .map(s => formatTime(s.start_time));
+  if (times.length <= 3) return times.join(", ");
+  return `${times[0]} – ${times[times.length - 1]} (${times.length})`;
+}
+
 function startOfMonth(year, month) {
   return new Date(year, month, 1);
 }
@@ -432,14 +442,26 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
             className="filter-dd-btn"
             onClick={() => { setShowTheatreDD(v => !v); setShowMovieDD(false); setShowMemberDD(false); }}
           >
-            <span className="filter-dd-dots">
-              {allTheatres
-                .filter(t => groupTheatres.includes(t.slug) && activeTheatres.has(t.slug))
-                .map(t => (
-                  <span key={t.slug} className="filter-dot" data-theatre={t.slug} style={{ "--tcolor": t.color }} />
-                ))}
-            </span>
-            Theatres
+            {(() => {
+              const active = allTheatres.filter(t => groupTheatres.includes(t.slug) && activeTheatres.has(t.slug));
+              const total = allTheatres.filter(t => groupTheatres.includes(t.slug)).length;
+              const shown = active.slice(0, 3);
+              const extra = active.length - shown.length;
+              return (
+                <>
+                  <span className="filter-dd-dots">
+                    {shown.map(t => (
+                      <span key={t.slug} className="filter-dot" data-theatre={t.slug} style={{ "--tcolor": t.color }} />
+                    ))}
+                    {extra > 0 && <span className="filter-dd-more">+{extra}</span>}
+                  </span>
+                  Theatres
+                  {active.length < total && (
+                    <span className="filter-dd-count">{active.length}/{total}</span>
+                  )}
+                </>
+              );
+            })()}
             <span className="filter-dd-arrow">{showTheatreDD ? "\u25B4" : "\u25BE"}</span>
           </button>
           {showTheatreDD && (
@@ -518,46 +540,6 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                 >
                   {groupMembers.every(m => selectedMembers.has(m.id)) ? "Deselect All" : "Select All"}
                 </button>
-              )}
-              {groupMembers.map(m => (
-                <label key={m.id} className="filter-dd-item filter-member-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedMembers.has(m.id)}
-                    onChange={() => toggleMember(m.id)}
-                  />
-                  <span className="filter-member-dot" style={{ background: m.avatar_color }} />
-                  {m.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Members dropdown */}
-        <div className="filter-dd" ref={memberDDRef}>
-          <button
-            className="filter-dd-btn"
-            onClick={() => { setShowMemberDD(v => !v); setShowTheatreDD(false); setShowMovieDD(false); }}
-          >
-            {selectedMembers.size > 0 && (
-              <span className="filter-dd-dots">
-                {groupMembers
-                  .filter(m => selectedMembers.has(m.id))
-                  .slice(0, 3)
-                  .map(m => (
-                    <span key={m.id} className="filter-dot" style={{ background: m.avatar_color }} />
-                  ))}
-              </span>
-            )}
-            Members
-            {selectedMembers.size > 0 && <span className="filter-badge">{selectedMembers.size}</span>}
-            <span className="filter-dd-arrow">{showMemberDD ? "\u25B4" : "\u25BE"}</span>
-          </button>
-          {showMemberDD && (
-            <div className="filter-dd-menu filter-member-menu">
-              {groupMembers.length === 0 && (
-                <div className="filter-dd-empty">No members</div>
               )}
               {groupMembers.map(m => (
                 <label key={m.id} className="filter-dd-item filter-member-item">
@@ -682,7 +664,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                     onClick={() => setSelected(group.showtimes)}
                   >
                     <span className="cal-event-time">
-                      {group.showtimes.map(s => formatTime(s.start_time)).join(", ")}
+                      {formatShowtimeList(group.showtimes)}
                     </span>
                     <div>
                       <div className="cal-event-title">

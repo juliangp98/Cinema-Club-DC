@@ -12,6 +12,8 @@ import time
 
 import requests
 
+from .base import with_retry
+
 API_BASE = 'https://production-api.readingcinemas.com'
 SITE = 'https://angelikafilmcenter.com'
 COUNTRY_ID = '6'
@@ -33,9 +35,12 @@ def _api_session():
             'Origin': SITE,
             'Referer': SITE + '/',
         })
-        r = s.get(f'{API_BASE}/settings/{COUNTRY_ID}', timeout=20)
-        r.raise_for_status()
-        s.headers['Authorization'] = 'Bearer ' + r.json()['data']['settings']['token']
+        def fetch_token():
+            r = s.get(f'{API_BASE}/settings/{COUNTRY_ID}', timeout=20)
+            r.raise_for_status()
+            return r.json()['data']['settings']['token']
+
+        s.headers['Authorization'] = 'Bearer ' + with_retry(fetch_token, label='Angelika token')
         _session = s
     return _session
 

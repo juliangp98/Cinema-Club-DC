@@ -66,11 +66,25 @@ THEATRE_REGISTRY: List[TheatreConfig] = [
         scrape=partial(scrape_alamo, 'dc-metro-area', 'crystal-city'),
     ),
     TheatreConfig(
-        slug='regal-gallery', name='Regal Gallery Place', short_name='REGAL',
+        slug='regal-gallery', name='Regal Gallery Place', short_name='REGAL GP',
         address='701 7th St NW, Washington, DC 20001',
         website='https://www.regmovies.com/theatres/regal-gallery-place-4dx-1551',
         color='#3a6bb5',
         scrape=partial(scrape_regal, '1551', 'regal-gallery-place-4dx-1551'),
+    ),
+    TheatreConfig(
+        slug='regal-ballston', name='Regal Ballston Quarter', short_name='REGAL BQ',
+        address='671 N Glebe Rd, Arlington, VA 22203',
+        website='https://www.regmovies.com/theatres/regal-ballston-quarter-0296',
+        color='#5a86c5',
+        scrape=partial(scrape_regal, '0296', 'regal-ballston-quarter-0296'),
+    ),
+    TheatreConfig(
+        slug='regal-majestic', name='Regal Majestic', short_name='REGAL MAJ',
+        address='900 Ellsworth Dr, Silver Spring, MD 20910',
+        website='https://www.regmovies.com/theatres/regal-majestic-1862',
+        color='#2a4f8f',
+        scrape=partial(scrape_regal, '1862', 'regal-majestic-1862'),
     ),
     TheatreConfig(
         slug='smi-dc', name='Lockheed Martin IMAX (Air & Space)', short_name='IMAX DC',

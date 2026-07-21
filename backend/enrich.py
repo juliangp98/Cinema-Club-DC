@@ -6,24 +6,47 @@ Called by the scraper to fill in metadata for newly discovered movies.
 import os
 import json
 import requests
+from dotenv import load_dotenv
 
-TMDB_API_TOKEN = os.environ.get('TMDB_API_TOKEN', '')
-OMDB_API_KEY = os.environ.get('OMDB_API_KEY', '')
+# Load the backend env when the scraper is run standalone (mirrors app.py).
+# load_dotenv never overrides variables already in the environment, so the
+# Docker-injected values still win in production.
+_env_dev = os.path.join(os.path.dirname(__file__), '.env.development')
+load_dotenv(_env_dev) if os.path.exists(_env_dev) else load_dotenv()
 
 TMDB_BASE = 'https://api.themoviedb.org/3'
 TMDB_IMG_POSTER = 'https://image.tmdb.org/t/p/w500'
 TMDB_IMG_BACKDROP = 'https://image.tmdb.org/t/p/w1280'
 TMDB_IMG_PROFILE = 'https://image.tmdb.org/t/p/w185'
 
+# Read tokens at call time so late-loaded env is still picked up.
+def _tmdb_token():
+    return os.environ.get('TMDB_API_TOKEN', '')
+
+
+def _omdb_key():
+    return os.environ.get('OMDB_API_KEY', '')
+
+
+# Warn about missing tokens only once per run instead of twice per movie.
+_warned = set()
+
+
+def _warn_once(key, message):
+    if key not in _warned:
+        _warned.add(key)
+        print(message)
+
 
 def _tmdb_headers():
-    return {'Authorization': f'Bearer {TMDB_API_TOKEN}', 'Accept': 'application/json'}
+    return {'Authorization': f'Bearer {_tmdb_token()}', 'Accept': 'application/json'}
 
 
 def enrich_from_tmdb(title, year=None):
     """Search TMDB for a movie and return enriched metadata dict, or None on failure."""
-    if not TMDB_API_TOKEN:
-        print("  [enrich] TMDB_API_TOKEN not set, skipping TMDB enrichment")
+    if not _tmdb_token():
+        _warn_once('tmdb', "  [enrich] TMDB_API_TOKEN not set — skipping TMDB enrichment "
+                           "(set it in the environment the scraper runs in)")
         return None
 
     try:
@@ -129,12 +152,13 @@ def enrich_from_tmdb(title, year=None):
 
 def enrich_from_omdb(title, year=None, imdb_id=None):
     """Fetch awards and ratings from OMDb. Returns dict or None."""
-    if not OMDB_API_KEY:
-        print("  [enrich] OMDB_API_KEY not set, skipping OMDb enrichment")
+    if not _omdb_key():
+        _warn_once('omdb', "  [enrich] OMDB_API_KEY not set — skipping OMDb enrichment "
+                           "(set it in the environment the scraper runs in)")
         return None
 
     try:
-        params = {'apikey': OMDB_API_KEY}
+        params = {'apikey': _omdb_key()}
         if imdb_id:
             params['i'] = imdb_id
         else:

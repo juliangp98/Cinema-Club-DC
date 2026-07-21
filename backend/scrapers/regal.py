@@ -58,6 +58,10 @@ def scrape_regal(theatre_code, theatre_path):
                 if code and code not in meta:
                     meta[code] = mv
             for day in payload.get('shows', []):
+                # Only this theatre's showtimes — the API is single-theatre per
+                # request, but guard against nearby-theatre bleed-through.
+                if str(day.get('TheatreCode') or '') != str(theatre_code):
+                    continue
                 for film in day.get('Film', []):
                     code = film.get('MasterMovieCode')
                     title = (film.get('Title') or '').strip()

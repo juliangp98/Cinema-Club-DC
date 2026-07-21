@@ -63,6 +63,22 @@ def get_json(session, url, timeout=15, retries=3, **kwargs):
                 raise
 
 
+def with_retry(fn, attempts=3, base_delay=1.0, label=''):
+    """Run fn() with exponential backoff. Retries any exception (covers
+    transient DNS resolution failures, connection resets, and rate limits)."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            if i < attempts - 1:
+                wait = base_delay * (2 ** i)
+                where = f" for {label}" if label else ''
+                print(f"  Retry {i + 1}/{attempts}{where} ({e.__class__.__name__}); waiting {wait:.0f}s")
+                time.sleep(wait)
+            else:
+                raise
+
+
 def safe_text(tag, strip=True):
     if not tag:
         return ''

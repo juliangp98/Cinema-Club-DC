@@ -67,6 +67,20 @@ def error_message(event):
     return f"⚠️ Scraper trouble at **{name}**: `{(p.get('error') or 'unknown')[:180]}` (I'll keep retrying)"
 
 
+def activity_message(event):
+    """Plain-text announcement for a site action (currently RSVPs)."""
+    if event.get('kind') != 'rsvp':
+        return None
+    p = event['payload']
+    verb = {'going': 'is going to', 'maybe': 'might go to'}.get(p.get('status'), 'RSVP’d to')
+    when = ''
+    if p.get('start_time'):
+        when = ' — ' + datetime.fromisoformat(p['start_time']).strftime('%a %-m/%-d %-I:%M %p')
+    theatre = f" at {p['theatre_name']}" if p.get('theatre_name') else ''
+    link = f"\n{SITE_URL}/?showtime={p['showtime_id']}" if p.get('showtime_id') else ''
+    return f"🎟️ **{p.get('user_name')}** {verb} **{p.get('movie_title')}**{when}{theatre}.{link}"
+
+
 def group_showtimes_by_day(showtimes):
     days = {}
     for s in showtimes:

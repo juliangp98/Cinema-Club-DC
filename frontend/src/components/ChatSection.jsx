@@ -56,9 +56,19 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
-  // Auto-scroll on new messages
+  // Keep the newest message in view by scrolling ONLY the messages container.
+  // scrollIntoView would bubble up and scroll the whole drawer to the bottom
+  // on open, hiding the title/poster — so scroll the container's own scrollTop.
+  const didInitialScroll = useRef(false);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesEndRef.current?.parentElement;
+    if (!container) return;
+    // Skip the first populate so an opened drawer rests at the top.
+    if (!didInitialScroll.current) {
+      didInitialScroll.current = true;
+      return;
+    }
+    container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   async function handleSend(e) {
