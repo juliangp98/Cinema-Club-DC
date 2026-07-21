@@ -2011,6 +2011,21 @@ def internal_showtimes():
     return jsonify([s.to_dict(group_id=group_id) for s in showtimes])
 
 
+@app.route('/api/internal/theatres')
+@require_internal
+def internal_theatres():
+    """Active theatres for the bot's theatre autocomplete. Scoped to a group's
+    theatre list when a group_id is given (all active theatres otherwise)."""
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    theatres = Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name).all()
+    if group:
+        slugs = [t.strip() for t in (group.theatres or '').split(',') if t.strip()]
+        if slugs:
+            theatres = [t for t in theatres if t.slug in slugs]
+    return jsonify([t.to_dict() for t in theatres])
+
+
 @app.route('/api/internal/digest')
 @require_internal
 def internal_digest():

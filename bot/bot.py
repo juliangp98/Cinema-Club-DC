@@ -7,6 +7,7 @@ never touches the database directly.
 """
 
 import os
+import time
 from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -198,6 +199,60 @@ async def fetch_window(days, search=None):
     )
 
 
+# Theatre list changes rarely; cache it so autocomplete (which fires per
+# keystroke) doesn't hit the backend on every character.
+_theatre_cache = {'data': None, 'ts': 0.0}
+
+
+async def fetch_theatres():
+    if _theatre_cache['data'] is None or time.monotonic() - _theatre_cache['ts'] > 300:
+        _theatre_cache['data'] = await api.get('/api/internal/theatres', group_id=DEFAULT_GROUP_ID)
+        _theatre_cache['ts'] = time.monotonic()
+    return _theatre_cache['data']
+
+
+async def theatre_choices(current):
+    """Autocomplete choices for a theatre parameter, filtered by typed text."""
+    try:
+        theatres = await fetch_theatres()
+    except Exception:
+        return []
+    cur = (current or '').lower()
+    matches = [t for t in theatres
+               if not cur
+               or cur in t['name'].lower()
+               or cur in (t.get('short_name') or '').lower()
+               or cur in t['slug'].lower()]
+    return [app_commands.Choice(name=t['name'], value=t['slug']) for t in matches[:25]]
+
+
+def date_choices(current):
+    """Upcoming dates for a date-filter parameter. Value is an ISO date the
+    showtime autocomplete uses to narrow to that day."""
+    today = datetime.now().date()
+    cur = (current or '').lower()
+    out = []
+    for i in range(30):
+        d = today + timedelta(days=i)
+        label = 'Today' if i == 0 else 'Tomorrow' if i == 1 else d.strftime('%a, %b %-d')
+        iso = d.isoformat()
+        if not cur or cur in label.lower() or cur in iso or cur in d.strftime('%-m/%-d'):
+            out.append(app_commands.Choice(name=label, value=iso))
+        if len(out) >= 25:
+            break
+    return out
+
+
+def parse_iso_date(value):
+    """Return a date object if value is a YYYY-MM-DD string, else None."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
 def _fmt_choice(s):
     dt = datetime.fromisoformat(s['start_time'])
     theatre = s['theatre'].get('short_name') or s['theatre']['name']
@@ -231,20 +286,27 @@ async def link(interaction: discord.Interaction, code: str):
 
 
 @client.tree.command(name='showtimes', description="What's playing across the club's theatres")
-@app_commands.describe(days='How many days ahead (default 7)', theatre='Filter by theatre name')
+@app_commands.describe(days='How many days ahead (default 7)', theatre='Pick a theatre to filter by')
 async def showtimes(interaction: discord.Interaction, days: app_commands.Range[int, 1, 30] = 7,
                     theatre: str | None = None):
     await interaction.response.defer()
     sts = await fetch_window(days)
+    theatre_label = None
     if theatre:
         t = theatre.lower()
         sts = [s for s in sts if t in s['theatre']['name'].lower()
                or t in (s['theatre'].get('short_name') or '').lower()
                or t in s['theatre']['slug'].lower()]
+        theatre_label = sts[0]['theatre']['name'] if sts else theatre
     title = f"🎬 Showtimes — next {days} day{'s' if days != 1 else ''}"
-    if theatre:
-        title += f" · {theatre}"
+    if theatre_label:
+        title += f" · {theatre_label}"
     await interaction.followup.send(embed=embeds.showtimes_embed(sts[:120], title))
+
+
+@showtimes.autocomplete('theatre')
+async def showtimes_theatre_autocomplete(interaction: discord.Interaction, current: str):
+    return await theatre_choices(current)
 
 
 @client.tree.command(name='movie', description='Details + upcoming showtimes for a movie')
@@ -273,19 +335,32 @@ async def movie_autocomplete(interaction: discord.Interaction, current: str):
 
 
 @client.tree.command(name='rsvp', description='RSVP to a screening right from Discord')
-@app_commands.describe(showtime='Pick a screening', status='Are you going?')
+@app_commands.describe(
+    date='Optional: narrow the screening list to a date',
+    theatre='Optional: narrow the screening list to a theatre',
+    showtime='The screening (narrows as you set date/theatre, or type a movie)',
+    status='Going, maybe, or can\'t go (defaults to Going)',
+)
 @app_commands.choices(status=[
     app_commands.Choice(name='Going', value='going'),
     app_commands.Choice(name='Maybe', value='maybe'),
     app_commands.Choice(name="Can't go", value='not_going'),
 ])
-async def rsvp(interaction: discord.Interaction, showtime: str, status: app_commands.Choice[str]):
+async def rsvp(interaction: discord.Interaction, date: str = None, theatre: str = None,
+               showtime: str = None, status: app_commands.Choice[str] = None):
     await interaction.response.defer()
+    if not showtime:
+        await interaction.followup.send(
+            'Pick a screening from the **showtime** list (set **date**/**theatre** first to narrow it).',
+            ephemeral=True)
+        return
+
+    status_value = status.value if status else 'going'
     try:
         result = await api.post('/api/internal/rsvp', {
             'discord_user_id': str(interaction.user.id),
             'showtime_id': int(showtime),
-            'status': status.value,
+            'status': status_value,
             'group_id': DEFAULT_GROUP_ID,
         })
     except ApiError as e:
@@ -306,21 +381,47 @@ async def rsvp(interaction: discord.Interaction, showtime: str, status: app_comm
         return
 
     dt = datetime.fromisoformat(result['start_time'])
-    theatre = result['theatre'].get('short_name') or result['theatre']['name']
-    verb = {'going': 'is going to', 'maybe': 'might go to', 'not_going': "can't make"}[status.value]
+    theatre_name = result['theatre'].get('short_name') or result['theatre']['name']
+    verb = {'going': 'is going to', 'maybe': 'might go to', 'not_going': "can't make"}[status_value]
     going_count = len(result.get('attendees', []))
     suffix = f" ({going_count} going)" if going_count else ''
     await interaction.followup.send(
         f"🎟️ {interaction.user.mention} {verb} **{result['movie']['title']}** — "
-        f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre}{suffix}")
+        f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre_name}{suffix}")
+
+
+@rsvp.autocomplete('date')
+async def rsvp_date_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@rsvp.autocomplete('theatre')
+async def rsvp_theatre_autocomplete(interaction: discord.Interaction, current: str):
+    return await theatre_choices(current)
 
 
 @rsvp.autocomplete('showtime')
-async def rsvp_autocomplete(interaction: discord.Interaction, current: str):
+async def rsvp_showtime_autocomplete(interaction: discord.Interaction, current: str):
+    # Read the sibling filters the user has already set to narrow the list.
+    day = parse_iso_date(getattr(interaction.namespace, 'date', None))
+    theatre = getattr(interaction.namespace, 'theatre', None)
     try:
-        sts = await fetch_window(14, search=current or None)
+        if day:
+            sts = await api.get(
+                '/api/internal/showtimes', group_id=DEFAULT_GROUP_ID,
+                start=f'{day.isoformat()}T00:00:00',
+                end=f'{day.isoformat()}T23:59:59',
+                q=current or None)
+        else:
+            sts = await fetch_window(14, search=current or None)
     except Exception:
         return []
+    if theatre:
+        t = theatre.lower()
+        sts = [s for s in sts
+               if t in s['theatre']['slug'].lower()
+               or t in s['theatre']['name'].lower()
+               or t in (s['theatre'].get('short_name') or '').lower()]
     return [app_commands.Choice(name=_fmt_choice(s), value=str(s['id'])) for s in sts[:25]]
 
 
