@@ -67,6 +67,12 @@ def error_message(event):
     return f"⚠️ Scraper trouble at **{name}**: `{(p.get('error') or 'unknown')[:180]}` (I'll keep retrying)"
 
 
+def actor_ref(name, discord_user_id):
+    """@-mention when we know the person's Discord id, else fall back to their
+    site display name so unlinked members still get a readable callout."""
+    return f"<@{discord_user_id}>" if discord_user_id else f"**{name}**"
+
+
 def activity_message(event):
     """Plain-text announcement for a site action (currently RSVPs)."""
     if event.get('kind') != 'rsvp':
@@ -78,7 +84,8 @@ def activity_message(event):
         when = ' — ' + datetime.fromisoformat(p['start_time']).strftime('%a %-m/%-d %-I:%M %p')
     theatre = f" at {p['theatre_name']}" if p.get('theatre_name') else ''
     link = f"\n{SITE_URL}/?showtime={p['showtime_id']}" if p.get('showtime_id') else ''
-    return f"🎟️ **{p.get('user_name')}** {verb} **{p.get('movie_title')}**{when}{theatre}.{link}"
+    who = actor_ref(p.get('user_name'), p.get('discord_user_id'))
+    return f"🎟️ {who} {verb} **{p.get('movie_title')}**{when}{theatre}.{link}"
 
 
 def group_showtimes_by_day(showtimes):

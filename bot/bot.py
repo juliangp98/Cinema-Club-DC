@@ -66,6 +66,24 @@ class CinemaClubBot(discord.Client):
 client = CinemaClubBot()
 
 
+async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """Safety net: any exception a command doesn't catch itself still gets a
+    reply instead of leaving the interaction to die silently as 'did not respond'."""
+    name = interaction.command.name if interaction.command else '?'
+    print(f'/{name} error: {error}')
+    msg = "Something went wrong running that command — try again in a bit."
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except Exception:
+        pass  # interaction token already expired — nothing more we can do
+
+
+client.tree.on_error = on_tree_error
+
+
 def movies_channel():
     return client.get_channel(DISCORD_CHANNEL_ID)
 
@@ -181,19 +199,24 @@ def _fmt_choice(s):
 @client.tree.command(name='link', description='Link your Discord to your Cinema Club DC account')
 @app_commands.describe(code='The 6-character code from your profile menu on the site')
 async def link(interaction: discord.Interaction, code: str):
+    await interaction.response.defer(ephemeral=True)
     try:
         result = await api.post('/api/internal/link/verify', {
             'code': code, 'discord_user_id': str(interaction.user.id),
             'discord_username': interaction.user.name,
         })
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"🔗 Linked! You're **{result['user']['name']}** on Cinema Club DC. "
             f"You can now `/rsvp` right from Discord.", ephemeral=True)
     except ApiError as e:
         msg = 'That code is invalid.' if e.status == 404 else \
               'That code expired — grab a fresh one from your profile menu on the site.' if e.status == 410 else \
               f'Linking failed ({e.status}).'
-        await interaction.response.send_message(msg, ephemeral=True)
+        await interaction.followup.send(msg, ephemeral=True)
+    except Exception as e:
+        print(f'/link failed: {e}')
+        await interaction.followup.send(
+            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
 
 
 @client.tree.command(name='showtimes', description="What's playing across the club's theatres")
@@ -246,6 +269,7 @@ async def movie_autocomplete(interaction: discord.Interaction, current: str):
     app_commands.Choice(name="Can't go", value='not_going'),
 ])
 async def rsvp(interaction: discord.Interaction, showtime: str, status: app_commands.Choice[str]):
+    await interaction.response.defer()
     try:
         result = await api.post('/api/internal/rsvp', {
             'discord_user_id': str(interaction.user.id),
@@ -255,14 +279,19 @@ async def rsvp(interaction: discord.Interaction, showtime: str, status: app_comm
         })
     except ApiError as e:
         if e.status == 404:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "You haven't linked your account yet — open your profile on "
                 f"{SITE_URL}, hit **Link Discord**, then run `/link <code>`.", ephemeral=True)
         else:
-            await interaction.response.send_message(f'RSVP failed ({e.status}).', ephemeral=True)
+            await interaction.followup.send(f'RSVP failed ({e.status}).', ephemeral=True)
         return
     except ValueError:
-        await interaction.response.send_message('Pick a screening from the list.', ephemeral=True)
+        await interaction.followup.send('Pick a screening from the list.', ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/rsvp failed: {e}')
+        await interaction.followup.send(
+            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
         return
 
     dt = datetime.fromisoformat(result['start_time'])
@@ -270,8 +299,8 @@ async def rsvp(interaction: discord.Interaction, showtime: str, status: app_comm
     verb = {'going': 'is going to', 'maybe': 'might go to', 'not_going': "can't make"}[status.value]
     going_count = len(result.get('attendees', []))
     suffix = f" ({going_count} going)" if going_count else ''
-    await interaction.response.send_message(
-        f"🎟️ **{result['user']['name']}** {verb} **{result['movie']['title']}** — "
+    await interaction.followup.send(
+        f"🎟️ {interaction.user.mention} {verb} **{result['movie']['title']}** — "
         f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre}{suffix}")
 
 
@@ -313,24 +342,31 @@ async def polls(interaction: discord.Interaction):
 @client.tree.command(name='watch', description="Watchlist a movie — I'll ping you when it gets showtimes")
 @app_commands.describe(title='Movie title')
 async def watch(interaction: discord.Interaction, title: str):
+    await interaction.response.defer()
     try:
         result = await api.post('/api/internal/watch', {
             'discord_user_id': str(interaction.user.id), 'title': title,
         })
     except ApiError as e:
         if e.status == 404 and 'linked' in e.body.lower():
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"Link your account first: profile menu on {SITE_URL} → **Link Discord** → `/link <code>`.",
                 ephemeral=True)
         else:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"Couldn't find **{title}** — try `/movie` to check what's tracked.", ephemeral=True)
         return
+    except Exception as e:
+        print(f'/watch failed: {e}')
+        await interaction.followup.send(
+            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
+        return
+
     if result['watching']:
-        await interaction.response.send_message(
-            f"👀 **{result['user_name']}** is watching for **{result['movie_title']}** showtimes.")
+        await interaction.followup.send(
+            f"👀 {interaction.user.mention} is watching for **{result['movie_title']}** showtimes.")
     else:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Removed **{result['movie_title']}** from your watchlist.", ephemeral=True)
 
 
