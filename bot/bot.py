@@ -208,17 +208,43 @@ TRIGGER_COOLDOWN_SEC = 90      # ...but at most once per channel per this window
 _trigger_cooldown = {}         # channel id -> last monotonic timestamp
 
 
+def bot_named(message):
+    """Loose match — a real @mention ping OR the name typed as text (@CinemaBot /
+    CinemaBot / cinema-bot, any casing). Used ONLY by the 'what is thy wisdom'
+    easter egg, which is intentionally forgiving about the @."""
+    if client.user in message.mentions:
+        return True
+    squished = ''.join(c for c in (message.content or '').lower() if c.isalnum())
+    return 'cinemabot' in squished
+
+
+# A typed "@CinemaBot" — the @ is required; a bare name does NOT count.
+AT_NAME_REGEX = re.compile(r'@\s*cinema[\s._-]*bot', re.IGNORECASE)
+
+
+def bot_called_out(message):
+    """Strict match for conversational chat: a real @mention ping OR a typed
+    '@CinemaBot'. Every '@CinemaBot' form fires (no dead zones), but a bare name
+    with no @ does not — that's reserved for the wisdom easter egg."""
+    if client.user in message.mentions:
+        return True
+    return bool(AT_NAME_REGEX.search(message.content or ''))
+
+
+def strip_bot_name(text):
+    """Remove CinemaBot mentions/name from a prompt so the LLM gets a clean ask."""
+    for token in (f'<@{client.user.id}>', f'<@!{client.user.id}>'):
+        text = text.replace(token, '')
+    text = re.sub(r'@?cinema[\s._-]*bot', '', text, flags=re.IGNORECASE)
+    return text.strip(' \t\n,.:;!?—-')
+
+
 def wisdom_requested(message):
-    """True when a message asks CinemaBot for wisdom under any form: a real
-    @mention ping, a typed '@CinemaBot', or plain '...Cinemabot' with any
-    casing/punctuation. Naming CinemaBot is required so we don't answer another
-    bot's identical callout."""
+    """True when a message asks CinemaBot for wisdom in any form: a real @mention
+    ping, a typed '@CinemaBot', or plain '...Cinemabot' with any casing/punctuation."""
     content = message.content or ''
     phrase = ' '.join(''.join(c if c.isalnum() else ' ' for c in content).split()).lower()
-    if 'what is thy wisdom' not in phrase:
-        return False
-    squished = ''.join(c for c in content.lower() if c.isalnum())
-    return (client.user in message.mentions) or ('cinemabot' in squished)
+    return 'what is thy wisdom' in phrase and bot_named(message)
 
 
 @client.event
@@ -231,11 +257,9 @@ async def on_message(message: discord.Message):
         await message.reply(random.choice(quotes.QUOTES), mention_author=False)
         return
 
-    mentioned = client.user in message.mentions
-
-    # 2) Ambient triggers: a movie-ish word in any non-mention message has a
-    #    chance to summon a quote, rate-limited per channel to avoid spam.
-    if not mentioned:
+    # 2) Ambient triggers: a movie-ish word in a message that does NOT @-call the
+    #    bot has a chance to summon a quote, rate-limited per channel.
+    if not bot_called_out(message):
         if TRIGGER_REGEX.search(message.content or ''):
             now = time.monotonic()
             if (random.random() < TRIGGER_CHANCE
@@ -244,15 +268,11 @@ async def on_message(message: discord.Message):
                 await message.reply(random.choice(quotes.QUOTES), mention_author=False)
         return
 
-    # 3) Direct @-mention -> LLM chat.
-    prompt = message.content
-    for token in (f'<@{client.user.id}>', f'<@!{client.user.id}>'):
-        prompt = prompt.replace(token, '')
-    prompt = prompt.strip()
-
+    # 3) CinemaBot @-called (real ping OR typed @CinemaBot) -> LLM chat.
+    prompt = strip_bot_name(message.content)
     if not prompt:
         await message.reply(
-            '🎬 Mention me with a question — try "what should I see this weekend?", '
+            '🎬 Ask me something — "what should I see this weekend?", '
             '"where can I catch The Odyssey?", or "judge my taste."',
             mention_author=False)
         return
