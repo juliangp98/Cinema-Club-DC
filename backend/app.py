@@ -168,6 +168,10 @@ class Group(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_public = db.Column(db.Boolean, default=True)
     theatres = db.Column(db.String(200), default='')  # comma-separated theatre slugs
+    # Theatres whose automated "new showtimes" Discord alerts are silenced.
+    # Distinct from `theatres` — a muted theatre still shows in the calendar/
+    # commands; only the noisy channel drop announcement is suppressed.
+    announce_muted_theatres = db.Column(db.String(400), default='')
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False):
@@ -2011,6 +2015,82 @@ def internal_showtimes():
     return jsonify([s.to_dict(group_id=group_id) for s in showtimes])
 
 
+@app.route('/api/internal/chat-context')
+@require_internal
+def internal_chat_context():
+    """Compact per-user + what's-playing bundle powering the bot's @-mention
+    chatbot. Everything is bounded to keep the prompt small, and the bot is
+    told to treat `upcoming` as the ONLY source of real screenings."""
+    discord_id = str(request.args.get('discord_user_id') or '').strip()
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    now = datetime.now()
+
+    user = User.query.filter_by(discord_user_id=discord_id).first() if discord_id else None
+    out = {'user': {'linked': bool(user)}}
+
+    if user:
+        out['user'].update({
+            'name': user.name,
+            'favorite_genres': user.favorite_genres or '',
+            'letterboxd_username': user.letterboxd_username or '',
+            'bio': (user.bio or '')[:300],
+        })
+
+        kernels, correct = calc_user_kernels(user.id, group_id=group.id if group else None)
+        standing = {'kernels': kernels, 'correct_picks': correct}
+        if group:
+            board = build_leaderboard(group)
+            standing['of'] = len(board)
+            for i, row in enumerate(board):
+                if row['user']['id'] == user.id:
+                    standing['rank'] = i + 1
+                    standing['attendance'] = row['attendance']
+                    break
+        out['standing'] = standing
+
+        wl = (Watchlist.query.filter_by(user_id=user.id)
+              .order_by(Watchlist.created_at.desc()).limit(25).all())
+        out['watchlist'] = [{'title': w.movie.title, 'year': w.movie.release_year}
+                            for w in wl if w.movie]
+
+        attended_q = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                      .filter(RSVP.user_id == user.id, RSVP.status == 'going',
+                              Showtime.start_time < now))
+        if group:
+            attended_q = attended_q.filter(RSVP.group_id == group.id)
+        seen, attended = set(), []
+        for r in attended_q.order_by(Showtime.start_time.desc()).limit(60).all():
+            m = r.showtime.movie
+            if not m or m.title in seen:
+                continue
+            seen.add(m.title)
+            attended.append({
+                'title': m.title,
+                'year': m.release_year,
+                'theatre': r.showtime.theatre.short_name or r.showtime.theatre.name,
+                'date': r.showtime.start_time.strftime('%Y-%m-%d'),
+            })
+            if len(attended) >= 20:
+                break
+        out['attended'] = attended
+
+    # Always include what's playing (group-scoped) so unlinked askers still get help.
+    upcoming = (_group_showtime_query(group)
+                .filter(Showtime.start_time >= now,
+                        Showtime.start_time <= now + timedelta(days=14))
+                .order_by(Showtime.start_time).limit(60).all())
+    out['upcoming'] = [{
+        'title': s.movie.title,
+        'genres': s.movie.genres or '',
+        'theatre': s.theatre.short_name or s.theatre.name,
+        'date': s.start_time.strftime('%a %-m/%-d'),
+        'time': s.start_time.strftime('%-I:%M %p'),
+    } for s in upcoming]
+
+    return jsonify(out)
+
+
 @app.route('/api/internal/theatres')
 @require_internal
 def internal_theatres():
@@ -2191,26 +2271,141 @@ def internal_leaderboard():
 @app.route('/api/internal/watch', methods=['POST'])
 @require_internal
 def internal_watch():
-    """Add to watchlist from Discord's /watch command (toggle)."""
+    """Watchlist a movie from Discord's /watch command. `action` is
+    'add' | 'remove' | 'toggle' (default toggle, for backwards compatibility)."""
     data = request.json or {}
     user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
     if not user or not user.is_active:
         return jsonify({'error': 'Not linked'}), 404
     title = (data.get('title') or '').strip()
+    action = (data.get('action') or 'toggle').lower()
     movie = Movie.query.filter(Movie.title.ilike(title)).first() \
         or Movie.query.filter(Movie.title.ilike(f'%{title}%')).first()
     if not movie:
         return jsonify({'error': 'Movie not found'}), 404
 
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
-    if existing:
-        db.session.delete(existing)
-        watching = False
-    else:
-        db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+    if action == 'add':
+        if not existing:
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
         watching = True
+    elif action == 'remove':
+        if existing:
+            db.session.delete(existing)
+        watching = False
+    else:  # toggle
+        if existing:
+            db.session.delete(existing)
+            watching = False
+        else:
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+            watching = True
     db.session.commit()
     return jsonify({'movie_title': movie.title, 'watching': watching, 'user_name': user.name})
+
+
+@app.route('/api/internal/members')
+@require_internal
+def internal_members():
+    """Active members of a group, for the /watch member picker."""
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    if not group:
+        return jsonify([])
+    members = [m.user for m in group.memberships
+               if m.status == 'active' and m.user and m.user.is_active]
+    members.sort(key=lambda u: (u.name or '').lower())
+    return jsonify([{'id': u.id, 'name': u.name} for u in members])
+
+
+@app.route('/api/internal/watchlist')
+@require_internal
+def internal_watchlist():
+    """A member's watchlist (+ each movie's next upcoming showtime), for
+    /watch show. Defaults to the caller; any active member is viewable.
+    Optional start/end (ISO) keep only movies with a showtime in that window."""
+    caller = User.query.filter_by(discord_user_id=str(request.args.get('discord_user_id') or '')).first()
+    if not caller or not caller.is_active:
+        return jsonify({'error': 'Not linked'}), 404
+
+    member_id = request.args.get('member_id', type=int)
+    target = db.session.get(User, member_id) if member_id else caller
+    if not target or not target.is_active:
+        return jsonify({'error': 'Member not found'}), 404
+
+    start = request.args.get('start')
+    end = request.args.get('end')
+    start_dt = datetime.fromisoformat(start) if start else None
+    end_dt = datetime.fromisoformat(end) if end else None
+    now = datetime.now()
+
+    items = []
+    for w in Watchlist.query.filter_by(user_id=target.id).all():
+        if not w.movie:
+            continue
+        q = (Showtime.query
+             .filter(Showtime.movie_id == w.movie_id,
+                     Showtime.is_cancelled.isnot(True))
+             .filter(Showtime.start_time > (start_dt or now)))
+        if end_dt:
+            q = q.filter(Showtime.start_time <= end_dt)
+        next_st = q.order_by(Showtime.start_time).first()
+        if (start_dt or end_dt) and not next_st:
+            continue  # a window was requested and this movie has nothing in it
+        items.append({
+            'title': w.movie.title,
+            'year': w.movie.release_year,
+            'next_showtime': next_st.to_dict() if next_st else None,
+        })
+    items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')
+    return jsonify({'owner': target.name, 'items': items})
+
+
+@app.route('/api/internal/alert-mutes')
+@require_internal
+def internal_alert_mutes():
+    """Theatres whose automated new-showtime announcements are silenced for a
+    group. The bot's announce loop skips drop embeds for these slugs."""
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    slugs = [s.strip() for s in ((group.announce_muted_theatres if group else '') or '').split(',') if s.strip()]
+    names = {}
+    if slugs:
+        names = {t.slug: (t.short_name or t.name)
+                 for t in Theatre.query.filter(Theatre.slug.in_(slugs)).all()}
+    return jsonify({
+        'slugs': slugs,
+        'muted': [{'slug': s, 'name': names.get(s, s)} for s in slugs],
+    })
+
+
+@app.route('/api/internal/alert-mutes', methods=['POST'])
+@require_internal
+def internal_alert_mutes_update():
+    data = request.json or {}
+    group = db.session.get(Group, data.get('group_id')) if data.get('group_id') else None
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    slug = (data.get('theatre_slug') or '').strip()
+    action = (data.get('action') or '').lower()
+    theatre = Theatre.query.filter_by(slug=slug).first()
+    if not theatre:
+        return jsonify({'error': 'Theatre not found'}), 404
+
+    current = [s.strip() for s in (group.announce_muted_theatres or '').split(',') if s.strip()]
+    if action == 'mute':
+        if slug not in current:
+            current.append(slug)
+        muted = True
+    elif action == 'unmute':
+        current = [s for s in current if s != slug]
+        muted = False
+    else:
+        return jsonify({'error': 'action must be mute or unmute'}), 400
+    group.announce_muted_theatres = ','.join(current)
+    db.session.commit()
+    return jsonify({'theatre_slug': slug, 'theatre_name': theatre.short_name or theatre.name,
+                    'muted': muted, 'slugs': current})
 
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
@@ -2224,6 +2419,7 @@ def migrate():
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
         "ALTER TABLE 'group' ADD COLUMN theatres TEXT DEFAULT ''",
+        "ALTER TABLE 'group' ADD COLUMN announce_muted_theatres TEXT DEFAULT ''",
         # TMDB / OMDb enrichment columns
         "ALTER TABLE movie ADD COLUMN tmdb_id INTEGER",
         "ALTER TABLE movie ADD COLUMN imdb_id VARCHAR(20)",

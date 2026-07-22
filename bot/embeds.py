@@ -184,6 +184,32 @@ def movie_embed(showtimes, movie):
     return embed
 
 
+def watchlist_embed(items, owner_name, window_label=None):
+    """A member's watchlist — each movie with its next upcoming showtime."""
+    title = f"👀 {owner_name}'s watchlist"
+    if window_label:
+        title += f" · {window_label}"
+    embed = discord.Embed(title=title, colour=AMBER, url=SITE_URL)
+    if not items:
+        embed.description = ('Nothing on the watchlist for that window.'
+                             if window_label else 'Watchlist is empty.')
+        return embed
+
+    lines = []
+    for it in items[:40]:
+        year = f" ({it['year']})" if it.get('year') else ''
+        st = it.get('next_showtime')
+        if st:
+            theatre = st['theatre'].get('short_name') or st['theatre']['name']
+            when = datetime.fromisoformat(st['start_time']).strftime('%a %-m/%-d %-I:%M %p')
+            lines.append(f"• **{it['title']}**{year} — next: {when} @ {theatre}")
+        else:
+            lines.append(f"• **{it['title']}**{year} — *(no upcoming showtimes)*")
+    embed.description = '\n'.join(lines)[:4000]
+    embed.set_footer(text=f'Full watchlist → {SITE_URL}')
+    return embed
+
+
 def digest_embed(digest):
     group_name = (digest.get('group') or {}).get('name') or 'Cinema Club DC'
     embed = discord.Embed(

@@ -6,8 +6,11 @@ All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
 
+import json
 import os
+import random
 import time
+from collections import deque
 from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -30,6 +33,8 @@ from discord.ext import tasks
 
 from api import InternalApi, ApiError
 import embeds
+import llm
+import quotes
 
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
 DISCORD_CHANNEL_ID = int(os.environ.get('DISCORD_CHANNEL_ID', '0') or 0)
@@ -106,6 +111,95 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
 client.tree.on_error = on_tree_error
 
 
+# ─── @-mention chatbot ────────────────────────────────────────────────────────
+# When someone @s the bot, answer with an LLM grounded in the site's own data
+# (their genres/watchlist/history + what's playing). Works on Intents.default()
+# because Discord always sends message content for messages that mention the bot
+# — no privileged Message Content intent needed.
+
+CHAT_SYSTEM = (
+    "You are CinemaBot, the resident film buff of Cinema Club DC, a DC-area movie "
+    "group. Someone mentioned you in Discord. Be warm, concise, and a little witty "
+    "— one to three sentences at most, since this is a chat message, not an essay. No "
+    "markdown headers.\n\n"
+    "Each user message ends with a [context] JSON block describing the person and "
+    "what's currently playing. Use it to recommend screenings from `upcoming` that "
+    "fit their genres/watchlist/history, playfully judge or hype their taste, and "
+    "answer questions like what's playing, where to catch a specific film, or what "
+    "to watch this weekend.\n\n"
+    "HARD RULES:\n"
+    "- `upcoming` is the ONLY source of real screenings. Never invent or guess a "
+    "showtime, theatre, or date. If a film isn't in `upcoming`, say it's not on the "
+    "schedule right now.\n"
+    "- If user.linked is false, still help from `upcoming`, and where it fits, "
+    "nudge them to run /link to connect their account for personalized picks.\n"
+    "- Never mention the [context] block or that you were given JSON; just talk."
+)
+
+CHAT_COOLDOWN_SEC = 5
+CHAT_HISTORY_TURNS = 8          # ~4 back-and-forth exchanges per channel
+_chat_cooldown = {}            # user id -> last monotonic timestamp
+_chat_history = {}            # channel id -> deque[{role, content}]
+
+
+@client.event
+async def on_message(message: discord.Message):
+    # Only a direct @-mention of the bot triggers a reply; ignore bots and self.
+    if message.author.bot or client.user not in message.mentions:
+        return
+
+    prompt = message.content
+    for token in (f'<@{client.user.id}>', f'<@!{client.user.id}>'):
+        prompt = prompt.replace(token, '')
+    prompt = prompt.strip()
+
+    # Easter egg: "What is thy wisdom @CinemaBot" -> a random movie quote.
+    normalized = ' '.join(''.join(c if c.isalnum() else ' ' for c in prompt).split()).lower()
+    if normalized == 'what is thy wisdom':
+        await message.reply(random.choice(quotes.QUOTES), mention_author=False)
+        return
+
+    if not prompt:
+        await message.reply(
+            '🎬 Mention me with a question — try "what should I see this weekend?", '
+            '"where can I catch The Odyssey?", or "judge my taste."',
+            mention_author=False)
+        return
+
+    uid = str(message.author.id)
+    now = time.monotonic()
+    if now - _chat_cooldown.get(uid, 0) < CHAT_COOLDOWN_SEC:
+        return  # silently rate-limit to keep costs/spam down
+    _chat_cooldown[uid] = now
+
+    try:
+        async with message.channel.typing():
+            try:
+                ctx = await api.get('/api/internal/chat-context',
+                                    discord_user_id=uid, group_id=DEFAULT_GROUP_ID)
+            except Exception as e:
+                print(f'chat-context fetch failed: {e}')
+                ctx = {'user': {'linked': False}, 'upcoming': []}
+
+            hist = _chat_history.setdefault(message.channel.id,
+                                            deque(maxlen=CHAT_HISTORY_TURNS))
+            user_turn = f'{prompt}\n\n[context]\n{json.dumps(ctx, ensure_ascii=False)}'
+            messages = ([{'role': 'system', 'content': CHAT_SYSTEM}]
+                        + list(hist)
+                        + [{'role': 'user', 'content': user_turn}])
+            reply = await llm.chat(messages)
+
+        reply = reply or '…my mind went blank. Ask me again?'
+        # Keep only the bare prompt/reply in history (not the bulky context).
+        hist.append({'role': 'user', 'content': prompt})
+        hist.append({'role': 'assistant', 'content': reply})
+        await message.reply(reply[:2000], mention_author=False)
+    except Exception as e:
+        print(f'chatbot reply failed: {e}')
+        await message.reply('🎞️ My projector jammed — try me again in a sec.',
+                            mention_author=False)
+
+
 def movies_channel():
     return client.get_channel(DISCORD_CHANNEL_ID)
 
@@ -123,10 +217,21 @@ async def announce_loop():
         print(f'announce_loop: fetch failed: {e}')
         return
 
+    # Theatres muted from the channel drop announcements (fail open — a lookup
+    # failure must not silence alerts). Watchlist pings still fire for muted
+    # theatres; muting only suppresses the noisy per-theatre drop embed.
+    try:
+        muted = set((await api.get('/api/internal/alert-mutes',
+                                   group_id=DEFAULT_GROUP_ID)).get('slugs', []))
+    except Exception as e:
+        print(f'announce_loop: alert-mutes fetch failed: {e}')
+        muted = set()
+
     for event in events:
         try:
             if event['event_type'] in ('new_drop', 'new_showtimes'):
-                await channel.send(embed=embeds.drop_embed(event))
+                if (event.get('payload') or {}).get('theatre_slug') not in muted:
+                    await channel.send(embed=embeds.drop_embed(event))
                 await notify_watchers(channel, event)
             elif event['event_type'] == 'scrape_error':
                 await channel.send(embeds.error_message(event))
@@ -209,6 +314,28 @@ async def fetch_window(days, search=None):
     )
 
 
+async def fetch_range(start_iso, end_iso, search=None, limit=300):
+    return await api.get(
+        '/api/internal/showtimes',
+        group_id=DEFAULT_GROUP_ID,
+        start=start_iso, end=end_iso, q=search, limit=limit,
+    )
+
+
+def theatre_match(showtimes, theatre):
+    """Client-side theatre filter shared by the picker commands. Returns
+    (filtered, label) where label is the friendly theatre name for titles."""
+    if not theatre:
+        return showtimes, None
+    t = theatre.lower()
+    filtered = [s for s in showtimes
+                if t in s['theatre']['slug'].lower()
+                or t in s['theatre']['name'].lower()
+                or t in (s['theatre'].get('short_name') or '').lower()]
+    label = filtered[0]['theatre']['name'] if filtered else theatre
+    return filtered, label
+
+
 # Theatre list changes rarely; cache it so autocomplete (which fires per
 # keystroke) doesn't hit the backend on every character.
 _theatre_cache = {'data': None, 'ts': 0.0}
@@ -263,6 +390,29 @@ def parse_iso_date(value):
         return None
 
 
+def resolve_window(days, date=None, end=None):
+    """Turn the (days / date / end) filter trio into ISO (start, end) bounds for
+    the /api/internal/showtimes endpoint. A single `date` means just that day; a
+    `date`+`end` pair means an inclusive range; neither means the next N days.
+    Returns (start_iso, end_iso, label) — label describes the window for titles."""
+    day = parse_iso_date(date)
+    if day:
+        last = parse_iso_date(end) or day
+        if last < day:
+            last = day
+        start = datetime.combine(day, dtime.min)
+        finish = datetime.combine(last, dtime.max)
+        if last == day:
+            label = day.strftime('%a %-m/%-d')
+        else:
+            label = f"{day.strftime('%a %-m/%-d')} – {last.strftime('%a %-m/%-d')}"
+        return start.isoformat(timespec='seconds'), finish.isoformat(timespec='seconds'), label
+    now = datetime.now()
+    return (now.isoformat(timespec='seconds'),
+            (now + timedelta(days=days)).isoformat(timespec='seconds'),
+            f"next {days} day{'s' if days != 1 else ''}")
+
+
 def _fmt_choice(s):
     dt = datetime.fromisoformat(s['start_time'])
     theatre = s['theatre'].get('short_name') or s['theatre']['name']
@@ -296,19 +446,19 @@ async def link(interaction: discord.Interaction, code: str):
 
 
 @client.tree.command(name='showtimes', description="What's playing across the club's theatres")
-@app_commands.describe(days='How many days ahead (default 7)', theatre='Pick a theatre to filter by')
+@app_commands.describe(
+    days='How many days ahead (default 7; ignored if you pick a date)',
+    date='Optional: a specific date (or the start of a range)',
+    end='Optional: end of a date range (use with date)',
+    theatre='Optional: filter to a theatre',
+)
 async def showtimes(interaction: discord.Interaction, days: app_commands.Range[int, 1, 30] = 7,
-                    theatre: str | None = None):
+                    date: str = None, end: str = None, theatre: str = None):
     await interaction.response.defer()
-    sts = await fetch_window(days)
-    theatre_label = None
-    if theatre:
-        t = theatre.lower()
-        sts = [s for s in sts if t in s['theatre']['name'].lower()
-               or t in (s['theatre'].get('short_name') or '').lower()
-               or t in s['theatre']['slug'].lower()]
-        theatre_label = sts[0]['theatre']['name'] if sts else theatre
-    title = f"🎬 Showtimes — next {days} day{'s' if days != 1 else ''}"
+    start_iso, end_iso, label = resolve_window(days, date, end)
+    sts = await fetch_range(start_iso, end_iso)
+    sts, theatre_label = theatre_match(sts, theatre)
+    title = f"🎬 Showtimes — {label}"
     if theatre_label:
         title += f" · {theatre_label}"
     await interaction.followup.send(embed=embeds.showtimes_embed(sts[:120], title))
@@ -319,13 +469,34 @@ async def showtimes_theatre_autocomplete(interaction: discord.Interaction, curre
     return await theatre_choices(current)
 
 
+@showtimes.autocomplete('date')
+async def showtimes_date_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@showtimes.autocomplete('end')
+async def showtimes_end_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
 @client.tree.command(name='movie', description='Details + upcoming showtimes for a movie')
-@app_commands.describe(title='Movie title')
-async def movie(interaction: discord.Interaction, title: str):
+@app_commands.describe(
+    title='Movie title',
+    theatre='Optional: only show this theatre',
+    date='Optional: a specific date (or the start of a range)',
+    end='Optional: end of a date range (use with date)',
+)
+async def movie(interaction: discord.Interaction, title: str,
+                theatre: str = None, date: str = None, end: str = None):
     await interaction.response.defer()
-    sts = await fetch_window(30, search=title)
+    start_iso, end_iso, label = resolve_window(30, date, end)
+    sts = await fetch_range(start_iso, end_iso, search=title)
+    sts, theatre_label = theatre_match(sts, theatre)
     if not sts:
-        await interaction.followup.send(f"Nothing upcoming matching **{title}**.")
+        where = f" at {theatre_label}" if theatre_label else ''
+        # only mention the window when the user actually narrowed it
+        window = '' if (date is None) else f" ({label})"
+        await interaction.followup.send(f"Nothing matching **{title}**{where}{window}.")
         return
     await interaction.followup.send(embed=embeds.movie_embed(sts[:60], sts[0]['movie']))
 
@@ -344,9 +515,25 @@ async def movie_autocomplete(interaction: discord.Interaction, current: str):
     return [app_commands.Choice(name=t[:100], value=t[:100]) for t in titles[:25]]
 
 
+@movie.autocomplete('theatre')
+async def movie_theatre_autocomplete(interaction: discord.Interaction, current: str):
+    return await theatre_choices(current)
+
+
+@movie.autocomplete('date')
+async def movie_date_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@movie.autocomplete('end')
+async def movie_end_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
 @client.tree.command(name='rsvp', description='RSVP to a screening right from Discord')
 @app_commands.describe(
-    date='Optional: narrow the screening list to a date',
+    date='Optional: narrow the screening list to a date (or start of a range)',
+    end='Optional: end of a date range (use with date)',
     theatre='Optional: narrow the screening list to a theatre',
     showtime='The screening (narrows as you set date/theatre, or type a movie)',
     status='Going, maybe, or can\'t go (defaults to Going)',
@@ -356,8 +543,9 @@ async def movie_autocomplete(interaction: discord.Interaction, current: str):
     app_commands.Choice(name='Maybe', value='maybe'),
     app_commands.Choice(name="Can't go", value='not_going'),
 ])
-async def rsvp(interaction: discord.Interaction, date: str = None, theatre: str = None,
-               showtime: str = None, status: app_commands.Choice[str] = None):
+async def rsvp(interaction: discord.Interaction, date: str = None, end: str = None,
+               theatre: str = None, showtime: str = None,
+               status: app_commands.Choice[str] = None):
     await interaction.response.defer()
     if not showtime:
         await interaction.followup.send(
@@ -393,15 +581,25 @@ async def rsvp(interaction: discord.Interaction, date: str = None, theatre: str 
     dt = datetime.fromisoformat(result['start_time'])
     theatre_name = result['theatre'].get('short_name') or result['theatre']['name']
     verb = {'going': 'is going to', 'maybe': 'might go to', 'not_going': "can't make"}[status_value]
-    going_count = len(result.get('attendees', []))
-    suffix = f" ({going_count} going)" if going_count else ''
-    await interaction.followup.send(
-        f"🎟️ {interaction.user.mention} {verb} **{result['movie']['title']}** — "
-        f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre_name}{suffix}")
+    lines = [f"🎟️ {interaction.user.mention} {verb} **{result['movie']['title']}** — "
+             f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre_name}"]
+    # List everyone else already going to this screening.
+    going = [a['name'] for a in result.get('attendees', [])]
+    if going:
+        who = ', '.join(going[:12])
+        if len(going) > 12:
+            who += f" +{len(going) - 12} more"
+        lines.append(f"🍿 Going ({len(going)}): {who}")
+    await interaction.followup.send('\n'.join(lines))
 
 
 @rsvp.autocomplete('date')
 async def rsvp_date_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@rsvp.autocomplete('end')
+async def rsvp_end_autocomplete(interaction: discord.Interaction, current: str):
     return date_choices(current)
 
 
@@ -413,25 +611,22 @@ async def rsvp_theatre_autocomplete(interaction: discord.Interaction, current: s
 @rsvp.autocomplete('showtime')
 async def rsvp_showtime_autocomplete(interaction: discord.Interaction, current: str):
     # Read the sibling filters the user has already set to narrow the list.
-    day = parse_iso_date(getattr(interaction.namespace, 'date', None))
+    date = getattr(interaction.namespace, 'date', None)
+    end = getattr(interaction.namespace, 'end', None)
     theatre = getattr(interaction.namespace, 'theatre', None)
+    # No date set -> default to a 14-day picker window; else honor the range.
+    default_days = 14
+    if parse_iso_date(date):
+        start_iso, end_iso, _ = resolve_window(default_days, date, end)
+    else:
+        now = datetime.now()
+        start_iso = now.isoformat(timespec='seconds')
+        end_iso = (now + timedelta(days=default_days)).isoformat(timespec='seconds')
     try:
-        if day:
-            sts = await api.get(
-                '/api/internal/showtimes', group_id=DEFAULT_GROUP_ID,
-                start=f'{day.isoformat()}T00:00:00',
-                end=f'{day.isoformat()}T23:59:59',
-                q=current or None)
-        else:
-            sts = await fetch_window(14, search=current or None)
+        sts = await fetch_range(start_iso, end_iso, search=current or None)
     except Exception:
         return []
-    if theatre:
-        t = theatre.lower()
-        sts = [s for s in sts
-               if t in s['theatre']['slug'].lower()
-               or t in s['theatre']['name'].lower()
-               or t in (s['theatre'].get('short_name') or '').lower()]
+    sts, _ = theatre_match(sts, theatre)
     return [app_commands.Choice(name=_fmt_choice(s), value=str(s['id'])) for s in sts[:25]]
 
 
@@ -461,49 +656,214 @@ async def polls(interaction: discord.Interaction):
     await interaction.followup.send('\n'.join(lines))
 
 
-@client.tree.command(name='watch', description="Watchlist a movie — I'll ping you when it gets showtimes")
-@app_commands.describe(title='Movie title')
-async def watch(interaction: discord.Interaction, title: str):
-    await interaction.response.defer()
+async def fetch_my_watchlist(discord_user_id, member_id=None, start=None, end=None):
+    return await api.get('/api/internal/watchlist',
+                         discord_user_id=discord_user_id, member_id=member_id,
+                         start=start, end=end)
+
+
+@client.tree.command(name='watch', description='Watchlist: add, remove, or show a member\'s list')
+@app_commands.describe(
+    action='Add to / remove from your watchlist, or show a list (default Add)',
+    title='Movie (for Add/Remove)',
+    member='Whose watchlist to show (default you)',
+    date='Show only: a date (or start of a range) to filter the list',
+    end='Show only: end of a date range (use with date)',
+)
+@app_commands.choices(action=[
+    app_commands.Choice(name='Add', value='add'),
+    app_commands.Choice(name='Remove', value='remove'),
+    app_commands.Choice(name='Show', value='show'),
+])
+async def watch(interaction: discord.Interaction, action: app_commands.Choice[str] = None,
+                title: str = None, member: str = None, date: str = None, end: str = None):
+    # Add & Show are public — they're engaging for the group. Remove is a
+    # private one-off, so it (and its replies) stay ephemeral. Visibility is
+    # locked at defer time, so decide it from the action up front.
+    act = action.value if action else 'add'
+    eph = (act == 'remove')
+    await interaction.response.defer(ephemeral=eph)
+    uid = str(interaction.user.id)
+
+    if act == 'show':
+        member_id = int(member) if (member and member.isdigit()) else None
+        start_iso = end_iso = window_label = None
+        if parse_iso_date(date):
+            start_iso, end_iso, window_label = resolve_window(0, date, end)
+        try:
+            data = await fetch_my_watchlist(uid, member_id, start_iso, end_iso)
+        except ApiError as e:
+            msg = ("Link your account first: profile menu on "
+                   f"{SITE_URL} → **Link Discord** → `/link <code>`."
+                   if e.status == 404 else f'Watchlist lookup failed ({e.status}).')
+            await interaction.followup.send(msg, ephemeral=eph)
+            return
+        except Exception as e:
+            print(f'/watch show failed: {e}')
+            await interaction.followup.send(
+                "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=eph)
+            return
+        await interaction.followup.send(
+            embed=embeds.watchlist_embed(data.get('items', []), data.get('owner', 'Someone'),
+                                         window_label),
+            ephemeral=eph)
+        return
+
+    # add / remove
+    if not title:
+        await interaction.followup.send('Pick a movie to add or remove.', ephemeral=eph)
+        return
     try:
         result = await api.post('/api/internal/watch', {
-            'discord_user_id': str(interaction.user.id), 'title': title,
+            'discord_user_id': uid, 'title': title, 'action': act,
         })
     except ApiError as e:
         if e.status == 404 and 'linked' in e.body.lower():
             await interaction.followup.send(
                 f"Link your account first: profile menu on {SITE_URL} → **Link Discord** → `/link <code>`.",
-                ephemeral=True)
+                ephemeral=eph)
         else:
             await interaction.followup.send(
-                f"Couldn't find **{title}** — try `/movie` to check what's tracked.", ephemeral=True)
+                f"Couldn't find **{title}** — try `/movie` to check what's tracked.", ephemeral=eph)
         return
     except Exception as e:
         print(f'/watch failed: {e}')
         await interaction.followup.send(
-            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
+            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=eph)
         return
 
     if result['watching']:
+        # Public, engaging callout.
         await interaction.followup.send(
-            f"👀 {interaction.user.mention} is watching for **{result['movie_title']}** showtimes.")
+            f"{interaction.user.mention} is watching for **{result['movie_title']}** showtimes.")
     else:
         await interaction.followup.send(
             f"Removed **{result['movie_title']}** from your watchlist.", ephemeral=True)
 
 
 @watch.autocomplete('title')
-async def watch_autocomplete(interaction: discord.Interaction, current: str):
+async def watch_title_autocomplete(interaction: discord.Interaction, current: str):
+    action = getattr(interaction.namespace, 'action', None)
+    cur = (current or '').lower()
+    # For Remove, suggest what's actually on the caller's watchlist.
+    if action == 'remove':
+        try:
+            data = await fetch_my_watchlist(str(interaction.user.id))
+            titles = [it['title'] for it in data.get('items', [])]
+        except Exception:
+            titles = []
+    else:
+        try:
+            sts = await fetch_window(60, search=current or None)
+        except Exception:
+            sts = []
+        titles = []
+        for s in sts:
+            t = s['movie']['title']
+            if t not in titles:
+                titles.append(t)
+    matches = [t for t in titles if not cur or cur in t.lower()]
+    return [app_commands.Choice(name=t[:100], value=t[:100]) for t in matches[:25]]
+
+
+@watch.autocomplete('member')
+async def watch_member_autocomplete(interaction: discord.Interaction, current: str):
     try:
-        sts = await fetch_window(60, search=current or None)
+        members = await api.get('/api/internal/members', group_id=DEFAULT_GROUP_ID)
     except Exception:
         return []
-    titles = []
-    for s in sts:
-        t = s['movie']['title']
-        if t not in titles:
-            titles.append(t)
-    return [app_commands.Choice(name=t[:100], value=t[:100]) for t in titles[:25]]
+    cur = (current or '').lower()
+    matches = [m for m in members if not cur or cur in m['name'].lower()]
+    return [app_commands.Choice(name=m['name'], value=str(m['id'])) for m in matches[:25]]
+
+
+@watch.autocomplete('date')
+async def watch_date_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@watch.autocomplete('end')
+async def watch_end_autocomplete(interaction: discord.Interaction, current: str):
+    return date_choices(current)
+
+
+@client.tree.command(name='alerts',
+                     description="Mute/unmute a theatre's automated new-showtime announcements")
+@app_commands.describe(
+    action='Mute stops a theatre\'s drop alerts; Unmute resumes; Show lists muted (default Show)',
+    theatre='The theatre to mute or unmute',
+)
+@app_commands.choices(action=[
+    app_commands.Choice(name='Mute', value='mute'),
+    app_commands.Choice(name='Unmute', value='unmute'),
+    app_commands.Choice(name='Show', value='show'),
+])
+async def alerts(interaction: discord.Interaction,
+                 action: app_commands.Choice[str] = None, theatre: str = None):
+    # Control command — replies are ephemeral so channel isn't spammed.
+    await interaction.response.defer(ephemeral=True)
+    act = action.value if action else 'show'
+
+    if act == 'show':
+        try:
+            data = await api.get('/api/internal/alert-mutes', group_id=DEFAULT_GROUP_ID)
+        except Exception as e:
+            print(f'/alerts show failed: {e}')
+            await interaction.followup.send("Couldn't reach the server — try again in a bit.",
+                                            ephemeral=True)
+            return
+        muted = data.get('muted', [])
+        if not muted:
+            await interaction.followup.send(
+                "🔔 No theatres are muted — every theatre's new-showtime drops are announced.",
+                ephemeral=True)
+        else:
+            names = ', '.join(m['name'] for m in muted)
+            await interaction.followup.send(
+                f"🔕 Muted from drop announcements: **{names}**\n"
+                "(These still appear in the calendar and commands, and watchlist pings still fire.)",
+                ephemeral=True)
+        return
+
+    if not theatre:
+        await interaction.followup.send('Pick a theatre to mute or unmute.', ephemeral=True)
+        return
+    try:
+        result = await api.post('/api/internal/alert-mutes', {
+            'group_id': DEFAULT_GROUP_ID, 'theatre_slug': theatre, 'action': act,
+        })
+    except ApiError as e:
+        await interaction.followup.send(f"Couldn't update alerts ({e.status}).", ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/alerts {act} failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.",
+                                        ephemeral=True)
+        return
+
+    name = result['theatre_name']
+    if result['muted']:
+        await interaction.followup.send(
+            f"🔕 Muted **{name}** — its new-showtime drops won't be announced here anymore "
+            "(still on the calendar; watchlist pings still fire).", ephemeral=True)
+    else:
+        await interaction.followup.send(f"🔔 Unmuted **{name}** — its drops will be announced again.",
+                                        ephemeral=True)
+
+
+@alerts.autocomplete('theatre')
+async def alerts_theatre_autocomplete(interaction: discord.Interaction, current: str):
+    # For Unmute, suggest only currently-muted theatres; else all theatres.
+    action = getattr(interaction.namespace, 'action', None)
+    if action == 'unmute':
+        try:
+            data = await api.get('/api/internal/alert-mutes', group_id=DEFAULT_GROUP_ID)
+        except Exception:
+            return []
+        cur = (current or '').lower()
+        muted = [m for m in data.get('muted', []) if not cur or cur in m['name'].lower()]
+        return [app_commands.Choice(name=m['name'], value=m['slug']) for m in muted[:25]]
+    return await theatre_choices(current)
 
 
 @client.tree.command(name='leaderboard', description='Season kernel standings 🍿')

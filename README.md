@@ -126,6 +126,7 @@ OMDB_API_KEY=...          # omdbapi.com
 INTERNAL_API_TOKEN=...    # shared secret between backend and bot (any random hex)
 DISCORD_BOT_TOKEN=...     # from discord.com/developers/applications
 DISCORD_CHANNEL_ID=...    # the #movies channel id (announcements, RSVP callouts, digest)
+GROQ_API_KEY=...          # free key from console.groq.com — powers the @-mention chatbot
 SITE_URL=https://cinemaclubdc.com
 DEFAULT_GROUP_ID=1
 
@@ -258,6 +259,10 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Weekly digest**: Mondays 10:00 ET — who's going, what's playing, open polls.
 - **Slash commands**: `/showtimes`, `/movie`, `/rsvp`, `/whosgoing`, `/watch`,
   `/polls`, `/leaderboard`, `/digest`, `/link`.
+- **@-mention chatbot**: `@CinemaBot what should I see this weekend?` — a light
+  LLM (Groq free tier) grounded in the site's data (your genres, watchlist,
+  attendance, standing + what's playing). Recommends, answers "where can I catch
+  X", and judges your taste. Needs `GROQ_API_KEY`; no privileged intent required.
 - **Account linking**: profile menu on the site → "Link Discord" → 6-char code
   → `/link <code>` in Discord. RSVPs from Discord then post publicly.
 
