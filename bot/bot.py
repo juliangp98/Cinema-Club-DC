@@ -9,6 +9,7 @@ never touches the database directly.
 import json
 import os
 import random
+import re
 import time
 from collections import deque
 from datetime import datetime, timedelta, time as dtime
@@ -47,6 +48,11 @@ ET = ZoneInfo('America/New_York')
 api = InternalApi()
 
 intents = discord.Intents.default()
+# Privileged intent — REQUIRED for the typed-name "what is thy wisdom" trigger and
+# the ambient quote triggers to read messages that don't @-mention the bot. Also
+# enable "Message Content Intent" in the Discord Developer Portal (Bot settings)
+# or the gateway connection will fail / message content will arrive empty.
+intents.message_content = True
 
 
 class CinemaClubBot(discord.Client):
@@ -118,10 +124,13 @@ client.tree.on_error = on_tree_error
 # — no privileged Message Content intent needed.
 
 CHAT_SYSTEM = (
-    "You are CinemaBot, the resident film buff of Cinema Club DC, a DC-area movie "
-    "group. Someone mentioned you in Discord. Be warm, concise, and a little witty "
-    "— one to three sentences at most, since this is a chat message, not an essay. No "
-    "markdown headers.\n\n"
+    "You are CinemaBot, the resident film buff of Cinema Club DC — a DC-area movie "
+    "group that haunts Suns Cinema, AFI Silver, the National Gallery, Alamo, and the "
+    "rest of the city's repertory circuit. You're warm, quick-witted, and a touch "
+    "theatrical, equally at home with blockbusters and the cult, arthouse, foreign, "
+    "noir, and horror gems that play those houses. You revere movies without being a "
+    "snob. Keep replies to one to three sentences — this is a chat message, not an "
+    "essay — and skip markdown headers.\n\n"
     "Each user message ends with a [context] JSON block describing the person and "
     "what's currently playing. Use it to recommend screenings from `upcoming` that "
     "fit their genres/watchlist/history, playfully judge or hype their taste, and "
@@ -131,33 +140,81 @@ CHAT_SYSTEM = (
     "- `upcoming` is the ONLY source of real screenings. Never invent or guess a "
     "showtime, theatre, or date. If a film isn't in `upcoming`, say it's not on the "
     "schedule right now.\n"
-    "- If user.linked is false, still help from `upcoming`, and where it fits, "
-    "nudge them to run /link to connect their account for personalized picks.\n"
+    "- If user.linked is false, still help from `upcoming` and chat freely, and where "
+    "it fits, nudge them to run /link to connect their account for personalized picks.\n"
+    "- You love slipping a fitting line of movie wisdom into a reply when it lands "
+    "naturally — but weave it in, never attribute it to a film or character, and never "
+    "fake a quote as real dialogue. Don't force it; most replies won't need one.\n"
     "- Never mention the [context] block or that you were given JSON; just talk."
 )
+
+
+def build_chat_system():
+    """Persona + a rotating handful of real movie lines from quotes.py to color
+    the bot's voice (it may riff on their spirit; it isn't required to)."""
+    seed = random.sample(quotes.QUOTES, k=min(6, len(quotes.QUOTES)))
+    return (CHAT_SYSTEM + "\n\nLines of movie wisdom rattling around your head right "
+            "now — draw on their spirit if one fits, otherwise ignore them:\n"
+            + '\n'.join(f'- {q}' for q in seed))
+
 
 CHAT_COOLDOWN_SEC = 5
 CHAT_HISTORY_TURNS = 8          # ~4 back-and-forth exchanges per channel
 _chat_cooldown = {}            # user id -> last monotonic timestamp
 _chat_history = {}            # channel id -> deque[{role, content}]
 
+# Ambient quote triggers: movie-ish words that (occasionally) make the bot drop a
+# random quote. Edit the word list here. Word-boundary + case-insensitive so
+# "film" matches but "filmmaker"/"cinematic" don't.
+TRIGGER_REGEX = re.compile(
+    r'\b(imax|dolby|70\s?mm|theat(?:er|re)s?|movies?|cinema|films?|showtimes?|'
+    r'matin[eé]e|popcorn|silver\s?screen|big\s?screen)\b', re.IGNORECASE)
+TRIGGER_CHANCE = 0.22          # fire on ~1 in 5 matching messages...
+TRIGGER_COOLDOWN_SEC = 90      # ...but at most once per channel per this window
+_trigger_cooldown = {}         # channel id -> last monotonic timestamp
+
+
+def wisdom_requested(message):
+    """True when a message asks CinemaBot for wisdom under any form: a real
+    @mention ping, a typed '@CinemaBot', or plain '...Cinemabot' with any
+    casing/punctuation. Naming CinemaBot is required so we don't answer another
+    bot's identical callout."""
+    content = message.content or ''
+    phrase = ' '.join(''.join(c if c.isalnum() else ' ' for c in content).split()).lower()
+    if 'what is thy wisdom' not in phrase:
+        return False
+    squished = ''.join(c for c in content.lower() if c.isalnum())
+    return (client.user in message.mentions) or ('cinemabot' in squished)
+
 
 @client.event
 async def on_message(message: discord.Message):
-    # Only a direct @-mention of the bot triggers a reply; ignore bots and self.
-    if message.author.bot or client.user not in message.mentions:
+    if message.author.bot:   # ignore self + other bots (no feedback loops)
         return
 
+    # 1) "What is thy wisdom" in any form (ping / typed @CinemaBot / plain name).
+    if wisdom_requested(message):
+        await message.reply(random.choice(quotes.QUOTES), mention_author=False)
+        return
+
+    mentioned = client.user in message.mentions
+
+    # 2) Ambient triggers: a movie-ish word in any non-mention message has a
+    #    chance to summon a quote, rate-limited per channel to avoid spam.
+    if not mentioned:
+        if TRIGGER_REGEX.search(message.content or ''):
+            now = time.monotonic()
+            if (random.random() < TRIGGER_CHANCE
+                    and now - _trigger_cooldown.get(message.channel.id, 0) >= TRIGGER_COOLDOWN_SEC):
+                _trigger_cooldown[message.channel.id] = now
+                await message.reply(random.choice(quotes.QUOTES), mention_author=False)
+        return
+
+    # 3) Direct @-mention -> LLM chat.
     prompt = message.content
     for token in (f'<@{client.user.id}>', f'<@!{client.user.id}>'):
         prompt = prompt.replace(token, '')
     prompt = prompt.strip()
-
-    # Easter egg: "What is thy wisdom @CinemaBot" -> a random movie quote.
-    normalized = ' '.join(''.join(c if c.isalnum() else ' ' for c in prompt).split()).lower()
-    if normalized == 'what is thy wisdom':
-        await message.reply(random.choice(quotes.QUOTES), mention_author=False)
-        return
 
     if not prompt:
         await message.reply(
@@ -184,7 +241,7 @@ async def on_message(message: discord.Message):
             hist = _chat_history.setdefault(message.channel.id,
                                             deque(maxlen=CHAT_HISTORY_TURNS))
             user_turn = f'{prompt}\n\n[context]\n{json.dumps(ctx, ensure_ascii=False)}'
-            messages = ([{'role': 'system', 'content': CHAT_SYSTEM}]
+            messages = ([{'role': 'system', 'content': build_chat_system()}]
                         + list(hist)
                         + [{'role': 'user', 'content': user_turn}])
             reply = await llm.chat(messages)
@@ -413,6 +470,96 @@ def resolve_window(days, date=None, end=None):
             f"next {days} day{'s' if days != 1 else ''}")
 
 
+# ─── Dependent autocompletes ──────────────────────────────────────────────────
+# Options narrow to what's actually available given the sibling selections a
+# user has made (e.g. pick a movie -> only its dates/theatres). The backend
+# facets endpoint returns distinct dates/theatres for the current filter.
+
+async def fetch_facets(title=None, theatre=None, start=None, end=None):
+    return await api.get('/api/internal/showtime-facets', group_id=DEFAULT_GROUP_ID,
+                         q=title, theatre=theatre, start=start, end=end)
+
+
+def _dates_to_choices(dates, current, after=None):
+    """Build date Choices from ISO date strings, filtered by typed text and an
+    optional lower bound (for range 'end' fields)."""
+    cur = (current or '').lower()
+    today = datetime.now().date()
+    out = []
+    for iso in dates:
+        if after and iso < after:
+            continue
+        try:
+            d = datetime.strptime(iso, '%Y-%m-%d').date()
+        except ValueError:
+            continue
+        label = ('Today' if d == today else 'Tomorrow' if d == today + timedelta(days=1)
+                 else d.strftime('%a, %b %-d'))
+        if not cur or cur in label.lower() or cur in iso or cur in d.strftime('%-m/%-d'):
+            out.append(app_commands.Choice(name=label, value=iso))
+        if len(out) >= 25:
+            break
+    return out
+
+
+def _theatres_to_choices(theatres, current):
+    cur = (current or '').lower()
+    out = []
+    for t in theatres:
+        if (not cur or cur in t['name'].lower()
+                or cur in (t.get('short_name') or '').lower() or cur in t['slug'].lower()):
+            out.append(app_commands.Choice(name=t['name'], value=t['slug']))
+        if len(out) >= 25:
+            break
+    return out
+
+
+async def dynamic_date_ac(interaction, current, title_attr=None):
+    """Date options narrowed to a selected movie (title_attr) and/or theatre."""
+    title = getattr(interaction.namespace, title_attr, None) if title_attr else None
+    theatre = getattr(interaction.namespace, 'theatre', None)
+    if not title and not theatre:
+        return date_choices(current)
+    try:
+        facets = await fetch_facets(title=title, theatre=theatre)
+    except Exception:
+        return date_choices(current)
+    return _dates_to_choices(facets.get('dates', []), current)
+
+
+async def dynamic_end_ac(interaction, current, title_attr=None):
+    """Range-end options: same as date, but only on/after the chosen start date."""
+    title = getattr(interaction.namespace, title_attr, None) if title_attr else None
+    theatre = getattr(interaction.namespace, 'theatre', None)
+    start = parse_iso_date(getattr(interaction.namespace, 'date', None))
+    after = start.isoformat() if start else None
+    if not title and not theatre:
+        return date_choices(current)
+    try:
+        facets = await fetch_facets(title=title, theatre=theatre)
+    except Exception:
+        return date_choices(current)
+    return _dates_to_choices(facets.get('dates', []), current, after=after)
+
+
+async def dynamic_theatre_ac(interaction, current, title_attr=None):
+    """Theatre options narrowed to a selected movie (title_attr) and/or date range."""
+    title = getattr(interaction.namespace, title_attr, None) if title_attr else None
+    date = getattr(interaction.namespace, 'date', None)
+    end = getattr(interaction.namespace, 'end', None)
+    day = parse_iso_date(date)
+    start_iso = end_iso = None
+    if day:
+        start_iso, end_iso, _ = resolve_window(0, date, end)
+    if not title and not day:
+        return await theatre_choices(current)
+    try:
+        facets = await fetch_facets(title=title, start=start_iso, end=end_iso)
+    except Exception:
+        return await theatre_choices(current)
+    return _theatres_to_choices(facets.get('theatres', []), current)
+
+
 def _fmt_choice(s):
     dt = datetime.fromisoformat(s['start_time'])
     theatre = s['theatre'].get('short_name') or s['theatre']['name']
@@ -445,6 +592,12 @@ async def link(interaction: discord.Interaction, code: str):
             "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
 
 
+@client.tree.command(name='wisdom', description='Receive a random piece of cinematic wisdom 🎬')
+async def wisdom(interaction: discord.Interaction):
+    # No account or backend needed — works for anyone, linked or not.
+    await interaction.response.send_message(random.choice(quotes.QUOTES))
+
+
 @client.tree.command(name='showtimes', description="What's playing across the club's theatres")
 @app_commands.describe(
     days='How many days ahead (default 7; ignored if you pick a date)',
@@ -466,17 +619,17 @@ async def showtimes(interaction: discord.Interaction, days: app_commands.Range[i
 
 @showtimes.autocomplete('theatre')
 async def showtimes_theatre_autocomplete(interaction: discord.Interaction, current: str):
-    return await theatre_choices(current)
+    return await dynamic_theatre_ac(interaction, current)
 
 
 @showtimes.autocomplete('date')
 async def showtimes_date_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_date_ac(interaction, current)
 
 
 @showtimes.autocomplete('end')
 async def showtimes_end_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_end_ac(interaction, current)
 
 
 @client.tree.command(name='movie', description='Details + upcoming showtimes for a movie')
@@ -517,17 +670,17 @@ async def movie_autocomplete(interaction: discord.Interaction, current: str):
 
 @movie.autocomplete('theatre')
 async def movie_theatre_autocomplete(interaction: discord.Interaction, current: str):
-    return await theatre_choices(current)
+    return await dynamic_theatre_ac(interaction, current, 'title')
 
 
 @movie.autocomplete('date')
 async def movie_date_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_date_ac(interaction, current, 'title')
 
 
 @movie.autocomplete('end')
 async def movie_end_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_end_ac(interaction, current, 'title')
 
 
 @client.tree.command(name='rsvp', description='RSVP to a screening right from Discord')
@@ -595,17 +748,17 @@ async def rsvp(interaction: discord.Interaction, date: str = None, end: str = No
 
 @rsvp.autocomplete('date')
 async def rsvp_date_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_date_ac(interaction, current)
 
 
 @rsvp.autocomplete('end')
 async def rsvp_end_autocomplete(interaction: discord.Interaction, current: str):
-    return date_choices(current)
+    return await dynamic_end_ac(interaction, current)
 
 
 @rsvp.autocomplete('theatre')
 async def rsvp_theatre_autocomplete(interaction: discord.Interaction, current: str):
-    return await theatre_choices(current)
+    return await dynamic_theatre_ac(interaction, current)
 
 
 @rsvp.autocomplete('showtime')

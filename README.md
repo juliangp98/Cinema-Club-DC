@@ -257,18 +257,32 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Watchlist pings**: when a drop includes a movie someone watchlisted, the
   bot @-mentions them (unlinked members get an email instead).
 - **Weekly digest**: Mondays 10:00 ET — who's going, what's playing, open polls.
-- **Slash commands**: `/showtimes`, `/movie`, `/rsvp`, `/whosgoing`, `/watch`,
-  `/polls`, `/leaderboard`, `/digest`, `/link`.
+- **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
+  `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`, `/link`.
+  Info + fun commands (everything except `/rsvp` and `/watch`) work for anyone —
+  no account link required. Date/theatre filters are dependent: pick a movie and
+  the date/theatre options narrow to where it's actually showing.
 - **@-mention chatbot**: `@CinemaBot what should I see this weekend?` — a light
   LLM (Groq free tier) grounded in the site's data (your genres, watchlist,
   attendance, standing + what's playing). Recommends, answers "where can I catch
   X", and judges your taste. Needs `GROQ_API_KEY`; no privileged intent required.
+  Unlinked users can still chat (just less personalized).
+- **Cinematic wisdom**: `/wisdom`, or `what is thy wisdom CinemaBot` (any form —
+  a real @mention, a typed `@CinemaBot`, or just the name, any casing) — a random
+  movie quote. Works for anyone; needs no backend or account.
+- **Ambient quotes**: any message with movie-ish words (movie, theatre, IMAX,
+  70mm, Dolby, cinema, film…) has a ~1-in-5 chance (rate-limited per channel) of
+  making the bot drop a random quote. Requires the Message Content intent below.
 - **Account linking**: profile menu on the site → "Link Discord" → 6-char code
   → `/link <code>` in Discord. RSVPs from Discord then post publicly.
 
 Bot setup (one-time):
 1. Create an application + bot at https://discord.com/developers/applications.
-2. Enable no privileged intents (defaults are fine); copy the bot token.
+2. Copy the bot token. **Enable the "Message Content Intent"** under Bot →
+   Privileged Gateway Intents — required for the ambient quotes and the
+   typed-name `what is thy wisdom` trigger to read messages that don't ping the
+   bot. (No verification needed under ~100 servers. Without it the bot still
+   runs, but those two features stay dark and slash commands/@mention chat work.)
 3. Invite it to the server with the `bot` + `applications.commands` scopes and
    Send Messages / Embed Links permissions.
 4. Set `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` (#movies channel id) in

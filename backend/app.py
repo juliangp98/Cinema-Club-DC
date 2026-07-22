@@ -2106,6 +2106,45 @@ def internal_theatres():
     return jsonify([t.to_dict() for t in theatres])
 
 
+@app.route('/api/internal/showtime-facets')
+@require_internal
+def internal_showtime_facets():
+    """Distinct dates + theatres available for the current filter selection,
+    powering dependent autocompletes (pick a movie -> only its dates/theatres).
+    Computed with DISTINCT so it's complete and cheap regardless of volume.
+    Optional filters: q (movie title), theatre (slug), start/end (ISO)."""
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    now = datetime.now()
+    q = _group_showtime_query(group)
+
+    start = request.args.get('start')
+    end = request.args.get('end')
+    q = q.filter(Showtime.start_time >= (datetime.fromisoformat(start) if start else now))
+    q = q.filter(Showtime.start_time <= (datetime.fromisoformat(end) if end
+                                         else now + timedelta(days=60)))
+    title = (request.args.get('q') or '').strip()
+    if title:
+        q = q.filter(Movie.title.ilike(f'%{title}%'))
+    theatre = (request.args.get('theatre') or '').strip()
+    if theatre:
+        q = q.filter(Theatre.slug == theatre)
+
+    date_rows = q.with_entities(db.func.date(Showtime.start_time)).distinct().all()
+    dates = sorted({r[0] for r in date_rows if r[0]})
+
+    th_rows = q.with_entities(Theatre.slug, Theatre.short_name, Theatre.name).distinct().all()
+    theatres, seen = [], set()
+    for slug, short, name in th_rows:
+        if slug in seen:
+            continue
+        seen.add(slug)
+        theatres.append({'slug': slug, 'name': name, 'short_name': short or name})
+    theatres.sort(key=lambda t: (t['name'] or '').lower())
+
+    return jsonify({'dates': dates, 'theatres': theatres})
+
+
 @app.route('/api/internal/digest')
 @require_internal
 def internal_digest():
