@@ -141,8 +141,9 @@ CHAT_SYSTEM = (
     "You may be given a short REFERENCE section below (the person, and what's playing "
     "in `upcoming`). Use it silently and only when it's actually relevant to what they "
     "asked — never repeat it, paste it, quote it, mention it, or output JSON.\n\n"
-    "Rules: one to three sentences — discord chat, not an essay; an incomplete sentence is fine;"
-    "no markdown headers; do NOT tack a movie quote onto your replies unless it's relevant to the conversation."
+    "Rules: one to three sentences — discord chat, not an essay; an incomplete sentence,"
+    "not run-on, is fine; no markdown headers; do NOT tack a movie quote onto your replies"
+    "unless it'srelevant to the conversation or quoting the movie being discussed."
     "`upcoming` is the only real source of showtimes — never invent a screening, theatre,"
     "or date, and if a film isn't in `upcoming`, say it's not on the schedule. "
     "If someone isn't linked (user.linked is false) and asks for personalized help, you"
@@ -150,7 +151,7 @@ CHAT_SYSTEM = (
 )
 
 
-CHAT_COOLDOWN_SEC = 5
+CHAT_COOLDOWN_SEC = 3
 CHAT_HISTORY_TURNS = 8          # ~4 back-and-forth exchanges per channel
 _chat_cooldown = {}            # user id -> last monotonic timestamp
 _chat_history = {}            # channel id -> deque[{role, content}]
@@ -200,9 +201,9 @@ def _sanitize_reply(text):
 # random quote. Edit the word list here. Word-boundary + case-insensitive so
 # "film" matches but "filmmaker"/"cinematic" don't.
 TRIGGER_REGEX = re.compile(
-    r'\b(imax|dolby|70\s?mm|theat(?:er|re)s?|movies?|cinema|films?|showtimes?|'
+    r'\b(imax|dolby|70\s?mm|letterboxd|theat(?:er|re)s?|movies?|cinema|films?|showtimes?|'
     r'matin[eé]e|popcorn|silver\s?screen|big\s?screen)\b', re.IGNORECASE)
-TRIGGER_CHANCE = 0.22          # fire on ~1 in 5 matching messages...
+TRIGGER_CHANCE = 0.15          # fire on ~1 in 10 matching messages...
 TRIGGER_COOLDOWN_SEC = 90      # ...but at most once per channel per this window
 _trigger_cooldown = {}         # channel id -> last monotonic timestamp
 
