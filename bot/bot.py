@@ -6,7 +6,6 @@ All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
 
-import json
 import os
 import random
 import re
@@ -139,9 +138,9 @@ CHAT_SYSTEM = (
     "playing. Only pull that up when they actually ask for it (a rec, where to catch "
     "a film, what's on this weekend, planning a night). When they do ask, be genuinely "
     "useful and helpful — but still with a point of view, not a neutral list.\n\n"
-    "Each message ends with a [context] JSON block (the person, and what's playing in "
-    "`upcoming`). It's reference you may use only when it's actually relevant — never "
-    "recite it, never mention it exists.\n\n"
+    "You may be given a short REFERENCE section below (the person, and what's playing "
+    "in `upcoming`). Use it silently and only when it's actually relevant to what they "
+    "asked — never repeat it, paste it, quote it, mention it, or output JSON.\n\n"
     "Rules: one to three sentences — discord chat, not an essay; an incomplete sentence is fine;"
     "no markdown headers; do NOT tack a movie quote onto your replies unless it's relevant to the conversation."
     "`upcoming` is the only real source of showtimes — never invent a screening, theatre,"
@@ -155,6 +154,47 @@ CHAT_COOLDOWN_SEC = 5
 CHAT_HISTORY_TURNS = 8          # ~4 back-and-forth exchanges per channel
 _chat_cooldown = {}            # user id -> last monotonic timestamp
 _chat_history = {}            # channel id -> deque[{role, content}]
+
+
+def format_context(ctx):
+    """Compact plain-text reference (not JSON — small models echo raw JSON).
+    Kept lean on purpose: person basics + what's playing. No stats dump."""
+    lines = []
+    u = ctx.get('user') or {}
+    if u.get('linked'):
+        who = u.get('name') or 'them'
+        genres = (u.get('favorite_genres') or '').strip()
+        lines.append(f"Person: {who}" + (f"; favorite genres: {genres}" if genres else ''))
+    else:
+        lines.append("Person: not linked to the site")
+    wl = [w.get('title') for w in (ctx.get('watchlist') or []) if w.get('title')]
+    if wl:
+        lines.append("Their watchlist: " + ', '.join(wl[:15]))
+    up = ctx.get('upcoming') or []
+    if up:
+        lines.append("What's playing (next ~2 weeks):")
+        for s in up[:30]:
+            lines.append(f"- {s.get('title')} @ {s.get('theatre')}, {s.get('date')} {s.get('time')}")
+    return '\n'.join(lines)
+
+
+def _sanitize_reply(text):
+    """Belt-and-suspenders: strip anything the model may have leaked from the
+    reference block — a '[context]'/'reference' marker or a raw JSON dump. In a
+    movie chat, a literal '{\"' or '[{' is never legitimate output."""
+    if not text:
+        return text
+    low = text.lower()
+    cuts = [len(text)]
+    for marker in ('[context]', 'reference (', 'reference only', "what's playing (next"):
+        i = low.find(marker)
+        if i != -1:
+            cuts.append(i)
+    for token in ('{"', '[{', '```'):
+        i = text.find(token)
+        if i != -1:
+            cuts.append(i)
+    return text[:min(cuts)].strip()
 
 # Ambient quote triggers: movie-ish words that (occasionally) make the bot drop a
 # random quote. Edit the word list here. Word-boundary + case-insensitive so
@@ -233,11 +273,18 @@ async def on_message(message: discord.Message):
 
             hist = _chat_history.setdefault(message.channel.id,
                                             deque(maxlen=CHAT_HISTORY_TURNS))
-            user_turn = f'{prompt}\n\n[context]\n{json.dumps(ctx, ensure_ascii=False)}'
-            messages = ([{'role': 'system', 'content': CHAT_SYSTEM}]
+            # Context goes in the SYSTEM prompt as terse text (not appended to the
+            # user turn as JSON — small models echo that straight back).
+            system = CHAT_SYSTEM
+            ctx_text = format_context(ctx)
+            if ctx_text:
+                system += ('\n\n--- REFERENCE ONLY. Never repeat, paste, quote, or '
+                           'mention this block. Use it silently, and only if they ask '
+                           "what's playing or want a rec. ---\n" + ctx_text)
+            messages = ([{'role': 'system', 'content': system}]
                         + list(hist)
-                        + [{'role': 'user', 'content': user_turn}])
-            reply = await llm.chat(messages)
+                        + [{'role': 'user', 'content': prompt}])
+            reply = _sanitize_reply(await llm.chat(messages))
 
         reply = reply or '…my mind went blank. Ask me again?'
         # Keep only the bare prompt/reply in history (not the bulky context).
