@@ -1,301 +1,265 @@
 """Curated movie-quote "wisdom" for the bot.
 
-Raw lines, verbatim — as actually delivered, including character names, film
-titles spoken inside the line, specific details, and profanity (some of these
-are very R-rated). No attribution suffix is appended; the line stands alone.
-Deliberately eclectic across fame, era, origin, register, and how silly/filthy
-it gets. Add freely — one short line per entry.
+Raw single lines of real film dialogue (best-effort verbatim), as actually
+delivered — character names, details, and profanity intact. Each line carries a
+comment attributing the film (and character, where known). No attribution text
+is shown to users; the line stands alone. A few well-known poster *taglines* are
+included and marked "(tagline)". If any line reads wrong, fix the string and its
+comment together. Add freely — one short line per entry.
 """
 
 QUOTES = [
     # ── Iconic / pop-culture ──────────────────────────────────────────────────
-    "Life moves pretty fast. If you don't stop and look around once in a while, you could miss it.",
-    "Frankly, my dear, I don't give a damn.",
-    "Here's looking at you, kid.",
-    "Louis, I think this is the beginning of a beautiful friendship.",
-    "Of all the gin joints in all the towns in all the world, she walks into mine.",
-    "You had me at hello.",
-    "Show me the money!",
-    "You complete me.",
-    "I'm going to make him an offer he can't refuse.",
-    "Leave the gun. Take the cannoli.",
-    "Keep your friends close, but your enemies closer.",
-    "Say hello to my little friend!",
-    "The world is yours.",
-    "Nobody puts Baby in a corner.",
-    "Toto, I've a feeling we're not in Kansas anymore.",
-    "There's no place like home.",
-    "I'll have what she's having.",
-    "You can't handle the truth!",
-    "Show me the way to go home.",
-    "Wax on, wax off.",
-    "Run, Forrest, run!",
-    "Stupid is as stupid does.",
-    "My mama always said life was like a box of chocolates. You never know what you're gonna get.",
-    "There's no crying in baseball!",
-    "You're killin' me, Smalls.",
-    "I'm the king of the world!",
-    "Why so serious?",
-    "Some men just want to watch the world burn.",
-    "It's not who I am underneath, but what I do that defines me.",
-    "You're gonna need a bigger boat.",
-    "Say hello to the bad guy.",
-    "Houston, we have a problem.",
-    "Carpe diem. Seize the day, boys. Make your lives extraordinary.",
-    "What we do in life echoes in eternity.",
-    "Are you not entertained?",
-    "This is Sparta!",
-    "They may take our lives, but they'll never take our freedom!",
-    "A man's got to know his limitations.",
-    "You talking to me?",
-    "I love the smell of napalm in the morning.",
-    "The horror... the horror.",
-    "Every man dies. Not every man really lives.",
-    "Get busy living, or get busy dying.",
-    "Hope is a good thing, maybe the best of things, and no good thing ever dies.",
+    "Life moves pretty fast. If you don't stop and look around once in a while, you could miss it.",  # Ferris Bueller's Day Off (Ferris)
+    "Frankly, my dear, I don't give a damn.",  # Gone with the Wind (Rhett Butler)
+    "Here's looking at you, kid.",  # Casablanca (Rick)
+    "Louis, I think this is the beginning of a beautiful friendship.",  # Casablanca (Rick)
+    "Of all the gin joints in all the towns in all the world, she walks into mine.",  # Casablanca (Rick)
+    "You had me at hello.",  # Jerry Maguire (Dorothy)
+    "Show me the money!",  # Jerry Maguire (Rod Tidwell)
+    "You complete me.",  # Jerry Maguire (Jerry)
+    "I'm gonna make him an offer he can't refuse.",  # The Godfather (Michael Corleone)
+    "Leave the gun. Take the cannoli.",  # The Godfather (Clemenza)
+    "Keep your friends close, but your enemies closer.",  # The Godfather Part II (Michael Corleone)
+    "Say hello to my little friend!",  # Scarface (Tony Montana)
+    "The World Is Yours.",  # Scarface (the blimp/statue motif)
+    "Say good night to the bad guy!",  # Scarface (Tony Montana)
+    "Nobody puts Baby in a corner.",  # Dirty Dancing (Johnny)
+    "Toto, I've a feeling we're not in Kansas anymore.",  # The Wizard of Oz (Dorothy)
+    "There's no place like home.",  # The Wizard of Oz (Dorothy)
+    "I'll have what she's having.",  # When Harry Met Sally... (a diner customer)
+    "You can't handle the truth!",  # A Few Good Men (Col. Jessup)
+    "Wax on, wax off.",  # The Karate Kid (Mr. Miyagi)
+    "Run, Forrest, run!",  # Forrest Gump (Jenny)
+    "Stupid is as stupid does.",  # Forrest Gump (Forrest)
+    "My mama always said life was like a box of chocolates. You never know what you're gonna get.",  # Forrest Gump (Forrest)
+    "There's no crying in baseball!",  # A League of Their Own (Jimmy Dugan)
+    "You're killing me, Smalls.",  # The Sandlot (Ham)
+    "I'm the king of the world!",  # Titanic (Jack)
+    "Why so serious?",  # The Dark Knight (the Joker)
+    "Some men just want to watch the world burn.",  # The Dark Knight (Alfred)
+    "It's not who I am underneath, but what I do that defines me.",  # Batman Begins (Bruce/Rachel)
+    "You're gonna need a bigger boat.",  # Jaws (Brody)
+    "Houston, we have a problem.",  # Apollo 13 (Jim Lovell)
+    "Carpe diem. Seize the day, boys. Make your lives extraordinary.",  # Dead Poets Society (John Keating)
+    "What we do in life echoes in eternity.",  # Gladiator (Maximus)
+    "Are you not entertained?",  # Gladiator (Maximus)
+    "This is Sparta!",  # 300 (Leonidas)
+    "They may take our lives, but they'll never take our freedom!",  # Braveheart (William Wallace)
+    "A man's got to know his limitations.",  # Magnum Force (Harry Callahan)
+    "You talking to me?",  # Taxi Driver (Travis Bickle)
+    "I love the smell of napalm in the morning.",  # Apocalypse Now (Lt. Col. Kilgore)
+    "The horror... the horror.",  # Apocalypse Now (Kurtz)
+    "Get busy living, or get busy dying.",  # The Shawshank Redemption (Andy/Red)
+    "Hope is a good thing, maybe the best of things, and no good thing ever dies.",  # The Shawshank Redemption (Andy)
 
     # ── Noir / classic Hollywood ──────────────────────────────────────────────
-    "The stuff that dreams are made of.",
-    "All right, Mr. DeMille, I'm ready for my close-up.",
-    "I am big. It's the pictures that got small.",
-    "Fasten your seatbelts. It's going to be a bumpy night.",
-    "Nobody's perfect.",
-    "We rob banks.",
-    "I coulda been a contender. I coulda been somebody, instead of a bum, which is what I am.",
-    "Made it, Ma! Top of the world!",
-    "As God is my witness, I'll never be hungry again.",
-    "You know how to whistle, don't you, Steve? You just put your lips together and blow.",
-    "In Italy, for thirty years under the Borgias, they had warfare, terror, murder and bloodshed, but they produced Michelangelo, Leonardo da Vinci and the Renaissance.",
-    "Forget it, Jake. It's Chinatown.",
-    "The greed, for lack of a better word, is good.",
-    "Attica! Attica!",
-    "Rosebud.",
+    "The stuff that dreams are made of.",  # The Maltese Falcon (Sam Spade)
+    "All right, Mr. DeMille, I'm ready for my close-up.",  # Sunset Boulevard (Norma Desmond)
+    "I am big. It's the pictures that got small.",  # Sunset Boulevard (Norma Desmond)
+    "Fasten your seatbelts. It's going to be a bumpy night.",  # All About Eve (Margo Channing)
+    "Nobody's perfect.",  # Some Like It Hot (Osgood, last line)
+    "We rob banks.",  # Bonnie and Clyde (Clyde)
+    "I coulda been a contender. I coulda been somebody, instead of a bum, which is what I am.",  # On the Waterfront (Terry Malloy)
+    "Made it, Ma! Top of the world!",  # White Heat (Cody Jarrett)
+    "As God is my witness, I'll never be hungry again.",  # Gone with the Wind (Scarlett O'Hara)
+    "You know how to whistle, don't you, Steve? You just put your lips together and blow.",  # To Have and Have Not (Marie 'Slim')
+    "Forget it, Jake. It's Chinatown.",  # Chinatown (Lawrence Walsh)
+    "Greed, for lack of a better word, is good.",  # Wall Street (Gordon Gekko)
+    "Attica! Attica!",  # Dog Day Afternoon (Sonny)
+    "Rosebud.",  # Citizen Kane (Charles Foster Kane)
 
     # ── Sci-fi / fantasy ──────────────────────────────────────────────────────
-    "May the Force be with you.",
-    "No, I am your father.",
-    "Do or do not. There is no try.",
-    "I find your lack of faith disturbing.",
-    "These aren't the droids you're looking for.",
-    "It's a trap!",
-    "Never tell me the odds.",
-    "I have a bad feeling about this.",
-    "So this is how liberty dies. With thunderous applause.",
-    "Hello there.",
-    "This is the way.",
-    "There is no spoon.",
-    "I know kung fu.",
-    "Welcome to the desert of the real.",
-    "Dodge this.",
-    "I'll be back.",
-    "Come with me if you want to live.",
-    "Hasta la vista, baby.",
-    "Get away from her, you bitch!",
-    "Game over, man! Game over!",
-    "In space, no one can hear you scream.",
-    "All those moments will be lost in time, like tears in rain.",
-    "I've seen things you people wouldn't believe.",
-    "Open the pod bay doors, HAL.",
-    "My God, it's full of stars.",
-    "Life, uh, finds a way.",
-    "Clever girl.",
-    "Hold onto your butts.",
-    "Great Scott!",
-    "Roads? Where we're going, we don't need roads.",
-    "Nobody calls me chicken.",
-    "E.T. phone home.",
-    "Get your stinking paws off me, you damned dirty ape!",
-    "Welcome to Earth.",
-    "The needs of the many outweigh the needs of the few.",
-    "Live long and prosper.",
-    "One does not simply walk into Mordor.",
-    "You shall not pass!",
-    "My precious.",
-    "Even the smallest person can change the course of the future.",
-    "All we have to decide is what to do with the time that is given us.",
+    "May the Force be with you.",  # Star Wars: A New Hope
+    "No, I am your father.",  # The Empire Strikes Back (Darth Vader)
+    "Do. Or do not. There is no try.",  # The Empire Strikes Back (Yoda)
+    "I find your lack of faith disturbing.",  # Star Wars: A New Hope (Darth Vader)
+    "These aren't the droids you're looking for.",  # Star Wars: A New Hope (Obi-Wan)
+    "It's a trap!",  # Return of the Jedi (Admiral Ackbar)
+    "Never tell me the odds.",  # The Empire Strikes Back (Han Solo)
+    "I have a bad feeling about this.",  # Star Wars (recurring)
+    "So this is how liberty dies. With thunderous applause.",  # Revenge of the Sith (Padmé)
+    "Hello there.",  # Star Wars (Obi-Wan Kenobi)
+    "There is no spoon.",  # The Matrix (Spoon Boy/Neo)
+    "I know kung fu.",  # The Matrix (Neo)
+    "Welcome to the desert of the real.",  # The Matrix (Morpheus)
+    "Dodge this.",  # The Matrix (Trinity)
+    "I'll be back.",  # The Terminator (the Terminator)
+    "Come with me if you want to live.",  # The Terminator / T2 (Reese/Terminator)
+    "Hasta la vista, baby.",  # Terminator 2: Judgment Day (the Terminator)
+    "Get away from her, you bitch!",  # Aliens (Ripley)
+    "Game over, man! Game over!",  # Aliens (Hudson)
+    "In space, no one can hear you scream.",  # Alien (tagline)
+    "All those moments will be lost in time, like tears in rain.",  # Blade Runner (Roy Batty)
+    "I've seen things you people wouldn't believe.",  # Blade Runner (Roy Batty)
+    "Open the pod bay doors, HAL.",  # 2001: A Space Odyssey (Dave Bowman)
+    "My God, it's full of stars.",  # 2010: The Year We Make Contact (Bowman)
+    "Life, uh, finds a way.",  # Jurassic Park (Ian Malcolm)
+    "Clever girl.",  # Jurassic Park (Muldoon)
+    "Hold onto your butts.",  # Jurassic Park (Ray Arnold)
+    "Great Scott!",  # Back to the Future (Doc Brown)
+    "Roads? Where we're going, we don't need roads.",  # Back to the Future (Doc Brown)
+    "Nobody calls me chicken.",  # Back to the Future Part II (Marty McFly)
+    "E.T. phone home.",  # E.T. the Extra-Terrestrial (E.T.)
+    "Take your stinking paws off me, you damned dirty ape!",  # Planet of the Apes (Taylor)
+    "Welcome to Earth.",  # Independence Day (Capt. Steven Hiller)
+    "The needs of the many outweigh the needs of the few.",  # Star Trek II: The Wrath of Khan (Spock)
+    "Live long and prosper.",  # Star Trek (Spock)
+    "One does not simply walk into Mordor.",  # The Fellowship of the Ring (Boromir)
+    "You shall not pass!",  # The Fellowship of the Ring (Gandalf)
+    "My precious.",  # The Lord of the Rings (Gollum)
+    "Even the smallest person can change the course of the future.",  # The Fellowship of the Ring (Galadriel)
+    "All we have to decide is what to do with the time that is given us.",  # The Fellowship of the Ring (Gandalf)
 
-    # ── Action cheese ─────────────────────────────────────────────────────────
-    "Yippee-ki-yay, motherfucker.",
-    "Now I have a machine gun. Ho-ho-ho.",
-    "Get to the chopper!",
-    "If it bleeds, we can kill it.",
-    "I ain't got time to bleed.",
-    "Let off some steam, Bennett.",
-    "Bond. James Bond.",
-    "A martini. Shaken, not stirred.",
-    "Do you expect me to talk? No, Mr. Bond, I expect you to die.",
-    "I'm your huckleberry.",
-    "Say when.",
+    # ── Action ────────────────────────────────────────────────────────────────
+    "Yippee-ki-yay, motherfucker.",  # Die Hard (John McClane)
+    "Now I have a machine gun. Ho-ho-ho.",  # Die Hard (McClane's message on a corpse)
+    "Get to the chopper!",  # Predator (Dutch)
+    "If it bleeds, we can kill it.",  # Predator (Dutch)
+    "I ain't got time to bleed.",  # Predator (Blain)
+    "Let off some steam, Bennett.",  # Commando (John Matrix)
+    "Bond. James Bond.",  # Dr. No (James Bond)
+    "A martini. Shaken, not stirred.",  # Goldfinger (James Bond)
+    "Do you expect me to talk? No, Mr. Bond, I expect you to die.",  # Goldfinger (Bond/Goldfinger)
+    "I'm your huckleberry.",  # Tombstone (Doc Holliday)
+    "Say when.",  # Tombstone (Doc Holliday)
 
     # ── Cult / weird ──────────────────────────────────────────────────────────
-    "The first rule of Fight Club is: you do not talk about Fight Club.",
-    "It's only after we've lost everything that we're free to do anything.",
-    "You are not your job. You're not how much money you have in the bank.",
-    "The Dude abides.",
-    "That rug really tied the room together.",
-    "Yeah, well, that's just, like, your opinion, man.",
-    "This aggression will not stand, man.",
-    "Shut the fuck up, Donny.",
-    "Nobody fucks with the Jesus.",
-    "Careful, man, there's a beverage here!",
-    "I did not hit her, it's not true, it's bullshit, I did not hit her, I did naht. Oh hi Mark.",
-    "You're tearing me apart, Lisa!",
-    "Fire walk with me.",
-    "The owls are not what they seem.",
-    "Wake up. You have to wake up.",
-    "Every day, once a day, give yourself a present.",
-    "Don't dream it, be it.",
-    "L-I-V-E, live! Otherwise, you got nothing to talk about in the locker room.",
-    "A lot of people don't realize what's really going on. They view life as a bunch of unconnected incidents and things.",
-    "We are the music makers, and we are the dreamers of dreams.",
-    "So long, and thanks for all the fish.",
-    "42.",
+    "The first rule of Fight Club is: you do not talk about Fight Club.",  # Fight Club (Tyler Durden)
+    "It's only after we've lost everything that we're free to do anything.",  # Fight Club (Tyler Durden)
+    "You are not your job. You're not how much money you have in the bank.",  # Fight Club (Tyler Durden)
+    "The Dude abides.",  # The Big Lebowski (the Dude)
+    "That rug really tied the room together.",  # The Big Lebowski (the Dude)
+    "Yeah, well, that's just, like, your opinion, man.",  # The Big Lebowski (the Dude)
+    "This aggression will not stand, man.",  # The Big Lebowski (the Dude)
+    "Shut the fuck up, Donny.",  # The Big Lebowski (Walter)
+    "Nobody fucks with the Jesus.",  # The Big Lebowski (Jesus Quintana)
+    "Careful, man, there's a beverage here!",  # The Big Lebowski (the Dude)
+    "I did not hit her, it's not true, it's bullshit, I did not hit her, I did naht. Oh hi Mark.",  # The Room (Johnny)
+    "You're tearing me apart, Lisa!",  # The Room (Johnny)
+    "Fire walk with me.",  # Twin Peaks: Fire Walk with Me
+    "Don't dream it, be it.",  # The Rocky Horror Picture Show (Frank-N-Furter)
+    "We are the music makers, and we are the dreamers of dreams.",  # Willy Wonka & the Chocolate Factory (Wonka)
 
     # ── Horror ────────────────────────────────────────────────────────────────
-    "They're coming to get you, Barbara.",
-    "When there's no more room in hell, the dead will walk the earth.",
-    "We have such sights to show you.",
-    "It's alive! It's alive! It's alive!",
-    "Whatever you do, don't fall asleep.",
-    "One, two, Freddy's coming for you.",
-    "They're here.",
-    "Sometimes dead is better.",
-    "A census taker once tried to test me. I ate his liver with some fava beans and a nice Chianti.",
-    "The power of Christ compels you!",
-    "I see dead people.",
-    "Be afraid. Be very afraid.",
-    "Man is the warmest place to hide.",
-    "You've got red on you.",
-    "We all float down here. You'll float too.",
-    "Do you like scary movies?",
-    "Here's Johnny!",
-    "All work and no play makes Jack a dull boy.",
-    "We all go a little mad sometimes.",
-    "A boy's best friend is his mother.",
-    "Listen to them, the children of the night. What music they make.",
-    "Get out.",
-    "Klaatu barada nikto.",
-    "Whatever you do, don't turn around.",
-    "It's not the house that's haunted. It's your son.",
+    "They're coming to get you, Barbara.",  # Night of the Living Dead (Johnny)
+    "When there's no more room in hell, the dead will walk the earth.",  # Dawn of the Dead (Peter)
+    "We have such sights to show you.",  # Hellraiser (Pinhead)
+    "It's alive! It's alive!",  # Frankenstein 1931 (Henry Frankenstein)
+    "Whatever you do, don't fall asleep.",  # A Nightmare on Elm Street (tagline)
+    "They're here.",  # Poltergeist (Carol Anne)
+    "Sometimes dead is better.",  # Pet Sematary (Jud Crandall)
+    "A census taker once tried to test me. I ate his liver with some fava beans and a nice Chianti.",  # The Silence of the Lambs (Hannibal Lecter)
+    "The power of Christ compels you!",  # The Exorcist (Fr. Karras/Merrin)
+    "I see dead people.",  # The Sixth Sense (Cole)
+    "Be afraid. Be very afraid.",  # The Fly 1986 (Veronica)
+    "Man is the warmest place to hide.",  # The Thing 1982 (tagline)
+    "You've got red on you.",  # Shaun of the Dead (Ed)
+    "We all float down here.",  # It (Pennywise)
+    "Do you like scary movies?",  # Scream (Ghostface)
+    "Here's Johnny!",  # The Shining (Jack Torrance)
+    "All work and no play makes Jack a dull boy.",  # The Shining (Jack's typed pages)
+    "We all go a little mad sometimes.",  # Psycho (Norman Bates)
+    "A boy's best friend is his mother.",  # Psycho (Norman Bates)
+    "Listen to them, the children of the night. What music they make.",  # Dracula 1931 (Count Dracula)
+    "Klaatu barada nikto.",  # The Day the Earth Stood Still (Klaatu)
 
     # ── World cinema (translated) ─────────────────────────────────────────────
-    "You know what kind of plan never fails? No plan at all.",
-    "Once you overcome the one-inch-tall barrier of subtitles, you will be introduced to so many more amazing films.",
-    "Life isn't like in the movies. Life is much harder.",
-    "Whatever you're going to do, do it fast. Do not hesitate.",
-    "Times are hard for dreamers.",
-    "Once you've met someone you never really forget them, it just takes a while for your memories to return.",
-    "So far, so good. So far, so good. But it's not the fall that matters, it's the landing.",
-    "Laugh and the world laughs with you. Weep, and you weep alone.",
-    "Even if you're not ready for the day, it cannot always be night.",
-    "A story should have a beginning, a middle and an end, but not necessarily in that order.",
-    "Cinema is a matter of what's in the frame and what's out.",
-    "The farmers have won. We've lost.",
-    "In this world, there's a kind of painful progress. Longing for what we've left behind, and dreaming ahead.",
-    "Be me, for a little while.",
-    "We don't need other worlds. We need mirrors.",
-    "Happiness is only real when shared.",
-    "The wound is the place where the light enters you.",
-    "There is no such thing as goodbye. We'll always be with you.",
+    "You know what kind of plan never fails? No plan at all.",  # Parasite (Ki-taek)
+    "Life isn't like in the movies. Life is much harder.",  # Cinema Paradiso (Alfredo)
+    "Times are hard for dreamers.",  # Amélie (subtitle, narration)
+    "Once you've met someone, you never really forget them.",  # Spirited Away (Zeniba)
+    "It's not how you fall that matters. It's how you land.",  # La Haine (closing narration)
+    "The farmers have won. Not us.",  # Seven Samurai (Kambei)
+    "Happiness is only real when shared.",  # Into the Wild (Christopher McCandless)
 
-    # ── Arthouse / new ────────────────────────────────────────────────────────
-    "I drink your milkshake! I drink it up!",
-    "I'm finished.",
-    "What's the most you ever lost on a coin toss?",
-    "Call it, friendo.",
-    "You need to be careful. There is greatness in you, but you have to want it.",
-    "Not quite my tempo.",
-    "There are no two words in the English language more harmful than 'good job.'",
-    "A million dollars isn't cool. You know what's cool? A billion dollars.",
-    "The past is just a story we tell ourselves.",
-    "In moonlight, black boys look blue.",
-    "Don't you think maybe they're the same thing? Love and attention?",
-    "Do all lovers feel they're inventing something?",
-    "Rudeness is merely the expression of fear.",
-    "In another life, I would have really liked just doing laundry and taxes with you.",
-    "Nothing matters. No point being anything but kind.",
-    "Every rejection, every disappointment has led you here, to this moment.",
-    "Why'd ya spill yer beans?",
-    "Hark!",
-    "The bird a nest, the spider a web, man friendship.",
-    "You mustn't be afraid to dream a little bigger, darling.",
-    "We accept the reality of the world with which we're presented.",
+    # ── Arthouse / modern ─────────────────────────────────────────────────────
+    "I drink your milkshake! I drink it up!",  # There Will Be Blood (Daniel Plainview)
+    "I'm finished.",  # There Will Be Blood (Daniel Plainview, last line)
+    "What's the most you ever lost on a coin toss?",  # No Country for Old Men (Anton Chigurh)
+    "Call it, friendo.",  # No Country for Old Men (Anton Chigurh)
+    "Not quite my tempo.",  # Whiplash (Terence Fletcher)
+    "There are no two words in the English language more harmful than 'good job.'",  # Whiplash (Fletcher)
+    "A million dollars isn't cool. You know what's cool? A billion dollars.",  # The Social Network (Sean Parker)
+    "The past is just a story we tell ourselves.",  # Her (Samantha)
+    "In moonlight, black boys look blue.",  # Moonlight (Juan)
+    "Do all lovers feel they're inventing something?",  # Portrait of a Lady on Fire (Héloïse)
+    "Rudeness is merely the expression of fear.",  # The Grand Budapest Hotel (M. Gustave)
+    "In another life, I would have really liked just doing laundry and taxes with you.",  # Everything Everywhere All at Once (Evelyn)
+    "The only thing I know is that we have to be kind.",  # Everything Everywhere All at Once (Waymond)
+    "Why'd ya spill yer beans?",  # The Lighthouse (Thomas Wake)
+    "You mustn't be afraid to dream a little bigger, darling.",  # Inception (Eames)
+    "We accept the reality of the world with which we're presented.",  # The Truman Show (Christof)
 
     # ── Comedy / warm ─────────────────────────────────────────────────────────
-    "As you wish.",
-    "Have fun storming the castle!",
-    "Inconceivable! You keep using that word. I do not think it means what you think it means.",
-    "Hello. My name is Inigo Montoya. You killed my father. Prepare to die.",
-    "Be excellent to each other.",
-    "I'm also just a girl, standing in front of a boy, asking him to love her.",
-    "The greatest thing you'll ever learn is just to love and be loved in return.",
-    "It is not our abilities that show what we truly are. It is our choices.",
-    "You is kind. You is smart. You is important.",
-    "There's some good in this world, Mr. Frodo, and it's worth fighting for.",
-    "Adventure is out there!",
-    "Just keep swimming.",
-    "To infinity and beyond!",
-    "There's a snake in my boot.",
-    "Ohana means family. Family means nobody gets left behind or forgotten.",
-    "Hakuna matata. It means no worries for the rest of your days.",
-    "A person's a person, no matter how small.",
-    "Today is the youngest you'll ever be.",
+    "As you wish.",  # The Princess Bride (Westley)
+    "Have fun storming the castle!",  # The Princess Bride (Miracle Max)
+    "Inconceivable!",  # The Princess Bride (Vizzini)
+    "You keep using that word. I do not think it means what you think it means.",  # The Princess Bride (Inigo Montoya)
+    "Hello. My name is Inigo Montoya. You killed my father. Prepare to die.",  # The Princess Bride (Inigo Montoya)
+    "Be excellent to each other.",  # Bill & Ted's Excellent Adventure (Bill & Ted)
+    "I'm also just a girl, standing in front of a boy, asking him to love her.",  # Notting Hill (Anna Scott)
+    "It is our choices, Harry, that show what we truly are, far more than our abilities.",  # Harry Potter and the Chamber of Secrets (Dumbledore)
+    "You is kind. You is smart. You is important.",  # The Help (Aibileen)
+    "There's some good in this world, Mr. Frodo, and it's worth fighting for.",  # The Two Towers (Samwise)
+    "Adventure is out there!",  # Up (Ellie/Charles Muntz)
+    "Just keep swimming.",  # Finding Nemo (Dory)
+    "To infinity and beyond!",  # Toy Story (Buzz Lightyear)
+    "There's a snake in my boot.",  # Toy Story (Woody)
+    "Ohana means family. Family means nobody gets left behind or forgotten.",  # Lilo & Stitch (Lilo)
+    "Hakuna matata. It means no worries.",  # The Lion King (Timon)
+    "A person's a person, no matter how small.",  # Horton Hears a Who! (Horton)
 
     # ── R-rated / crude / silly ───────────────────────────────────────────────
-    "English, motherfucker, do you speak it?",
-    "Say 'what' again. Say 'what' again, I dare you, I double dare you, motherfucker.",
-    "Zed's dead, baby. Zed's dead.",
-    "That is a tasty burger.",
-    "Funny how? I mean, funny like I'm a clown? I amuse you?",
-    "Go home and get your fuckin' shinebox.",
-    "As far back as I can remember, I always wanted to be a gangster.",
-    "In this country, you gotta make the money first. Then when you get the money, you get the power.",
-    "Come the fuck in, or fuck the fuck off.",
-    "Maybe that's what hell is: the entire rest of eternity spent in fuckin' Bruges.",
-    "I'm not fuckin' leaving.",
-    "The name of the game, move the money from your client's pocket into your pocket.",
-    "I am McLovin.",
-    "McLovin? What kind of a stupid name is that?",
-    "Did we just become best friends? Yup!",
-    "So many activities!",
-    "I'm kind of a big deal.",
-    "Milk was a bad choice.",
-    "Sixty percent of the time, it works every time.",
-    "I love lamp.",
-    "You stay classy, San Diego.",
-    "Holy schnikes.",
-    "Fat guy in a little coat.",
-    "Be the ball.",
-    "Cinderella story. Outta nowhere. A former greenskeeper, now about to become the Masters champion.",
-    "Badges? We don't need no stinking badges!",
-    "Surely you can't be serious. I am serious. And don't call me Shirley.",
-    "Looks like I picked the wrong week to quit sniffing glue.",
-    "'Tis but a scratch.",
-    "We are the knights who say Ni!",
-    "Bring out your dead!",
-    "I fart in your general direction.",
-    "Your mother was a hamster and your father smelt of elderberries.",
-    "Sounds like somebody's got a case of the Mondays.",
-    "If you can dodge a wrench, you can dodge a ball.",
-    "But why male models?",
-    "Vote for Pedro.",
-    "Tina, you fat lard, come get some dinner!",
-    "Gosh!",
-    "We're going streaking!",
-    "The price is wrong, bitch.",
-    "T-t-t-today, junior.",
-    "I'm not even supposed to be here today!",
-    "Alright, alright, alright.",
-    "That's what I love about these high school girls, man. I get older, they stay the same age.",
-    "Bye, Felicia.",
-    "You got knocked the fuck out!",
-    "What is your major malfunction?",
-    "This is my rifle. There are many like it, but this one is mine.",
-    "Are you gonna bark all day, little doggy, or are you gonna bite?",
-    "I'm the guy doin' his job. You must be the other guy.",
-    "Choose life.",
-    "First you get the money, then you get the power, then you get the woman.",
-    "You had me at 'meat tornado.'",
-    "That escalated quickly.",
-    "Well, that's just, like, the whole point, man.",
+    "English, motherfucker, do you speak it?",  # Pulp Fiction (Jules)
+    "Say 'what' again. Say 'what' again, I dare you, I double dare you, motherfucker.",  # Pulp Fiction (Jules)
+    "Zed's dead, baby. Zed's dead.",  # Pulp Fiction (Butch)
+    "This is a tasty burger!",  # Pulp Fiction (Jules)
+    "Funny how? I mean, funny like I'm a clown? I amuse you?",  # Goodfellas (Tommy DeVito)
+    "Now go home and get your fuckin' shinebox.",  # Goodfellas (Billy Batts)
+    "As far back as I can remember, I always wanted to be a gangster.",  # Goodfellas (Henry Hill)
+    "In this country, you gotta make the money first. Then when you get the money, you get the power.",  # Scarface (Tony Montana)
+    "Maybe that's what hell is: the entire rest of eternity spent in fuckin' Bruges.",  # In Bruges (Ray)
+    "I'm not fuckin' leaving.",  # The Wolf of Wall Street (Jordan Belfort)
+    "Move the money from your client's pocket into your pocket.",  # The Wolf of Wall Street (Mark Hanna)
+    "McLovin? What kind of a stupid name is that?",  # Superbad (Seth)
+    "Did we just become best friends? Yup!",  # Step Brothers (Brennan & Dale)
+    "There's so many activities!",  # Step Brothers (Brennan)
+    "I'm kind of a big deal.",  # Anchorman (Ron Burgundy)
+    "Milk was a bad choice.",  # Anchorman (Ron Burgundy)
+    "Sixty percent of the time, it works every time.",  # Anchorman (Brian Fantana)
+    "I love lamp.",  # Anchorman (Brick Tamland)
+    "You stay classy, San Diego.",  # Anchorman (Ron Burgundy)
+    "Holy schnikes.",  # Tommy Boy (Tommy)
+    "Fat guy in a little coat.",  # Tommy Boy (Tommy)
+    "Be the ball.",  # Caddyshack (Ty Webb)
+    "Cinderella story. Outta nowhere. A former greenskeeper, now about to become the Masters champion.",  # Caddyshack (Carl Spackler)
+    "Badges? We don't need no stinking badges!",  # Blazing Saddles (Gabby Johnson riff)
+    "Surely you can't be serious. I am serious. And don't call me Shirley.",  # Airplane! (Rumack/Striker)
+    "Looks like I picked the wrong week to quit sniffing glue.",  # Airplane! (Steve McCroskey)
+    "'Tis but a scratch.",  # Monty Python and the Holy Grail (Black Knight)
+    "We are the Knights Who Say Ni!",  # Monty Python and the Holy Grail (the Knights)
+    "Bring out your dead!",  # Monty Python and the Holy Grail (the cart driver)
+    "I fart in your general direction.",  # Monty Python and the Holy Grail (French Taunter)
+    "Your mother was a hamster and your father smelt of elderberries.",  # Monty Python and the Holy Grail (French Taunter)
+    "Sounds like somebody's got a case of the Mondays.",  # Office Space (Nina)
+    "If you can dodge a wrench, you can dodge a ball.",  # Dodgeball (Patches O'Houlihan)
+    "But why male models?",  # Zoolander (Derek Zoolander)
+    "Vote for Pedro.",  # Napoleon Dynamite (Pedro's campaign)
+    "Tina, you fat lard, come get some dinner!",  # Napoleon Dynamite (Kip)
+    "Gosh!",  # Napoleon Dynamite (Napoleon)
+    "We're going streaking!",  # Old School (Frank)
+    "The price is wrong, bitch.",  # Happy Gilmore (Happy)
+    "T-t-t-today, junior.",  # Billy Madison (the dodgeball ref)
+    "I'm not even supposed to be here today!",  # Clerks (Dante)
+    "Alright, alright, alright.",  # Dazed and Confused (Wooderson)
+    "That's what I love about these high school girls, man. I get older, they stay the same age.",  # Dazed and Confused (Wooderson)
+    "Bye, Felicia.",  # Friday (Craig)
+    "You got knocked the fuck out!",  # Friday (Smokey)
+    "What is your major malfunction?",  # Full Metal Jacket (Gunnery Sgt. Hartman)
+    "This is my rifle. There are many like it, but this one is mine.",  # Full Metal Jacket (the Rifleman's Creed)
+    "Are you gonna bark all day, little doggy, or are you gonna bite?",  # Reservoir Dogs (Mr. Blonde)
+    "I'm the guy who does his job. You must be the other guy.",  # The Departed (Billy Costigan)
+    "Choose life.",  # Trainspotting (Renton)
+    "Well, that escalated quickly.",  # Anchorman (Ron Burgundy)
 ]
