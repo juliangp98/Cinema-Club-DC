@@ -52,9 +52,15 @@ services:
     env_file: .env.production
     environment:
       - BOT_API_BASE=http://backend:5001
-    # No `dns:` override — see the note on the backend service. The bot needs to
-    # reach discord.com (external) AND backend (internal); inheriting the host's
-    # resolver handles both, whereas a blocked 8.8.8.8 breaks external lookups.
+    # DNS override — Docker's embedded resolver (127.0.0.11) stopped forwarding
+    # to an upstream on this NAS (containers got "Temporary failure in name
+    # resolution" for discord.com / api.groq.com while the host itself resolved
+    # fine), and restart/force-recreate didn't restore it. Pin the LAN router,
+    # which the NAS confirmed can resolve (`nslookup` → Server: 192.168.0.1) and
+    # which — unlike 8.8.8.8 — isn't blocked by outbound-port-53 filtering.
+    # Docker still resolves the internal `backend` hostname regardless of this.
+    dns:
+      - 192.168.0.1
     depends_on:
       - backend
     restart: unless-stopped
