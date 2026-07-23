@@ -312,8 +312,8 @@ MUTE_QUIPS = [
     "on that note, i'm gonna go touch grass. you should too.",
     "my head's a little fuzzy today. i'm going to rest up.",
     "i think i need to...i'm just gonna...*snoozes*",
+    "3 hour IMAX screenings really take it out of me these days...*snoozes*"
     "who are you? what? where am i? GET AWAY FROM ME!",
-    ""
 ]
 
 
