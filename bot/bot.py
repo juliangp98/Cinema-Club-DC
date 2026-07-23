@@ -220,7 +220,6 @@ DEFLECT_LINES = [
     "can't help you there, my whole brain is just movies",
     "hard pass, i only do movies",
     "my head's too fuzzy for anything that isn't a movie",
-    "nah, movies are the only channel i get up here",
     "you lost me at anything that isn't da movies",
     "i don't have the range, i have da movies",
     "wish i could, but it's da movies or nothing in this skull",
@@ -228,6 +227,9 @@ DEFLECT_LINES = [
     "i physically cannot think about non-movie things",
     "sorry, hang on... oh right, movies. only movies",
     "take that somewhere else, i only love da movies",
+    "this is making my head hurt, i need to talk about movies",
+    "what? i can't hear you. you're not talking about da movies",
+    "i, uh, i need a second. my brain can't process things that aren't...movies..."
 ]
 
 # Deterministic prompt-injection guard. Prompt-only deflection depends on the
