@@ -21,10 +21,13 @@ services:
       dockerfile: Dockerfile.backend
     container_name: cinemaclub-backend
     env_file: .env.production
-    # NOTE: no `dns:` override — the containers inherit the NAS host's resolver
-    # (via Docker's embedded DNS at 127.0.0.11). Forcing public DNS like 8.8.8.8
-    # breaks resolution on networks that block outbound port 53. If you ever DO
-    # need to pin DNS, use a server the NAS can actually reach (e.g. your router).
+    # DNS override — see the note on the `bot` service. Docker's embedded
+    # resolver (127.0.0.11) stopped forwarding to an upstream on this NAS, so the
+    # scrapers (TMDB / OMDB / venue sites) fail external lookups the same way the
+    # bot did. Pin the LAN router, which the NAS confirmed can resolve and which
+    # — unlike 8.8.8.8 — isn't blocked by outbound-port-53 filtering.
+    dns:
+      - 192.168.0.1
     volumes:
       - db-data:/app/instance
     restart: unless-stopped
