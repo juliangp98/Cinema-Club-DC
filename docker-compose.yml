@@ -55,6 +55,10 @@ services:
     env_file: .env.production
     environment:
       - BOT_API_BASE=http://backend:5001
+      # Unbuffered stdout so the bot's own print() diagnostics (e.g. "chatbot
+      # reply failed: ...") actually reach `docker-compose logs` instead of
+      # sitting in Python's block buffer until the process exits.
+      - PYTHONUNBUFFERED=1
     # DNS override — Docker's embedded resolver (127.0.0.11) stopped forwarding
     # to an upstream on this NAS (containers got "Temporary failure in name
     # resolution" for discord.com / api.groq.com while the host itself resolved

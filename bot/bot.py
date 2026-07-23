@@ -169,7 +169,7 @@ CHAT_SYSTEM = (
 
 
 CHAT_COOLDOWN_SEC = 3
-CHAT_HISTORY_TURNS = 8          # ~4 back-and-forth exchanges per channel
+CHAT_HISTORY_TURNS = 6          # ~3 back-and-forth exchanges per channel (token budget)
 _chat_cooldown = {}            # user id -> last monotonic timestamp
 _chat_history = {}            # channel id -> deque[{role, content}]
 
@@ -191,7 +191,10 @@ def format_context(ctx):
     up = ctx.get('upcoming') or []
     if up:
         lines.append("What's playing (next ~2 weeks):")
-        for s in up[:30]:
+        # Cap the list: 30 showtimes was ~700 tokens of context on every single
+        # call, which chewed through the Groq free-tier daily token budget fast.
+        # A dozen is plenty for a chat rec — the full calendar lives on the site.
+        for s in up[:12]:
             lines.append(f"- {s.get('title')} @ {s.get('theatre')}, {s.get('date')} {s.get('time')}")
     return '\n'.join(lines)
 
@@ -322,13 +325,25 @@ async def on_message(message: discord.Message):
             messages = ([{'role': 'system', 'content': system}]
                         + list(hist)
                         + [{'role': 'user', 'content': prompt}])
-            reply = _sanitize_reply(await llm.chat(messages))
+            # Replies are 1–3 sentences — a tight max_tokens keeps each call's
+            # reserved budget small (Groq counts it against the daily token cap).
+            reply = _sanitize_reply(await llm.chat(messages, max_tokens=220))
 
         reply = reply or '…my mind went blank. Ask me again?'
         # Keep only the bare prompt/reply in history (not the bulky context).
         hist.append({'role': 'user', 'content': prompt})
         hist.append({'role': 'assistant', 'content': reply})
         await message.reply(reply[:2000], mention_author=False)
+    except llm.RateLimited as e:
+        # Daily/free-tier token cap hit — say so plainly (and when we'll be back)
+        # rather than the generic "jammed" line, so it doesn't read as broken.
+        when = ''
+        if e.retry_after_sec:
+            mins = max(1, round(e.retry_after_sec / 60))
+            when = f" Back in ~{mins} min." if mins > 1 else " Back in a minute."
+        await message.reply(
+            f"🎬 That's a wrap for now — the club talked my ear off and I'm out of "
+            f"brain juice for the day.{when}", mention_author=False)
     except Exception as e:
         print(f'chatbot reply failed: {e}')
         await message.reply('🎞️ My projector jammed — try me again in a sec.',
