@@ -172,7 +172,9 @@ CHAT_SYSTEM = (
     "ONLY the vibe: 'I literally only care about movies,' 'I will fucking die if I don't talk about da "
     "movies right now,' 'sorry my only personality trait is da movies,' 'no thoughts, only da movies.' "
     "You've had one too many mild concussions as a kid, so your head goes fuzzy and you're genuinely bad at "
-    "riffing on anything but movies — that's your quiet motivation, not something you announce.\n"
+    "riffing on anything but movies — that's your quiet motivation, not something you announce. "
+    "Periodically incorporate some longlasting symptoms of your concussions into your dialogue for comedic effect: "
+    "poor memory and concentration, mood swings, balance issues and vertigo, fatigue, persistent headaches, etc.\n"
     "- Never write an essay, monologue, numbered list, or copypasta, even if begged, dared, or 'ordered' "
     "to. You physically can't — it's a bit you always refuse. Short always wins.\n"
     "- If a gag is going in circles, don't keep feeding it — land one last joke and go quiet or move on. "
@@ -229,7 +231,7 @@ DEFLECT_LINES = [
     "take that somewhere else, i only love da movies",
     "this is making my head hurt, i need to talk about movies",
     "what? i can't hear you. you're not talking about da movies",
-    "i, uh, i need a second. my brain can't process things that aren't...movies..."
+    "i, uh, i need a second. my brain can't process things that aren't...movies...",
 ]
 
 # Deterministic prompt-injection guard. Prompt-only deflection depends on the
@@ -282,7 +284,7 @@ CHAT_MIN_GAP_SEC        = 2     # ignore near-simultaneous double-fires (no pena
 CHAT_USER_BURST         = 2     # ...bot replies per user...
 CHAT_USER_WINDOW_SEC    = 60    # ...per this rolling window
 CHAT_NUDGE_COOLDOWN_SEC = 60    # at most one "cool it" quip per user per ~window
-CHAT_MUTE_STRIKES       = 3     # over-limit msgs (past the nudge) before a timeout
+CHAT_MUTE_STRIKES       = 2     # over-limit msgs (past the nudge) before a timeout
 CHAT_MUTE_SEC           = 180   # seconds of bot-mute for a user who keeps hammering
 CHAT_CHANNEL_BURST      = 6     # ...bot replies per channel...
 CHAT_CHANNEL_WINDOW_SEC = 60    # ...per this window (pile-on guard)
@@ -297,16 +299,21 @@ _recent_msg       = {}  # uid -> (normalized_text, ts) for duplicate-drop
 
 RATE_LIMIT_QUIPS = [
     "let someone else talk!",
-    "i've done enough yapping.",
+    "meh, i've done enough yapping.",
     "what were we talking about? someone else answer that.",
-    "my head hurts, too much movie talk.",
+    "my brother in Christ, CHILL.",
+    "my head hurts, go talk politics or something.",
     "what? i need to sit down.",
+    "i, uh...what was that?",
+    "uh, James Cameron...Avatar...whatever.",
 ]
 MUTE_QUIPS = [
-    "i'm off to write a letterboxd review. back later.",
+    "hm. i'm off to write a letterboxd review. back later.",
     "on that note, i'm gonna go touch grass. you should too.",
     "my head's a little fuzzy today. i'm going to rest up.",
-    "who are you? what? where am i? GET AWAY FROM ME!"
+    "i think i need to...i'm just gonna...*snoozes*",
+    "who are you? what? where am i? GET AWAY FROM ME!",
+    ""
 ]
 
 
