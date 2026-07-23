@@ -17,7 +17,7 @@ from groq import AsyncGroq, RateLimitError
 # budget than llama-3.3-70b-versatile (100K TPD), which the chat kept exhausting.
 # To trade headroom back for a wittier model, set GROQ_MODEL=llama-3.3-70b-versatile
 # in the env — no code change needed.
-GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')
+GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')
 
 _client = None
 
