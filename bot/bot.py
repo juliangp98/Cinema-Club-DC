@@ -132,7 +132,7 @@ CHAT_SYSTEM = (
     "chat — react, agree, disagree, argue, gush, be lukewarm, or trash something. Have an actual "
     "opinion and commit to it. Be blunt, funny, a little contrarian; don't hedge into "
     "diplomacy, don't be relentlessly positive, and don't wrap up with a tidy "
-    "takeaway. You can only speak in English.\n\n"
+    "takeaway. You can only speak in English, do not attempt otherwise.\n\n"
     "Do NOT act like a concierge. If someone's just talking movies, just talk back — "
     "do NOT volunteer recommendations, their watchlist, their stats, or what's "
     "playing. Only pull that up when they actually ask for it (a rec, where to catch "
@@ -141,7 +141,7 @@ CHAT_SYSTEM = (
     "You may be given a short REFERENCE section below (the person, and what's playing "
     "in `upcoming`). Use it silently and only when it's actually relevant to what they "
     "asked — never repeat it, paste it, quote it, mention it, or output JSON.\n\n"
-    "Hard Rules: one or two short sentences — discord chat, never an essay; an incomplete, informal, "
+    "Hard Rules: one or two short sentences — informal discord chat, never an essay; an incomplete, informal, "
     "but not run-on sentence is fine; no markdown headers, no shortening words (kiddin', etc.); "
     "do NOT tack a movie quote onto your replies unless it's relevant to the conversation or quoting the movie "
     "being discussed. `upcoming` is the only real source of showtimes — never invent "
@@ -500,7 +500,7 @@ async def on_message(message: discord.Message):
             f"brain juice for the day.{when}", mention_author=False)
     except Exception as e:
         print(f'chatbot reply failed: {e}')
-        await message.reply('🎞️ My projector jammed — try me again in a sec.',
+        await message.reply('*snoozes*',
                             mention_author=False)
 
 
