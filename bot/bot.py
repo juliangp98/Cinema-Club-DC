@@ -227,12 +227,12 @@ _chat_history = {}             # channel id -> deque[{role, content}]
 # for anyone who keeps hammering after being told to cool it. Windows are rolling
 # (time.monotonic); quips are canned (no LLM call) so they cost zero tokens.
 CHAT_MIN_GAP_SEC        = 2     # ignore near-simultaneous double-fires (no penalty)
-CHAT_USER_BURST         = 3     # ...bot replies per user...
+CHAT_USER_BURST         = 2     # ...bot replies per user...
 CHAT_USER_WINDOW_SEC    = 60    # ...per this rolling window
-CHAT_NUDGE_COOLDOWN_SEC = 45    # at most one "cool it" quip per user per ~window
-CHAT_MUTE_STRIKES       = 4     # over-limit msgs (past the nudge) before a timeout
-CHAT_MUTE_SEC           = 180   # 3-min bot-mute for a user who keeps hammering
-CHAT_CHANNEL_BURST      = 8     # ...bot replies per channel...
+CHAT_NUDGE_COOLDOWN_SEC = 60    # at most one "cool it" quip per user per ~window
+CHAT_MUTE_STRIKES       = 3     # over-limit msgs (past the nudge) before a timeout
+CHAT_MUTE_SEC           = 180   # seconds of bot-mute for a user who keeps hammering
+CHAT_CHANNEL_BURST      = 6     # ...bot replies per channel...
 CHAT_CHANNEL_WINDOW_SEC = 60    # ...per this window (pile-on guard)
 CHAT_DUP_WINDOW_SEC     = 60    # identical repeat within this window = silent drop
 
