@@ -310,7 +310,7 @@ RATE_LIMIT_QUIPS = [
 MUTE_QUIPS = [
     "hm. i'm off to write a letterboxd review. back later.",
     "on that note, i'm gonna go touch grass. you should too.",
-    "my head's a little fuzzy today. i'm going to rest up.",
+    "my head's a little fuzzy today. i'm gonna just...rest up...*snoozes*",
     "i think i need to...i'm just gonna...*snoozes*",
     "3 hour IMAX screenings really take it out of me these days...*snoozes*",
     "who are you? what? where am i? GET AWAY FROM ME!",
@@ -441,7 +441,7 @@ def _sanitize_reply(text):
 TRIGGER_REGEX = re.compile(
     r'\b(imax|dolby|70\s?mm|letterboxd|theat(?:er|re)s?|movies?|cinema|films?|showtimes?|'
     r'matin[eé]e|popcorn|silver\s?screen|big\s?screen)\b', re.IGNORECASE)
-TRIGGER_CHANCE = 0.15          # fire on ~1 in 10 matching messages...
+TRIGGER_CHANCE = 0.1          # fire on ~1 in 10 matching messages...
 TRIGGER_COOLDOWN_SEC = 90      # ...but at most once per channel per this window
 _trigger_cooldown = {}         # channel id -> last monotonic timestamp
 
