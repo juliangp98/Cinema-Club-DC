@@ -312,8 +312,26 @@ MUTE_QUIPS = [
     "on that note, i'm gonna go touch grass. you should too.",
     "my head's a little fuzzy today. i'm going to rest up.",
     "i think i need to...i'm just gonna...*snoozes*",
-    "3 hour IMAX screenings really take it out of me these days...*snoozes*"
+    "3 hour IMAX screenings really take it out of me these days...*snoozes*",
     "who are you? what? where am i? GET AWAY FROM ME!",
+]
+# Random replies when someone @s CinemaBot with NO actual prompt (just the ping).
+# Same voice as the quip/deflect lines: lowercase, casual, tired/fuzzy/just-back-
+# from-a-showing movie freak. Keep it short and in-character.
+SUMMONED_LINES = [
+    "you rang?",
+    "wait, who are-- oh. hey",
+    "*yawns* ...what's up buddy?",
+    "just woke up, what'd i miss",
+    "ugh, dozed off around an hour in.",
+    "sorry, just got back from a showing. wait...who are you?",
+    "yeah yeah i'm here. had to shut my eyes for a sec",
+    "just walked out of an IMAX screening, head's still buzzing. what?",
+    "who's asking for me? did i miss something? everything hurts...",
+    "did someone say MOVIES",
+    "hm, must've spaced out. what were you saying",
+    "it's me, i'm the truest cinephile",
+    "jesus CHRIST man i was dead asleep!",
 ]
 
 
@@ -503,10 +521,7 @@ async def on_message(message: discord.Message):
         return
 
     if not prompt:
-        await message.reply(
-            '🎬 Ask me something — "what should I see this weekend?", '
-            '"where can I catch The Odyssey?", or "judge my taste."',
-            mention_author=False)
+        await message.reply(random.choice(SUMMONED_LINES), mention_author=False)
         return
 
     # Deterministic injection guard: known "ignore your instructions / you are now
