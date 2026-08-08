@@ -819,7 +819,7 @@ input { font-family: inherit; }
 }
 .drawer-showtime-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.6rem 0;
   border-bottom: 1px solid var(--border);
@@ -859,10 +859,18 @@ input { font-family: inherit; }
   color: var(--muted);
   transition: all 0.15s;
 }
-.rsvp-btn.going   { border-color: #4caf87; color: #4caf87; background: rgba(76,175,135,0.1); }
-.rsvp-btn.maybe   { border-color: var(--amber); color: var(--amber); background: rgba(232,168,56,0.1); }
-.rsvp-btn.not_going { border-color: var(--red); color: var(--red); background: rgba(196,92,58,0.1); }
-.rsvp-btn:not(.going):not(.maybe):not(.not_going):hover { border-color: var(--muted); color: var(--cream); }
+/* Off state: a faint tint of each option's own color so the three choices are
+   identifiable at a glance even when none is selected. */
+.rsvp-opt-going     { border-color: rgba(76,175,135,0.4);  color: rgba(76,175,135,0.78); }
+.rsvp-opt-maybe     { border-color: rgba(232,168,56,0.4);  color: rgba(232,168,56,0.78); }
+.rsvp-opt-not_going { border-color: rgba(196,92,58,0.4);   color: rgba(196,92,58,0.78); }
+.rsvp-opt-going:hover     { border-color: #4caf87;     color: #4caf87; }
+.rsvp-opt-maybe:hover     { border-color: var(--amber); color: var(--amber); }
+.rsvp-opt-not_going:hover { border-color: var(--red);   color: var(--red); }
+/* Selected: full color + tinted fill. */
+.rsvp-opt-going.selected     { border-color: #4caf87;     color: #4caf87;     background: rgba(76,175,135,0.14); }
+.rsvp-opt-maybe.selected     { border-color: var(--amber); color: var(--amber); background: rgba(232,168,56,0.14); }
+.rsvp-opt-not_going.selected { border-color: var(--red);   color: var(--red);   background: rgba(196,92,58,0.14); }
 
 /* Attendee list in drawer */
 .attendee-list {
@@ -1084,6 +1092,25 @@ input { font-family: inherit; }
   align-items: center;
 }
 .cal-export-btn:hover { border-color: var(--amber); color: var(--amber); }
+/* Give the two export buttons their service colors: Google blue, Apple silver. */
+.cal-export-btn.google {
+  border-color: rgba(66,133,244,0.5);
+  color: #6fa1f5;
+}
+.cal-export-btn.google:hover {
+  border-color: #4285f4;
+  color: #8ab4f8;
+  background: rgba(66,133,244,0.12);
+}
+.cal-export-btn.apple {
+  border-color: rgba(210,214,220,0.4);
+  color: #d2d6dc;
+}
+.cal-export-btn.apple:hover {
+  border-color: #d2d6dc;
+  color: #f2f4f7;
+  background: rgba(210,214,220,0.1);
+}
 
 /* ── Profile Menu ──────────────────────────────────────────────────────── */
 .profile-menu {
@@ -1382,7 +1409,10 @@ input { font-family: inherit; }
 
 /* ── Reaction Bar ──────────────────────────────────────────────────────── */
 .reaction-bar {
-  margin-top: 0.75rem;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
   position: relative;
 }
 .reaction-row {

@@ -12,6 +12,7 @@ Usage:
 import time
 from app import app, db, Movie
 from enrich import enrich_movie
+from scrapers.sync import _enrich_with_fallback
 
 
 def backfill():
@@ -24,7 +25,10 @@ def backfill():
         miss = 0
         for i, movie in enumerate(movies, 1):
             print(f"[{i}/{total}] {movie.title} ({movie.release_year})")
-            data = enrich_movie(movie.title, movie.release_year)
+            # Route through the same cleaner/year-extraction fallback the scraper
+            # uses, so labels like 'HIS GIRL FRIDAY (1940)' (stored with the
+            # re-release year) now re-match.
+            data = _enrich_with_fallback(enrich_movie, movie.title, movie.release_year)
             if not data:
                 miss += 1
                 continue

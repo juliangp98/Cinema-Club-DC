@@ -250,11 +250,12 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </div>
           )}
 
-          {/* Screenings + RSVP (always visible) */}
-          <div className="drawer-block">
-            <span className="drawer-section-label">
-              {showtimes.length > 1 ? `Screenings (${showtimes.length})` : "This Screening"}
-            </span>
+          {/* Screenings + RSVP (collapsible, open by default) */}
+          <Collapsible
+            title={showtimes.length > 1 ? "Screenings" : "This Screening"}
+            count={showtimes.length > 1 ? showtimes.length : null}
+            defaultOpen
+          >
             {showtimes.map(s => (
               <div key={s.id} className="drawer-screening-item">
                 <div className="drawer-showtime-row">
@@ -268,7 +269,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                       {RSVP_OPTIONS.map(opt => (
                         <button
                           key={opt.status}
-                          className={`rsvp-btn${s.user_rsvp === opt.status ? ` ${opt.status}` : ""}`}
+                          className={`rsvp-btn rsvp-opt-${opt.status}${s.user_rsvp === opt.status ? " selected" : ""}`}
                           onClick={() => handleRsvpClick(s.id, opt.status, s.user_rsvp)}
                         >
                           {opt.label}
@@ -288,11 +289,11 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                   )}
                 </div>
                 <div className="cal-export-row">
-                  <button className="cal-export-btn" onClick={() => handleGoogleCal(s.id)}>
+                  <button className="cal-export-btn google" onClick={() => handleGoogleCal(s.id)}>
                     Google Calendar
                   </button>
                   <a
-                    className="cal-export-btn"
+                    className="cal-export-btn apple"
                     href={`${apiBase}/api/showtimes/${s.id}/ical`}
                     download
                   >
@@ -301,14 +302,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                 </div>
               </div>
             ))}
-            <ReactionBar
-              reactions={reactions}
-              showtimeId={primary.id}
-              groupId={groupId}
-              apiBase={apiBase}
-              onUpdate={setReactions}
-            />
-          </div>
+          </Collapsible>
 
           {/* About */}
           {(movie.description || (!cast.length && movie.starring)) && (
@@ -433,8 +427,15 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </Collapsible>
           )}
 
-          {/* Discussion */}
-          <Collapsible title="Discussion">
+          {/* Reactions & Discussion */}
+          <Collapsible title="Reactions & Discussion" defaultOpen>
+            <ReactionBar
+              reactions={reactions}
+              showtimeId={primary.id}
+              groupId={groupId}
+              apiBase={apiBase}
+              onUpdate={setReactions}
+            />
             <ChatSection
               showtimeId={primary.id}
               groupId={groupId}

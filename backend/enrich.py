@@ -58,6 +58,14 @@ def enrich_from_tmdb(title, year=None):
         r.raise_for_status()
         results = r.json().get('results', [])
 
+        # A year filter hides the correct match when the scraped year is a
+        # re-release date; retry without it before giving up.
+        if not results and year:
+            r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(),
+                             params={'query': title}, timeout=10)
+            r.raise_for_status()
+            results = r.json().get('results', [])
+
         if not results:
             print(f"  [enrich] TMDB: no results for '{title}' ({year})")
             return None

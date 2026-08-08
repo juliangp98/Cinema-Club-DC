@@ -8,7 +8,7 @@ month of programming) it emits a ScrapeEvent that the Discord bot announces.
 import datetime
 import json
 
-from .base import normalize_title
+from .base import normalize_title, parse_movie_title
 
 
 def _match_movie(Movie, m, enrich_movie):
@@ -45,15 +45,37 @@ def _match_movie(Movie, m, enrich_movie):
     return None, enriched
 
 
-def _enrich_with_fallback(enrich_movie, title, year):
-    """Enrich by raw title; on a TMDB miss retry with the normalized title so
-    venue format tags ('Alien (4K Restoration)', 'ALIEN 45th Anniversary')
-    still find the film."""
-    enriched = enrich_movie(title, year)
-    if not enriched or not enriched.get('tmdb_id'):
-        norm = normalize_title(title)
-        if norm and norm != title.strip().casefold():
-            enriched = enrich_movie(norm, year) or enriched
+def _enrich_with_fallback(enrich_movie, title, scraped_year):
+    """Enrich across progressively-cleaner title/year variants, taking the first
+    hit with a tmdb_id.
+
+    Venue labels carry format tags ('The Odyssey (70mm)'), program prefixes
+    ('EPIC SUNDAY: BATMAN BEGINS') and re-release years that aren't the film's
+    real year ('HIS GIRL FRIDAY (1940)' scraped with release_date 2026). So we
+    prefer the cleaned title and a year embedded in the label, try a year-less
+    search before the scraped re-release year, and fall back to the raw title."""
+    clean, title_year = parse_movie_title(title)
+    raw = (title or '').strip()
+
+    attempts = []
+
+    def add(query_title, year):
+        query_title = (query_title or '').strip()
+        if query_title and (query_title, year) not in attempts:
+            attempts.append((query_title, year))
+
+    add(clean, title_year)
+    add(clean, None)
+    add(raw, title_year)
+    add(clean, scraped_year)
+    add(raw, scraped_year)
+    add(raw, None)
+
+    enriched = None
+    for query_title, year in attempts:
+        enriched = enrich_movie(query_title, year)
+        if enriched and enriched.get('tmdb_id'):
+            return enriched
     return enriched
 
 

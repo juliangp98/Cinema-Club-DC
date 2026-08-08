@@ -99,7 +99,6 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
 
   return (
     <div className="chat-section">
-      <span className="drawer-section-label">Discussion</span>
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty">No messages yet. Start the conversation!</div>
