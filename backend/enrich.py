@@ -5,6 +5,10 @@ Called by the scraper to fill in metadata for newly discovered movies.
 
 import os
 import json
+import re
+import unicodedata
+from difflib import SequenceMatcher
+
 import requests
 from dotenv import load_dotenv
 
@@ -42,44 +46,72 @@ def _tmdb_headers():
     return {'Authorization': f'Bearer {_tmdb_token()}', 'Accept': 'application/json'}
 
 
-def enrich_from_tmdb(title, year=None):
-    """Search TMDB for a movie and return enriched metadata dict, or None on failure."""
+def _norm(s):
+    """Lowercase, accent- and punctuation-free form for comparing titles."""
+    s = unicodedata.normalize('NFKD', s or '')
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    return ' '.join(re.sub(r'[^\w\s]', ' ', s).casefold().split())
+
+
+def _title_ok(query, candidate):
+    """Guard against loose search hits: accept a TMDB result only when its title
+    plausibly is the film asked for. TMDB search is fuzzy — "Surprise Film"
+    happily returns a short called "Surprise"."""
+    q, c = _norm(query), _norm(candidate)
+    if not q or not c:
+        return False
+    if q == c:
+        return True
+    qt, ct = set(q.split()), set(c.split())
+    if qt <= ct:                               # query is a shortened full title
+        return True
+    if ct <= qt and len(ct) * 2 >= len(qt):    # a few extra words in the query
+        return True
+    return SequenceMatcher(None, q, c).ratio() >= 0.85   # venue typos
+
+
+def _pick(results, query, year):
+    """Best plausible result: exact titles first, then the release-year match,
+    then TMDB's own relevance order."""
+    ok = [r for r in results
+          if _title_ok(query, r.get('title')) or _title_ok(query, r.get('original_title'))]
+    exact = [r for r in ok
+             if _norm(query) in (_norm(r.get('title')), _norm(r.get('original_title')))]
+    pool = exact or ok
+    if year:
+        for r in pool:
+            if (r.get('release_date') or '')[:4] == str(year):
+                return r
+    return pool[0] if pool else None
+
+
+def search_tmdb(title, year=None):
+    """Best TMDB search result for `title`, or None. One call, plus a year-less
+    retry when the year filter finds nothing plausible — a scraped year is often
+    a re-release date ('HIS GIRL FRIDAY' listed with 2026)."""
     if not _tmdb_token():
         _warn_once('tmdb', "  [enrich] TMDB_API_TOKEN not set — skipping TMDB enrichment "
                            "(set it in the environment the scraper runs in)")
         return None
 
-    try:
-        # Search
-        params = {'query': title}
-        if year:
-            params['year'] = year
+    def search(params):
         r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(), params=params, timeout=10)
         r.raise_for_status()
-        results = r.json().get('results', [])
+        return r.json().get('results', [])
 
-        # A year filter hides the correct match when the scraped year is a
-        # re-release date; retry without it before giving up.
-        if not results and year:
-            r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(),
-                             params={'query': title}, timeout=10)
-            r.raise_for_status()
-            results = r.json().get('results', [])
+    try:
+        match = _pick(search({'query': title, 'year': year} if year else {'query': title}), title, year)
+        if not match and year:
+            match = _pick(search({'query': title}), title, year)
+        return match
+    except Exception as e:
+        print(f"  [enrich] TMDB search error for '{title}': {e}")
+        return None
 
-        if not results:
-            print(f"  [enrich] TMDB: no results for '{title}' ({year})")
-            return None
 
-        # Pick best match: prefer exact title match, else first result
-        match = results[0]
-        for res in results:
-            if res.get('title', '').lower().strip() == title.lower().strip():
-                match = res
-                break
-
-        tmdb_id = match['id']
-
-        # Fetch full details with credits and videos
+def tmdb_details(tmdb_id):
+    """Full metadata for one TMDB film (credits + videos in the same call)."""
+    try:
         r2 = requests.get(
             f'{TMDB_BASE}/movie/{tmdb_id}',
             headers=_tmdb_headers(),
@@ -133,6 +165,7 @@ def enrich_from_tmdb(title, year=None):
 
         result = {
             'tmdb_id': tmdb_id,
+            'tmdb_title': detail.get('title'),
             'imdb_id': detail.get('imdb_id'),
             'description': detail.get('overview'),
             'runtime_minutes': detail.get('runtime'),
@@ -150,11 +183,10 @@ def enrich_from_tmdb(title, year=None):
             'director': director,
         }
 
-        print(f"  [enrich] TMDB: matched '{title}' → id={tmdb_id} ({detail.get('title')})")
         return result
 
     except Exception as e:
-        print(f"  [enrich] TMDB error for '{title}': {e}")
+        print(f"  [enrich] TMDB details error for id={tmdb_id}: {e}")
         return None
 
 
@@ -207,26 +239,35 @@ def enrich_from_omdb(title, year=None, imdb_id=None):
         return None
 
 
-def enrich_movie(title, year=None):
-    """
-    Orchestrate TMDB + OMDb enrichment for a movie.
-    Returns a merged dict of all enrichment fields.
-    """
-    result = {}
+def enrich_movie(title, year=None, alternates=()):
+    """Identify a film on TMDB, then add OMDb awards + ratings.
 
-    # TMDB first (richer data)
-    tmdb = enrich_from_tmdb(title, year)
-    if tmdb:
-        result.update(tmdb)
+    Tries `title`, then each of `alternates`, using TMDB *search* only; the first
+    match gets one details fetch and one OMDb lookup. Unidentified titles cost no
+    OMDb calls (its free tier is 1,000/day). Returns a dict of movie fields, or
+    None when nothing matched.
+    """
+    match = query = None
+    for query in dict.fromkeys([title, *alternates]):
+        match = search_tmdb(query, year)
+        if match:
+            break
+    if not match:
+        if _tmdb_token():
+            print(f"  [enrich] TMDB: no match for '{title}' ({year})")
+        return None
 
-    # OMDb for awards + ratings (use imdb_id from TMDB if available)
-    imdb_id = result.get('imdb_id')
-    omdb = enrich_from_omdb(title, year, imdb_id=imdb_id)
+    result = tmdb_details(match['id'])
+    if not result:
+        return None
+    result['matched_query'] = query   # which title variant identified the film
+    print(f"  [enrich] TMDB: matched '{query}' → id={result['tmdb_id']} ({result['tmdb_title']})")
+
+    omdb = enrich_from_omdb(result['tmdb_title'] or title, result.get('release_year'),
+                            imdb_id=result.get('imdb_id'))
     if omdb:
-        # Don't overwrite TMDB director with OMDb backup unless missing
         director_backup = omdb.pop('director_backup', None)
         if not result.get('director') and director_backup:
             result['director'] = director_backup
         result.update(omdb)
-
-    return result if result else None
+    return result

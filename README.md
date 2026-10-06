@@ -240,7 +240,11 @@ python scraper.py --emit-test-event suns   # synthetic drop event (bot testing)
 ```
 
 Other behaviors:
-- Sync dedupes movies by exact title → TMDB id → normalized title + year.
+- **Film identity.** Every venue label ever seen is remembered (`movie_alias`), so known labels need no TMDB lookup. New labels resolve by TMDB id, then by clean title + agreeing year.
+- **Messy venue titles.** Format tags, embedded years and trailing series names are stripped (`LICORICE PIZZA in 70mm`, `HIS GIRL FRIDAY (1940)`, `Planes (2013) - NASM 50th Film Series`). A year written in the label beats the scraped one, which is often a re-release date. Program prefixes (`EPIC SUNDAY: BATMAN BEGINS`, `X presents THE FLY`) are tried as a fallback search after the full title, so real colon titles still win. Implemented in `scrapers/base.py` and `enrich.py`.
+- **Formats and billings.** Each screening keeps its format (`70mm`, `IMAX`, `Digital`…) as a badge, plus the venue's own billing when it says more than the film title (`EPIC SUNDAY: BATMAN BEGINS`, `… (Chapters 1-3)`). So a film shown in 70mm and Digital is one calendar entry with both badges.
+- **API budget.** Films TMDB can't identify (shorts programs, trivia nights) are retried at most weekly instead of on every scrape. OMDb is only called once a film is identified.
+- **Catalog maintenance.** `python backfill_enrichment.py [--force]` cleans titles, merges duplicate films, labels screenings with their format, and looks up unmatched films (`--force` ignores the weekly retry window). It's safe to re-run and never triggers Discord posts.
 - Future showtimes that disappear from a venue's calendar are soft-cancelled
   (`is_cancelled`), never deleted — RSVPs/chat survive.
 - Each run records a `ScrapeRun`; bursts of new showtimes emit a `ScrapeEvent`

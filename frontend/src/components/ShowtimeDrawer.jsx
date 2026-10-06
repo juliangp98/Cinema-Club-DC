@@ -264,7 +264,9 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                       {formatFullDate(s.start_time)} {DOT} {formatTime(s.start_time)}
                       {s.end_time && ` – ${formatTime(s.end_time)}`}
                       {s.is_sold_out && `  ${DOT} SOLD OUT`}
+                      {s.format_label && <span className="format-badge">{s.format_label}</span>}
                     </div>
+                    {s.event_label && <div className="drawer-event-label">{s.event_label}</div>}
                     <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
                       {RSVP_OPTIONS.map(opt => (
                         <button

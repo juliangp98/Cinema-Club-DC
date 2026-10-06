@@ -329,7 +329,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
       if (!s.is_sold_out) g.allSoldOut = false;
     }
 
-    // Deduplicate attendees across showtimes
+    // Deduplicate attendees across showtimes; collect formats (70mm, Digital…)
     return Array.from(groups.values()).map(g => {
       const seen = new Set();
       const uniqueAttendees = [];
@@ -341,7 +341,8 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
           }
         }
       }
-      return { ...g, uniqueAttendees };
+      const formats = [...new Set(g.showtimes.map(s => s.format_label).filter(Boolean))];
+      return { ...g, uniqueAttendees, formats };
     }).filter(g => {
       // Member filter: only show if at least one selected member is attending
       if (selectedMembers.size === 0) return true;
@@ -665,6 +666,9 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
                   >
                     <span className="cal-event-time">
                       {formatShowtimeList(group.showtimes)}
+                      {group.formats.length > 0 && (
+                        <span className="cal-format">{group.formats.join(" · ")}</span>
+                      )}
                     </span>
                     <div>
                       <div className="cal-event-title">

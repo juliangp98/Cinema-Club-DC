@@ -46,14 +46,19 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
     fetchMessages();
   }, [fetchMessages]);
 
-  // Poll every 10s
+  // Poll every 10s while the tab is visible; catch up as soon as it's shown again.
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (lastTimestamp.current) {
+    function poll() {
+      if (lastTimestamp.current && !document.hidden) {
         fetchMessages(lastTimestamp.current);
       }
-    }, 10000);
-    return () => clearInterval(interval);
+    }
+    const interval = setInterval(poll, 10000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", poll);
+    };
   }, [fetchMessages]);
 
   // Keep the newest message in view by scrolling ONLY the messages container.

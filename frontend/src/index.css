@@ -576,6 +576,11 @@ input { font-family: inherit; }
   color: var(--muted);
   line-height: 1.3;
 }
+.cal-format {
+  margin-left: 0.35rem;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+}
 .cal-event-title {
   font-family: var(--font-serif);
   font-size: 0.72rem;
@@ -720,7 +725,6 @@ input { font-family: inherit; }
   min-width: 0;
   align-self: flex-end;      /* keep title text below the hero, beside poster base */
 }
-.drawer-block { margin-bottom: 1.25rem; }
 .drawer-theatre-badge {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
@@ -837,6 +841,25 @@ input { font-family: inherit; }
   flex: 1;
 }
 .drawer-showtime-time.sold-out { text-decoration: line-through; color: var(--muted); }
+/* Screening format (70mm, IMAX, Digital…) and the venue's own billing when it
+   says more than the film title ("EPIC SUNDAY: BATMAN BEGINS"). */
+.format-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+  color: var(--amber);
+  border: 1px solid var(--amber-dim);
+  border-radius: var(--radius);
+}
+.drawer-event-label {
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
 .drawer-ticket-link {
   font-size: 0.62rem;
   letter-spacing: 0.12em;
@@ -1040,7 +1063,6 @@ input { font-family: inherit; }
 .drawer-section-caret { font-size: 0.7rem; letter-spacing: 0; }
 .drawer-section-body { padding-bottom: 1.1rem; }
 /* The screening block sits directly above the first section — give it a divider too */
-.drawer-block + .drawer-section { border-top: 1px solid var(--border); }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 .drawer::-webkit-scrollbar { width: 4px; }

@@ -112,6 +112,8 @@ def group_showtimes_by_day(showtimes):
 def _showtime_line(s, include_counts=True):
     theatre = s['theatre'].get('short_name') or s['theatre']['name']
     line = f"`{_fmt_time(s['start_time'])}` **{s['movie']['title']}** @ {theatre}"
+    if s.get('format_label'):
+        line += f" · {s['format_label']}"
     if s.get('is_sold_out'):
         line += ' *(sold out)*'
     if include_counts and s.get('attendees'):

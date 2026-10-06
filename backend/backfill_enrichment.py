@@ -1,68 +1,77 @@
 """
-One-time backfill: enrich any Movie rows that don't yet have a tmdb_id.
+Catalog maintenance: clean up film titles, merge duplicate films, label
+screenings with their format, and look up films that have no TMDB match yet.
+Safe to re-run, and it never triggers Discord announcements.
+
+Unmatched films are retried at most weekly (the scraper does the same); pass
+--force to retry all of them now.
 
 Usage:
     # Local
-    cd backend && ./venv/bin/python backfill_enrichment.py
+    cd backend && ./venv/bin/python backfill_enrichment.py [--force]
 
     # Inside the production container
-    sudo docker exec cinemaclub-backend python backfill_enrichment.py
+    sudo docker exec cinemaclub-backend python backfill_enrichment.py [--force]
 """
 
+import argparse
+import datetime
 import time
-from app import app, db, Movie
+
+from app import app, db, Movie, MovieAlias, Showtime
 from enrich import enrich_movie
-from scrapers.sync import _enrich_with_fallback
+from scrapers.base import event_label, parse_movie_title
+from scrapers.sync import (_apply_movie_fields, adopt_matched_title, consolidate_catalog,
+                           enrichment_due, lookup_film)
 
 
-def backfill():
+def _report(stats):
+    print(f"  retitled {stats['retitled']}, merged {stats['merged']}, "
+          f"labelled {stats['labelled']} screenings")
+
+
+def lookup_unmatched(force=False):
     with app.app_context():
-        movies = Movie.query.filter(Movie.tmdb_id.is_(None)).all()
-        total = len(movies)
-        print(f"Backfilling {total} unenriched movies...")
-
-        ok = 0
-        miss = 0
+        movies = [m for m in Movie.query.filter(Movie.tmdb_id.is_(None)).all()
+                  if enrichment_due(m, force)]
+        print(f"Looking up {len(movies)} unmatched films…")
+        matched = 0
         for i, movie in enumerate(movies, 1):
-            print(f"[{i}/{total}] {movie.title} ({movie.release_year})")
-            # Route through the same cleaner/year-extraction fallback the scraper
-            # uses, so labels like 'HIS GIRL FRIDAY (1940)' (stored with the
-            # re-release year) now re-match.
-            data = _enrich_with_fallback(enrich_movie, movie.title, movie.release_year)
-            if not data:
-                miss += 1
-                continue
-
-            # API data takes priority; existing data is fallback
-            movie.director = data.get('director') or movie.director
-            movie.release_year = data.get('release_year') or movie.release_year
-            movie.runtime_minutes = data.get('runtime_minutes') or movie.runtime_minutes
-            movie.starring = data.get('starring') or movie.starring
-            movie.description = data.get('description') or movie.description
-            movie.trailer_link = data.get('trailer_link') or movie.trailer_link
-            movie.poster_url = data.get('poster_url') or movie.poster_url
-            movie.genres = data.get('genres') or movie.genres or ''
-            movie.tmdb_id = data.get('tmdb_id')
-            movie.imdb_id = data.get('imdb_id') or movie.imdb_id
-            movie.backdrop_url = data.get('backdrop_url') or movie.backdrop_url
-            movie.tagline = data.get('tagline') or movie.tagline
-            movie.vote_average = data.get('vote_average') or movie.vote_average
-            movie.content_rating = data.get('content_rating') or movie.content_rating
-            movie.cast_json = data.get('cast_json') or movie.cast_json
-            movie.crew_json = data.get('crew_json') or movie.crew_json
-            movie.awards = data.get('awards') or movie.awards
-            movie.ratings_json = data.get('ratings_json') or movie.ratings_json
-            movie.trailer_key = data.get('trailer_key') or movie.trailer_key
-            ok += 1
-
-            # Commit every 10 movies and rate-limit gently
+            print(f"[{i}/{len(movies)}] {movie.title}")
+            labels = [a.title for a in MovieAlias.query.filter_by(movie_id=movie.id)] or [movie.title]
+            labels.sort(key=lambda t: parse_movie_title(t)[1] is None)  # "(YYYY)" labels first
+            data = label = None
+            for label in labels:
+                data = lookup_film(enrich_movie, label, movie.release_year)
+                if data:
+                    break
+            movie.enrich_attempted_at = datetime.datetime.utcnow()
+            if data:
+                old = adopt_matched_title(movie, data, label)
+                if old:
+                    Showtime.query.filter_by(movie_id=movie.id, event_label=None).update(
+                        {'event_label': event_label(old, movie.title)})
+                _apply_movie_fields(movie, {}, data)
+                matched += 1
             if i % 10 == 0:
                 db.session.commit()
-                time.sleep(0.5)
-
+                time.sleep(0.5)   # stay well inside TMDB's rate limit
         db.session.commit()
-        print(f"\nDone. Enriched: {ok}, no match: {miss}, total: {total}")
+        print(f"Matched {matched} of {len(movies)}.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument('--force', action='store_true',
+                        help='retry every unmatched film, ignoring the weekly retry window')
+    args = parser.parse_args()
+
+    print('Cleaning up the catalog…')
+    _report(consolidate_catalog())
+    lookup_unmatched(force=args.force)
+    print('Merging films matched in this run…')
+    _report(consolidate_catalog())
 
 
 if __name__ == '__main__':
-    backfill()
+    main()

@@ -306,6 +306,8 @@ class Movie(db.Model):
     awards = db.Column(db.String(500))
     ratings_json = db.Column(db.Text)    # JSON: [{source, value}]
     trailer_key = db.Column(db.String(50))  # YouTube video key
+    # Last TMDB lookup that found nothing; retried weekly, not every scrape.
+    enrich_attempted_at = db.Column(db.DateTime)
     showtimes = db.relationship('Showtime', backref='movie', lazy=True)
 
     def to_dict(self):
@@ -335,6 +337,17 @@ class Movie(db.Model):
         }
 
 
+class MovieAlias(db.Model):
+    """Every venue label ever seen for a film ('LICORICE PIZZA in 70mm',
+    'LICORICE PIZZA (Digital)') → its Movie. The scraper recognises known labels
+    without another TMDB lookup, and display titles can be cleaned up or
+    duplicate films merged without breaking that recognition."""
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), unique=True, nullable=False)
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False, index=True)
+    movie = db.relationship('Movie', lazy=True)
+
+
 class Showtime(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False)
@@ -344,6 +357,10 @@ class Showtime(db.Model):
     purchase_link = db.Column(db.String(500))
     is_sold_out = db.Column(db.Boolean, default=False)
     is_cancelled = db.Column(db.Boolean, default=False)
+    # From the venue's label: '70mm', 'Digital', '70mm · IMAX'…
+    format_label = db.Column(db.String(60))
+    # The venue's own title when it differs from the film's ('EPIC SUNDAY: BATMAN BEGINS').
+    event_label = db.Column(db.String(200))
     rsvps = db.relationship('RSVP', backref='showtime', lazy=True)
     reactions = db.relationship('Reaction', backref='showtime', lazy=True)
     messages = db.relationship('Message', backref='showtime', lazy=True)
@@ -401,6 +418,8 @@ class Showtime(db.Model):
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'purchase_link': self.purchase_link,
             'is_sold_out': self.is_sold_out,
+            'format_label': self.format_label,
+            'event_label': self.event_label,
             'attendees': attendees,
             'maybes': maybes,
             'user_rsvp': user_rsvp,
@@ -2651,12 +2670,20 @@ def migrate():
         "ALTER TABLE user ADD COLUMN discord_link_code VARCHAR(12)",
         "ALTER TABLE user ADD COLUMN discord_link_code_expires DATETIME",
         "ALTER TABLE user ADD COLUMN letterboxd_username VARCHAR(60)",
+        # Catalog cleanup: lookup retry throttle, per-screening format/event labels
+        "ALTER TABLE movie ADD COLUMN enrich_attempted_at DATETIME",
+        "ALTER TABLE showtime ADD COLUMN format_label VARCHAR(60)",
+        "ALTER TABLE showtime ADD COLUMN event_label VARCHAR(200)",
     ]
     for sql in stmts:
         try:
             db.session.execute(db.text(sql))
         except Exception:
             pass  # column already exists
+    db.session.commit()
+    # Every movie's current title is a venue label the scraper may see again.
+    db.session.execute(db.text(
+        "INSERT OR IGNORE INTO movie_alias (title, movie_id) SELECT title, id FROM movie"))
     db.session.commit()
     _migrate_poll_vote_ranked_constraint()
     _backfill_title_normalized()

@@ -17,3 +17,6 @@ backend/.env.development
 !backend/.env.example
 
 backend/instance/cinemaclub_dev.db
+
+# Build output (Docker builds the frontend from source)
+frontend/dist/

@@ -8,75 +8,176 @@ month of programming) it emits a ScrapeEvent that the Discord bot announces.
 import datetime
 import json
 
-from .base import normalize_title, parse_movie_title
+from .base import (event_label, extract_format_label, normalize_title,
+                   parse_movie_title, title_search_variants)
+
+# A film with no TMDB match is looked up again at most this often. Titles that
+# never match (shorts programs, trivia nights) would otherwise cost API calls on
+# every scrape of every venue.
+ENRICH_RETRY_AFTER = datetime.timedelta(days=7)
 
 
-def _match_movie(Movie, m, enrich_movie):
-    """Find an existing Movie for scraped dict `m`, enriching if needed.
+def enrichment_due(movie, force=False):
+    if movie.tmdb_id:
+        return False
+    return (force or not movie.enrich_attempted_at
+            or datetime.datetime.utcnow() - movie.enrich_attempted_at >= ENRICH_RETRY_AFTER)
 
-    Returns (movie_or_None, enriched_or_None). Ladder: exact title →
-    tmdb_id (post-enrichment) → normalized title + matching year.
+
+def lookup_film(enrich_movie, label, scraped_year=None):
+    """Enrich a venue label. Searches each title variant (full clean title
+    first), preferring a year written in the label over the scraped one, which
+    is often a re-release date ('HIS GIRL FRIDAY (1940)' listed as 2026)."""
+    _, title_year = parse_movie_title(label)
+    variants = title_search_variants(label)
+    return enrich_movie(variants[0], title_year or scraped_year or None, alternates=variants[1:])
+
+
+def adopt_matched_title(movie, enriched, label):
+    """A film titled from a program billing ("Count Gore De Vol presents THE
+    FLY") that TMDB identified through the stripped title takes that title;
+    the billing lives on as its screenings' event label. Only applies when the
+    film was titled from this very label, so a film's established title never
+    flips between venues. Returns the old title when renamed, else None."""
+    query = (enriched or {}).get('matched_query')
+    own = normalize_title(label)
+    if query and normalize_title(movie.title) == own and normalize_title(query) != own:
+        old, movie.title = movie.title, query[:200]
+        return old
+    return None
+
+
+def _match_movie(Movie, MovieAlias, m, enrich_movie):
+    """Find the Movie for scraped dict `m`.
+
+    Returns (movie_or_None, enriched_or_None, looked_up). Ladder: a venue label
+    seen before → TMDB id → same clean title with an agreeing year. Known labels
+    cost no API calls, apart from the weekly retry for films still unmatched.
     """
-    title = m['title']
-    movie = Movie.query.filter_by(title=title).first()
+    label = m['title'].strip()[:255]
+    alias = MovieAlias.query.filter_by(title=label).first()
+    movie = alias.movie if alias else Movie.query.filter_by(title=label).first()
     if movie:
-        enriched = None
-        if not movie.tmdb_id:
-            enriched = _enrich_with_fallback(enrich_movie, title, m.get('release_year') or movie.release_year)
-        return movie, enriched
+        if not enrichment_due(movie):
+            return movie, None, False
+        return movie, lookup_film(enrich_movie, label, m.get('release_year') or movie.release_year), True
 
-    enriched = _enrich_with_fallback(enrich_movie, title, m.get('release_year') or None)
-
-    if enriched and enriched.get('tmdb_id'):
+    enriched = lookup_film(enrich_movie, label, m.get('release_year'))
+    if enriched:
         movie = Movie.query.filter_by(tmdb_id=enriched['tmdb_id']).first()
         if movie:
-            return movie, enriched
+            return movie, enriched, True
 
-    norm = normalize_title(title)
-    if norm:
-        year = m.get('release_year') or (enriched.get('release_year') if enriched else None)
-        year = str(year) if year else ''
-        for cand in Movie.query.filter_by(title_normalized=norm).all():
-            # Same normalized title; require year agreement when both sides have one
-            if year and cand.release_year and str(cand.release_year) != year:
+    _, title_year = parse_movie_title(label)
+    year = str((enriched or {}).get('release_year') or title_year or m.get('release_year') or '')
+    for cand in Movie.query.filter_by(title_normalized=normalize_title(label)).all():
+        # Same clean title; require year agreement when both sides have one
+        if year and cand.release_year and str(cand.release_year) != year:
+            continue
+        return cand, enriched, True
+    return None, enriched, True
+
+
+_FILL_COLUMNS = ('director', 'release_year', 'runtime_minutes', 'starring', 'description',
+                 'trailer_link', 'poster_url', 'genres', 'imdb_id', 'backdrop_url', 'tagline',
+                 'vote_average', 'content_rating', 'cast_json', 'crew_json', 'awards',
+                 'ratings_json', 'trailer_key')
+
+
+def _merge_movie(db, MovieAlias, Showtime, Watchlist, keep, dup):
+    """Fold `dup` into `keep`: screenings, watchlists and venue labels move over;
+    `keep` adopts any metadata it's missing."""
+    for col in _FILL_COLUMNS:
+        if getattr(keep, col) in (None, '') and getattr(dup, col) not in (None, ''):
+            setattr(keep, col, getattr(dup, col))
+    Showtime.query.filter_by(movie_id=dup.id).update({'movie_id': keep.id})
+    MovieAlias.query.filter_by(movie_id=dup.id).update({'movie_id': keep.id})
+    for w in Watchlist.query.filter_by(movie_id=dup.id).all():
+        if Watchlist.query.filter_by(user_id=w.user_id, movie_id=keep.id).first():
+            db.session.delete(w)
+        else:
+            w.movie_id = keep.id
+    db.session.delete(dup)
+
+
+def consolidate_catalog():
+    """Idempotent catalog cleanup (run by backfill_enrichment.py):
+
+      1. remember every film's current title as a venue label, so the renames
+         below never make the scraper look a film up again;
+      2. retitle films to their clean title ('LICORICE PIZZA in 70mm' →
+         'LICORICE PIZZA');
+      3. merge films that are the same TMDB film — or an unmatched film with the
+         same clean title and an agreeing year as a matched one;
+      4. label existing screenings with the format and billing of the venue
+         title their film was created from.
+    Returns counts of what changed."""
+    from app import app, db, Movie, MovieAlias, Showtime, Watchlist
+
+    with app.app_context():
+        movies = Movie.query.order_by(Movie.id).all()
+        raw_title = {mv.id: mv.title for mv in movies}
+        origin = dict(db.session.query(Showtime.id, Showtime.movie_id).all())
+        stats = {'retitled': 0, 'merged': 0, 'labelled': 0}
+
+        known = {a.title for a in MovieAlias.query.all()}
+        for mv in movies:
+            if mv.title not in known:
+                db.session.add(MovieAlias(title=mv.title[:255], movie_id=mv.id))
+                known.add(mv.title)
+            clean = parse_movie_title(mv.title)[0]
+            if clean != mv.title:
+                mv.title = clean
+                stats['retitled'] += 1
+            mv.title_normalized = normalize_title(mv.title)
+        db.session.flush()
+
+        # Same TMDB film. Keep the shortest title — the plain film name rather
+        # than a program billing like "EPIC SUNDAY: BATMAN BEGINS".
+        by_tmdb, gone = {}, set()
+        for mv in movies:
+            if mv.tmdb_id:
+                by_tmdb.setdefault(mv.tmdb_id, []).append(mv)
+        for group in by_tmdb.values():
+            keep = min(group, key=lambda mv: (len(mv.title), mv.id))
+            for dup in group:
+                if dup is not keep:
+                    _merge_movie(db, MovieAlias, Showtime, Watchlist, keep, dup)
+                    gone.add(dup.id)
+                    stats['merged'] += 1
+        db.session.flush()
+
+        # Unmatched film with the same clean title as exactly one matched film.
+        matched = {}
+        for mv in movies:
+            if mv.tmdb_id and mv.id not in gone:
+                matched.setdefault(mv.title_normalized, []).append(mv)
+        for mv in movies:
+            if mv.tmdb_id or mv.id in gone:
                 continue
-            return cand, enriched
+            cands = [c for c in matched.get(mv.title_normalized, [])
+                     if not (mv.release_year and c.release_year
+                             and str(mv.release_year) != str(c.release_year))]
+            if len(cands) == 1:
+                _merge_movie(db, MovieAlias, Showtime, Watchlist, cands[0], mv)
+                gone.add(mv.id)
+                stats['merged'] += 1
+        db.session.flush()
 
-    return None, enriched
+        final_title = {mv.id: mv.title for mv in movies if mv.id not in gone}
+        for st in Showtime.query.filter(db.or_(Showtime.format_label.is_(None),
+                                               Showtime.event_label.is_(None))).all():
+            raw = raw_title.get(origin.get(st.id))
+            if raw is None or st.movie_id not in final_title:
+                continue
+            fmt = st.format_label or extract_format_label(raw)
+            billing = st.event_label or event_label(raw, final_title[st.movie_id])
+            if (fmt, billing) != (st.format_label, st.event_label):
+                st.format_label, st.event_label = fmt, billing
+                stats['labelled'] += 1
 
-
-def _enrich_with_fallback(enrich_movie, title, scraped_year):
-    """Enrich across progressively-cleaner title/year variants, taking the first
-    hit with a tmdb_id.
-
-    Venue labels carry format tags ('The Odyssey (70mm)'), program prefixes
-    ('EPIC SUNDAY: BATMAN BEGINS') and re-release years that aren't the film's
-    real year ('HIS GIRL FRIDAY (1940)' scraped with release_date 2026). So we
-    prefer the cleaned title and a year embedded in the label, try a year-less
-    search before the scraped re-release year, and fall back to the raw title."""
-    clean, title_year = parse_movie_title(title)
-    raw = (title or '').strip()
-
-    attempts = []
-
-    def add(query_title, year):
-        query_title = (query_title or '').strip()
-        if query_title and (query_title, year) not in attempts:
-            attempts.append((query_title, year))
-
-    add(clean, title_year)
-    add(clean, None)
-    add(raw, title_year)
-    add(clean, scraped_year)
-    add(raw, scraped_year)
-    add(raw, None)
-
-    enriched = None
-    for query_title, year in attempts:
-        enriched = enrich_movie(query_title, year)
-        if enriched and enriched.get('tmdb_id'):
-            return enriched
-    return enriched
+        db.session.commit()
+        return stats
 
 
 def _apply_movie_fields(movie, m, enriched):
@@ -120,7 +221,7 @@ def sync_to_db(cfg, scraped_movies):
     `cfg` is a TheatreConfig from the registry. Returns the ScrapeRun id, or
     None if the theatre isn't seeded yet.
     """
-    from app import app, db, Theatre, Movie, Showtime, ScrapeRun, ScrapeEvent
+    from app import app, db, Theatre, Movie, MovieAlias, Showtime, ScrapeRun, ScrapeEvent
     from enrich import enrich_movie
 
     with app.app_context():
@@ -159,15 +260,26 @@ def sync_to_db(cfg, scraped_movies):
             if not m.get('title'):
                 continue
 
-            movie, enriched = _match_movie(Movie, m, enrich_movie)
+            label = m['title'].strip()[:255]
+            movie, enriched, looked_up = _match_movie(Movie, MovieAlias, m, enrich_movie)
             if movie is None:
-                movie = Movie(title=m['title'])
+                # Title a new film by the variant TMDB matched ("THE FLY", not
+                # "Count Gore De Vol presents THE FLY"), else the clean label.
+                title = (enriched or {}).get('matched_query') or parse_movie_title(label)[0]
+                movie = Movie(title=title[:200])
                 db.session.add(movie)
                 new_movie_count += 1
+            if looked_up and not enriched:
+                movie.enrich_attempted_at = datetime.datetime.utcnow()
+            adopt_matched_title(movie, enriched, label)
 
             _apply_movie_fields(movie, m, enriched)
             db.session.flush()
+            if not MovieAlias.query.filter_by(title=label).first():
+                db.session.add(MovieAlias(title=label, movie_id=movie.id))
 
+            format_label = extract_format_label(label)
+            billing = event_label(label, movie.title)
             for st in m.get('showtimes', []):
                 start = st['start_time']
                 scraped_pairs.add((movie.id, start))
@@ -183,13 +295,17 @@ def sync_to_db(cfg, scraped_movies):
                         start_time=start,
                         end_time=st.get('end_time'),
                         purchase_link=st.get('purchase_link'),
-                        is_sold_out=st.get('is_sold_out', False)
+                        is_sold_out=st.get('is_sold_out', False),
+                        format_label=format_label,
+                        event_label=billing,
                     )
                     db.session.add(showtime)
                     new_showtimes.append(showtime)
                 else:
                     existing.is_sold_out = st.get('is_sold_out', False)
                     existing.purchase_link = st.get('purchase_link') or existing.purchase_link
+                    existing.format_label = format_label
+                    existing.event_label = billing
                     if existing.is_cancelled:
                         existing.is_cancelled = False
 

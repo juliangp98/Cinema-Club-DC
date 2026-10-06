@@ -124,105 +124,150 @@ def make_showtime(start, runtime_minutes=120, purchase_link='', is_sold_out=Fals
 
 _WS_RE = re.compile(r'\s+')
 
-# Keywords that mark a program/series label wrapped around the real film title,
-# either as a leading "PROGRAM: Title" prefix or a trailing "Title - Program"
-# descriptor. Matched case-insensitively as substrings of the label segment.
-_SERIES_KEYWORDS = (
+# Words that mark a program/series label wrapped around the film title, as a
+# leading "PROGRAM: Title" prefix or a trailing "Title - Program" descriptor.
+# Matched as whole words, so "fest" doesn't fire inside "Manifesto".
+_SERIES_WORDS = (
     'series', 'presents', 'presented', 'sunday', 'monday', 'tuesday',
     'wednesday', 'thursday', 'friday', 'saturday', 'nights', 'matinee',
-    'midnight', 'double feature', 'triple feature', 'festival',
+    'midnight', 'double feature', 'triple feature', 'festival', 'fest',
     'retrospective', 'tribute', 'spotlight', 'classics', 'epic',
     'anniversary', 'program', 'fundraiser', 'benefit', 'marathon',
     'showcase', 'special event', 'q&a', 'in concert', 'sing-along',
-    'sing along', 'brunch', 'club', 'noir', 'fest',
+    'sing along', 'brunch', 'club', 'noir',
 )
+_SERIES_RE = re.compile(r'\b(?:' + '|'.join(map(re.escape, _SERIES_WORDS)) + r')\b', re.I)
 
 # Format / edition tags venues append, e.g. "The Odyssey (70mm)",
-# "Alien (4K Restoration)", "The Odyssey in 35mm". Removed wherever they appear.
+# "Alien (4K Restoration)", "DUNE in IMAX". Removed (with a leading "in")
+# wherever they appear.
 _FORMAT_PATTERNS = [
-    r'\bin\s+\d{2,3}\s*mm\b', r'\b\d{2,3}\s*mm\b', r'\bimax\b', r'\b4k\b',
-    r'\bdcp\b', r'\b3d\b', r'\bdolby(?:\s+(?:atmos|vision|cinema))?\b',
-    r'\b(?:new\s+)?(?:digital\s+)?restoration\b', r'\brestored\b',
-    r'\bremaster(?:ed)?\b', r'\bre-?release\b', r'\bnew\s+print\b',
-    r"\bdirector'?s\s+cut\b", r'\bextended\s+cut\b', r'\buncut\b',
-    r'\bunrated\b', r'\b\d+th\s+anniversary\b', r'\banniversary\b',
-    r'\bsing[-\s]?along\b', r'\bsubtitled\b',
+    r'\d{2,3}\s*mm', r'imax', r'4k', r'dcp', r'3d', r'dolby(?:\s+(?:atmos|vision|cinema))?',
+    r'(?:new\s+)?(?:digital\s+)?restoration', r'restored', r'remaster(?:ed)?',
+    r're-?release', r'new\s+print', r"director'?s\s+cut", r'extended\s+cut',
+    r'uncut', r'unrated', r'\d+th\s+anniversary', r'anniversary',
+    r'sing[-\s]?along', r'subtitled', r'open\s+caption(?:s|ed)?', r'digital$',
+]
+_FORMAT_RE = re.compile(r'(?:\bin\s+)?\b(?:' + '|'.join(_FORMAT_PATTERNS) + r')\b', re.I)
+
+# Display labels for the formats worth showing on a screening ("70mm",
+# "Digital"…). Order is display order; several can apply ("70mm · IMAX").
+_FORMAT_LABELS = [
+    (re.compile(r'\b70\s*mm\b', re.I), '70mm'),
+    (re.compile(r'\b35\s*mm\b', re.I), '35mm'),
+    (re.compile(r'\b16\s*mm\b', re.I), '16mm'),
+    (re.compile(r'\bimax\b', re.I), 'IMAX'),
+    (re.compile(r'\b4k\b', re.I), '4K'),
+    (re.compile(r'\b3d\b', re.I), '3D'),
+    (re.compile(r'\bdolby\b', re.I), 'Dolby'),
+    (re.compile(r"\bdirector'?s\s+cut\b", re.I), "Director's Cut"),
+    (re.compile(r'\bextended\s+cut\b', re.I), 'Extended Cut'),
+    (re.compile(r'\bopen\s+caption', re.I), 'Open Captions'),
+    # "(Digital)", "in Digital", or a trailing "Digital" — not "The Digital Age".
+    (re.compile(r'\(\s*digital\s*\)|\bin\s+digital\b|\bdigital\s*$', re.I), 'Digital'),
 ]
 
 _YEAR_PAREN_RE = re.compile(r'\((\d{4})\)')
 _PARENS_RE = re.compile(r'\([^)]*\)')
-_FORMAT_RE = re.compile('|'.join(_FORMAT_PATTERNS), re.I)
 _DASH_SPLIT_RE = re.compile(r'\s[-–—]\s')
+_PRESENTS_RE = re.compile(r'^.+?\bpresents?\b:?\s+(.+)$', re.I)
 _TRIM_CHARS = ' -–—:·|.'
 
 
 def _looks_like_series(segment):
     """True when a label segment reads like a program/series name rather than a
-    film title (so it's safe to strip)."""
-    s = (segment or '').strip().casefold()
-    return bool(s) and any(kw in s for kw in _SERIES_KEYWORDS)
+    film title."""
+    return bool(_SERIES_RE.search(segment or ''))
 
 
 def parse_movie_title(raw):
     """Parse a venue's screening label into (clean_title, year_or_None).
 
-    Strips repertory/event cruft so enrichment can find the film:
-      "The Odyssey (70mm)"                  -> ("The Odyssey", None)
-      "The Odyssey in 35mm"                 -> ("The Odyssey", None)
-      "HIS GIRL FRIDAY (1940)"              -> ("HIS GIRL FRIDAY", "1940")
-      "EPIC SUNDAY: BATMAN BEGINS"          -> ("BATMAN BEGINS", None)
-      "Planes (2013) - NASM 50th Film Series" -> ("Planes", "2013")
+    Removes cruft that is never part of a film's title:
+      "The Odyssey (70mm)" / "The Odyssey in 35mm"  -> ("The Odyssey", None)
+      "HIS GIRL FRIDAY (1940)"                      -> ("HIS GIRL FRIDAY", "1940")
+      "Planes (2013) - NASM 50th Film Series"       -> ("Planes", "2013")
 
-    The year is returned separately so enrichment searches on the film's real
-    release year, not the venue's re-release date. Only a "(YYYY)" parenthetical
-    is treated as a year — standalone digits (e.g. "1917", "2001: A Space
-    Odyssey") stay part of the title.
+    Program *prefixes* ("EPIC SUNDAY: BATMAN BEGINS") are deliberately kept: a
+    prefix can't be told apart from a real colon title ("Friday the 13th Part
+    VII: The New Blood") without a lookup, so title_search_variants() offers the
+    stripped form as an extra search instead. The year is returned separately so
+    enrichment searches the film's real year, not a re-release date. Only a
+    "(YYYY)" parenthetical counts as a year — "1917" or "2001: A Space Odyssey"
+    keep their digits.
     """
     if not raw:
         return '', None
     t = raw.strip()
 
-    # 1) Release year from a (YYYY) parenthetical only.
     year = None
     m = _YEAR_PAREN_RE.search(t)
-    if m:
-        y = int(m.group(1))
-        if 1900 <= y <= datetime.date.today().year + 1:
-            year = str(y)
+    if m and 1900 <= int(m.group(1)) <= datetime.date.today().year + 1:
+        year = m.group(1)
 
-    # 2) Leading "PROGRAM: Title" prefix, only when the prefix is a series label
-    #    (protects real colon titles like "Mission: Impossible").
-    if ':' in t:
-        head, _, tail = t.partition(':')
-        if tail.strip() and _looks_like_series(head):
-            t = tail.strip()
-
-    # 3) Trailing " - Series/Program" descriptor.
+    # Trailing " - Series/Program" descriptor.
     parts = _DASH_SPLIT_RE.split(t)
     if len(parts) > 1 and _looks_like_series(parts[-1]):
         t = ' - '.join(parts[:-1])
 
-    # 4) Remove parentheticals (year + format tags) and inline format tokens.
     t = _PARENS_RE.sub(' ', t)
     t = _FORMAT_RE.sub(' ', t)
-
     t = _WS_RE.sub(' ', t).strip(_TRIM_CHARS).strip()
-    if not t:
-        t = _WS_RE.sub(' ', raw).strip()
-    return t, year
+    return (t or _WS_RE.sub(' ', raw).strip()), year
+
+
+def title_search_variants(raw):
+    """Titles to search for, most literal first: the clean title, then with a
+    program prefix removed ("EPIC SUNDAY: BATMAN BEGINS" -> "BATMAN BEGINS",
+    "Count Gore De Vol presents THE FLY" -> "THE FLY"). Trying the full title
+    first means a real colon title wins over the stripped guess."""
+    clean, _ = parse_movie_title(raw)
+    variants = [clean]
+    head, sep, tail = clean.partition(':')
+    if sep and tail.strip() and _looks_like_series(head):
+        variants.append(tail.strip())
+    m = _PRESENTS_RE.match(clean)
+    if m:
+        variants.append(m.group(1).strip(_TRIM_CHARS))
+    return list(dict.fromkeys(v for v in variants if v))
+
+
+def _drop_format_parens(match):
+    inner = match.group(0)[1:-1]
+    return ' ' if not _FORMAT_RE.sub('', inner).strip(' ·-,&+') else match.group(0)
+
+
+def billing_title(raw):
+    """The venue's billing minus its year and format tags. Unlike the clean
+    title it keeps program names and session notes: 'EPIC SUNDAY: BATMAN
+    BEGINS', 'Planes - NASM 50th Film Series', 'MY UNDESIRABLE FRIENDS: PART I
+    (Chapters 1-3)'."""
+    t = _YEAR_PAREN_RE.sub(' ', raw or '')
+    t = _PARENS_RE.sub(_drop_format_parens, t)
+    t = _FORMAT_RE.sub(' ', t)
+    return _WS_RE.sub(' ', t).strip(_TRIM_CHARS).strip()
+
+
+def event_label(raw, film_title):
+    """A screening's own billing when it says more than the film's title (shown
+    under the film in the drawer), else None."""
+    billing = billing_title(raw)
+    return billing if billing and billing.casefold() != (film_title or '').casefold() else None
+
+
+def extract_format_label(raw):
+    """Display label for a screening's format ("70mm", "IMAX", "Digital"…),
+    or None. Several join with " · " ("70mm · IMAX")."""
+    labels = [label for rx, label in _FORMAT_LABELS if rx.search(raw or '')]
+    return ' · '.join(labels) or None
 
 
 def normalize_title(title):
-    """Casefolded, diacritic-stripped, whitespace-collapsed title with venue
-    format/edition/series cruft removed — used to match the same film across
-    venues (and as an enrichment-search fallback)."""
+    """Casefolded, diacritic-stripped, whitespace-collapsed clean title — the
+    key for matching the same film across venues."""
     if not title:
         return ''
     clean, _ = parse_movie_title(title)
     t = unicodedata.normalize('NFKD', clean or title)
     t = ''.join(c for c in t if not unicodedata.combining(c))
-    t = _WS_RE.sub(' ', t).strip().casefold()
-    # If cleaning removed everything, fall back to the raw title.
-    if not t:
-        t = _WS_RE.sub(' ', title).strip().casefold()
-    return t[:220]
+    return _WS_RE.sub(' ', t).strip().casefold()[:220]
