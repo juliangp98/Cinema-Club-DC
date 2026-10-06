@@ -7,6 +7,7 @@ import MembersPage from "./pages/MembersPage";
 import PollsPage from "./pages/PollsPage";
 import PollDetailPage from "./pages/PollDetailPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
+import VerifySignin from "./pages/VerifySignin";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -150,6 +151,11 @@ export default function App() {
               />
             </AuthGuard>
           }
+        />
+        {/* Emailed sign-in links land here; deliberately outside AuthGuard. */}
+        <Route
+          path="/auth/verify"
+          element={<VerifySignin apiBase={API_BASE} onLogin={handleLogin} />}
         />
         <Route
           path="/invite/:token"

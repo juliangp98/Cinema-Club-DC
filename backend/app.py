@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, session, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta, timezone
+import hashlib
 import os
 import secrets
 import re
@@ -20,9 +21,18 @@ else:
     load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+if not os.environ.get('SECRET_KEY'):
+    # A per-process random key means each gunicorn worker signs sessions
+    # differently (random logouts) and every restart logs everyone out.
+    print('⚠️  SECRET_KEY is not set — sessions will not survive restarts or '
+          'work across workers. Set it in .env.production.')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///cinemaclub.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Sign-ins last 30 days (sessions are marked permanent at sign-in).
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FRONTEND_URL', '').startswith('https://')
 
 CORS(app, supports_credentials=True, origins=["http://localhost:5173", os.environ.get('FRONTEND_URL', '')])
 
@@ -66,7 +76,10 @@ def send_email(to, subject, html_body):
         print(f"   To: {to}")
         print(f"   Subject: {subject}")
         print(f"   Body: {html_body[:200]}...")
-        print()
+        # Print links in full — locally this is how you open sign-in links.
+        for link in re.findall(r'href="([^"]+)"', html_body):
+            print(f"   Link: {link}")
+        print(flush=True)  # don't let stdout buffering hide the link
         return
 
     try:
@@ -92,6 +105,25 @@ def email_invite(to_email, group_name, invite_url):
         <p><a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Accept Invite</a></p>
         <p style="color:#888;font-size:13px;">Or copy this link: {invite_url}</p>
+        </div>""")
+
+
+def email_signin_link(to_email, link_url, purpose):
+    if purpose == 'signup':
+        subject, intro, button = ('Confirm your Cinema Club DC account',
+                                  'Confirm your email to finish creating your account.',
+                                  'Confirm &amp; Sign In')
+    else:
+        subject, intro, button = ('Your Cinema Club DC sign-in link',
+                                  'Use this link to sign in.', 'Sign In')
+    send_email(to_email, subject,
+        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
+        <p>{intro} It works once and expires in 15 minutes.</p>
+        <p><a href="{link_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
+        text-decoration:none;border-radius:6px;font-weight:bold;">{button}</a></p>
+        <p style="color:#888;font-size:13px;">If you didn't ask for this, you can ignore this email —
+        nobody can sign in without this link.</p>
         </div>""")
 
 
@@ -157,6 +189,20 @@ class User(db.Model):
             'discord_linked': bool(self.discord_user_id),
             'letterboxd_username': self.letterboxd_username or '',
         }
+
+
+class LoginToken(db.Model):
+    """A one-time emailed sign-in link. Only a SHA-256 hash of the token is
+    stored, so a leaked database can't be used to sign in."""
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), nullable=False, index=True)
+    purpose = db.Column(db.String(10), nullable=False)  # 'login' | 'signup'
+    name = db.Column(db.String(100))                    # display name, for signups
+    request_ip = db.Column(db.String(64), index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime)
 
 
 class Group(db.Model):
@@ -599,6 +645,79 @@ def require_auth(f):
 def current_user():
     return db.session.get(User, session['user_id']) if 'user_id' in session else None
 
+
+def _start_session(user):
+    """Sign `user` in for PERMANENT_SESSION_LIFETIME. Clears any previous
+    session first so a pre-existing cookie can't carry over."""
+    session.clear()
+    session.permanent = True
+    session['user_id'] = user.id
+
+
+# Emailed sign-in links: single-use, short-lived, rate-limited per address and
+# per client so the form can't be used to flood someone's inbox.
+SIGNIN_LINK_TTL = timedelta(minutes=15)
+SIGNIN_RATE_WINDOW = timedelta(minutes=15)
+SIGNIN_MAX_PER_EMAIL = 5
+SIGNIN_MAX_PER_IP = 20
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _hash_token(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _client_ip():
+    """The real client address. Requests arrive via Cloudflare's tunnel and
+    nginx, so remote_addr is a proxy; Cloudflare supplies the original IP."""
+    forwarded = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+    return (request.headers.get('CF-Connecting-IP') or forwarded or request.remote_addr or '')[:64]
+
+
+def _issue_signin_link(email, purpose, name=None):
+    """Create a one-time token and email its link. Returns an error response
+    when rate-limited, otherwise None."""
+    now = _utcnow_naive()
+    since = now - SIGNIN_RATE_WINDOW
+    ip = _client_ip()
+    recent = LoginToken.query.filter(LoginToken.created_at > since)
+    if (recent.filter(LoginToken.email == email).count() >= SIGNIN_MAX_PER_EMAIL
+            or (ip and recent.filter(LoginToken.request_ip == ip).count() >= SIGNIN_MAX_PER_IP)):
+        return jsonify({'error': 'Too many sign-in emails requested. Try again in 15 minutes.'}), 429
+
+    token = secrets.token_urlsafe(32)
+    db.session.add(LoginToken(token_hash=_hash_token(token), email=email, purpose=purpose,
+                              name=name, request_ip=ip, expires_at=now + SIGNIN_LINK_TTL))
+    # Old rows only matter for rate limiting; keep the table small.
+    LoginToken.query.filter(LoginToken.created_at < now - timedelta(days=1)).delete()
+    db.session.commit()
+    email_signin_link(email, f"{FRONTEND_URL}/auth/verify?token={token}", purpose)
+    return None
+
+
+def _active_membership(user, group_id):
+    if not user or not group_id:
+        return None
+    return GroupMembership.query.filter_by(user_id=user.id, group_id=group_id, status='active').first()
+
+
+def _as_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def require_group_member(group_id):
+    """Group-scoped web routes (showtimes, RSVPs, reactions, discussion) must
+    name a group the signed-in user actively belongs to — the client-supplied
+    group_id is never trusted on its own. Returns an error response, or None."""
+    if not group_id:
+        return jsonify({'error': 'group_id required'}), 400
+    if not _active_membership(current_user(), group_id):
+        return jsonify({'error': 'Not a member of this group'}), 403
+    return None
+
 def require_internal(f):
     """Auth for /api/internal/* — shared-secret header used by the Discord bot
     over the Docker network. Rejects everything when the token is unset."""
@@ -634,7 +753,8 @@ def accept_invite():
     user.invite_token = None  # consume token
     db.session.commit()
 
-    session['user_id'] = user.id
+    # The invite link was emailed to this address, so it proves ownership.
+    _start_session(user)
 
     # Auto-add to groups if invited with a group association
     # Check if there's a pending membership waiting
@@ -648,53 +768,71 @@ def accept_invite():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    data = request.json
-    email = data.get('email', '').strip().lower()
-    user = User.query.filter_by(email=email, is_active=True).first()
-    if not user:
-        return jsonify({'error': 'No active account for this email. Sign up or ask for an invite!'}), 403
-    session['user_id'] = user.id
-    return jsonify({'user': user.to_dict()})
+    """Step 1 of sign-in: email a one-time link. There's no password — opening
+    the link proves the person controls the address. Step 2 is /api/auth/verify."""
+    email = ((request.json or {}).get('email') or '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email required'}), 400
+    if not User.query.filter_by(email=email, is_active=True).first():
+        return jsonify({'error': 'No active account for this email. Sign up or ask for an invite!'}), 404
+    err = _issue_signin_link(email, 'login')
+    if err:
+        return err
+    return jsonify({'sent': True, 'email': email})
 
 
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
-    data = request.json
-    email = data.get('email', '').strip().lower()
-    name = data.get('name', '').strip()
+    """Email a confirmation link; the account is created when it's opened."""
+    data = request.json or {}
+    email = (data.get('email') or '').strip().lower()
+    name = (data.get('name') or '').strip()[:100]
 
     if not email or not name:
         return jsonify({'error': 'Email and name are required'}), 400
-
-    existing = User.query.filter_by(email=email).first()
-
-    if existing and existing.is_active:
+    if not EMAIL_RE.match(email):
+        return jsonify({'error': 'Enter a valid email address'}), 400
+    if User.query.filter_by(email=email, is_active=True).first():
         return jsonify({'error': 'Account already exists. Try logging in!'}), 409
 
-    if existing and not existing.is_active:
-        # Orphaned invite — activate the account
-        existing.name = name
-        existing.is_active = True
-        existing.invite_token = None
-        db.session.commit()
-        session['user_id'] = existing.id
-        # Auto-activate any pending memberships from invites
-        pending = GroupMembership.query.filter_by(user_id=existing.id, status='pending').all()
-        for m in pending:
-            m.status = 'active'
-        db.session.commit()
-        return jsonify({'user': existing.to_dict()})
+    err = _issue_signin_link(email, 'signup', name=name)
+    if err:
+        return err
+    return jsonify({'sent': True, 'email': email})
 
-    # Brand new user
-    user = User(
-        email=email,
-        name=name,
-        avatar_color=random.choice(AVATAR_COLORS),
-        is_active=True,
-    )
-    db.session.add(user)
+
+@app.route('/api/auth/verify', methods=['POST'])
+def verify_signin():
+    """Step 2: redeem an emailed link (single use) and start the session. A
+    signup link creates the account — or activates a never-accepted invite."""
+    token = ((request.json or {}).get('token') or '').strip()
+    rec = LoginToken.query.filter_by(token_hash=_hash_token(token)).first() if token else None
+    now = _utcnow_naive()
+    if not rec or rec.used_at or rec.expires_at < now:
+        return jsonify({'error': 'This sign-in link is invalid, already used, or expired. '
+                                 'Request a new one.'}), 400
+    rec.used_at = now
+
+    user = User.query.filter_by(email=rec.email).first()
+    if rec.purpose == 'signup':
+        if not user:
+            user = User(email=rec.email, name=rec.name or rec.email.split('@')[0],
+                        avatar_color=random.choice(AVATAR_COLORS), is_active=True)
+            db.session.add(user)
+            db.session.flush()
+        elif not user.is_active:
+            # Orphaned invite: activate it, plus the group memberships it was invited to.
+            user.name = rec.name or user.name
+            user.is_active = True
+            user.invite_token = None
+            for m in GroupMembership.query.filter_by(user_id=user.id, status='pending').all():
+                m.status = 'active'
+    elif not user or not user.is_active:
+        db.session.commit()
+        return jsonify({'error': 'That account no longer exists.'}), 400
+
     db.session.commit()
-    session['user_id'] = user.id
+    _start_session(user)
     return jsonify({'user': user.to_dict()})
 
 
@@ -773,15 +911,22 @@ def get_user_profile(user_id):
 @app.route('/api/admin/invite', methods=['POST'])
 @require_auth
 def create_invite():
-    data = request.json
-    email = data.get('email', '').strip().lower()
-    group_id = data.get('group_id')
+    data = request.json or {}
+    email = (data.get('email') or '').strip().lower()
+    group_id = _as_int(data.get('group_id'))
 
     if not email:
         return jsonify({'error': 'Email required'}), 400
 
+    # Only a group's admins may invite to it — otherwise anyone could add
+    # themselves (or others) straight into any group, skipping approval.
     group = db.session.get(Group, group_id) if group_id else None
-    group_name = group.name if group else 'Cinema Club DC'
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    membership = _active_membership(current_user(), group.id)
+    if not membership or membership.role != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+    group_name = group.name
     existing = User.query.filter_by(email=email).first()
 
     if existing and existing.is_active:
@@ -949,7 +1094,8 @@ def get_group(slug):
 
     user = current_user()
     membership = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id).first()
-    d = group.to_dict(include_members=bool(membership))
+    # Pending requesters see the group, not its member list.
+    d = group.to_dict(include_members=bool(membership and membership.status == 'active'))
     if membership:
         d['role'] = membership.role
         d['membership_status'] = membership.status
@@ -1169,6 +1315,9 @@ def get_showtimes():
     theatre_slug = request.args.get('theatre')
     movie_id = request.args.get('movie_id')
     group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     query = Showtime.query.join(Movie).join(Theatre).filter(Showtime.is_cancelled.isnot(True))
 
@@ -1194,6 +1343,9 @@ def get_showtime(showtime_id):
     """Single showtime — used by ?showtime= deep links from Discord embeds."""
     user = current_user()
     group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
     showtime = db.session.get(Showtime, showtime_id)
     if not showtime:
         return jsonify({'error': 'Showtime not found'}), 404
@@ -1267,10 +1419,13 @@ def emit_rsvp_activity(user, showtime, status):
 @require_auth
 def rsvp():
     user = current_user()
-    data = request.json
+    data = request.json or {}
     showtime_id = data.get('showtime_id')
     status = data.get('status')
-    group_id = data.get('group_id')
+    group_id = _as_int(data.get('group_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     prev = RSVP.query.filter_by(user_id=user.id, showtime_id=showtime_id, group_id=group_id).first()
     prev_status = prev.status if prev else None
@@ -1294,10 +1449,13 @@ def rsvp():
 @require_auth
 def toggle_reaction():
     user = current_user()
-    data = request.json
+    data = request.json or {}
     showtime_id = data.get('showtime_id')
-    group_id = data.get('group_id')
+    group_id = _as_int(data.get('group_id'))
     emoji = data.get('emoji')
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     if not showtime_id or not emoji:
         return jsonify({'error': 'showtime_id and emoji required'}), 400
@@ -1336,6 +1494,9 @@ def get_reactions():
     showtime_id = request.args.get('showtime_id', type=int)
     group_id = request.args.get('group_id', type=int)
     user = current_user()
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     if not showtime_id:
         return jsonify({'error': 'showtime_id required'}), 400
@@ -1361,6 +1522,9 @@ def get_messages():
     showtime_id = request.args.get('showtime_id', type=int)
     group_id = request.args.get('group_id', type=int)
     since = request.args.get('since')
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     if not showtime_id:
         return jsonify({'error': 'showtime_id required'}), 400
@@ -1386,10 +1550,13 @@ def get_messages():
 @require_auth
 def post_message():
     user = current_user()
-    data = request.json
+    data = request.json or {}
     showtime_id = data.get('showtime_id')
-    group_id = data.get('group_id')
+    group_id = _as_int(data.get('group_id'))
     body = (data.get('body') or '').strip()
+    err = require_group_member(group_id)
+    if err:
+        return err
 
     if not showtime_id or not body:
         return jsonify({'error': 'showtime_id and body required'}), 400
@@ -1877,6 +2044,9 @@ def group_leaderboard(group_id):
     group = db.session.get(Group, group_id)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
+    err = require_group_member(group_id)
+    if err:
+        return err
     return jsonify(build_leaderboard(group))
 
 

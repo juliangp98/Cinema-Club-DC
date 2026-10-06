@@ -101,9 +101,9 @@ npm run dev       # dev server at http://localhost:5173
 
 ### 4. Login
 
-The seed creates an admin account: `sunscinemafanclub@gmail.com` (name: Julian) as admin of "Chuds Cinema" group. Log in with this email to access the calendar.
+The seed creates an admin account for the club's email address as admin of the default group. Sign in by entering that address — a one-time sign-in link is emailed to it. Locally, without SMTP configured, the email (and its link) is printed in the backend console instead.
 
-New users can sign up with any email + name — they'll be redirected to the Groups page to find and join a group.
+New users can sign up with any email + name — they confirm via an emailed link, then land on the Groups page to find and join a group.
 
 ---
 
@@ -114,8 +114,9 @@ SECRET_KEY=your-random-secret-here
 DATABASE_URL=sqlite:///cinemaclub.db
 FRONTEND_URL=http://localhost:5173
 
-# Gmail SMTP (optional — falls back to console printing if not set)
-SMTP_EMAIL=SunsCinemaFanClub@gmail.com
+# Gmail SMTP — REQUIRED in production: sign-in links are delivered by email.
+# (Unset locally, emails print to the backend console instead.)
+SMTP_EMAIL=your-club@gmail.com
 SMTP_PASSWORD=your-gmail-app-password
 
 # Movie metadata enrichment
@@ -144,8 +145,8 @@ To send real emails, create a Gmail App Password:
 
 ## Auth Flow
 
-- **Login**: Email-only (no password) — `POST /api/auth/login`
-- **Signup**: Email + name — `POST /api/auth/signup` (creates account, no group required)
+- **Login**: passwordless sign-in links. `POST /api/auth/login` emails a one-time link (single use, expires in 15 min, rate-limited per address and per client); opening it lands on `/auth/verify`, which redeems it via `POST /api/auth/verify`. Only a SHA-256 hash of each token is stored. Sessions last 30 days.
+- **Signup**: Email + name — `POST /api/auth/signup` emails a confirmation link; the account is created when it's opened (no group required)
 - **Invite**: Admin enters email in group management → creates inactive user with invite token → sends email with acceptance link
 - **Accept invite**: User visits `/invite/<token>` → enters name → account activated, added to group
 - **No-group handling**: Users without groups are redirected to `/groups` to browse and join
@@ -157,7 +158,8 @@ To send real emails, create a Gmail App Password:
 - **Public groups** are always visible on the Groups page in a paginated list (10 per page)
 - **Join requests** require admin approval (admins are emailed)
 - **Admin panel** lets you invite by email, approve/deny requests, remove members
-- **Group-scoped data**: RSVPs, reactions, and chat messages are all scoped to the active group
+- **Group-scoped data**: RSVPs, reactions, and chat messages are all scoped to the active group, and the server checks you're an active member of that group on every request
+- **Invites** can only be sent by the group's admins
 
 ---
 
@@ -174,8 +176,9 @@ To send real emails, create a Gmail App Password:
 ## API Routes
 
 ### Auth
-- `POST /api/auth/login` — email login
-- `POST /api/auth/signup` — create account (email + name)
+- `POST /api/auth/login` — email a one-time sign-in link
+- `POST /api/auth/signup` — email a confirmation link (email + name)
+- `POST /api/auth/verify` — redeem a sign-in/confirmation link and start the session
 - `POST /api/auth/accept-invite` — accept invite token
 - `POST /api/auth/logout` — clear session
 - `GET /api/auth/me` — current user
@@ -359,8 +362,8 @@ DATABASE_URL=sqlite:///cinemaclub.db
 # Set this to your NAS IP for local access, or your custom domain for external
 FRONTEND_URL=http://YOUR-NAS-IP:8080
 
-# Gmail SMTP (optional — emails print to console if not configured)
-SMTP_EMAIL=sunscinemafanclub@gmail.com
+# Gmail SMTP — required: sign-in links are delivered by email
+SMTP_EMAIL=your-club@gmail.com
 SMTP_PASSWORD=your-gmail-app-password
 ```
 
@@ -390,7 +393,7 @@ Open a browser and go to:
 http://YOUR-NAS-IP:8080
 ```
 
-You should see the Cinema Club DC login page. Log in with `sunscinemafanclub@gmail.com`.
+You should see the Cinema Club DC login page. Enter the admin account's email and open the sign-in link that arrives in that inbox.
 
 To check container status:
 
