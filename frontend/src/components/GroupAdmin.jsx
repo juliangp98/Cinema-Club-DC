@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { accountLabel } from "../accountLabel";
 
 export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, onGroupDeleted, onViewProfile }) {
   const [members, setMembers] = useState([]);
@@ -256,7 +257,7 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
                 style={{ cursor: "pointer" }}
                 onClick={() => onViewProfile?.(m.user.id)}
               >{m.user.name}</span>
-              <span className="group-member-email">{m.user.email}</span>
+              <span className="group-member-email">{accountLabel(m.user)}</span>
               <div className="group-member-actions">
                 <button className="group-action-btn approve" onClick={() => approve(m.user.id)}>
                   Approve

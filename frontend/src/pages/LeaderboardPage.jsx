@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import UserProfileDrawer from "../components/UserProfileDrawer";
+import { accountLabel } from "../accountLabel";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -39,7 +40,7 @@ export default function LeaderboardPage({ user, setUser, apiBase, activeGroupId 
             <div
               className="user-avatar"
               style={{ background: user.avatar_color, color: "#0d0c09" }}
-              title={`${user.name} — ${user.email}`}
+              title={`${user.name} — ${accountLabel(user)}`}
               onClick={() => setShowProfile(!showProfile)}
             >
               {user.name.slice(0, 2).toUpperCase()}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import GroupMembers from "../components/GroupMembers";
 import ProfileMenu from "../components/ProfileMenu";
 import UserProfileDrawer from "../components/UserProfileDrawer";
+import { accountLabel } from "../accountLabel";
 
 export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
   const navigate = useNavigate();
@@ -52,7 +53,7 @@ export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
             <div
               className="user-avatar"
               style={{ background: user.avatar_color, color: "#0d0c09" }}
-              title={`${user.name} — ${user.email}`}
+              title={`${user.name} — ${accountLabel(user)}`}
               onClick={() => setShowProfile(!showProfile)}
             >
               {user.name.slice(0, 2).toUpperCase()}

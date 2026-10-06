@@ -3,6 +3,7 @@ import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import ProfileMenu from "../components/ProfileMenu";
 import GroupSwitcher from "../components/GroupSwitcher";
 import UserProfileDrawer from "../components/UserProfileDrawer";
+import { accountLabel } from "../accountLabel";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTHS = ["January","February","March","April","May","June",
@@ -20,7 +21,11 @@ const DEEP_LINK = (() => {
   const params = new URLSearchParams(window.location.search);
   const link = { showtime: params.get("showtime"), theatre: params.get("theatre") };
   if (link.showtime || link.theatre) {
-    window.history.replaceState({}, "", window.location.pathname);
+    // Remove only our own params — others (e.g. ?discord_error=) belong to App.
+    params.delete("showtime");
+    params.delete("theatre");
+    const rest = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
   }
   return link;
 })();
@@ -408,7 +413,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
           <div
             className="user-avatar"
             style={{ background: user.avatar_color, color: "#0d0c09" }}
-            title={`${user.name} — ${user.email}`}
+            title={`${user.name} — ${accountLabel(user)}`}
             onClick={() => setShowProfile(!showProfile)}
           >
             {user.name.slice(0, 2).toUpperCase()}

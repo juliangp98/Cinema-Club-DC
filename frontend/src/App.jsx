@@ -11,6 +11,27 @@ import VerifySignin from "./pages/VerifySignin";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
+// Results of "Sign in with Discord" / "Connect Discord", passed back by the
+// backend as ?discord=… or ?discord_error=…
+const DISCORD_NOTICES = {
+  connected: "Discord connected — anything you did in Discord is now part of this account.",
+  expired: "That Discord sign-in expired — please try again.",
+  cancelled: "Discord sign-in was cancelled.",
+  failed: "Couldn't reach Discord — please try again.",
+  taken: "That Discord account is already connected to a different Cinema Club account.",
+  inactive: "That account has been deactivated.",
+  unavailable: "Discord sign-in isn't set up on this site yet.",
+  signed_out: "Sign in first, then connect Discord from your profile menu.",
+};
+
+function readDiscordNotice() {
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get("discord_error");
+  const key = error || (params.get("discord") === "connected" ? "connected" : null);
+  if (!key) return null;
+  return { text: DISCORD_NOTICES[key] || "Discord sign-in didn't work — please try again.", error: !!error };
+}
+
 function AuthGuard({ user, loading, children, apiBase, onLogin }) {
   const params = useParams();
 
@@ -81,6 +102,16 @@ export default function App() {
     const stored = localStorage.getItem("cinemaclub_group_id");
     return stored ? parseInt(stored, 10) : null;
   });
+  const [notice, setNotice] = useState(readDiscordNotice);
+
+  // Drop the ?discord… result params once read, keeping any others (?showtime=).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("discord") && !url.searchParams.has("discord_error")) return;
+    url.searchParams.delete("discord");
+    url.searchParams.delete("discord_error");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, []);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -136,6 +167,12 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {notice && (
+        <div className={`site-notice${notice.error ? " error" : ""}`} role="status">
+          <span>{notice.text}</span>
+          <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>&times;</button>
+        </div>
+      )}
       <Routes>
         <Route
           path="/"

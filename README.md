@@ -127,6 +127,8 @@ OMDB_API_KEY=...          # omdbapi.com
 INTERNAL_API_TOKEN=...    # shared secret between backend and bot (any random hex)
 DISCORD_BOT_TOKEN=...     # from discord.com/developers/applications
 DISCORD_CHANNEL_ID=...    # the #movies channel id (announcements, RSVP callouts, digest)
+DISCORD_CLIENT_ID=...     # optional: "Sign in with Discord" (same application → OAuth2 tab)
+DISCORD_CLIENT_SECRET=... # optional: pair with DISCORD_CLIENT_ID
 GROQ_API_KEY=...          # free key from console.groq.com — powers the @-mention chatbot
 GROQ_MODEL=               # optional pin; models are otherwise chosen automatically
 GROQ_FALLBACK_MODEL=      # optional pin; "none" disables the fallback
@@ -149,6 +151,8 @@ To send real emails, create a Gmail App Password:
 
 - **Login**: passwordless sign-in links. `POST /api/auth/login` emails a one-time link (single use, expires in 15 min, rate-limited per address and per client); opening it lands on `/auth/verify`, which redeems it via `POST /api/auth/verify`. Only a SHA-256 hash of each token is stored. Sessions last 30 days.
 - **Signup**: Email + name — `POST /api/auth/signup` emails a confirmation link; the account is created when it's opened (no group required)
+- **Sign in with Discord** (when `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET` are set): OAuth2 with only the `identify` scope. It signs into the account linked to that Discord user, or creates a Discord-only account, which then joins groups the normal way. Signed-in site users can **Connect Discord** from the profile menu the same way; the `/link <code>` command remains as a fallback.
+- **Discord-only accounts**: server members never need to sign up. The first time someone uses a personal bot command (`/rsvp`, `/watch`, `/profile`) in the club's server (the one containing `DISCORD_CHANNEL_ID`), they get an account with no email and join that server's group. It follows their Discord name and shows on the site as "@handle on Discord". Connecting Discord to a site account later merges everything into it; where both accounts have the same row (e.g. an RSVP to one screening), the site account's own wins.
 - **Invite**: Admin enters email in group management → creates inactive user with invite token → sends email with acceptance link
 - **Accept invite**: User visits `/invite/<token>` → enters name → account activated, added to group
 - **No-group handling**: Users without groups are redirected to `/groups` to browse and join
@@ -181,6 +185,8 @@ To send real emails, create a Gmail App Password:
 - `POST /api/auth/login` — email a one-time sign-in link
 - `POST /api/auth/signup` — email a confirmation link (email + name)
 - `POST /api/auth/verify` — redeem a sign-in/confirmation link and start the session
+- `GET /api/auth/providers` — which sign-in options are configured (`{discord: bool}`)
+- `GET /api/auth/discord/start[?mode=connect]` → Discord → `GET /api/auth/discord/callback` — Sign in with / Connect Discord
 - `POST /api/auth/accept-invite` — accept invite token
 - `POST /api/auth/logout` — clear session
 - `GET /api/auth/me` — current user
@@ -272,9 +278,10 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Owner DMs**: scraper errors and chatbot model changes go to the bot owner's
   DMs, not the channel.
 - **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
-  `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`, `/link`,
-  `/llm`. Info + fun commands (everything except `/rsvp` and `/watch`) work for
-  anyone, with no account link required. Date/theatre filters are dependent:
+  `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
+  `/profile`, `/link`, `/llm`. Everything works with no site account. Personal
+  commands set one up automatically on first use in the club's server (see
+  Discord-only accounts above). Date/theatre filters are dependent:
   pick a movie and the date/theatre options narrow to where it's actually
   showing.
   - `/alerts`: anyone can see which theatres announce drops (private reply) or
@@ -300,8 +307,12 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Ambient quotes**: any message with movie-ish words (movie, theatre, IMAX,
   70mm, Dolby, cinema, film…) has a ~1-in-5 chance (rate-limited per channel) of
   making the bot drop a random quote. Requires the Message Content intent below.
-- **Account linking**: profile menu on the site → "Link Discord" → 6-char code
-  → `/link <code>` in Discord. RSVPs from Discord then post publicly.
+- **`/profile`**: your favorite genres (which the chatbot uses for recommendations), bio
+  and Letterboxd, edited in place with a genre picker and a short form. Everything is
+  private to you. `/profile member:@someone` shows another member's card.
+- **Site connection (optional)**: "Sign in with Discord" on the site, or
+  "Connect Discord" in the profile menu, puts the same account on the web
+  calendar. The `/link <code>` command still works as a fallback.
 
 Bot setup (one-time):
 1. Create an application + bot at https://discord.com/developers/applications.
@@ -316,6 +327,12 @@ Bot setup (one-time):
    `.env.production`, then `docker-compose up -d --build bot`. Slash commands
    sync globally (every server the bot is in) — first appearance in a new
    server can take up to ~1h; updates after that apply within a minute or two.
+5. Optional, for "Sign in with Discord" on the site: in the same application's
+   **OAuth2** tab, copy the Client ID and reset/copy the Client Secret, and add the
+   redirect `https://cinemaclubdc.com/api/auth/discord/callback` (it must match
+   `FRONTEND_URL` + `/api/auth/discord/callback` exactly). Set
+   `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` in `.env.production` and rebuild.
+   Without them, the site simply doesn't show the Discord button.
 
 Deep links: `https://cinemaclubdc.com/?showtime=<id>` opens that screening's
 drawer; `/?theatre=<slug>` pre-filters the calendar.

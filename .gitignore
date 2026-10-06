@@ -20,3 +20,6 @@ backend/instance/cinemaclub_dev.db
 
 # Build output (Docker builds the frontend from source)
 frontend/dist/
+
+# Automatic pre-migration database backups
+backend/instance/*.bak

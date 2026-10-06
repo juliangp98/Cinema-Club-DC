@@ -212,6 +212,26 @@ def watchlist_embed(items, owner_name, window_label=None):
     return embed
 
 
+def profile_embed(profile, own=False):
+    """A member's /profile card. `own` adds the prompts for editing it."""
+    u = profile['user']
+    embed = discord.Embed(title=f"🎬 {u['name']}", colour=AMBER, description=u.get('bio') or None)
+    genres = ', '.join(g.title() for g in profile.get('genres') or [])
+    embed.add_field(name='Favorite genres', inline=False, value=genres or (
+        'None yet — pick some below; the chatbot uses them for recommendations.' if own else '—'))
+    if u.get('letterboxd_username'):
+        handle = u['letterboxd_username']
+        embed.add_field(name='Letterboxd', value=f"[{handle}](https://letterboxd.com/{handle}/)")
+    embed.add_field(name='Watchlist', value=f"{profile['watchlist_count']} films")
+    embed.add_field(name='Going to', value=f"{profile['upcoming_rsvps']} upcoming")
+    avatar = _image_url(u.get('avatar_url'))
+    if avatar:
+        embed.set_thumbnail(url=avatar)
+    if own and not profile.get('site_account'):
+        embed.set_footer(text=f"Optional: sign in at {SITE_URL} with Discord to see it all on the calendar.")
+    return embed
+
+
 def _when(iso):
     return f"{_fmt_day(iso)} {_fmt_time(iso)}"
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { accountLabel } from "../accountLabel";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
 
@@ -22,6 +23,7 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
   const [kernels, setKernels] = useState(null);
   const [linkCode, setLinkCode] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [discordOAuth, setDiscordOAuth] = useState(false);
   const [letterboxd, setLetterboxd] = useState(user.letterboxd_username || "");
 
   useEffect(() => {
@@ -36,6 +38,15 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
       window.removeEventListener("mousedown", onClick);
     };
   }, [onClose]);
+
+  // "Connect Discord" uses Discord sign-in when the site has it configured;
+  // otherwise fall back to the /link code.
+  useEffect(() => {
+    fetch(`${apiBase}/api/auth/providers`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : {}))
+      .then(d => setDiscordOAuth(!!d.discord))
+      .catch(() => {});
+  }, [apiBase]);
 
   // Fetch kernel count
   useEffect(() => {
@@ -89,7 +100,7 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
           {(name || "?").slice(0, 2).toUpperCase()}
         </div>
         <div className="profile-header-info">
-          <div className="profile-email">{user.email}</div>
+          <div className="profile-email">{accountLabel(user)}</div>
           {kernels !== null && (
             <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
           )}
@@ -157,7 +168,13 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
 
       <div className="profile-discord">
         {user.discord_linked && !linkCode ? (
-          <div className="profile-discord-linked">✅ Discord linked</div>
+          <div className="profile-discord-linked">
+            ✅ Discord linked{user.discord_username ? ` · @${user.discord_username}` : ""}
+          </div>
+        ) : discordOAuth ? (
+          <a className="profile-discord-btn" href={`${apiBase}/api/auth/discord/start?mode=connect`}>
+            🔗 Connect Discord
+          </a>
         ) : linkCode ? (
           <div className="profile-discord-code">
             In Discord, run <code>/link {linkCode}</code>

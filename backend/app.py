@@ -1,6 +1,8 @@
-from flask import Flask, jsonify, request, session, make_response
+from flask import Flask, jsonify, request, session, make_response, redirect
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
+from urllib.parse import urlencode
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
@@ -65,12 +67,18 @@ SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 TMDB_API_TOKEN = os.environ.get('TMDB_API_TOKEN', '')
 OMDB_API_KEY = os.environ.get('OMDB_API_KEY', '')
 INTERNAL_API_TOKEN = os.environ.get('INTERNAL_API_TOKEN', '')
+# "Sign in with Discord" — the bot's own application (OAuth2 tab in the portal).
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
+DISCORD_API = 'https://discord.com/api/v10'
 
 
 # ─── Email Helper ─────────────────────────────────────────────────────────────
 
 def send_email(to, subject, html_body):
     """Send an email via Gmail SMTP. Falls back to console if SMTP not configured."""
+    if not to:
+        return  # Discord-only accounts have no email address
     if not SMTP_EMAIL or not SMTP_PASSWORD:
         print(f"\n📧 EMAIL (console fallback — set SMTP_EMAIL & SMTP_PASSWORD to send for real)")
         print(f"   To: {to}")
@@ -162,7 +170,9 @@ def email_approved(to_email, group_name):
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    # None for Discord-only accounts: created automatically the first time a
+    # server member uses a personal bot command, or by "Sign in with Discord".
+    email = db.Column(db.String(120), unique=True, nullable=True)
     name = db.Column(db.String(100), nullable=False)
     avatar_color = db.Column(db.String(20), default='#e8a838')
     avatar_url = db.Column(db.Text)
@@ -172,6 +182,7 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     discord_user_id = db.Column(db.String(30), unique=True)
+    discord_username = db.Column(db.String(40))   # @handle, for display
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
@@ -187,6 +198,8 @@ class User(db.Model):
             'bio': self.bio or '',
             'favorite_genres': self.favorite_genres or '',
             'discord_linked': bool(self.discord_user_id),
+            'discord_username': self.discord_username or '',
+            'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
         }
 
@@ -737,6 +750,98 @@ def _as_int(value):
         return None
 
 
+def resolve_discord_user(data):
+    """The account behind a Discord user, for the bot's internal endpoints.
+
+    Discord members don't need a site account: the first time someone uses a
+    personal command in the club's server (the bot sends create=True only
+    there), they get a Discord-only account — no email, no site login unless
+    they "Sign in with Discord" — and join that server's group. Discord-only
+    accounts follow the member's current Discord name. Returns (user, error).
+    """
+    discord_id = str(data.get('discord_user_id') or '').strip()
+    if not discord_id.isdigit():
+        return None, (jsonify({'error': 'discord_user_id required'}), 400)
+    create = str(data.get('create', '')).lower() in ('1', 'true')
+    name = (data.get('discord_name') or '').strip()[:100]
+
+    user = User.query.filter_by(discord_user_id=discord_id).first()
+    if user is None:
+        if not create:
+            return None, (jsonify({'error': 'no_account'}), 404)
+        user = User(discord_user_id=discord_id, name=name or 'Discord member',
+                    avatar_color=random.choice(AVATAR_COLORS), is_active=True)
+        db.session.add(user)
+        try:
+            db.session.flush()
+        except IntegrityError:        # created by a simultaneous command
+            db.session.rollback()
+            user = User.query.filter_by(discord_user_id=discord_id).first()
+    if not user or not user.is_active:
+        return None, (jsonify({'error': 'no_account'}), 404)
+
+    if user.email is None and name:
+        user.name = name
+    if data.get('discord_username'):
+        user.discord_username = str(data['discord_username'])[:40]
+    if data.get('discord_avatar') and (user.email is None or not user.avatar_url):
+        user.avatar_url = str(data['discord_avatar'])[:500]
+
+    # Being in the club's server is membership of its group.
+    group = db.session.get(Group, _as_int(data.get('group_id'))) if create else None
+    if group:
+        membership = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id).first()
+        if not membership:
+            db.session.add(GroupMembership(user_id=user.id, group_id=group.id, role='member', status='active'))
+        elif membership.status != 'active':
+            membership.status = 'active'
+    db.session.commit()
+    return user, None
+
+
+def merge_users(keep, gone):
+    """Fold account `gone` (a Discord-only account) into `keep` when someone
+    links Discord to their site account. Everything moves over; where both
+    accounts have the same row (an RSVP to one screening, a vote in one
+    category) `keep`'s wins. Memberships merge to the stronger of the two."""
+    def move(model, *unique_cols):
+        for row in model.query.filter_by(user_id=gone.id).all():
+            clash = (model.query.filter_by(user_id=keep.id, **{c: getattr(row, c) for c in unique_cols}).first()
+                     if unique_cols else None)
+            if clash:
+                db.session.delete(row)
+            else:
+                row.user_id = keep.id
+
+    move(RSVP, 'showtime_id', 'group_id')
+    move(Watchlist, 'movie_id')
+    move(Reaction, 'showtime_id', 'group_id', 'emoji')
+    move(Message)
+    move(PollVote, 'category_id', 'rank')
+    for m in GroupMembership.query.filter_by(user_id=gone.id).all():
+        mine = GroupMembership.query.filter_by(user_id=keep.id, group_id=m.group_id).first()
+        if not mine:
+            m.user_id = keep.id
+            continue
+        if m.status == 'active':
+            mine.status = 'active'
+        if m.role == 'admin':
+            mine.role = 'admin'
+        db.session.delete(m)
+    Group.query.filter_by(created_by=gone.id).update({'created_by': keep.id})
+    Poll.query.filter_by(created_by=gone.id).update({'created_by': keep.id})
+
+    for col in ('favorite_genres', 'bio', 'letterboxd_username', 'avatar_url'):
+        if not getattr(keep, col) and getattr(gone, col):
+            setattr(keep, col, getattr(gone, col))
+    discord_id, handle = gone.discord_user_id, gone.discord_username
+    gone.discord_user_id = None
+    db.session.flush()                 # free the unique Discord id first
+    keep.discord_user_id = discord_id
+    keep.discord_username = keep.discord_username or handle
+    db.session.delete(gone)
+
+
 def require_group_member(group_id):
     """Group-scoped web routes (showtimes, RSVPs, reactions, discussion) must
     name a group the signed-in user actively belongs to — the client-supplied
@@ -887,20 +992,27 @@ def update_profile():
 
     if 'name' in data and data['name'].strip():
         user.name = data['name'].strip()[:100]
-    if 'bio' in data:
-        user.bio = (data['bio'] or '')[:500]
     if 'avatar_color' in data and data['avatar_color'] in AVATAR_COLORS:
         user.avatar_color = data['avatar_color']
-    if 'favorite_genres' in data:
-        # Validate genres
-        genres = [g.strip().lower() for g in data['favorite_genres'].split(',') if g.strip().lower() in GENRE_LIST]
-        user.favorite_genres = ','.join(genres)
-    if 'letterboxd_username' in data:
-        handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60]
-        user.letterboxd_username = handle or None
+    _update_profile_fields(user, data)
 
     db.session.commit()
     return jsonify({'user': user.to_dict()})
+
+
+def _update_profile_fields(user, data):
+    """Bio, favorite genres and Letterboxd handle — shared by the site's profile
+    menu and Discord's /profile. Genres may be a comma string or a list."""
+    if 'bio' in data:
+        user.bio = (data['bio'] or '').strip()[:500]
+    if 'favorite_genres' in data:
+        raw = data['favorite_genres'] or []
+        raw = raw.split(',') if isinstance(raw, str) else raw
+        picked = {g.strip().lower() for g in raw}
+        user.favorite_genres = ','.join(g for g in GENRE_LIST if g in picked)
+    if 'letterboxd_username' in data:
+        handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60]
+        user.letterboxd_username = handle or None
 
 
 @app.route('/api/me/discord-link-code', methods=['POST'])
@@ -913,6 +1025,102 @@ def discord_link_code():
     user.discord_link_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
     db.session.commit()
     return jsonify({'code': code, 'expires_in_minutes': 10})
+
+
+def _discord_oauth_enabled():
+    return bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET)
+
+
+def _discord_redirect_uri():
+    # nginx (and Vite in dev) proxy /api to Flask, so the callback lives on the site's origin.
+    return f"{FRONTEND_URL}/api/auth/discord/callback"
+
+
+@app.route('/api/auth/providers')
+def auth_providers():
+    """Which sign-in options the login page should offer."""
+    return jsonify({'discord': _discord_oauth_enabled()})
+
+
+@app.route('/api/auth/discord/start')
+def discord_oauth_start():
+    """Begin "Sign in with Discord" (mode=login), or "Connect Discord" for the
+    signed-in user (mode=connect). Only the `identify` scope is requested."""
+    if not _discord_oauth_enabled():
+        return redirect(f"{FRONTEND_URL}/?{urlencode({'discord_error': 'unavailable'})}")
+    mode = 'connect' if request.args.get('mode') == 'connect' and current_user() else 'login'
+    state = secrets.token_urlsafe(24)
+    session['discord_oauth'] = {'state': state, 'mode': mode}
+    return redirect('https://discord.com/oauth2/authorize?' + urlencode({
+        'client_id': DISCORD_CLIENT_ID, 'response_type': 'code', 'scope': 'identify',
+        'redirect_uri': _discord_redirect_uri(), 'state': state, 'prompt': 'none',
+    }))
+
+
+@app.route('/api/auth/discord/callback')
+def discord_oauth_callback():
+    """Discord sends the browser back here. Login: sign into the account with
+    that Discord id, creating a Discord-only one if needed (it joins groups the
+    normal way). Connect: attach Discord to the signed-in account, merging a
+    Discord-only account the member made through the bot."""
+    import requests
+    pending = session.pop('discord_oauth', None)
+
+    def back(**params):
+        return redirect(f"{FRONTEND_URL}/?{urlencode(params)}")
+
+    if not pending or not request.args.get('state') or \
+            not secrets.compare_digest(request.args['state'], pending['state']):
+        return back(discord_error='expired')
+    if request.args.get('error') or not request.args.get('code'):
+        return back(discord_error='cancelled')
+    try:
+        token = requests.post(f'{DISCORD_API}/oauth2/token', timeout=10,
+                              auth=(DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET),
+                              data={'grant_type': 'authorization_code', 'code': request.args['code'],
+                                    'redirect_uri': _discord_redirect_uri()})
+        token.raise_for_status()
+        me = requests.get(f'{DISCORD_API}/users/@me', timeout=10,
+                          headers={'Authorization': f"Bearer {token.json()['access_token']}"})
+        me.raise_for_status()
+        me = me.json()
+    except Exception as e:
+        print(f'Discord sign-in failed: {e}')
+        return back(discord_error='failed')
+
+    discord_id = str(me['id'])
+    name = (me.get('global_name') or me.get('username') or 'Discord member')[:100]
+    avatar = (f"https://cdn.discordapp.com/avatars/{discord_id}/{me['avatar']}.png?size=128"
+              if me.get('avatar') else None)
+    existing = User.query.filter_by(discord_user_id=discord_id).first()
+
+    if pending['mode'] == 'connect':
+        user = current_user()
+        if not user:
+            return back(discord_error='signed_out')
+        if existing and existing.id != user.id:
+            if existing.email is not None:
+                return back(discord_error='taken')
+            merge_users(user, existing)
+        user.discord_user_id = discord_id
+        user.discord_username = (me.get('username') or '')[:40] or None
+        user.avatar_url = user.avatar_url or avatar
+        db.session.commit()
+        return back(discord='connected')
+
+    user = existing
+    if user and not user.is_active:
+        return back(discord_error='inactive')
+    if not user:
+        user = User(discord_user_id=discord_id, name=name, avatar_color=random.choice(AVATAR_COLORS),
+                    is_active=True)
+        db.session.add(user)
+    if user.email is None:             # Discord-only accounts track Discord
+        user.name, user.avatar_url = name, avatar or user.avatar_url
+    user.discord_username = (me.get('username') or '')[:40] or None
+    db.session.commit()
+    _start_session(user)
+    return back(discord='signed_in')
 
 
 @app.route('/api/users/<int:user_id>/profile')
@@ -2482,34 +2690,32 @@ def internal_link_verify():
     if not user.discord_link_code_expires or user.discord_link_code_expires < _utcnow_naive():
         return jsonify({'error': 'Code expired — generate a new one on the site'}), 410
 
-    # One site account per Discord account
-    for other in User.query.filter_by(discord_user_id=discord_user_id).all():
-        if other.id != user.id:
+    # One site account per Discord account. A Discord-only account (made by
+    # using the bot first) merges into this one; another site account just
+    # loses the link.
+    other = User.query.filter_by(discord_user_id=discord_user_id).first()
+    if other and other.id != user.id:
+        if other.email is None:
+            merge_users(user, other)
+        else:
             other.discord_user_id = None
+            db.session.flush()
 
     user.discord_user_id = discord_user_id
+    user.discord_username = (data.get('discord_username') or user.discord_username or '')[:40] or None
     user.discord_link_code = None
     user.discord_link_code_expires = None
     db.session.commit()
     return jsonify({'user': user.to_dict()})
 
 
-@app.route('/api/internal/users/by-discord/<discord_id>')
-@require_internal
-def internal_user_by_discord(discord_id):
-    user = User.query.filter_by(discord_user_id=str(discord_id)).first()
-    if not user or not user.is_active:
-        return jsonify({'error': 'Not linked'}), 404
-    return jsonify(user.to_dict())
-
-
 @app.route('/api/internal/rsvp', methods=['POST'])
 @require_internal
 def internal_rsvp():
     data = request.json or {}
-    user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
-    if not user or not user.is_active:
-        return jsonify({'error': 'Not linked'}), 404
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
 
     group_id = data.get('group_id')
     showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), group_id)
@@ -2545,9 +2751,9 @@ def internal_watch():
     """Watchlist a movie from Discord's /watch command. `action` is
     'add' | 'remove' | 'toggle' (default toggle, for backwards compatibility)."""
     data = request.json or {}
-    user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
-    if not user or not user.is_active:
-        return jsonify({'error': 'Not linked'}), 404
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
     title = (data.get('title') or '').strip()
     action = (data.get('action') or 'toggle').lower()
     movie = Movie.query.filter(Movie.title.ilike(title)).first() \
@@ -2595,12 +2801,13 @@ def internal_watchlist():
     """A member's watchlist (+ each movie's next upcoming showtime), for
     /watch show. Defaults to the caller; any active member is viewable.
     Optional start/end (ISO) keep only movies with a showtime in that window."""
-    caller = User.query.filter_by(discord_user_id=str(request.args.get('discord_user_id') or '')).first()
-    if not caller or not caller.is_active:
-        return jsonify({'error': 'Not linked'}), 404
-
     member_id = request.args.get('member_id', type=int)
-    target = db.session.get(User, member_id) if member_id else caller
+    if member_id:
+        target = db.session.get(User, member_id)
+    else:
+        target, err = resolve_discord_user(request.args)
+        if err:
+            return err
     if not target or not target.is_active:
         return jsonify({'error': 'Member not found'}), 404
 
@@ -2630,6 +2837,50 @@ def internal_watchlist():
         })
     items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')
     return jsonify({'owner': target.name, 'items': items})
+
+
+def _profile_payload(user):
+    now = datetime.now()
+    upcoming = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                .filter(RSVP.user_id == user.id, RSVP.status == 'going', Showtime.start_time > now)
+                .count())
+    return {
+        'user': user.to_dict(),
+        'genres': [g for g in (user.favorite_genres or '').split(',') if g],
+        'genre_options': GENRE_LIST,
+        'watchlist_count': Watchlist.query.filter_by(user_id=user.id).count(),
+        'upcoming_rsvps': upcoming,
+        'site_account': user.email is not None,
+    }
+
+
+@app.route('/api/internal/profile')
+@require_internal
+def internal_profile():
+    """A profile for Discord's /profile: someone else's (member_discord_id), or
+    the caller's own — created on first use in the club's server."""
+    other = request.args.get('member_discord_id')
+    if other:
+        user = User.query.filter_by(discord_user_id=str(other)).first()
+        if not user or not user.is_active:
+            return jsonify({'error': 'no_account'}), 404
+    else:
+        user, err = resolve_discord_user(request.args)
+        if err:
+            return err
+    return jsonify(_profile_payload(user))
+
+
+@app.route('/api/internal/profile', methods=['POST'])
+@require_internal
+def internal_profile_update():
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    _update_profile_fields(user, data)
+    db.session.commit()
+    return jsonify(_profile_payload(user))
 
 
 def _slug_list(value):
@@ -2746,6 +2997,8 @@ def migrate():
         "ALTER TABLE showtime ADD COLUMN event_label VARCHAR(200)",
         # Opt-in Discord drop alerts (empty = all off)
         "ALTER TABLE 'group' ADD COLUMN announce_enabled_theatres VARCHAR(400) DEFAULT ''",
+        # Discord-first accounts
+        "ALTER TABLE user ADD COLUMN discord_username VARCHAR(40)",
     ]
     for sql in stmts:
         try:
@@ -2758,7 +3011,58 @@ def migrate():
         "INSERT OR IGNORE INTO movie_alias (title, movie_id) SELECT title, id FROM movie"))
     db.session.commit()
     _migrate_poll_vote_ranked_constraint()
+    _migrate_user_email_nullable()
     _backfill_title_normalized()
+
+
+def _backup_sqlite(suffix):
+    """Consistent copy of the SQLite file next to it (VACUUM INTO also captures
+    WAL contents). Returns the path, or None when not on a SQLite file."""
+    path = db.engine.url.database
+    if db.engine.url.get_backend_name() != 'sqlite' or not path or path == ':memory:':
+        return None
+    target = f"{path}.{suffix}.bak"
+    if os.path.exists(target):
+        return target
+    con = db.engine.raw_connection()
+    try:
+        con.isolation_level = None
+        con.execute("VACUUM INTO ?", (target,))
+    finally:
+        con.close()
+    print(f'Database backed up to {target}')
+    return target
+
+
+def _migrate_user_email_nullable():
+    """Discord-only accounts have no email, so user.email must allow NULL.
+    SQLite can't relax NOT NULL in place: rebuild the table from its own stored
+    definition (column order and every added column preserved), after backing
+    up the database. Also enforce one account per Discord user — the column was
+    added with ALTER TABLE, which can't add its UNIQUE constraint."""
+    row = db.session.execute(db.text(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='user'")).fetchone()
+    if row and row[0] and re.search(r'\bemail VARCHAR\(120\) NOT NULL', row[0]):
+        _backup_sqlite('pre-discord-accounts')
+        new_sql = re.sub(r'\bemail VARCHAR\(120\) NOT NULL', 'email VARCHAR(120)', row[0], count=1)
+        new_sql = re.sub(r'^CREATE TABLE "?user"?', 'CREATE TABLE user_new', new_sql, count=1)
+        db.session.execute(db.text("DROP TABLE IF EXISTS user_new"))
+        db.session.execute(db.text(new_sql))
+        db.session.execute(db.text("INSERT INTO user_new SELECT * FROM user"))
+        db.session.execute(db.text("DROP TABLE user"))
+        db.session.execute(db.text("ALTER TABLE user_new RENAME TO user"))
+        db.session.commit()
+        print('Migrated user.email to allow Discord-only accounts')
+
+    dupes = db.session.execute(db.text(
+        "SELECT discord_user_id FROM user WHERE discord_user_id IS NOT NULL "
+        "GROUP BY discord_user_id HAVING COUNT(*) > 1")).fetchall()
+    if dupes:
+        print(f'⚠️  Not adding the unique Discord index: duplicate ids {[d[0] for d in dupes]}')
+    else:
+        db.session.execute(db.text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_user_discord_user_id ON user (discord_user_id)"))
+        db.session.commit()
 
 
 def _backfill_title_normalized():

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Login({ onLogin, apiBase, inviteToken }) {
   const [email, setEmail] = useState("");
@@ -7,8 +7,16 @@ export default function Login({ onLogin, apiBase, inviteToken }) {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [sentTo, setSentTo] = useState("");  // address a sign-in link was emailed to
+  const [discordEnabled, setDiscordEnabled] = useState(false);
 
   const isInvite = !!inviteToken;
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/auth/providers`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : {}))
+      .then(d => setDiscordEnabled(!!d.discord))
+      .catch(() => {});
+  }, [apiBase]);
 
   // Login and signup both email a one-time link; the session starts when it's
   // opened (see VerifySignin). Returns true when the link was sent.
@@ -160,6 +168,15 @@ export default function Login({ onLogin, apiBase, inviteToken }) {
             <button className="auth-btn" type="submit" disabled={loading}>
               {loading ? "..." : "EMAIL ME A LINK"}
             </button>
+            {discordEnabled && (
+              <>
+                <div className="auth-or">or</div>
+                {/* Signs in, or creates an account for Discord members — no separate sign-up. */}
+                <a className="auth-discord-btn" href={`${apiBase}/api/auth/discord/start`}>
+                  SIGN IN WITH DISCORD
+                </a>
+              </>
+            )}
             <p className="auth-toggle">
               {mode === "signup" ? "Already have an account? " : "New here? "}
               <button

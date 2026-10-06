@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import GroupAdmin from "../components/GroupAdmin";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import ProfileMenu from "../components/ProfileMenu";
+import { accountLabel } from "../accountLabel";
 
 export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
@@ -165,7 +166,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
             <div
               className="user-avatar"
               style={{ background: user.avatar_color, color: "#0d0c09" }}
-              title={`${user.name} — ${user.email}`}
+              title={`${user.name} — ${accountLabel(user)}`}
               onClick={() => setShowProfile(!showProfile)}
             >
               {user.name.slice(0, 2).toUpperCase()}

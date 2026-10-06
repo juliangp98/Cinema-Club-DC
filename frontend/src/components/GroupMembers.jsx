@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { accountLabel } from "../accountLabel";
 
 export default function GroupMembers({ group, apiBase, onClose, onViewProfile, embedded }) {
   const [members, setMembers] = useState([]);
@@ -90,7 +91,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                     </div>
                     <div className="group-member-main">
                       <span className="group-member-name">{m.user.name}</span>
-                      <span className="group-member-email">{m.user.email}</span>
+                      <span className="group-member-email">{accountLabel(m.user)}</span>
                     </div>
                     {m.role === "admin" && (
                       <span className="group-role-badge">admin</span>
@@ -115,7 +116,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                     </div>
                     <div className="group-member-main">
                       <span className="group-member-name">{m.user.name}</span>
-                      <span className="group-member-email">{m.user.email}</span>
+                      <span className="group-member-email">{accountLabel(m.user)}</span>
                     </div>
                     <span className="group-pending-badge">pending</span>
                   </div>
@@ -136,7 +137,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                   </div>
                   <div className="profile-header-text">
                     <div className="profile-name">{selectedUser.name}</div>
-                    <div className="profile-email">{selectedUser.email}</div>
+                    <div className="profile-email">{accountLabel(selectedUser)}</div>
                     {kernels !== null && (
                       <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
                     )}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { accountLabel } from "../accountLabel";
 
 export default function UserProfileDrawer({ userId, apiBase, onClose }) {
   const [user, setUser] = useState(null);
@@ -72,7 +73,7 @@ export default function UserProfileDrawer({ userId, apiBase, onClose }) {
                 {user.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="user-profile-name">{user.name}</div>
-              <div className="user-profile-email">{user.email}</div>
+              <div className="user-profile-email">{accountLabel(user)}</div>
               {kernels !== null && (
                 <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
               )}
