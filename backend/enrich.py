@@ -257,12 +257,18 @@ def enrich_movie(title, year=None, alternates=()):
             print(f"  [enrich] TMDB: no match for '{title}' ({year})")
         return None
 
-    result = tmdb_details(match['id'])
+    result = enrich_by_tmdb_id(match['id'], title)
+    if result:
+        result['matched_query'] = query   # which title variant identified the film
+        print(f"  [enrich] TMDB: matched '{query}' → id={result['tmdb_id']} ({result['tmdb_title']})")
+    return result
+
+
+def enrich_by_tmdb_id(tmdb_id, title=''):
+    """Full TMDB details plus OMDb awards + ratings for an identified film."""
+    result = tmdb_details(tmdb_id)
     if not result:
         return None
-    result['matched_query'] = query   # which title variant identified the film
-    print(f"  [enrich] TMDB: matched '{query}' → id={result['tmdb_id']} ({result['tmdb_title']})")
-
     omdb = enrich_from_omdb(result['tmdb_title'] or title, result.get('release_year'),
                             imdb_id=result.get('imdb_id'))
     if omdb:

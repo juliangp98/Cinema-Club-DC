@@ -214,9 +214,12 @@ class Group(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_public = db.Column(db.Boolean, default=True)
     theatres = db.Column(db.String(200), default='')  # comma-separated theatre slugs
-    # Theatres whose automated "new showtimes" Discord alerts are silenced.
-    # Distinct from `theatres` — a muted theatre still shows in the calendar/
-    # commands; only the noisy channel drop announcement is suppressed.
+    # Theatres whose new-showtime drops the bot announces in Discord (opt-in:
+    # empty means none — new showtimes reach people through the weekly digest).
+    # Doesn't affect the calendar or commands.
+    announce_enabled_theatres = db.Column(db.String(400), default='')
+    # Superseded by announce_enabled_theatres (alerts are now opt-in); kept
+    # only because SQLite can't drop columns.
     announce_muted_theatres = db.Column(db.String(400), default='')
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
@@ -487,6 +490,13 @@ class ActivityEvent(db.Model):
             'payload': _json.loads(self.payload_json) if self.payload_json else {},
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class BotSetting(db.Model):
+    """Small settings the Discord bot persists here (it has no storage of its
+    own), e.g. the /llm model overrides."""
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.Text, default='')
 
 
 class Watchlist(db.Model):
@@ -2334,35 +2344,127 @@ def internal_showtime_facets():
     return jsonify({'dates': dates, 'theatres': theatres})
 
 
+DIGEST_RETAG_AFTER = timedelta(days=14)  # tag someone about a watchlisted film at most fortnightly
+REPERTORY_AGE_YEARS = 5                  # "rare screening" = a film at least this old...
+FILM_FORMATS = ('70mm', '35mm', '16mm')  # ...or projected on film
+
+
+def _showtime_brief(s):
+    return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
+            'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
+
+
 @app.route('/api/internal/digest')
 @require_internal
 def internal_digest():
+    """The weekly digest's sections, computed here so the bot gets a small payload:
+      whos_going — screenings in the window with group RSVPs,
+      rare       — repertory (older) films and screenings on film, one per film,
+      new_titles — films added by each theatre's schedule drops this past week,
+      watchlist  — watchlisted films playing in the window with their watchers
+                   (`fresh`: not tagged about that film in the last two weeks),
+      open_polls."""
+    import json as _json
     group_id = request.args.get('group_id', type=int)
     days = request.args.get('days', 7, type=int)
     group = db.session.get(Group, group_id) if group_id else None
-
     now = datetime.now()
+
     showtimes = (_group_showtime_query(group)
                  .filter(Showtime.start_time >= now,
                          Showtime.start_time <= now + timedelta(days=days))
-                 .order_by(Showtime.start_time).limit(500).all())
+                 .order_by(Showtime.start_time).all())
 
-    open_polls = []
-    if group:
-        open_polls = [p.to_dict() for p in
-                      Poll.query.filter_by(group_id=group.id, status='open').all()]
+    whos_going = []
+    for s in showtimes:
+        going = [r.user.name for r in s.rsvps
+                 if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
+        if going:
+            whos_going.append({**_showtime_brief(s), 'going': going})
 
-    recent_drops = [e.to_dict() for e in ScrapeEvent.query.filter(
-        ScrapeEvent.event_type == 'new_drop',
-        ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days),
-    ).order_by(ScrapeEvent.created_at.desc()).limit(10).all()]
+    showings = {}
+    for s in showtimes:
+        showings[s.movie_id] = showings.get(s.movie_id, 0) + 1
+    rare, listed = [], set()
+    for s in showtimes:
+        year = _as_int((s.movie.release_year or '')[:4])
+        repertory = year is not None and year <= now.year - REPERTORY_AGE_YEARS
+        on_film = any(f in (s.format_label or '') for f in FILM_FORMATS)
+        if (repertory or on_film) and s.movie_id not in listed:
+            listed.add(s.movie_id)
+            rare.append({**_showtime_brief(s), 'year': s.movie.release_year,
+                         'showings': showings[s.movie_id]})
+
+    new_titles = {}
+    for e in (ScrapeEvent.query
+              .filter(ScrapeEvent.event_type.in_(('new_drop', 'new_showtimes')),
+                      ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days))
+              .order_by(ScrapeEvent.created_at)):
+        p = _json.loads(e.payload_json or '{}')
+        theatre = p.get('theatre_name') or (e.theatre.name if e.theatre else '')
+        entry = new_titles.setdefault(theatre, {'theatre': theatre, 'showtimes': 0, 'titles': []})
+        entry['showtimes'] += p.get('new_showtime_count') or 0
+        for movie in Movie.query.filter(Movie.id.in_(p.get('movie_ids') or [])):
+            if movie.title not in entry['titles']:
+                entry['titles'].append(movie.title)
+
+    first_showing = {}
+    for s in showtimes:
+        first_showing.setdefault(s.movie_id, s)
+    members = ({m.user_id for m in group.memberships if m.status == 'active'} if group else None)
+    retag_before = _utcnow_naive() - DIGEST_RETAG_AFTER
+    watchers_by_movie = {}
+    for w in (Watchlist.query.filter(Watchlist.movie_id.in_(first_showing)).all()
+              if first_showing else []):
+        if w.user and w.user.is_active and (members is None or w.user_id in members):
+            watchers_by_movie.setdefault(w.movie_id, []).append({
+                'watchlist_id': w.id, 'name': w.user.name,
+                'discord_user_id': w.user.discord_user_id,
+                'fresh': not w.last_notified_at or w.last_notified_at < retag_before,
+            })
+    watchlist = sorted(({**_showtime_brief(first_showing[mid]), 'watchers': ws}
+                        for mid, ws in watchers_by_movie.items()),
+                       key=lambda item: item['start_time'])
+
+    open_polls = ([p.to_dict() for p in Poll.query.filter_by(group_id=group.id, status='open')]
+                  if group else [])
 
     return jsonify({
-        'group': group.to_dict() if group else None,
-        'showtimes': [s.to_dict(group_id=group_id) for s in showtimes],
+        'group_name': group.name if group else None,
+        'days': days,
+        'whos_going': whos_going,
+        'rare': rare,
+        'new_titles': sorted(new_titles.values(), key=lambda t: -t['showtimes']),
+        'watchlist': watchlist,
         'open_polls': open_polls,
-        'recent_drops': recent_drops,
     })
+
+
+@app.route('/api/internal/digest/delivered', methods=['POST'])
+@require_internal
+def internal_digest_delivered():
+    """Called once the weekly digest has been posted with these watchlist
+    entries tagged: marks them notified (no re-tag for two weeks) and emails
+    watchers who aren't on Discord the same news."""
+    ids = [i for i in (request.json or {}).get('watchlist_ids') or [] if isinstance(i, int)]
+    now = _utcnow_naive()
+    by_user = {}
+    for w in (Watchlist.query.filter(Watchlist.id.in_(ids)).all() if ids else []):
+        w.last_notified_at = now
+        if w.user and w.user.email and not w.user.discord_user_id and w.movie:
+            by_user.setdefault(w.user.id, (w.user, []))[1].append(w.movie)
+    db.session.commit()
+
+    for user, movies in by_user.values():
+        items = ''.join(f'<li><strong>{m.title}</strong></li>' for m in movies)
+        send_email(user.email, 'Your watchlist is playing this week',
+            f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+            <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
+            <p>Films on your watchlist are showing this week:</p><ul>{items}</ul>
+            <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;
+            color:#0d0c09;text-decoration:none;border-radius:6px;font-weight:bold;">See showtimes</a></p>
+            </div>""")
+    return jsonify({'marked': len(ids), 'emailed': len(by_user)})
 
 
 @app.route('/api/internal/link/verify', methods=['POST'])
@@ -2416,65 +2518,6 @@ def internal_rsvp():
     result = showtime.to_dict(user_id=user.id, group_id=group_id)
     result['user'] = user.to_dict()
     return jsonify(result)
-
-
-@app.route('/api/internal/watch-matches')
-@require_internal
-def internal_watch_matches():
-    """Watchlist hits for a scrape event's new showtimes. Discord-linked
-    watchers are returned for the bot to @-mention; unlinked watchers get an
-    email right here. 7-day per-(user,movie) re-notify suppression."""
-    event = db.session.get(ScrapeEvent, request.args.get('event_id', type=int))
-    if not event:
-        return jsonify({'error': 'Event not found'}), 404
-
-    import json as _json
-    payload = _json.loads(event.payload_json or '{}')
-    movie_ids = payload.get('movie_ids') or []
-    if not movie_ids:
-        return jsonify([])
-
-    cutoff = _utcnow_naive() - timedelta(days=7)
-    now = datetime.now()
-    matches = []
-    for w in Watchlist.query.filter(Watchlist.movie_id.in_(movie_ids)).all():
-        if w.last_notified_at and w.last_notified_at > cutoff:
-            continue
-        if not w.user or not w.user.is_active or not w.movie:
-            continue
-        first_st = (Showtime.query
-                    .filter(Showtime.movie_id == w.movie_id,
-                            Showtime.theatre_id == event.theatre_id,
-                            Showtime.start_time > now,
-                            Showtime.is_cancelled.isnot(True))
-                    .order_by(Showtime.start_time).first())
-        if not first_st:
-            continue
-        w.last_notified_at = _utcnow_naive()
-
-        if w.user.discord_user_id:
-            matches.append({
-                'discord_user_id': w.user.discord_user_id,
-                'user_name': w.user.name,
-                'movie_title': w.movie.title,
-                'theatre_name': payload.get('theatre_name', ''),
-                'first_showtime': first_st.start_time.isoformat(),
-                'showtime_id': first_st.id,
-            })
-        else:
-            when = first_st.start_time.strftime('%A %b %-d at %-I:%M %p')
-            send_email(w.user.email,
-                       f"{w.movie.title} just got showtimes",
-                       f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-                       <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-                       <p><strong>{w.movie.title}</strong> — a movie on your watchlist — just got showtimes
-                       at <strong>{payload.get('theatre_name', 'a theatre')}</strong>, starting {when}.</p>
-                       <p><a href="{FRONTEND_URL}/?showtime={first_st.id}" style="display:inline-block;padding:12px 24px;
-                       background:#e8a838;color:#0d0c09;text-decoration:none;border-radius:6px;font-weight:bold;">
-                       See showtimes</a></p></div>""")
-
-    db.session.commit()
-    return jsonify(matches)
 
 
 @app.route('/api/internal/polls')
@@ -2589,27 +2632,30 @@ def internal_watchlist():
     return jsonify({'owner': target.name, 'items': items})
 
 
-@app.route('/api/internal/alert-mutes')
+def _slug_list(value):
+    return [s.strip() for s in (value or '').split(',') if s.strip()]
+
+
+@app.route('/api/internal/alerts')
 @require_internal
-def internal_alert_mutes():
-    """Theatres whose automated new-showtime announcements are silenced for a
-    group. The bot's announce loop skips drop embeds for these slugs."""
+def internal_alerts():
+    """Theatres whose new-showtime drops the bot announces for a group. Opt-in:
+    a theatre not listed is quiet, and its new showtimes reach people through
+    the weekly digest instead."""
     group_id = request.args.get('group_id', type=int)
     group = db.session.get(Group, group_id) if group_id else None
-    slugs = [s.strip() for s in ((group.announce_muted_theatres if group else '') or '').split(',') if s.strip()]
-    names = {}
-    if slugs:
-        names = {t.slug: (t.short_name or t.name)
-                 for t in Theatre.query.filter(Theatre.slug.in_(slugs)).all()}
+    slugs = _slug_list(group.announce_enabled_theatres if group else '')
+    names = {t.slug: (t.short_name or t.name)
+             for t in Theatre.query.filter(Theatre.slug.in_(slugs)).all()} if slugs else {}
     return jsonify({
         'slugs': slugs,
-        'muted': [{'slug': s, 'name': names.get(s, s)} for s in slugs],
+        'enabled': [{'slug': s, 'name': names.get(s, s)} for s in slugs],
     })
 
 
-@app.route('/api/internal/alert-mutes', methods=['POST'])
+@app.route('/api/internal/alerts', methods=['POST'])
 @require_internal
-def internal_alert_mutes_update():
+def internal_alerts_update():
     data = request.json or {}
     group = db.session.get(Group, data.get('group_id')) if data.get('group_id') else None
     if not group:
@@ -2619,21 +2665,45 @@ def internal_alert_mutes_update():
     theatre = Theatre.query.filter_by(slug=slug).first()
     if not theatre:
         return jsonify({'error': 'Theatre not found'}), 404
+    if action not in ('enable', 'disable'):
+        return jsonify({'error': 'action must be enable or disable'}), 400
 
-    current = [s.strip() for s in (group.announce_muted_theatres or '').split(',') if s.strip()]
-    if action == 'mute':
-        if slug not in current:
-            current.append(slug)
-        muted = True
-    elif action == 'unmute':
+    current = _slug_list(group.announce_enabled_theatres)
+    changed = (slug not in current) if action == 'enable' else (slug in current)
+    if action == 'enable' and changed:
+        current.append(slug)
+    elif action == 'disable':
         current = [s for s in current if s != slug]
-        muted = False
-    else:
-        return jsonify({'error': 'action must be mute or unmute'}), 400
-    group.announce_muted_theatres = ','.join(current)
+    group.announce_enabled_theatres = ','.join(current)
     db.session.commit()
     return jsonify({'theatre_slug': slug, 'theatre_name': theatre.short_name or theatre.name,
-                    'muted': muted, 'slugs': current})
+                    'enabled': action == 'enable', 'changed': changed, 'slugs': current})
+
+
+# Keys the bot may store; anything else is rejected.
+BOT_SETTING_KEYS = {'llm_primary', 'llm_fallback'}
+
+
+@app.route('/api/internal/settings')
+@require_internal
+def internal_settings():
+    keys = [k for k in (request.args.get('keys') or '').split(',') if k in BOT_SETTING_KEYS]
+    rows = {r.key: r.value for r in BotSetting.query.filter(BotSetting.key.in_(keys)).all()} if keys else {}
+    return jsonify({k: rows.get(k, '') for k in keys})
+
+
+@app.route('/api/internal/settings', methods=['POST'])
+@require_internal
+def internal_settings_update():
+    data = request.json or {}
+    key, value = data.get('key'), (data.get('value') or '').strip()[:200]
+    if key not in BOT_SETTING_KEYS:
+        return jsonify({'error': 'Unknown setting'}), 400
+    row = db.session.get(BotSetting, key) or BotSetting(key=key)
+    row.value = value
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({key: value})
 
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
@@ -2674,6 +2744,8 @@ def migrate():
         "ALTER TABLE movie ADD COLUMN enrich_attempted_at DATETIME",
         "ALTER TABLE showtime ADD COLUMN format_label VARCHAR(60)",
         "ALTER TABLE showtime ADD COLUMN event_label VARCHAR(200)",
+        # Opt-in Discord drop alerts (empty = all off)
+        "ALTER TABLE 'group' ADD COLUMN announce_enabled_theatres VARCHAR(400) DEFAULT ''",
     ]
     for sql in stmts:
         try:

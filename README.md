@@ -128,6 +128,8 @@ INTERNAL_API_TOKEN=...    # shared secret between backend and bot (any random he
 DISCORD_BOT_TOKEN=...     # from discord.com/developers/applications
 DISCORD_CHANNEL_ID=...    # the #movies channel id (announcements, RSVP callouts, digest)
 GROQ_API_KEY=...          # free key from console.groq.com — powers the @-mention chatbot
+GROQ_MODEL=               # optional pin; models are otherwise chosen automatically
+GROQ_FALLBACK_MODEL=      # optional pin; "none" disables the fallback
 SITE_URL=https://cinemaclubdc.com
 DEFAULT_GROUP_ID=1
 
@@ -258,22 +260,40 @@ Other behaviors:
 talks to the backend's `/api/internal/*` endpoints over the Docker network
 (shared secret: `INTERNAL_API_TOKEN`). It never touches the database directly.
 
-- **Announcements**: polls for unannounced `ScrapeEvent`s every 60s and posts
-  rich embeds to `DISCORD_CHANNEL_ID` (#movies) — e.g. "Suns just dropped 23
-  new showtimes", with top titles, poster, and a deep link.
-- **Watchlist pings**: when a drop includes a movie someone watchlisted, the
-  bot @-mentions them (unlinked members get an email instead).
-- **Weekly digest**: Mondays 10:00 ET — who's going, what's playing, open polls.
+- **Weekly digest (the main notification)**: Mondays 10:00 ET in
+  `DISCORD_CHANNEL_ID` (#movies). It covers who's going, rare screenings
+  (repertory films and 35/70mm prints), the titles each theatre added this week,
+  open polls, and **watchlist tags**. Anyone with a watchlisted film playing
+  that week is @-tagged in the message text, at most once per film per two
+  weeks. Members without Discord get the same news by email.
+- **Theatre announcements (opt-in)**: schedule drops ("AFI just dropped 23 new
+  showtimes") post as they happen only for theatres someone turned on with
+  `/alerts`. All theatres start off.
+- **Owner DMs**: scraper errors and chatbot model changes go to the bot owner's
+  DMs, not the channel.
 - **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
-  `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`, `/link`.
-  Info + fun commands (everything except `/rsvp` and `/watch`) work for anyone —
-  no account link required. Date/theatre filters are dependent: pick a movie and
-  the date/theatre options narrow to where it's actually showing.
+  `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`, `/link`,
+  `/llm`. Info + fun commands (everything except `/rsvp` and `/watch`) work for
+  anyone, with no account link required. Date/theatre filters are dependent:
+  pick a movie and the date/theatre options narrow to where it's actually
+  showing.
+  - `/alerts`: anyone can see which theatres announce drops (private reply) or
+    turn one on or off; changes are noted publicly in the channel.
+  - `/digest`: anyone can post this week's digest to the current channel (no
+    tags; 30-minute cooldown per channel), or `preview:True` to see it privately.
+  - `/llm` (server admins only, by default those with Manage Server; grant it
+    to roles in Server Settings → Integrations): see the chatbot's models and
+    pin or unpin them.
 - **@-mention chatbot**: `@CinemaBot what should I see this weekend?` — a light
   LLM (Groq free tier) grounded in the site's data (your genres, watchlist,
   attendance, standing + what's playing). Recommends, answers "where can I catch
   X", and judges your taste. Needs `GROQ_API_KEY`; no privileged intent required.
   Unlinked users can still chat (just less personalized).
+  Models pick themselves from Groq's live catalogue: they're checked at startup,
+  daily, and whenever one is retired. Each is test-called before use, and
+  primary and fallback come from different model families. `/llm` overrides
+  win, then the optional `GROQ_MODEL` / `GROQ_FALLBACK_MODEL` env pins (`none`
+  disables the fallback), then the automatic ranking in `bot/llm.py`.
 - **Cinematic wisdom**: `/wisdom`, or `what is thy wisdom CinemaBot` (any form —
   a real @mention, a typed `@CinemaBot`, or just the name, any casing) — a random
   movie quote. Works for anyone; needs no backend or account.

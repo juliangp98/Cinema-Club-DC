@@ -203,13 +203,18 @@ def _apply_movie_fields(movie, m, enriched):
         movie.ratings_json = enriched.get('ratings_json') or movie.ratings_json
         movie.trailer_key = enriched.get('trailer_key') or movie.trailer_key
     else:
-        movie.director = m.get('director') or movie.director
-        movie.release_year = m.get('release_year') or movie.release_year
-        movie.runtime_minutes = m.get('runtime_minutes') or movie.runtime_minutes or 120
-        movie.starring = m.get('starring') or movie.starring
-        movie.description = m.get('description') or movie.description
-        movie.trailer_link = m.get('trailer_link') or movie.trailer_link
-        movie.poster_url = m.get('poster_url') or movie.poster_url
+        # Once TMDB has identified the film, scraped data only fills gaps —
+        # otherwise every scrape would replace TMDB's details with the venue's
+        # (e.g. a 1940 film's year becoming the 2026 re-release date).
+        def scraped(field, current):
+            return (current or m.get(field)) if movie.tmdb_id else (m.get(field) or current)
+        movie.director = scraped('director', movie.director)
+        movie.release_year = scraped('release_year', movie.release_year)
+        movie.runtime_minutes = scraped('runtime_minutes', movie.runtime_minutes) or 120
+        movie.starring = scraped('starring', movie.starring)
+        movie.description = scraped('description', movie.description)
+        movie.trailer_link = scraped('trailer_link', movie.trailer_link)
+        movie.poster_url = scraped('poster_url', movie.poster_url)
 
     movie.title_normalized = normalize_title(movie.title)
     movie.last_updated = datetime.datetime.utcnow()

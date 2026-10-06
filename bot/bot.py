@@ -1,11 +1,15 @@
 """Cinema Club DC Discord bot.
 
-Announces theatre schedule drops in #movies, posts a Monday digest, and
-serves slash commands (/showtimes, /movie, /rsvp, /whosgoing, /polls, /link).
+Posts a Monday digest in #movies (the main notification: who's going, watchlist
+tags, rare screenings, new showtimes), announces schedule drops for theatres
+members opt into with /alerts, DMs the owner about scraper errors and chatbot
+model changes, and serves slash commands (/showtimes, /movie, /rsvp,
+/whosgoing, /polls, /watch, /alerts, /digest, /llm, /link).
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
 
+import asyncio
 import os
 import random
 import re
@@ -87,6 +91,8 @@ class CinemaClubBot(discord.Client):
                   f'(every server the bot is in; up to ~1h to first appear)')
         except Exception as e:
             print(f'Command sync FAILED: {e!r}')
+        # In the background so a slow Groq never delays the bot coming online.
+        asyncio.create_task(setup_llm())
         announce_loop.start()
         digest_loop.start()
 
@@ -114,6 +120,38 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
 
 
 client.tree.on_error = on_tree_error
+
+
+_owner = {}
+
+
+async def dm_owner(text):
+    """DM the bot's owner (the Discord application's owner) — for things the
+    channel doesn't need to see, like scraper errors and chatbot model switches."""
+    try:
+        if 'user' not in _owner:
+            info = await client.application_info()
+            _owner['user'] = info.team.owner if info.team else info.owner
+        await _owner['user'].send(text[:2000])
+    except Exception as e:
+        print(f'owner DM failed: {e}')
+
+
+async def setup_llm():
+    """Load /llm overrides saved in the backend, then pick the chatbot's models
+    from Groq's live list (llm.py DMs the owner if a pinned model is gone)."""
+    try:
+        saved = await api.get('/api/internal/settings', keys='llm_primary,llm_fallback')
+        llm.set_overrides(primary=saved.get('llm_primary', ''), fallback=saved.get('llm_fallback', ''))
+    except Exception as e:
+        print(f'llm: loading /llm overrides failed: {e}')
+    llm.configure(probe_messages=[{'role': 'system', 'content': CHAT_SYSTEM},
+                                  {'role': 'user', 'content': 'what should i see this weekend?'}],
+                  on_switch=dm_owner)
+    try:
+        await llm.refresh('startup')
+    except Exception as e:
+        print(f'llm: startup model selection failed: {e}')
 
 
 # ─── @-mention chatbot ────────────────────────────────────────────────────────
@@ -604,24 +642,23 @@ async def announce_loop():
         print(f'announce_loop: fetch failed: {e}')
         return
 
-    # Theatres muted from the channel drop announcements (fail open — a lookup
-    # failure must not silence alerts). Watchlist pings still fire for muted
-    # theatres; muting only suppresses the noisy per-theatre drop embed.
+    # Theatre drops are announced only for theatres someone enabled with
+    # /alerts (fail closed — alerts are opt-in). Every theatre's new showtimes,
+    # and watchlist tags, reach people through the Monday digest regardless.
     try:
-        muted = set((await api.get('/api/internal/alert-mutes',
-                                   group_id=DEFAULT_GROUP_ID)).get('slugs', []))
+        enabled = set((await api.get('/api/internal/alerts',
+                                     group_id=DEFAULT_GROUP_ID)).get('slugs', []))
     except Exception as e:
-        print(f'announce_loop: alert-mutes fetch failed: {e}')
-        muted = set()
+        print(f'announce_loop: alerts fetch failed: {e}')
+        enabled = set()
 
     for event in events:
         try:
             if event['event_type'] in ('new_drop', 'new_showtimes'):
-                if (event.get('payload') or {}).get('theatre_slug') not in muted:
+                if (event.get('payload') or {}).get('theatre_slug') in enabled:
                     await channel.send(embed=embeds.drop_embed(event))
-                await notify_watchers(channel, event)
             elif event['event_type'] == 'scrape_error':
-                await channel.send(embeds.error_message(event))
+                await dm_owner(embeds.error_message(event))   # not channel news
             await api.post(f"/api/internal/scrape-events/{event['id']}/announced")
         except Exception as e:
             print(f"announce_loop: failed for event {event.get('id')}: {e}")
@@ -643,21 +680,6 @@ async def announce_loop():
             print(f"announce_loop: activity failed for {ev.get('id')}: {e}")
 
 
-async def notify_watchers(channel, event):
-    """Ping members whose watchlisted movies just got showtimes."""
-    try:
-        matches = await api.get('/api/internal/watch-matches', event_id=event['id'])
-    except Exception as e:
-        print(f'watch-matches failed for event {event.get("id")}: {e}')
-        return
-    for m in matches:
-        when = datetime.fromisoformat(m['first_showtime']).strftime('%A %-m/%-d %-I:%M %p')
-        await channel.send(
-            f"👀 <@{m['discord_user_id']}> — **{m['movie_title']}**, from your watchlist, "
-            f"just got showtimes at {m['theatre_name']} (first: {when}) → "
-            f"{SITE_URL}/?showtime={m['showtime_id']}")
-
-
 @announce_loop.before_loop
 async def before_announce():
     await client.wait_until_ready()
@@ -669,7 +691,7 @@ async def before_announce():
 async def digest_loop():
     if datetime.now(ET).weekday() != 0:   # Monday only
         return
-    await post_digest()
+    await post_digest(movies_channel(), tag_watchers=True)
 
 
 @digest_loop.before_loop
@@ -677,15 +699,26 @@ async def before_digest():
     await client.wait_until_ready()
 
 
-async def post_digest():
-    channel = movies_channel()
+async def post_digest(channel, tag_watchers=False):
+    """Post the weekly digest to `channel`; returns True on success. Only the
+    scheduled Monday post tags watchlist owners, and the tags are recorded so
+    nobody is re-tagged about the same film for two weeks."""
     if channel is None:
-        return
+        return False
     try:
         digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
-        await channel.send(embed=embeds.digest_embed(digest))
+        content, embed, tagged = embeds.digest_message(digest, tag_watchers=tag_watchers)
+        await channel.send(content, embed=embed,
+                           allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
     except Exception as e:
         print(f'digest failed: {e}')
+        return False
+    if tagged:
+        try:
+            await api.post('/api/internal/digest/delivered', {'watchlist_ids': tagged})
+        except Exception as e:
+            print(f'digest: recording tagged watchers failed: {e}')
+    return True
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1270,83 +1303,158 @@ async def watch_end_autocomplete(interaction: discord.Interaction, current: str)
     return date_choices(current)
 
 
+async def fetch_alerts():
+    return await api.get('/api/internal/alerts', group_id=DEFAULT_GROUP_ID)
+
+
 @client.tree.command(name='alerts',
-                     description="Mute/unmute a theatre's automated new-showtime announcements")
+                     description="New-showtime announcements: see which theatres post here, or turn one on/off")
 @app_commands.describe(
-    action='Mute stops a theatre\'s drop alerts; Unmute resumes; Show lists muted (default Show)',
-    theatre='The theatre to mute or unmute',
+    action="Show what's on (default); Enable posts a theatre's new showtimes here; Disable stops them",
+    theatre='The theatre to turn on or off',
 )
 @app_commands.choices(action=[
-    app_commands.Choice(name='Mute', value='mute'),
-    app_commands.Choice(name='Unmute', value='unmute'),
     app_commands.Choice(name='Show', value='show'),
+    app_commands.Choice(name='Enable', value='enable'),
+    app_commands.Choice(name='Disable', value='disable'),
 ])
 async def alerts(interaction: discord.Interaction,
                  action: app_commands.Choice[str] = None, theatre: str = None):
-    # Control command — replies are ephemeral so channel isn't spammed.
-    await interaction.response.defer(ephemeral=True)
     act = action.value if action else 'show'
-
     if act == 'show':
+        await interaction.response.defer(ephemeral=True)
         try:
-            data = await api.get('/api/internal/alert-mutes', group_id=DEFAULT_GROUP_ID)
+            enabled = (await fetch_alerts()).get('enabled', [])
         except Exception as e:
             print(f'/alerts show failed: {e}')
-            await interaction.followup.send("Couldn't reach the server — try again in a bit.",
-                                            ephemeral=True)
+            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
             return
-        muted = data.get('muted', [])
-        if not muted:
-            await interaction.followup.send(
-                "🔔 No theatres are muted — every theatre's new-showtime drops are announced.",
-                ephemeral=True)
+        if enabled:
+            msg = (f"🔔 New showtimes are announced here for **{', '.join(t['name'] for t in enabled)}**.\n"
+                   "Every other theatre's new showtimes are in Monday's digest. "
+                   "`/alerts action:Disable` turns one off.")
         else:
-            names = ', '.join(m['name'] for m in muted)
-            await interaction.followup.send(
-                f"🔕 Muted from drop announcements: **{names}**\n"
-                "(These still appear in the calendar and commands, and watchlist pings still fire.)",
-                ephemeral=True)
+            msg = ("🔕 Theatre announcements are all off — new showtimes show up in Monday's digest.\n"
+                   "`/alerts action:Enable` posts a theatre's new showtimes here as they drop.")
+        await interaction.followup.send(msg, ephemeral=True)
         return
 
     if not theatre:
-        await interaction.followup.send('Pick a theatre to mute or unmute.', ephemeral=True)
+        await interaction.response.send_message('Pick a theatre to turn on or off.', ephemeral=True)
         return
+    await interaction.response.defer(ephemeral=True)
     try:
-        result = await api.post('/api/internal/alert-mutes', {
+        result = await api.post('/api/internal/alerts', {
             'group_id': DEFAULT_GROUP_ID, 'theatre_slug': theatre, 'action': act,
         })
     except ApiError as e:
-        await interaction.followup.send(f"Couldn't update alerts ({e.status}).", ephemeral=True)
+        msg = "I don't know that theatre — pick one from the list." if e.status == 404 \
+            else f"Couldn't update alerts ({e.status})."
+        await interaction.followup.send(msg, ephemeral=True)
         return
     except Exception as e:
         print(f'/alerts {act} failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.",
-                                        ephemeral=True)
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
         return
 
     name = result['theatre_name']
-    if result['muted']:
-        await interaction.followup.send(
-            f"🔕 Muted **{name}** — its new-showtime drops won't be announced here anymore "
-            "(still on the calendar; watchlist pings still fire).", ephemeral=True)
-    else:
-        await interaction.followup.send(f"🔔 Unmuted **{name}** — its drops will be announced again.",
-                                        ephemeral=True)
+    if not result['changed']:
+        state = 'on' if result['enabled'] else 'off'
+        await interaction.followup.send(f"**{name}** announcements are already {state}.", ephemeral=True)
+        return
+    # Everyone sees what changed (and who changed it) — the setting is shared.
+    who = interaction.user.mention
+    note = (f"🔔 {who} turned on new-showtime announcements for **{name}** — its drops will post here."
+            if result['enabled'] else
+            f"🔕 {who} turned off new-showtime announcements for **{name}** — "
+            "its new showtimes will be in Monday's digest.")
+    try:
+        await interaction.channel.send(note, allowed_mentions=discord.AllowedMentions.none())
+    except Exception as e:
+        print(f'/alerts: channel note failed: {e}')
+    await interaction.followup.send('Done ✓', ephemeral=True)
 
 
 @alerts.autocomplete('theatre')
 async def alerts_theatre_autocomplete(interaction: discord.Interaction, current: str):
-    # For Unmute, suggest only currently-muted theatres; else all theatres.
+    # Enable suggests theatres that are off; Disable suggests ones that are on.
     action = getattr(interaction.namespace, 'action', None)
-    if action == 'unmute':
+    choices = await theatre_choices(current)
+    if action in ('enable', 'disable'):
         try:
-            data = await api.get('/api/internal/alert-mutes', group_id=DEFAULT_GROUP_ID)
+            enabled = set((await fetch_alerts()).get('slugs', []))
         except Exception:
-            return []
-        cur = (current or '').lower()
-        muted = [m for m in data.get('muted', []) if not cur or cur in m['name'].lower()]
-        return [app_commands.Choice(name=m['name'], value=m['slug']) for m in muted[:25]]
-    return await theatre_choices(current)
+            return choices
+        choices = [c for c in choices if (c.value in enabled) == (action == 'disable')]
+    return choices
+
+
+# ─── /llm (server admins) ────────────────────────────────────────────────────
+# Hidden from members without Manage Server by default; admins can grant it to
+# other roles in Server Settings → Integrations.
+
+llm_admin = app_commands.Group(
+    name='llm', description="The chatbot's AI models (server admins)",
+    default_permissions=discord.Permissions(manage_guild=True), guild_only=True)
+
+
+@llm_admin.command(name='show', description='Which models the chatbot uses, and what Groq offers')
+async def llm_show(interaction: discord.Interaction):
+    s = llm.status()
+    how = s['how']
+    lines = [
+        f"**Primary:** `{s['primary'] or '—'}` ({how.get('primary') or 'not chosen yet'})",
+        f"**Fallback:** `{s['fallback'] or 'none'}` ({how.get('fallback') or '—'})",
+        f"Overrides: primary `{s['overrides']['primary'] or 'auto'}` · fallback `{s['overrides']['fallback'] or 'auto'}`",
+        f"Env pins: primary `{s['env']['primary'] or '—'}` · fallback `{s['env']['fallback'] or '—'}`",
+        'Groq chat models, best first: ' + (', '.join(f'`{m}`' for m in s['available']) or '—'),
+        '_Models are re-checked daily and whenever one is retired; you get a DM if they change._',
+    ]
+    await interaction.response.send_message('\n'.join(lines), ephemeral=True)
+
+
+@llm_admin.command(name='set', description='Pin the chatbot to a model, or "auto" to let it choose')
+@app_commands.describe(slot='Which model to set',
+                       model='A model Groq serves, "auto" to clear the pin, or "none" (fallback only) to disable it')
+@app_commands.choices(slot=[
+    app_commands.Choice(name='Primary', value='primary'),
+    app_commands.Choice(name='Fallback', value='fallback'),
+])
+async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[str], model: str):
+    value = model.strip()
+    value = '' if value.lower() == 'auto' else value
+    if value == 'none' and slot.value == 'primary':
+        await interaction.response.send_message("The primary can't be `none`.", ephemeral=True)
+        return
+    if value and value != 'none' and value not in llm.status()['available']:
+        await interaction.response.send_message(
+            f"`{value}` isn't a chat model Groq serves right now — pick one from the list.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    try:
+        await api.post('/api/internal/settings', {'key': f'llm_{slot.value}', 'value': value})
+    except Exception as e:
+        print(f'/llm set failed to save: {e}')
+        await interaction.followup.send("Couldn't save that setting — try again in a bit.", ephemeral=True)
+        return
+    llm.set_overrides(**{slot.value: value})
+    s = await llm.refresh(f'/llm set by {interaction.user.display_name}')
+    chosen = s[slot.value]
+    note = (f"\n⚠️ `{value}` didn't answer a test call, so `{chosen}` is being used instead."
+            if value and value != 'none' and chosen != value else '')
+    await interaction.followup.send(f"✓ {slot.name} model: `{chosen or 'none'}`{note}", ephemeral=True)
+
+
+@llm_set.autocomplete('model')
+async def llm_model_autocomplete(interaction: discord.Interaction, current: str):
+    options = ['auto'] + llm.status()['available']
+    if getattr(interaction.namespace, 'slot', None) == 'fallback':
+        options.append('none')
+    cur = (current or '').lower()
+    return [app_commands.Choice(name=o, value=o) for o in options if cur in o.lower()][:25]
+
+
+client.tree.add_command(llm_admin)
 
 
 @client.tree.command(name='leaderboard', description='Season kernel standings 🍿')
@@ -1370,11 +1478,39 @@ async def leaderboard(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
-@client.tree.command(name='digest', description='Post the weekly digest now')
-async def digest_now(interaction: discord.Interaction):
+DIGEST_COOLDOWN_SEC = 30 * 60
+_digest_posted = {}   # channel id -> monotonic time of the last /digest post there
+
+
+@client.tree.command(name='digest', description="This week's digest — post it here, or preview it just for you")
+@app_commands.describe(preview='Show it only to you instead of posting it in the channel')
+async def digest_now(interaction: discord.Interaction, preview: bool = False):
+    if preview:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
+        except Exception as e:
+            print(f'/digest preview failed: {e}')
+            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            return
+        _, embed, _ = embeds.digest_message(digest)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        return
+
+    # Anyone can post it, so keep the channel from getting spammed.
+    ago = time.monotonic() - _digest_posted.get(interaction.channel_id, -DIGEST_COOLDOWN_SEC)
+    if ago < DIGEST_COOLDOWN_SEC:
+        mins = max(1, round(ago / 60))
+        await interaction.response.send_message(
+            f"The digest was posted here {mins} min ago — use `/digest preview:True` to see it just for you.",
+            ephemeral=True)
+        return
     await interaction.response.defer(ephemeral=True)
-    await post_digest()
-    await interaction.followup.send('Digest posted.', ephemeral=True)
+    if await post_digest(interaction.channel):   # manual posts never tag anyone
+        _digest_posted[interaction.channel_id] = time.monotonic()
+        await interaction.followup.send('Digest posted.', ephemeral=True)
+    else:
+        await interaction.followup.send("Couldn't post the digest right now — try again in a bit.", ephemeral=True)
 
 
 @client.event
