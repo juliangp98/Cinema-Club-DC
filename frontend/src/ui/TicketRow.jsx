@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import Menu, { MenuItem } from "./Menu";
 import { CalendarIcon } from "./icons";
 import { TicketDiscord } from "./DiscordShare";
@@ -38,7 +39,8 @@ export function Segmented({ options, value, onChange, label }) {
 // One screening as a ticket stub: when on the stub; where, format and
 // billing in the body; RSVP (or, once it has started, Went / Didn't go),
 // tickets and add-to-calendar as actions; then what to share in Discord.
-export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, showTheatre = true }) {
+// Without RSVP access (public mode), `rsvpCta` ({text, to, label}) says how to get it.
+export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, rsvpCta, showTheatre = true }) {
   const start = new Date(s.start_time);
   const started = start <= new Date();
   const theatre = s.theatre?.name;
@@ -68,10 +70,12 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
 
         <div className="ticket-actions">
           {started ? (
-            <Segmented label="Did you go?" options={ATTENDED} value={s.user_attendance}
-                       onChange={v => onAttendance?.(s.id, v)} />
-          ) : (
-            <Segmented label="Your RSVP" options={RSVP} value={s.user_rsvp} onChange={v => onRsvp?.(s.id, v)} />
+            onAttendance && <Segmented label="Did you go?" options={ATTENDED} value={s.user_attendance}
+                                       onChange={v => onAttendance(s.id, v)} />
+          ) : onRsvp ? (
+            <Segmented label="Your RSVP" options={RSVP} value={s.user_rsvp} onChange={v => onRsvp(s.id, v)} />
+          ) : rsvpCta && (
+            <span className="ticket-cta">{rsvpCta.text} <Link to={rsvpCta.to}>{rsvpCta.label} →</Link></span>
           )}
           {!started && (
             <div className="ticket-links">

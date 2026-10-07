@@ -10,7 +10,10 @@ const when = iso => {
 // A film as a poster tile: links to its film page. Used by Discover's
 // shelves and Browse results (and Home, later).
 export default function PosterCard({ card, size = "md" }) {
-  const { movie, next, reasons = [], club = {} } = card;
+  const { movie, next, reasons = [], club, interest } = card;      // club (members) or interest (public, R5a)
+  const badge = club
+    ? (club.you_going ? "✓ Going" : club.going > 0 ? `${club.going} going` : club.wanted > 0 ? `${club.wanted} want` : null)
+    : (interest?.going ? `${interest.going} going` : interest?.want ? `${interest.want} want` : null);
   return (
     <Link to={`/films/${movie.id}`} className={`poster-card ${size}`}>
       <div className="poster-card-img">
@@ -19,11 +22,7 @@ export default function PosterCard({ card, size = "md" }) {
         ) : (
           <span className="poster-card-ph">{movie.title}</span>
         )}
-        {(club.you_going || club.going > 0 || club.wanted > 0) && (
-          <span className="poster-card-badge">
-            {club.you_going ? "✓ Going" : club.going > 0 ? `${club.going} going` : `${club.wanted} want`}
-          </span>
-        )}
+        {badge && <span className={`poster-card-badge${club ? "" : " public"}`}>{badge}</span>}
       </div>
       <div className="poster-card-title">
         {movie.title}{movie.year ? <span className="poster-card-year"> ({movie.year})</span> : null}

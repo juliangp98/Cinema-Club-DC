@@ -32,7 +32,9 @@ function dedupeUsers(showtimes, field) {
 
 // One screening (or a day's screenings of a film at one theatre): the
 // tickets to RSVP to, who's going, the discussion, and the film's details —
-// with a link to the film page for every other showing.
+// with a link to the film page for every other showing. In public mode (no
+// club, R5a) there's no RSVP, discussion or who's going: anonymous counts and
+// a way to sign in or find a club instead.
 export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onAttendance, onViewProfile }) {
   const primary = showtimes[0];
   const { movie, theatre } = primary;
@@ -42,11 +44,12 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const [heroOk, setHeroOk] = useState(true);
 
   useEffect(() => {
+    if (!user) return;                    // visitors have no watchlist (yet: R5b)
     fetch(`${apiBase}/api/watchlist`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : []))
       .then(items => setWatching(items.some(i => i.movie && i.movie.id === movie.id)))
       .catch(() => setWatching(false));
-  }, [apiBase, movie.id]);
+  }, [apiBase, movie.id, user]);
 
   useEffect(() => {
     setReactions(primary.reactions || {});
@@ -69,6 +72,11 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
     }
   }
 
+  const club = !!groupId;
+  const interest = primary.interest || {};
+  const rsvpCta = club ? null : user
+    ? { text: "Join a club to RSVP and see who's going.", to: "/groups", label: "Browse clubs" }
+    : { text: "Sign in to RSVP and plan with friends.", to: `/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`, label: "Sign in" };
   const going = dedupeUsers(showtimes, "attendees");
   const maybes = dedupeUsers(showtimes, "maybes");
   const heroImage = movie.backdrop_url || movie.poster_url || "";
@@ -126,7 +134,8 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         <div className="drawer-tickets">
           {showtimes.map(s => (
             <TicketRow key={s.id} showtime={{ ...s, theatre }} apiBase={apiBase} groupId={groupId}
-                       onRsvp={onRsvp} onAttendance={onAttendance} showTheatre={false} />
+                       onRsvp={club ? onRsvp : undefined} onAttendance={club ? onAttendance : undefined}
+                       rsvpCta={rsvpCta} showTheatre={false} />
           ))}
           <Link className="drawer-film-link" to={`/films/${movie.id}`} onClick={onClose}>
             All showings &amp; film details →
@@ -152,11 +161,17 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
           </Collapsible>
         )}
 
-        <Collapsible title="Reactions & discussion" defaultOpen>
+        {!club && (interest.going || interest.want) && (
+          <p className="drawer-interest">
+            {[interest.going && `${interest.going} people going`, interest.want && `${interest.want} want to see it`].filter(Boolean).join(" · ")}
+          </p>
+        )}
+
+        {club && <Collapsible title="Reactions & discussion" defaultOpen>
           <ReactionBar reactions={reactions} showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onUpdate={setReactions} />
           <ChatSection showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
                        discordThreadUrl={primary.discord_thread_url} discord={primary.discord} />
-        </Collapsible>
+        </Collapsible>}
 
         {(movie.description || (!movie.cast?.length && movie.starring)) && (
           <Collapsible title="About" defaultOpen>

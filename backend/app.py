@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 import secrets
+import time
 import re
 import random
 import smtplib
@@ -1198,7 +1199,10 @@ def discord_oauth_start():
         return redirect(f"{FRONTEND_URL}/?{urlencode({'discord_error': 'unavailable'})}")
     mode = 'connect' if request.args.get('mode') == 'connect' and current_user() else 'login'
     state = secrets.token_urlsafe(24)
-    session['discord_oauth'] = {'state': state, 'mode': mode}
+    # Where to land afterwards: only a path on this site (never another host).
+    nxt = request.args.get('next') or '/'
+    nxt = nxt if nxt.startswith('/') and not nxt.startswith('//') and '\\' not in nxt else '/'
+    session['discord_oauth'] = {'state': state, 'mode': mode, 'next': nxt[:300]}
     return redirect('https://discord.com/oauth2/authorize?' + urlencode({
         'client_id': DISCORD_CLIENT_ID, 'response_type': 'code', 'scope': 'identify',
         'redirect_uri': _discord_redirect_uri(), 'state': state, 'prompt': 'none',
@@ -1219,7 +1223,8 @@ def discord_oauth_callback():
         # sign-in is never silent (no ids or codes logged).
         print(f"Discord {pending['mode'] if pending else 'sign-in'}: {params} -> {FRONTEND_URL}"
               f" (cookie {'present' if pending else 'missing'}, host {request.host})", flush=True)
-        return redirect(f"{FRONTEND_URL}/?{urlencode(params)}")
+        nxt = (pending or {}).get('next') or '/'
+        return redirect(f"{FRONTEND_URL}{nxt}{'&' if '?' in nxt else '?'}{urlencode(params)}")
 
     if not pending or not request.args.get('state') or \
             not secrets.compare_digest(request.args['state'], pending['state']):
@@ -1688,7 +1693,6 @@ def remove_member(slug, uid):
 # ─── Routes: Theatres ─────────────────────────────────────────────────────────
 
 @app.route('/api/theatres')
-@require_auth
 def get_theatres():
     theatres = Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name).all()
     return jsonify([t.to_dict() for t in theatres])
@@ -1744,17 +1748,18 @@ def _with_attendance(user, showtimes, dicts, group_id=None):
 
 
 @app.route('/api/showtimes/<int:showtime_id>')
-@require_auth
 def get_showtime(showtime_id):
-    """Single showtime — used by ?showtime= deep links from Discord embeds."""
-    user = current_user()
-    group_id = request.args.get('group_id', type=int)
-    err = require_group_member(group_id)
+    """Single showtime — the screening sheet and ?showtime= deep links.
+    Club mode with ?group_id, public mode without."""
+    user, group, err = view_scope()
     if err:
         return err
+    group_id = group.id if group else None
     showtime = db.session.get(Showtime, showtime_id)
-    if not showtime:
+    if not showtime or showtime.is_cancelled:
         return jsonify({'error': 'Showtime not found'}), 404
+    if not group:
+        return jsonify(public_showtimes([showtime], user)[0])
     return jsonify(_with_attendance(user, [showtime], [
         showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
 
@@ -1780,28 +1785,29 @@ def _brief_user(u):
 
 
 @app.route('/api/films/<int:movie_id>')
-@require_auth
 def film_detail(movie_id):
     """A film's page: its details, every upcoming screening at the group's
     theatres (with the viewer's RSVPs and who's going), where the club stands
     on it (want to see / going / seen), and whether this week's screenings
-    are rare."""
-    user = current_user()
-    group_id = request.args.get('group_id', type=int)
-    err = require_group_member(group_id)
+    are rare. Public mode (no ?group_id): every tracked theatre, anonymous
+    interest only, no club section."""
+    user, group, err = view_scope()
     if err:
         return err
+    group_id = group.id if group else None
     movie = db.session.get(Movie, movie_id)
     if not movie:
         return jsonify({'error': 'Film not found'}), 404
-    group = db.session.get(Group, group_id)
     now = datetime.now()
 
     base = _group_showtime_query(group).filter(Showtime.movie_id == movie_id)
     upcoming = base.filter(Showtime.start_time >= now).order_by(Showtime.start_time).all()
-    showtimes = _with_attendance(user, upcoming, [
-        s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres) for s in upcoming
-    ], group_id)
+    if group:
+        showtimes = _with_attendance(user, upcoming, [
+            s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres) for s in upcoming
+        ], group_id)
+    else:
+        showtimes = public_showtimes(upcoming, user)
     for d in showtimes:
         d.pop('movie', None)          # the page has it once, at the top
 
@@ -1819,6 +1825,14 @@ def film_detail(movie_id):
         if score >= RARE_MIN_SCORE:
             rare = {'score': score, 'reasons': why}
 
+    if not group:
+        want, _ = interest_counts([movie_id])
+        return jsonify({
+            'movie': movie.to_dict(), 'showtimes': showtimes, 'club': None, 'rare': rare,
+            'interest': {'want': want.get(movie_id)},
+            'viewer_wants': bool(user and Watchlist.query.filter_by(user_id=user.id, movie_id=movie_id).first()),
+        })
+
     def people(ids):
         return [_brief_user(members[i]) for i in ids if i in members]
 
@@ -1834,34 +1848,141 @@ def film_detail(movie_id):
 # ─── Discover (shelves, browse, surprise) ─────────────────────────────────────
 # The engine lives in discover.py; the bot's internal routes use it too.
 
-def _discover_group():
-    """(user, group, error) for a signed-in member's group from ?group_id."""
+# ─── Public mode (R5a) ────────────────────────────────────────────────────────
+# What's playing is public; what members do is not. Every schedule route reads
+# its scope here: with ?group_id it's club mode (active membership required,
+# exactly as before); without it, public mode — all tracked theatres, and
+# screenings serialized by public_showtimes(), which never carries names, ids,
+# RSVPs, reactions, comments or Discord links. Only anonymous counts, and only
+# from PUBLIC_MIN_COUNT up, so "1 going" can't point at someone.
+
+PUBLIC_MIN_COUNT = 3
+PUBLIC_CACHE_SECONDS = 300
+_public_cache = {}
+
+
+def view_scope():
+    """(viewer or None, group or None, error). No group_id → public mode."""
     user = current_user()
     group_id = request.args.get('group_id', type=int)
-    err = require_group_member(group_id)
-    return user, (db.session.get(Group, group_id) if not err else None), err
+    if not group_id:
+        return user, None, None
+    if not user:
+        return None, None, (jsonify({'error': 'Not authenticated'}), 401)
+    if not _active_membership(user, group_id):
+        return user, None, (jsonify({'error': 'Not a member of this group'}), 403)
+    return user, db.session.get(Group, group_id), None
+
+
+def _public_count(n):
+    return n if n and n >= PUBLIC_MIN_COUNT else None
+
+
+def interest_counts(movie_ids=(), showtime_ids=()):
+    """Anonymous interest: ({movie_id: want}, {showtime_id: going}), counted
+    across everyone (every club), small numbers withheld."""
+    want, going = {}, {}
+    if movie_ids:
+        want = {mid: _public_count(n) for mid, n in db.session.query(Watchlist.movie_id, db.func.count(db.distinct(Watchlist.user_id)))
+                .filter(Watchlist.movie_id.in_(set(movie_ids))).group_by(Watchlist.movie_id)}
+    if showtime_ids:
+        going = {sid: _public_count(n) for sid, n in db.session.query(RSVP.showtime_id, db.func.count(db.distinct(RSVP.user_id)))
+                 .filter(RSVP.showtime_id.in_(set(showtime_ids)), RSVP.status == 'going').group_by(RSVP.showtime_id)}
+    return want, going
+
+
+def public_showtimes(showtimes, viewer=None):
+    """Screenings for public mode. Same shape as the club serializer (so the
+    site renders either), with every member field empty."""
+    want, going = interest_counts({s.movie_id for s in showtimes}, [s.id for s in showtimes])
+    genres = {g.strip().lower() for g in ((viewer.favorite_genres if viewer else '') or '').split(',') if g.strip()}
+    out = []
+    for s in showtimes:
+        movie_genres = {g.strip().lower() for g in (s.movie.genres or '').split(',') if g.strip()}
+        out.append({
+            'id': s.id, 'movie': s.movie.to_dict(), 'theatre': s.theatre.to_dict(),
+            'start_time': s.start_time.isoformat(), 'end_time': s.end_time.isoformat() if s.end_time else None,
+            'purchase_link': s.purchase_link, 'is_sold_out': s.is_sold_out,
+            'format_label': s.format_label, 'event_label': s.event_label,
+            'attendees': [], 'maybes': [], 'user_rsvp': None, 'reactions': {}, 'message_count': 0,
+            'user_attendance': None, 'discord_thread_url': None, 'discord': None,
+            'recommended': bool(genres & movie_genres),          # the viewer's own genres only
+            'interest': {'going': going.get(s.id), 'want': want.get(s.movie_id)},
+            'public': True,
+        })
+    return out
+
+
+def _cards_in(obj):
+    """Every Discover card (a dict with 'movie' and 'club') inside a response."""
+    if isinstance(obj, dict):
+        if 'movie' in obj and 'club' in obj:
+            yield obj
+        for v in obj.values():
+            yield from _cards_in(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _cards_in(v)
+
+
+def publicize_cards(payload):
+    """Discover cards in public mode: drop the club block, add anonymous interest."""
+    cards = list(_cards_in(payload))
+    want, going = interest_counts({c['movie']['id'] for c in cards}, {c['next']['showtime_id'] for c in cards if c.get('next')})
+    for c in cards:
+        c.pop('club', None)
+        c['interest'] = {'want': want.get(c['movie']['id']),
+                         'going': going.get(c['next']['showtime_id']) if c.get('next') else None}
+    return payload
+
+
+def public_cached(key, build):
+    """Anonymous public responses, cached briefly per worker."""
+    hit = _public_cache.get(key)
+    now = time.monotonic()
+    if hit and now - hit[0] < PUBLIC_CACHE_SECONDS:
+        return hit[1]
+    value = build()
+    if len(_public_cache) > 500:
+        _public_cache.clear()
+    _public_cache[key] = (now, value)
+    return value
+
+
+def _discover_group():
+    """(viewer, group or None, error): club mode with ?group_id, public otherwise."""
+    return view_scope()
 
 
 @app.route('/api/discover')
-@require_auth
 def discover_page():
+    """Club mode with ?group_id; public mode (cached for visitors) without."""
     import discover
     user, group, err = _discover_group()
     if err:
         return err
-    return jsonify(discover.discover(group, user))
+    if group:
+        return jsonify(discover.discover(group, user))
+    build = lambda: publicize_cards(discover.discover(None, user))
+    return jsonify(build() if user else public_cached(('discover',), build))
 
 
 @app.route('/api/discover/browse')
-@require_auth
 def discover_browse():
     import discover
     user, group, err = _discover_group()
     if err:
         return err
     params = {k: request.args.get(k) for k in BROWSE_PARAMS}
+    offset = max(0, request.args.get('offset', 0, type=int))
+    if not group and params.get('club'):          # club filters mean nothing in public mode
+        params['club'] = None
     try:
-        return jsonify(discover.browse(group, user, params, offset=max(0, request.args.get('offset', 0, type=int))))
+        if group:
+            return jsonify(discover.browse(group, user, params, offset=offset))
+        build = lambda: publicize_cards(discover.browse(None, user, params, offset=offset))
+        key = ('browse', offset, tuple(sorted((k, v) for k, v in params.items() if v)))
+        return jsonify(build() if user else public_cached(key, build))
     except ValueError:
         return jsonify({'error': 'Bad date'}), 400
 
@@ -1871,7 +1992,6 @@ BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade'
 
 
 @app.route('/api/discover/calendar')
-@require_auth
 def discover_calendar():
     """The Calendar's screenings: every showing of the films matching Browse's
     filters (same parameters, from/to = the days shown), each marked rare as
@@ -1881,25 +2001,34 @@ def discover_calendar():
     if err:
         return err
     params = {k: request.args.get(k) for k in BROWSE_PARAMS}
-    try:
+    if not group and params.get('club'):          # club filters mean nothing in public mode
+        params['club'] = None
+
+    def build():
         films, ctx, reasons, start, end = discover.select(group, user, params)
+        rare = {f.movie.id: f.rare_reasons for f in films if f.rare_score >= ctx['rare_min']}
+        shows = sorted((s for f in films for s in f.shows), key=lambda s: s.start_time)
+        if group:
+            dicts = _with_attendance(user, shows, [
+                s.to_dict(user_id=user.id, group_id=group.id, user_genres=user.favorite_genres) for s in shows], group.id)
+        else:
+            dicts = public_showtimes(shows, user)
+        for s, d in zip(shows, dicts):
+            d['rare'] = rare.get(s.movie_id)
+            d['shelf_reasons'] = reasons.get(s.movie_id)
+        return {'showtimes': dicts, 'total': len(films), 'facets': discover.facets(films),
+                'regions': discover.REGIONS,
+                'title': discover.SHELF_TITLES.get(params.get('shelf'))
+                or discover.MOODS.get(params.get('mood') or '', {}).get('label')}
+    try:
+        if group or user:
+            return jsonify(build())
+        return jsonify(public_cached(('calendar', tuple(sorted((k, v) for k, v in params.items() if v))), build))
     except ValueError:
         return jsonify({'error': 'Bad date'}), 400
-    rare = {f.movie.id: f.rare_reasons for f in films if f.rare_score >= ctx['rare_min']}
-    shows = sorted((s for f in films for s in f.shows), key=lambda s: s.start_time)
-    dicts = _with_attendance(user, shows, [
-        s.to_dict(user_id=user.id, group_id=group.id, user_genres=user.favorite_genres) for s in shows], group.id)
-    for s, d in zip(shows, dicts):
-        d['rare'] = rare.get(s.movie_id)
-        d['shelf_reasons'] = reasons.get(s.movie_id)
-    return jsonify({'showtimes': dicts, 'total': len(films), 'facets': discover.facets(films),
-                    'regions': discover.REGIONS,
-                    'title': discover.SHELF_TITLES.get(params.get('shelf'))
-                    or discover.MOODS.get(params.get('mood') or '', {}).get('label')})
 
 
 @app.route('/api/discover/surprise')
-@require_auth
 def discover_surprise():
     import discover
     user, group, err = _discover_group()
@@ -1907,6 +2036,8 @@ def discover_surprise():
         return err
     exclude = [_as_int(x) for x in (request.args.get('exclude') or '').split(',') if _as_int(x)]
     pick = discover.surprise(group, user, request.args.get('when', 'tonight'), exclude)
+    if pick and not group:
+        pick = publicize_cards(pick)
     return jsonify(pick or {'error': 'nothing_playing'}), (200 if pick else 404)
 
 
@@ -3095,7 +3226,6 @@ def delete_message(message_id):
 # ─── Routes: Calendar Export ──────────────────────────────────────────────────
 
 @app.route('/api/showtimes/<int:sid>/ical')
-@require_auth
 def showtime_ical(sid):
     showtime = db.session.get(Showtime, sid)
     if not showtime:
@@ -3138,7 +3268,6 @@ END:VCALENDAR"""
 
 
 @app.route('/api/showtimes/<int:sid>/gcal-url')
-@require_auth
 def showtime_gcal_url(sid):
     showtime = db.session.get(Showtime, sid)
     if not showtime:

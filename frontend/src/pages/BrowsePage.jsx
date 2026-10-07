@@ -6,6 +6,7 @@ import SearchBox from "../ui/SearchBox";
 import FilterSheet, { FILTER_LABEL as LABEL, listOf } from "../ui/FilterSheet";
 import Menu, { MenuItem } from "../ui/Menu";
 import "./DiscoverPage.css";
+import { groupParam } from "../scope";
 
 // Every filter lives in the URL, so any view is a shareable link (and the
 // bot's /find answers can link straight to the same view).
@@ -45,7 +46,7 @@ export default function BrowsePage({ apiBase, groupId }) {
   useEffect(() => {
     let live = true;
     setLoading(true);
-    fetch(`${apiBase}/api/discover/browse?group_id=${groupId}&${qs}`, { credentials: "include" })
+    fetch(`${apiBase}/api/discover/browse?${groupParam(groupId)}${qs}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(d => { if (live) { setFilms(d.films); setMeta(d); setFailed(false); } })
       .catch(() => { if (live) { setFilms([]); setMeta(null); setFailed(true); } })
@@ -54,7 +55,7 @@ export default function BrowsePage({ apiBase, groupId }) {
   }, [apiBase, groupId, qs]);
 
   async function loadMore() {
-    const r = await fetch(`${apiBase}/api/discover/browse?group_id=${groupId}&${qs}&offset=${meta.next_offset}`,
+    const r = await fetch(`${apiBase}/api/discover/browse?${groupParam(groupId)}${qs}&offset=${meta.next_offset}`,
                           { credentials: "include" }).catch(() => null);
     if (!r?.ok) return;
     const d = await r.json();
@@ -157,7 +158,7 @@ export default function BrowsePage({ apiBase, groupId }) {
       )}
 
       {filtersOpen && (
-        <FilterSheet query={query} multi={MULTI} meta={meta} theatreNames={theatreNames} total={meta?.total}
+        <FilterSheet query={query} multi={MULTI} meta={meta} theatreNames={theatreNames} total={meta?.total} club={!!groupId}
                      onToggle={set} onClear={clearAll} onClose={() => setFiltersOpen(false)} />
       )}
     </div>

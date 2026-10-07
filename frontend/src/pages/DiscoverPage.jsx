@@ -6,6 +6,7 @@ import SearchBox from "../ui/SearchBox";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
+import { groupParam } from "../scope";
 import "./DiscoverPage.css";
 
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
@@ -25,8 +26,8 @@ function Surprise({ apiBase, groupId }) {
 
   async function spin(nextWhen = when, exclude = seen) {
     setState("loading");
-    const qs = new URLSearchParams({ group_id: groupId, when: nextWhen, exclude: exclude.join(",") });
-    const r = await fetch(`${apiBase}/api/discover/surprise?${qs}`, { credentials: "include" }).catch(() => null);
+    const qs = new URLSearchParams({ when: nextWhen, exclude: exclude.join(",") });
+    const r = await fetch(`${apiBase}/api/discover/surprise?${groupParam(groupId)}${qs}`, { credentials: "include" }).catch(() => null);
     if (r?.ok) {
       const p = await r.json();
       setPick(p);
@@ -220,6 +221,22 @@ function Spotlights({ items }) {
   );
 }
 
+// Visitors (and members without a club) get this instead of the club strip.
+function JoinClub({ user }) {
+  return (
+    <section className="join-club">
+      <div>
+        <span className="deco join-club-title">{user ? "Find your club" : "Better with a club"}</span>
+        <p>
+          Clubs see who's going to what, plan screenings together, vote in polls and talk films — on the site and in Discord.
+          {user ? " Join one to see it here." : " Sign in to join one; browsing what's playing is open to everyone."}
+        </p>
+      </div>
+      <Link className="btn btn-primary" to={user ? "/groups" : "/signin?next=%2Fgroups"}>{user ? "Browse clubs" : "Sign in"}</Link>
+    </section>
+  );
+}
+
 // The home page: the club's week, then ways into what's playing.
 export default function DiscoverPage({ user, apiBase, groupId }) {
   const navigate = useNavigate();
@@ -231,7 +248,7 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
   const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId, onChange: refresh });
 
   const load = useCallback(() => {
-    fetch(`${apiBase}/api/discover?group_id=${groupId}`, { credentials: "include" })
+    fetch(`${apiBase}/api/discover?${groupParam(groupId)}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(d => { setData(d); setError(false); })
       .catch(() => setError(true));
@@ -258,12 +275,16 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
 
   return (
     <div className="page discover">
-      <PageHeader title="Discover" subtitle="What's playing across the club's theatres in the next two weeks." />
+      <PageHeader title="Discover" subtitle={`What's playing across ${groupId ? "the club's theatres" : "every DC-area theatre we track"} in the next two weeks.`} />
       <SearchBox onSearch={q => navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
 
-      <AttendancePrompt apiBase={apiBase} refreshKey={refreshKey} onAnswer={answerAttendance} onOpenShowtime={openShowtime} />
-      <ClubWeek apiBase={apiBase} groupId={groupId} viewerId={user.id} refreshKey={refreshKey}
-                onOpenShowtime={openShowtime} onOpenActivity={shell.openActivity} />
+      {groupId ? (
+        <>
+          <AttendancePrompt apiBase={apiBase} refreshKey={refreshKey} onAnswer={answerAttendance} onOpenShowtime={openShowtime} />
+          <ClubWeek apiBase={apiBase} groupId={groupId} viewerId={user.id} refreshKey={refreshKey}
+                    onOpenShowtime={openShowtime} onOpenActivity={shell.openActivity} />
+        </>
+      ) : <JoinClub user={user} />}
 
       <div className="discover-top">
         <Surprise apiBase={apiBase} groupId={groupId} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import GroupDiscovery from "./pages/GroupDiscovery";
@@ -13,6 +13,7 @@ import FilmPage from "./pages/FilmPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import BrowsePage from "./pages/BrowsePage";
 import AppShell from "./shell/AppShell";
+import { rememberNext, safeNext } from "./afterSignIn";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -37,53 +38,34 @@ function readDiscordNotice() {
   return { text: DISCORD_NOTICES[key] || "Discord sign-in didn't work — please try again.", error: !!error };
 }
 
-function AuthGuard({ user, loading, children, apiBase, onLogin }) {
-  const params = useParams();
-
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <span className="marquee-text">CINEMA CLUB DC</span>
-      </div>
-    );
-  }
-
-  // If on invite route and not logged in, show invite acceptance
-  if (!user && params.token) {
-    return <Login onLogin={onLogin} apiBase={apiBase} inviteToken={params.token} />;
-  }
-
-  if (!user) {
-    return <Login onLogin={onLogin} apiBase={apiBase} />;
-  }
-
-  return children;
+function Loading() {
+  return (
+    <div className="loading-screen">
+      <span className="marquee-text">CINEMA CLUB DC</span>
+    </div>
+  );
 }
 
-// Group pages (Discover, Calendar…): redirect to /groups if the user has no groups.
-function GroupGate({ user, groupId, hasGroups, children }) {
-  const navigate = useNavigate();
+// The sign-in page (/signin?next=…): back to where you were once signed in.
+function SignIn({ user, onLogin, apiBase }) {
+  const [params] = useSearchParams();
+  const target = safeNext(params.get("next")) || "/";
+  if (user) return <Navigate to={target} replace />;
+  rememberNext(target);
+  return <Login onLogin={onLogin} apiBase={apiBase} next={target} />;
+}
 
-  useEffect(() => {
-    if (user && !hasGroups) {
-      navigate("/groups", { replace: true });
-    }
-  }, [user, hasGroups, navigate]);
+// Invite links: accept on sign-in, then home.
+function InviteRoute({ user, onLogin, apiBase }) {
+  const params = useParams();
+  if (user) return <Navigate to="/" replace />;
+  return <Login onLogin={onLogin} apiBase={apiBase} inviteToken={params.token} />;
+}
 
-  if (!groupId) {
-    return (
-      <div className="page narrow">
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", gap: "1rem", textAlign: "center" }}>
-          <h2 className="deco center" style={{ color: "var(--amber)", fontSize: "1.8rem", fontWeight: 400 }}>Welcome to Cinema Club DC</h2>
-          <p style={{ color: "var(--muted)" }}>Join a group to see showtimes and RSVP with friends.</p>
-          <button className="btn btn-primary" onClick={() => navigate("/groups")}>
-            Find a group
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+// Pages that need an account (your profile, a club's polls / members / board).
+function RequireSignIn({ user, children }) {
+  const location = useLocation();
+  if (!user) return <Navigate to={`/signin?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   return children;
 }
 
@@ -159,6 +141,9 @@ export default function App() {
     fetchGroups();
   }
 
+  // Public pages run in club mode only for a signed-in member of a club.
+  const scopeGroupId = user && hasGroups ? activeGroupId : null;
+
   function handleSetGroupId(id) {
     setActiveGroupId(id);
     setHasGroups(true);
@@ -173,90 +158,40 @@ export default function App() {
           <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>&times;</button>
         </div>
       )}
+      {loading ? <Loading /> : (
       <Routes>
-        {/* Emailed sign-in links land here; deliberately outside AuthGuard. */}
-        <Route
-          path="/auth/verify"
-          element={<VerifySignin apiBase={API_BASE} onLogin={handleLogin} />}
-        />
-        <Route
-          path="/invite/:token"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <Navigate to="/" replace />
-            </AuthGuard>
-          }
-        />
-        {/* Every signed-in page shares the app shell (top bar, phone tab bar). */}
-        <Route
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <AppShell user={user} setUser={setUser} apiBase={API_BASE}
-                        groupId={activeGroupId} setGroupId={handleSetGroupId} />
-            </AuthGuard>
-          }
-        >
-          <Route
-            path="/"
-            element={
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <DiscoverPage user={user} apiBase={API_BASE} groupId={activeGroupId} />
-              </GroupGate>
-            }
-          />
-          <Route
-            path="/calendar"
-            element={
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <Calendar user={user} setUser={setUser} apiBase={API_BASE}
-                          groupId={activeGroupId} setGroupId={handleSetGroupId} />
-              </GroupGate>
-            }
-          />
-          <Route
-            path="/films/:id"
-            element={
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <FilmPage user={user} apiBase={API_BASE} groupId={activeGroupId} />
-              </GroupGate>
-            }
-          />
+        {/* Emailed sign-in links land here. */}
+        <Route path="/auth/verify" element={<VerifySignin apiBase={API_BASE} onLogin={handleLogin} />} />
+        <Route path="/signin" element={<SignIn user={user} onLogin={handleLogin} apiBase={API_BASE} />} />
+        <Route path="/invite/:token" element={<InviteRoute user={user} onLogin={handleLogin} apiBase={API_BASE} />} />
+        {/* Every page shares the app shell; what's playing is public (R5a). */}
+        <Route element={<AppShell user={user} setUser={setUser} apiBase={API_BASE}
+                                  groupId={scopeGroupId} setGroupId={handleSetGroupId} />}>
+          <Route path="/" element={<DiscoverPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/calendar" element={<Calendar user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/films/:id" element={<FilmPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           {/* Discover is home now; old /discover links land there too. */}
           <Route path="/discover" element={<Navigate to="/" replace />} />
-          <Route
-            path="/browse"
-            element={
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <BrowsePage apiBase={API_BASE} groupId={activeGroupId} />
-              </GroupGate>
-            }
-          />
-          <Route path="/me" element={<MePage user={user} apiBase={API_BASE} groupId={activeGroupId} />} />
-          <Route
-            path="/groups"
-            element={<GroupDiscovery user={user} setUser={setUser} apiBase={API_BASE}
-                                     activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />}
-          />
-          <Route
-            path="/members"
-            element={<MembersPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} />}
-          />
-          <Route
-            path="/polls"
-            element={<PollsPage user={user} setUser={setUser} apiBase={API_BASE}
-                                activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />}
-          />
-          <Route
-            path="/leaderboard"
-            element={<LeaderboardPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} />}
-          />
-          <Route
-            path="/polls/:pollId"
-            element={<PollDetailPage user={user} setUser={setUser} apiBase={API_BASE} />}
-          />
+          <Route path="/browse" element={<BrowsePage apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/me" element={<RequireSignIn user={user}><MePage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/groups" element={
+            <RequireSignIn user={user}>
+              <GroupDiscovery user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />
+            </RequireSignIn>} />
+          <Route path="/members" element={
+            <RequireSignIn user={user}><MembersPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
+          <Route path="/polls" element={
+            <RequireSignIn user={user}>
+              <PollsPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />
+            </RequireSignIn>} />
+          <Route path="/leaderboard" element={
+            <RequireSignIn user={user}><LeaderboardPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
+          <Route path="/polls/:pollId" element={
+            <RequireSignIn user={user}><PollDetailPage user={user} setUser={setUser} apiBase={API_BASE} /></RequireSignIn>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      )}
     </BrowserRouter>
   );
 }

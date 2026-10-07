@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useCallback } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import GroupSwitcher from "../components/GroupSwitcher";
 import ProfileEditor from "../components/ProfileMenu";
 import Sheet from "../ui/Sheet";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { CalendarIcon, CompassIcon, PollIcon, UserIcon, EditIcon, LogoutIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 
@@ -16,19 +16,23 @@ import { accountLabel } from "../accountLabel";
 const ShellContext = createContext(null);
 export const useShell = () => useContext(ShellContext);
 
-// Discover is home (R3c); the old Feed lives in the activity panel.
-const NAV = [
+// Discover is home (R3c); the old Feed lives in the activity panel. Visitors
+// get the public pages; Polls needs a club, Clubs is for finding one (R5a).
+const PUBLIC_NAV = [
   { to: "/", label: "Discover", icon: CompassIcon, end: true, also: "/browse" },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { to: "/polls", label: "Polls", icon: PollIcon },
 ];
+const CLUB_NAV = [...PUBLIC_NAV, { to: "/polls", label: "Polls", icon: PollIcon }];
+const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: UsersIcon }];
 
 const linkClass = (base, also, pathname) => ({ isActive }) =>
   `${base}${isActive || (also && pathname.startsWith(also)) ? " active" : ""}`;
 
 export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const NAV = !user ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
+  const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
   const [editing, setEditing] = useState(false);
 
   const logout = useCallback(async () => {
@@ -40,7 +44,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
     }
   }, [apiBase, setUser, navigate]);
 
-  const activity = useActivity({ apiBase, groupId, user });
+  const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
   const shell = { user, setUser, apiBase, groupId, setGroupId, logout, editProfile: () => setEditing(true),
                   openActivity: activity.open };
 
@@ -57,9 +61,10 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
             ))}
           </nav>
           <div className="topbar-spacer" />
-          <GroupSwitcher apiBase={apiBase} activeGroupId={groupId} setGroupId={setGroupId} />
-          <ActivityBell unread={activity.unread} onOpen={activity.open} />
-          <Menu
+          {user && groupId && <GroupSwitcher apiBase={apiBase} activeGroupId={groupId} setGroupId={setGroupId} />}
+          {user && groupId && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
+          {!user && <Link className="btn btn-sm btn-primary topbar-signin" to={signInLink}>Sign in</Link>}
+          {user && <Menu
             className="topbar-avatar"
             label="Your account"
             trigger={<Avatar user={user} size={32} />}
@@ -69,7 +74,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
             <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
             <MenuDivider />
             <MenuItem danger onSelect={logout}><LogoutIcon /> Sign out</MenuItem>
-          </Menu>
+          </Menu>}
         </header>
 
         <main className="shell-main">
@@ -77,7 +82,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
         </main>
 
         <nav className="tabbar" aria-label="Main">
-          {[...NAV, { to: "/me", label: "Me", icon: UserIcon }].map(({ to, label, icon: Icon, end, also }) => (
+          {[...NAV, user ? { to: "/me", label: "Me", icon: UserIcon } : { to: signInLink, label: "Sign in", icon: UserIcon }].map(({ to, label, icon: Icon, end, also }) => (
             <NavLink key={to} to={to} end={end} className={linkClass("tabbar-link", also, pathname)}>
               <Icon />{label}
             </NavLink>

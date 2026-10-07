@@ -23,8 +23,9 @@ export const listOf = v => (v ? v.split(",").filter(Boolean) : []);
  * onToggle(key, value): add/remove (lists) or set/clear (single)
  * children: extra sections (e.g. the Calendar's "Who's going")
  * note: a line above the buttons (e.g. a link to Browse)
+ * club: show "The club" filters (only in club mode)
  */
-export default function FilterSheet({ query, multi, meta, theatreNames, total, onToggle, onClear, onClose, children, note }) {
+export default function FilterSheet({ query, multi, meta, theatreNames, total, onToggle, onClear, onClose, children, note, club = true }) {
   const Choice = ({ k, v, children: label, count }) => {
     const on = multi.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
     return (
@@ -76,7 +77,7 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
             <div className="filter-chips">{decades.map(([d, n]) => <Choice key={d} k="decade" v={d} count={n}>{d}s</Choice>)}</div>
           </fieldset>
         )}
-        {["format", "time", "rarity", "club", "runtime"].map(k => (
+        {["format", "time", "rarity", ...(club ? ["club"] : []), "runtime"].map(k => (
           <fieldset key={k}><legend>{{ format: "Format", time: "Time of day", rarity: "Rarity", club: "The club", runtime: "Length" }[k]}</legend>
             <div className="filter-chips">{FILTER_OPTIONS[k].map(([v, l]) => <Choice key={v} k={k} v={v}>{l}</Choice>)}</div>
           </fieldset>

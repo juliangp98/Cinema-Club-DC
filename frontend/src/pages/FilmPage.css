@@ -75,3 +75,5 @@
   .film-title { font-size: 1.6rem; }
   .film-actions .btn { flex: 1 1 auto; }
 }
+
+.film-interest { font-size: var(--fs-sm); color: var(--muted); margin-top: 0.5rem; }

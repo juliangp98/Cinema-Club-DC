@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
-export default function Login({ onLogin, apiBase, inviteToken }) {
+export default function Login({ onLogin, apiBase, inviteToken, next }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -172,7 +173,7 @@ export default function Login({ onLogin, apiBase, inviteToken }) {
               <>
                 <div className="auth-or">or</div>
                 {/* Signs in, or creates an account for Discord members — no separate sign-up. */}
-                <a className="auth-discord-btn" href={`${apiBase}/api/auth/discord/start`}>
+                <a className="auth-discord-btn" href={`${apiBase}/api/auth/discord/start${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>
                   SIGN IN WITH DISCORD
                 </a>
               </>
@@ -189,6 +190,8 @@ export default function Login({ onLogin, apiBase, inviteToken }) {
             </p>
           </form>
         )}
+        {/* What's playing is open to everyone (R5a). */}
+        {!inviteToken && <Link className="auth-browse" to="/">‹ Keep browsing without signing in</Link>}
       </div>
     </div>
   );

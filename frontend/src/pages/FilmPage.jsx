@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
+import { groupParam } from "../scope";
 
 const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -39,7 +40,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [profileUserId, setProfileUserId] = useState(null);
 
   const load = useCallback(() => {
-    fetch(`${apiBase}/api/films/${id}?group_id=${groupId}`, { credentials: "include" })
+    fetch(`${apiBase}/api/films/${id}?${groupParam(groupId)}`, { credentials: "include" })
       .then(async r => {
         if (!r.ok) throw new Error(r.status === 404 ? "That film isn't in our listings." : "Couldn't load this film.");
         return r.json();
@@ -104,9 +105,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
   }
   if (!data) return <div className="page narrow film-empty"><p>Loading…</p></div>;
 
-  const { movie, club, rare } = data;
+  const { movie, club, rare, interest } = data;           // club is null in public mode (R5a)
   const genres = (movie.genres || "").split(",").map(g => g.trim()).filter(Boolean);
-  const hasClub = club.wanters.length || club.going.length || club.seen.length;
+  const hasClub = club ? club.wanters.length || club.going.length || club.seen.length : 0;
 
   return (
     <div className="film-page">
@@ -131,10 +132,15 @@ export default function FilmPage({ user, apiBase, groupId }) {
                 </div>
               )}
               <div className="film-ratings"><RatingBadges movie={movie} /></div>
+              {!club && interest?.want && <p className="film-interest">{interest.want} people want to see it</p>}
               <div className="film-actions">
-                <button className={`btn${watching ? " btn-primary" : ""}`} onClick={toggleWatch}>
-                  {watching ? "✓ On your watchlist" : "＋ Watchlist"}
-                </button>
+                {user ? (
+                  <button className={`btn${watching ? " btn-primary" : ""}`} onClick={toggleWatch}>
+                    {watching ? "✓ On your watchlist" : "＋ Watchlist"}
+                  </button>
+                ) : (
+                  <Link className="btn" to={`/signin?next=${encodeURIComponent(`/films/${id}`)}`}>＋ Sign in to save</Link>
+                )}
                 <button className="btn" onClick={share}>{copied ? "Link copied" : "Share"}</button>
                 {(movie.trailer_key || movie.trailer_link) && (
                   <a className="btn btn-ghost" href="#trailer">▶ Trailer</a>
@@ -169,8 +175,8 @@ export default function FilmPage({ user, apiBase, groupId }) {
         )}
         {days.length === 0 ? (
           <p className="film-none">
-            No upcoming showings at your club's theatres.
-            {!watching && " Add it to your watchlist and the weekly digest will tell you when it's back."}
+            {club ? "No upcoming showings at your club's theatres." : "No upcoming showings at the theatres we track."}
+            {user && !watching && " Add it to your watchlist and the weekly digest will tell you when it's back."}
           </p>
         ) : (
           <div className="film-days">
@@ -179,7 +185,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
                 <div className="film-day-label">{dayLabel(list[0].start_time)}</div>
                 <div className="film-shows">
                   {list.map(s => {
-                    const friends = (s.attendees || []).filter(a => a.id !== user.id);
+                    const friends = (s.attendees || []).filter(a => a.id !== user?.id);
                     return (
                       <button key={s.id} type="button" onClick={() => openShowtime(s.id)}
                               className={`show-chip${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}>
@@ -217,7 +223,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
 
       {sheet}
       {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user.id} apiBase={apiBase}
+        <UserProfileDrawer userId={profileUserId} viewerId={user?.id} apiBase={apiBase}
                            onClose={() => setProfileUserId(null)}
                            onOpenShowtime={sid => { setProfileUserId(null); openShowtime(sid); }} />
       )}

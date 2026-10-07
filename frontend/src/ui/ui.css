@@ -404,3 +404,11 @@ a.share-state { color: #6fbf98; }
 .poll-discord-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; font-size: var(--fs-sm); }
 .poll-discord-row.nudge .share-state { color: var(--amber); }
 .poll-discord-label { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); min-width: 7.5rem; }
+
+/* Public mode (R5a): what you'd get with an account or a club */
+.ticket-cta { font-size: var(--fs-xs); color: var(--muted); }
+.ticket-cta a { color: var(--amber); white-space: nowrap; }
+.drawer-interest { font-size: var(--fs-sm); color: var(--muted); margin: 0.25rem 0 0.75rem; }
+.topbar-signin { flex-shrink: 0; }
+.auth-browse { display: block; margin-top: 1.25rem; font-size: var(--fs-sm); color: var(--muted); text-align: center; }
+.auth-browse:hover { color: var(--amber); }

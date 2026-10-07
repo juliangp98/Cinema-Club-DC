@@ -9,6 +9,7 @@ import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
 import "./DiscoverPage.css";        // the Filters sheet looks the same as Browse's
 import "./Calendar.css";
+import { groupParam } from "../scope";
 
 // The calendar (R4): Agenda (a poster grid per day), Week (columns) and Month
 // (overview; tap a day for just that day). A film playing at several theatres
@@ -251,6 +252,7 @@ export default function Calendar({ user, apiBase, groupId }) {
       .then(r => (r.ok ? r.json() : []))
       .then(ts => { if (live) setTheatreNames(Object.fromEntries(ts.map(t => [t.slug, t.short_name || t.name]))); })
       .catch(() => {});
+    if (!groupId) { setMembers([]); return () => { live = false; }; }      // public mode: no members
     fetch(`${apiBase}/api/groups/by-id/${groupId}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(g => (g?.slug ? fetch(`${apiBase}/api/groups/${g.slug}/members`, { credentials: "include" }) : null))
@@ -263,7 +265,7 @@ export default function Calendar({ user, apiBase, groupId }) {
   const fetchShowtimes = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${apiBase}/api/discover/calendar?group_id=${groupId}&from=${startKey}&to=${lastKey}${serverQs ? `&${serverQs}` : ""}`,
+      const r = await fetch(`${apiBase}/api/discover/calendar?${groupParam(groupId)}from=${startKey}&to=${lastKey}${serverQs ? `&${serverQs}` : ""}`,
                             { credentials: "include" });
       if (!r.ok) throw new Error();
       setData(await r.json());
@@ -278,7 +280,7 @@ export default function Calendar({ user, apiBase, groupId }) {
 
   // Deep link: open one screening.
   const openShowtime = useCallback(id => {
-    fetch(`${apiBase}/api/showtimes/${id}?group_id=${groupId}`, { credentials: "include" })
+    fetch(`${apiBase}/api/showtimes/${id}?${groupParam(groupId)}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(s => { if (s) setSelected([s]); })
       .catch(() => {});
@@ -293,7 +295,7 @@ export default function Calendar({ user, apiBase, groupId }) {
   const visible = useMemo(() => data.showtimes.filter(s => passes(s, members_)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, query.members]);
-  const days = useMemo(() => groupByDay(visible, user.id), [visible, user.id]);
+  const days = useMemo(() => groupByDay(visible, user?.id), [visible, user?.id]);
   const dayList = [];
   for (let d = start; d < end; d = addDays(d, 1)) dayList.push(d);
   const filmCount = new Set(visible.map(s => s.movie.id)).size;
@@ -357,8 +359,8 @@ export default function Calendar({ user, apiBase, groupId }) {
           };
           return (
             <>
-              <div className="cal-quick-group">{CLUB_PILLS.map((p, i) => pill(p, i))}</div>
-              <span className="cal-quick-sep" aria-hidden="true" />
+              {groupId && <div className="cal-quick-group">{CLUB_PILLS.map((p, i) => pill(p, i))}</div>}
+              {groupId && <span className="cal-quick-sep" aria-hidden="true" />}
               <div className="cal-quick-group">
                 {SMART_PILLS.map((p, i) => pill(p, i, i >= PHONE_PILLS))}
                 <button type="button" className="chip cal-quick-more" aria-expanded={allPills} onClick={() => setAllPills(o => !o)}>
@@ -371,7 +373,7 @@ export default function Calendar({ user, apiBase, groupId }) {
         })()}
       </div>
 
-      <AttendancePrompt apiBase={apiBase} refreshKey={attendanceKey} onAnswer={handleAttendance} onOpenShowtime={openShowtime} />
+      {groupId && <AttendancePrompt apiBase={apiBase} refreshKey={attendanceKey} onAnswer={handleAttendance} onOpenShowtime={openShowtime} />}
 
       {failed ? (
         <p className="cal-empty">Couldn't load the calendar — <button type="button" className="share-link" onClick={fetchShowtimes}>try again</button>.</p>
@@ -465,7 +467,7 @@ export default function Calendar({ user, apiBase, groupId }) {
       )}
 
       {filtersOpen && (
-        <FilterSheet query={query} multi={MULTI} meta={data} theatreNames={theatreNames} total={filmCount}
+        <FilterSheet query={query} multi={MULTI} meta={data} theatreNames={theatreNames} total={filmCount} club={!!groupId}
                      onToggle={toggle} onClear={clearFilters} onClose={() => setFiltersOpen(false)}
                      note={<>Sort, search and more in <Link to={browseLink} onClick={() => setFiltersOpen(false)}>Browse →</Link></>}>
           {members.length > 0 && (
@@ -475,7 +477,7 @@ export default function Calendar({ user, apiBase, groupId }) {
                   const on = members_.includes(String(m.id));
                   return (
                     <button key={m.id} type="button" className={`chip filter-choice${on ? " gold" : ""}`} aria-pressed={on} onClick={() => toggle("members", String(m.id))}>
-                      <Avatar user={m} size={18} /> {m.id === user.id ? "You" : m.name}
+                      <Avatar user={m} size={18} /> {m.id === user?.id ? "You" : m.name}
                     </button>
                   );
                 })}
@@ -491,7 +493,7 @@ export default function Calendar({ user, apiBase, groupId }) {
                         onViewProfile={setProfileUserId} />
       )}
       {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user.id} apiBase={apiBase}
+        <UserProfileDrawer userId={profileUserId} viewerId={user?.id} apiBase={apiBase}
                            onClose={() => setProfileUserId(null)}
                            onAttendanceChange={() => setAttendanceKey(k => k + 1)}
                            onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }} />

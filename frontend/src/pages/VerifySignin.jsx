@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { takeNext } from "../afterSignIn";
 
 // Landing page for emailed sign-in links (/auth/verify?token=...). The token is
 // redeemed on an explicit click rather than on page load: some mail providers
@@ -28,7 +29,7 @@ export default function VerifySignin({ apiBase, onLogin }) {
         return;
       }
       onLogin(d.user);
-      navigate("/", { replace: true });
+      navigate(takeNext() || "/", { replace: true });
     } catch {
       setError("Could not connect to server");
     } finally {
