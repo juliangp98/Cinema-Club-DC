@@ -278,7 +278,7 @@ class GroupMembership(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
-    role = db.Column(db.String(20), default='member')  # 'admin', 'member'
+    role = db.Column(db.String(20), default='member')  # see ROLE_RANK: viewer, member, organizer, admin
     status = db.Column(db.String(20), default='active')  # 'active', 'pending'
     joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     user = db.relationship('User', lazy=True)
@@ -1114,6 +1114,35 @@ def merge_users(keep, gone):
     db.session.delete(gone)
 
 
+# ─── Club roles (R5c) ─────────────────────────────────────────────────────────
+# Each role includes the ones below it. Admins grant and revoke them.
+#   viewer     read-only: sees the club (who's going, feed, polls, comments)
+#   member     + RSVP, vote, comment, react, "who's in?" and thread starts
+#   organizer  + create / run / score / delete polls and post them to Discord
+#   admin      + members, invites, roles, club settings, deleting the club
+ROLES = ('viewer', 'member', 'organizer', 'admin')
+ROLE_RANK = {r: i for i, r in enumerate(ROLES)}
+ROLE_LABELS = {'viewer': 'Read-only', 'member': 'Member', 'organizer': 'Organizer', 'admin': 'Admin'}
+
+
+def role_at_least(membership, role):
+    return bool(membership and membership.status == 'active'
+                and ROLE_RANK.get(membership.role, ROLE_RANK['member']) >= ROLE_RANK[role])
+
+
+def require_role(user, group_id, role):
+    """(membership, error): `user` must hold at least `role` in the club."""
+    m = _active_membership(user, group_id)
+    if not m:
+        return None, (jsonify({'error': 'Not a member of this group'}), 403)
+    if not role_at_least(m, role):
+        if role == 'member':
+            return m, (jsonify({'error': "You're read-only in this club. Ask an admin to change that.",
+                                'code': 'read_only'}), 403)
+        return m, (jsonify({'error': f'{ROLE_LABELS[role]} access required', 'code': 'role'}), 403)
+    return m, None
+
+
 def require_group_member(group_id):
     """Group-scoped web routes (showtimes, RSVPs, reactions, discussion) must
     name a group the signed-in user actively belongs to — the client-supplied
@@ -1834,10 +1863,78 @@ def remove_member(slug, uid):
 
     if not target:
         return jsonify({'error': 'Member not found'}), 404
+    if _is_last_admin(target):
+        return jsonify({'error': "The club's only admin can't leave. Make someone else an admin first.", 'code': 'last_admin'}), 400
 
     db.session.delete(target)
     db.session.commit()
     return jsonify({'message': 'Member removed'})
+
+
+def _is_last_admin(m):
+    return (m.role == 'admin' and m.status == 'active'
+            and GroupMembership.query.filter_by(group_id=m.group_id, role='admin', status='active').count() <= 1)
+
+
+@app.route('/api/groups/<int:group_id>/personal-plans')
+@require_auth
+def personal_plans(group_id):
+    """Your upcoming personal plans (made as a guest or without a club) that
+    you could share with this club — asked once when you're in it (R5c)."""
+    user = current_user()
+    _, err = require_role(user, group_id, 'member')
+    if err:
+        return err
+    return jsonify({'items': [_screening_item(s, st) for s, st in upcoming_rsvps(user, [], personal=True)]})
+
+
+@app.route('/api/groups/<int:group_id>/personal-plans', methods=['POST'])
+@require_auth
+def bring_plans(group_id):
+    """Share the chosen personal plans with the club: each moves into it (one
+    RSVP, now visible to the club). {showtime_ids: [...]}"""
+    user = current_user()
+    _, err = require_role(user, group_id, 'member')
+    if err:
+        return err
+    ids = {_as_int(x) for x in (request.json or {}).get('showtime_ids', []) if _as_int(x)}
+    moved = 0
+    for r in RSVP.query.filter(RSVP.user_id == user.id, RSVP.group_id.is_(None), RSVP.showtime_id.in_(ids)).all():
+        if RSVP.query.filter_by(user_id=user.id, showtime_id=r.showtime_id, group_id=group_id).first():
+            db.session.delete(r)          # already planned with the club: the club's RSVP stands
+        else:
+            r.group_id = group_id
+            r.updated_at = datetime.now(timezone.utc)
+            thread = ShowtimeThread.query.filter_by(showtime_id=r.showtime_id, group_id=group_id).first()
+            if thread:
+                thread.card_dirty = True
+            rsvp_changed(user.id, r.showtime_id, group_id, r.status)
+            moved += 1
+    db.session.commit()
+    return jsonify({'moved': moved})
+
+
+@app.route('/api/groups/<slug>/members/<int:uid>/role', methods=['PUT'])
+@require_auth
+def set_member_role(slug, uid):
+    # Admins grant or revoke roles; a club always keeps at least one admin.
+    group = Group.query.filter_by(slug=slug).first()
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    _, err = require_role(current_user(), group.id, 'admin')
+    if err:
+        return err
+    role = (request.json or {}).get('role')
+    if role not in ROLES:
+        return jsonify({'error': 'Unknown role'}), 400
+    target = GroupMembership.query.filter_by(user_id=uid, group_id=group.id, status='active').first()
+    if not target:
+        return jsonify({'error': 'Member not found'}), 404
+    if role != 'admin' and _is_last_admin(target):
+        return jsonify({'error': 'A club needs at least one admin. Make someone else an admin first.', 'code': 'last_admin'}), 400
+    target.role = role
+    db.session.commit()
+    return jsonify(target.to_dict())
 
 
 # ─── Routes: Theatres ─────────────────────────────────────────────────────────
@@ -2523,10 +2620,11 @@ def _parse_post_at(value, now):
 
 
 def _can_manage_post(user, p):
+    """Whoever shared it, an organizer for poll posts, or an admin."""
     if p.user_id == user.id:
         return True
     m = GroupMembership.query.filter_by(user_id=user.id, group_id=p.group_id, status='active').first()
-    return bool(m and m.role == 'admin')
+    return role_at_least(m, 'organizer' if p.kind in ('poll', 'poll_results') else 'admin')
 
 
 def _live_post(kind, ref_id, group_id):
@@ -2593,7 +2691,7 @@ def rsvp():
     group_id = _as_int(data.get('group_id'))
     # No club: a personal RSVP (R5b) — only you ever see it.
     if group_id:
-        err = require_group_member(group_id)
+        _, err = require_role(user, group_id, 'member')
         if err:
             return err
 
@@ -2647,7 +2745,7 @@ def create_share():
     user = current_user()
     data = request.json or {}
     kind, group_id = data.get('kind'), _as_int(data.get('group_id'))
-    err = require_group_member(group_id)
+    _, err = require_role(user, group_id, 'member')
     if err:
         return err
     if not discord_group(group_id):
@@ -2684,8 +2782,8 @@ def create_share():
         poll = db.session.get(Poll, _as_int(data.get('poll_id')) or 0)
         if not poll or poll.group_id != group_id:
             return jsonify({'error': 'Poll not found'}), 404
-        if _active_membership(user, group_id).role != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
+        if not role_at_least(_active_membership(user, group_id), 'organizer'):
+            return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
         if kind == 'poll_results' and poll.status != 'scored':
             return jsonify({'error': 'Score the poll first'}), 400
         if data.get('remember'):
@@ -3264,7 +3362,7 @@ def toggle_reaction():
     group_id = _as_int(data.get('group_id'))
     emoji = data.get('emoji')
     if group_id:                       # no club: a personal reaction, public only as a count (R5b)
-        err = require_group_member(group_id)
+        _, err = require_role(user, group_id, 'member')
         if err:
             return err
 
@@ -3373,7 +3471,7 @@ def post_message():
     showtime_id = data.get('showtime_id')
     group_id = _as_int(data.get('group_id'))
     body = (data.get('body') or '').strip()
-    err = require_group_member(group_id)
+    _, err = require_role(user, group_id, 'member')
     if err:
         return err
 
@@ -3520,8 +3618,8 @@ def get_group_polls(group_id):
 @require_auth
 def create_poll(group_id):
     user, membership = _require_group_member(group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     data = request.json
     poll = Poll(
@@ -3564,8 +3662,8 @@ def create_poll(group_id):
 @require_auth
 def create_oscars_poll(group_id):
     user, membership = _require_group_member(group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     # Load template
     template_path = os.path.join(os.path.dirname(__file__), 'oscars_2026.json')
@@ -3636,8 +3734,8 @@ def update_poll(poll_id):
     if not poll:
         return jsonify({'error': 'Poll not found'}), 404
     user, membership = _require_group_member(poll.group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     data = request.json
     if 'title' in data:
@@ -3664,8 +3762,8 @@ def delete_poll(poll_id):
     if not poll:
         return jsonify({'error': 'Poll not found'}), 404
     user, membership = _require_group_member(poll.group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     poll_posts_changed(poll.id)            # its Discord posts come down
     DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll.id,
@@ -3799,6 +3897,9 @@ def submit_votes(poll_id):
     user, membership = _require_group_member(poll.group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
+    _, err = require_role(user, poll.group_id, 'member')
+    if err:
+        return err
 
     # { votes: [{ category_id, option_id, confidence?, rank? }], clear: [category_id] }
     data = request.json or {}
@@ -3814,8 +3915,8 @@ def set_category_winner(poll_id, cat_id):
     if not poll:
         return jsonify({'error': 'Poll not found'}), 404
     user, membership = _require_group_member(poll.group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     cat = db.session.get(PollCategory, cat_id)
     if not cat or cat.poll_id != poll.id:
@@ -3843,8 +3944,8 @@ def score_poll(poll_id):
     if not poll:
         return jsonify({'error': 'Poll not found'}), 404
     user, membership = _require_group_member(poll.group_id)
-    if not membership or membership.role != 'admin':
-        return jsonify({'error': 'Admin access required'}), 403
+    if not role_at_least(membership, 'organizer'):
+        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     data = request.json  # { winners: { category_id: option_id } }
     winners = data.get('winners', {})
@@ -4581,7 +4682,10 @@ def internal_rsvp():
     if err:
         return err
 
-    group_id = data.get('group_id')
+    group_id = _as_int(data.get('group_id'))
+    _, err = require_role(user, group_id, 'member')
+    if err:
+        return err
     showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), group_id)
     if err:
         return err
@@ -4638,6 +4742,9 @@ def internal_poll_vote(poll_id):
     """Save picks from a Discord ballot; returns the refreshed ballot."""
     data = request.json or {}
     user, poll, err = _internal_poll_voter(poll_id, data)
+    if err:
+        return err
+    _, err = require_role(user, poll.group_id, 'member')
     if err:
         return err
     if poll.status != 'open':
@@ -4834,6 +4941,12 @@ def internal_discussion_message():
     if not _active_membership(user, t.group_id):
         return jsonify({'error': 'not_member'}), 403
     source = 'discord_bot' if data.get('source') == 'discord_bot' else 'discord'
+    # Typed in the thread: Discord's own permissions apply, so it mirrors. Posted
+    # through the bot's Discuss button: read-only members can't (R5c).
+    if source == 'discord_bot':
+        _, err = require_role(user, t.group_id, 'member')
+        if err:
+            return err
     m = Message(user_id=user.id, showtime_id=t.showtime_id, group_id=t.group_id, body=body,
                 source=source, discord_message_id=did)
     db.session.add(m)
@@ -5542,11 +5655,9 @@ def seed_admin():
         db.session.add(membership)
 
     db.session.commit()
-
-    # Backfill any existing RSVPs without a group_id
-    if group:
-        RSVP.query.filter_by(group_id=None).update({'group_id': group.id})
-        db.session.commit()
+    # (A one-time backfill that moved club-less RSVPs into this group used to
+    # run here on every start. Club-less RSVPs are now people's private
+    # personal plans (R5b) and must never be moved: removed in R5c.)
 
 
 # ─── WAL mode for better concurrency ─────────────────────────────────────────

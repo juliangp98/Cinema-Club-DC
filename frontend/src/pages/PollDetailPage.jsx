@@ -19,7 +19,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("vote"); // 'vote' | 'results' | 'leaderboard'
   const [leaderboard, setLeaderboard] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);       // can run this poll: organizer or admin (R5c)
+  const [readOnly, setReadOnly] = useState(false);     // read-only members see polls but don't vote
 
   // Vote state: { [categoryId]: { option_id, confidence } }
   const [votes, setVotes] = useState({});
@@ -65,7 +66,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
         if (gr.ok) {
           const groups = await gr.json();
           const g = groups.find(g => g.id === data.group_id);
-          setIsAdmin(g?.role === "admin");
+          setIsAdmin(["admin", "organizer"].includes(g?.role));
+          setReadOnly(g?.role === "viewer");
         }
 
         // Pre-fill votes from user's existing votes
@@ -141,7 +143,11 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   // Debounce timer ref for confidence slider
   const confidenceTimerRef = useRef({});
 
+  // Read-only members land on Results (voting is for members and up).
+  useEffect(() => { if (readOnly && tab === "vote") setTab("results"); }, [readOnly, tab]);
+
   async function saveVoteForCategory(catId, voteData) {
+    if (readOnly) return;
     setSaveStatus(prev => ({ ...prev, [catId]: 'saving' }));
     const voteList = [];
     if (poll.scoring_mode === 'ranked') {
@@ -462,6 +468,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
             )}
           </div>
           {poll.description && <p className="poll-description">{poll.description}</p>}
+          {readOnly && poll.status === "open" && <p className="poll-readonly">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
         </div>
 
         {/* Tabs */}
@@ -469,7 +476,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
           <button
             className={`poll-tab${tab === "vote" ? " active" : ""}`}
             onClick={() => setTab("vote")}
-            disabled={poll.status !== "open"}
+            disabled={poll.status !== "open" || readOnly}
+            title={readOnly ? "You're read-only in this club" : undefined}
           >
             Vote {poll.status === "open" && `(${votedCategories}/${totalCategories})`}
           </button>

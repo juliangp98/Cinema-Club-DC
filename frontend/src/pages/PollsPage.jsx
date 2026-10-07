@@ -40,7 +40,7 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
     ]).then(([groups, pollsData]) => {
       const g = groups.find(g => g.id === activeGroupId);
       setGroup(g || null);
-      setIsAdmin(g?.role === "admin");
+      setIsAdmin(["admin", "organizer"].includes(g?.role));     // organizers run polls too (R5c)
       setPolls(pollsData);
       setLoading(false);
     }).catch(() => setLoading(false));

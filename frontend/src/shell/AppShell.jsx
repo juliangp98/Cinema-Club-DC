@@ -28,7 +28,7 @@ const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: Users
 const linkClass = (base, also, pathname) => ({ isActive }) =>
   `${base}${isActive || (also && pathname.startsWith(also)) ? " active" : ""}`;
 
-export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }) {
+export default function AppShell({ user, setUser, apiBase, groupId, group, setGroupId }) {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const NAV = !user || user.is_guest ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
@@ -58,7 +58,11 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
   }, [apiBase, setUser, navigate, user]);
 
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
-  const shell = { user, setUser, apiBase, groupId, setGroupId, logout, ensureProfile, editProfile: () => setEditing(true),
+  // Your role in the club you're viewing (R5c): read-only members see, but don't post.
+  const role = group?.role || null;
+  const canParticipate = !!groupId && role !== "viewer";
+  const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, logout, ensureProfile,
+                  editProfile: () => setEditing(true),
                   openActivity: activity.open };
 
   return (

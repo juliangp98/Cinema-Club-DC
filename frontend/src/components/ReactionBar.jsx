@@ -12,10 +12,12 @@ const CINEMA_EMOJIS = [
 
 // Club mode: who reacted. Public mode (groupId null): anonymous totals (shown
 // from 3 up) plus your own; `beforeReact` makes a guest profile if needed.
-export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, onUpdate, beforeReact }) {
+// readOnly (read-only club members, R5c): see reactions, can't add any.
+export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, onUpdate, beforeReact, readOnly = false }) {
   const [showPicker, setShowPicker] = useState(false);
 
   async function toggleReaction(emoji) {
+    if (readOnly) return;
     if (beforeReact && !(await beforeReact())) return;
     try {
       const r = await fetch(`${apiBase}/api/reactions`, {
@@ -54,13 +56,13 @@ export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, o
             {r.count > 0 && <span className="reaction-count">{r.count}</span>}
           </button>
         ))}
-        <button
+        {!readOnly && (<button
           className="reaction-add-btn"
           onClick={() => setShowPicker(!showPicker)}
           title="Add reaction"
         >
           +
-        </button>
+        </button>)}
       </div>
 
       {showPicker && (

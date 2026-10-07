@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
+import { ROLES } from "../roles";
 
 export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, onGroupDeleted, onViewProfile }) {
   const [members, setMembers] = useState([]);
@@ -91,9 +92,22 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
 
   async function removeMember(uid) {
     try {
-      await fetch(`${apiBase}/api/groups/${group.slug}/members/${uid}`, {
+      const r = await fetch(`${apiBase}/api/groups/${group.slug}/members/${uid}`, {
         method: "DELETE", credentials: "include",
       });
+      if (!r.ok) window.alert((await r.json().catch(() => ({}))).error || "Couldn't remove that member.");
+      fetchMembers();
+    } catch { /* ignore */ }
+  }
+
+  // Grant or revoke a role (R5c); the server keeps at least one admin.
+  async function setRole(uid, role) {
+    try {
+      const r = await fetch(`${apiBase}/api/groups/${group.slug}/members/${uid}/role`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ role }),
+      });
+      if (!r.ok) window.alert((await r.json().catch(() => ({}))).error || "Couldn't change that role.");
       fetchMembers();
     } catch { /* ignore */ }
   }
@@ -288,7 +302,11 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
               style={{ cursor: "pointer" }}
               onClick={() => onViewProfile?.(m.user.id)}
             >{m.user.name}</span>
-            {m.role === "admin" && <span className="group-role-badge">admin</span>}
+            <select className="group-role-select" value={m.role || "member"} aria-label={`${m.user.name}'s role`}
+                    title={ROLES.find(r => r.value === (m.role || "member"))?.hint}
+                    onChange={e => setRole(m.user.id, e.target.value)}>
+              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
             {m.role !== "admin" && (
               <button
                 className="group-action-btn remove"

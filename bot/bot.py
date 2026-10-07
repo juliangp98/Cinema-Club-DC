@@ -750,6 +750,14 @@ def no_account(err):
     return isinstance(err, ApiError) and err.status == 404 and 'no_account' in (err.body or '')
 
 
+READ_ONLY_MSG = "You're read-only in this club, so you can follow along but not RSVP, vote or comment. Ask an admin to change that."
+
+
+def read_only(err):
+    """The site refused because the member is read-only in the club (R5c)."""
+    return isinstance(err, ApiError) and err.status == 403 and 'read_only' in (err.body or '')
+
+
 # ─── Announce loop ────────────────────────────────────────────────────────────
 
 @tasks.loop(seconds=60)
@@ -1336,7 +1344,7 @@ async def rsvp(interaction: discord.Interaction, date: str = None, end: str = No
             **discord_identity(interaction), 'showtime_id': int(showtime), 'status': status_value,
         })
     except ApiError as e:
-        msg = NO_ACCOUNT_MSG if no_account(e) else \
+        msg = NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e) else \
             "That screening isn't on the calendar anymore." if e.status == 404 else f'RSVP failed ({e.status}).'
         await interaction.followup.send(msg, ephemeral=True)
         return
@@ -1961,7 +1969,7 @@ async def open_discussion(interaction, showtime_id, comment=None):
                     'discord_message_id': str(sent.id), 'body': comment, 'source': 'discord_bot'})
             except ApiError as e:
                 await (await get_webhook()).delete_message(sent.id, thread=thread)
-                await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else
+                await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e) else
                                                 f"Couldn't save your comment ({e.status}).", ephemeral=True)
                 return
     except ApiError as e:
@@ -2044,8 +2052,8 @@ class ThreadRsvpButton(discord.ui.DynamicItem[discord.ui.Button],
             result = await api.post('/api/internal/rsvp', {
                 **discord_identity(interaction), 'showtime_id': self.showtime_id, 'status': self.status})
         except ApiError as e:
-            msg = (NO_ACCOUNT_MSG if no_account(e) else "That screening isn't on the calendar anymore."
-                   if e.status == 404 else f'RSVP failed ({e.status}).')
+            msg = (NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e)
+                   else "That screening isn't on the calendar anymore." if e.status == 404 else f'RSVP failed ({e.status}).')
             await interaction.followup.send(msg, ephemeral=True)
             return
         except Exception as e:
@@ -2211,6 +2219,8 @@ def _vote_error(err):
         return 'That poll was deleted.'
     if no_account(err):
         return NO_ACCOUNT_MSG
+    if read_only(err):
+        return READ_ONLY_MSG
     return f"Couldn't load that poll ({err.status})."
 
 

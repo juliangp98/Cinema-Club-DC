@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
+import { roleLabel } from "../roles";
 
 export default function GroupMembers({ group, apiBase, onClose, onViewProfile, embedded }) {
   const [members, setMembers] = useState([]);
@@ -93,8 +94,8 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                       <span className="group-member-name">{m.user.name}</span>
                       <span className="group-member-email">{accountLabel(m.user)}</span>
                     </div>
-                    {m.role === "admin" && (
-                      <span className="group-role-badge">admin</span>
+                    {m.role && m.role !== "member" && (
+                      <span className={`group-role-badge role-${m.role}`}>{roleLabel(m.role)}</span>
                     )}
                   </button>
                 ))}

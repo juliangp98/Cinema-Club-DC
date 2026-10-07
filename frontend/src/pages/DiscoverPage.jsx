@@ -237,6 +237,59 @@ function JoinClub({ user }) {
   );
 }
 
+// Personal plans from before you joined (as a guest or without a club): asked
+// once per club whether to share them — each one ticked moves into the club.
+function BringPlans({ apiBase, groupId, user, clubName, onShared }) {
+  const key = `cinemaclub_plans_asked_${groupId}_${user.id}`;
+  const [items, setItems] = useState([]);
+  const [picked, setPicked] = useState(new Set());
+  const [busy, setBusy] = useState(false);
+  const [asked, setAsked] = useState(() => { try { return !!localStorage.getItem(key); } catch { return false; } });
+  useEffect(() => {
+    if (asked) return;
+    fetch(`${apiBase}/api/groups/${groupId}/personal-plans`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : { items: [] }))
+      .then(d => { setItems(d.items); setPicked(new Set(d.items.map(i => i.showtime_id))); })
+      .catch(() => {});
+  }, [apiBase, groupId, asked]);
+  if (asked || !items.length) return null;
+  const done = () => { try { localStorage.setItem(key, "1"); } catch { /* private mode */ } setAsked(true); };
+  async function share() {
+    setBusy(true);
+    const r = await fetch(`${apiBase}/api/groups/${groupId}/personal-plans`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ showtime_ids: [...picked] }),
+    }).catch(() => null);
+    setBusy(false);
+    if (r?.ok) { done(); onShared?.(); }
+  }
+  const toggle = id => setPicked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  return (
+    <section className="join-club bring-plans" aria-label="Share your plans">
+      <div>
+        <span className="deco join-club-title">Share your plans with {clubName || "the club"}?</span>
+        <p>Only you can see these right now. Shared ones show who's going in the club. (Club members can already see your watchlist.)</p>
+        <ul className="bring-plans-list">
+          {items.map(i => (
+            <li key={i.showtime_id}>
+              <label>
+                <input type="checkbox" checked={picked.has(i.showtime_id)} onChange={() => toggle(i.showtime_id)} />
+                <span><strong>{i.title}</strong> · {dayLabel(i.start_time)} {timeLabel(i.start_time)} · {i.theatre}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="bring-plans-actions">
+        <button className="btn btn-primary" onClick={share} disabled={busy || !picked.size}>
+          Share {picked.size || ""} with the club
+        </button>
+        <button className="btn btn-ghost" onClick={done}>Keep them private</button>
+      </div>
+    </section>
+  );
+}
+
 // The home page: the club's week, then ways into what's playing.
 export default function DiscoverPage({ user, apiBase, groupId }) {
   const navigate = useNavigate();
@@ -278,6 +331,9 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
       <PageHeader title="Discover" subtitle={`What's playing across ${groupId ? "the club's theatres" : "every DC-area theatre we track"} in the next two weeks.`} />
       <SearchBox onSearch={q => navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
 
+      {groupId && shell.canParticipate && user && (
+        <BringPlans apiBase={apiBase} groupId={groupId} user={user} clubName={shell.group?.name} onShared={refresh} />
+      )}
       {groupId ? (
         <>
           <AttendancePrompt apiBase={apiBase} refreshKey={refreshKey} onAnswer={answerAttendance} onOpenShowtime={openShowtime} />

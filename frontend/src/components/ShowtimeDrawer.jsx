@@ -80,7 +80,8 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const interest = primary.interest || {};
   // Outside a club, your RSVP is private (a guest's lives in this browser until they keep it).
   const here = encodeURIComponent(window.location.pathname + window.location.search);
-  const rsvpNote = club ? null : user?.is_guest
+  const readOnly = club && shell && !shell.canParticipate;          // read-only in this club (R5c)
+  const rsvpNote = readOnly ? { text: "You're read-only in this club." } : club ? null : user?.is_guest
     ? { text: "Only you see your plans — saved in this browser.", to: `/signin?next=${here}`, label: "Keep your profile" }
     : { text: "Only you see your plans." };
   const personal = fn => async (...args) => {
@@ -143,8 +144,8 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
         <div className="drawer-tickets">
           {showtimes.map(s => (
-            <TicketRow key={s.id} showtime={{ ...s, theatre }} apiBase={apiBase} groupId={groupId}
-                       onRsvp={personal(onRsvp)} onAttendance={user ? onAttendance : undefined}
+            <TicketRow key={s.id} showtime={{ ...s, theatre }} apiBase={apiBase} groupId={readOnly ? null : groupId}
+                       onRsvp={readOnly ? undefined : personal(onRsvp)} onAttendance={user ? onAttendance : undefined}
                        rsvpNote={rsvpNote} showTheatre={false} />
           ))}
           <Link className="drawer-film-link" to={`/films/${movie.id}`} onClick={onClose}>
@@ -185,9 +186,10 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         )}
 
         {club && <Collapsible title="Reactions & discussion" defaultOpen>
-          <ReactionBar reactions={reactions} showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onUpdate={setReactions} />
+          <ReactionBar reactions={reactions} showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onUpdate={setReactions}
+                       readOnly={readOnly} />
           <ChatSection showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
-                       discordThreadUrl={primary.discord_thread_url} discord={primary.discord} />
+                       discordThreadUrl={primary.discord_thread_url} discord={readOnly ? null : primary.discord} readOnly={readOnly} />
         </Collapsible>}
 
         {(movie.description || (!movie.cast?.length && movie.starring)) && (

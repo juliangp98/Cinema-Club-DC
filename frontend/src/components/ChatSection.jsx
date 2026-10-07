@@ -23,7 +23,7 @@ function writeLast(on) { try { localStorage.setItem(LAST_CHOICE, on ? "1" : "0")
 // `discord` (the screening's Discord block; absent outside the Discord
 // server's group) turns on the Discord choices: with a thread, an "also post
 // in the Discord thread" box; without one, "Start a Discord thread".
-export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfile, discordThreadUrl, discord }) {
+export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfile, discordThreadUrl, discord, readOnly = false }) {
   const shell = useShell();
   const pref = shell?.user?.share_prefs?.comment || "ask";
   const [threadUrl, setThreadUrl] = useState(discordThreadUrl);
@@ -203,6 +203,9 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
         ))}
         <div ref={messagesEndRef} />
       </div>
+      {readOnly ? (
+        <p className="chat-readonly">You're read-only in this club, so you can follow the discussion but not post.</p>
+      ) : (
       <form className="chat-input-row" onSubmit={handleSend}>
         <input
           className="chat-input"
@@ -215,6 +218,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
           Send
         </button>
       </form>
+      )}
       {discord && threadUrl && (
         <label className="chat-to-discord">
           <input type="checkbox" checked={toDiscord} onChange={e => chooseToDiscord(e.target.checked)} />

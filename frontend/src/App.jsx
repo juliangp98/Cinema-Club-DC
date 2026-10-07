@@ -74,6 +74,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hasGroups, setHasGroups] = useState(true); // assume true until proven otherwise
+  const [groups, setGroups] = useState([]);          // yours, each with your role (R5c)
   const [activeGroupId, setActiveGroupId] = useState(() => {
     const stored = localStorage.getItem("cinemaclub_group_id");
     return stored ? parseInt(stored, 10) : null;
@@ -98,6 +99,7 @@ export default function App() {
       if (r.ok) {
         const groups = await r.json();
         setHasGroups(groups.length > 0);
+        setGroups(groups);
         const stored = localStorage.getItem("cinemaclub_group_id");
         const storedId = stored ? parseInt(stored, 10) : null;
         const validIds = groups.map(g => g.id);
@@ -145,11 +147,13 @@ export default function App() {
   // Public pages run in club mode only for a signed-in member of a club —
   // never for a guest (whatever club this browser last remembered).
   const scopeGroupId = user && !user.is_guest && hasGroups ? activeGroupId : null;
+  const scopeGroup = groups.find(g => g.id === scopeGroupId) || null;   // its role decides what you can do
 
   function handleSetGroupId(id) {
     setActiveGroupId(id);
     setHasGroups(true);
     localStorage.setItem("cinemaclub_group_id", String(id));
+    fetchGroups();                  // a club just joined or made: pick up your role there
   }
 
   return (
@@ -168,7 +172,7 @@ export default function App() {
         <Route path="/invite/:token" element={<InviteRoute user={user} onLogin={handleLogin} apiBase={API_BASE} />} />
         {/* Every page shares the app shell; what's playing is public (R5a). */}
         <Route element={<AppShell user={user} setUser={setUser} apiBase={API_BASE}
-                                  groupId={scopeGroupId} setGroupId={handleSetGroupId} />}>
+                                  groupId={scopeGroupId} group={scopeGroup} setGroupId={handleSetGroupId} />}>
           <Route path="/" element={<DiscoverPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/calendar" element={<Calendar user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/films/:id" element={<FilmPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
