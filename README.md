@@ -197,6 +197,30 @@ old `/?showtime=` and `/?theatre=` links are redirected there.
 
 ---
 
+## Discover
+
+`/discover` (engine: `backend/discover.py`, shared with the bot):
+
+- **Shelves** for the next two weeks, each a row of posters with the reason it
+  qualifies: Rare gems (the digest's rarity score), Friends are going, One night
+  only, On film (35/16/70mm), Big screen (IMAX / 70mm / Dolby), Special events
+  (Q&As, intros, premieres…), Opening, Last chance, Most wanted in the club, For
+  you, Blockbusters, Arthouse & indie, Classics, Critics' darlings, Award
+  winners, Documentaries, Horror, Short & sweet, Epics, Late night.
+- **Surprise me** (tonight / this weekend / this week, weighted toward rare
+  screenings, your genres and what the club wants; spin again), **moods**
+  (Scare me, Mind-bender, Date night…), **double features** (two films at one
+  theatre with a 15–75 min gap) and **spotlights** (directors with 2+ / actors
+  with 3+ films playing this month).
+- **Browse** (`/browse`): one result per film, search across title / director /
+  cast, and filters for when, theatre or region, genre, mood, decade, format,
+  time of day, rarity, the club, and length. Every filter lives in the URL, so
+  any view is a shareable link.
+- "Last chance" (here and in the digest) needs every theatre showing the film
+  to have published its full schedule past the final showing.
+
+---
+
 ## Calendar Features
 
 - **Showtime merging**: Multiple screenings of the same movie at the same theatre on the same day are grouped into a single calendar pill showing all times
@@ -248,6 +272,10 @@ old `/?showtime=` and `/?theatre=` links are redirected there.
 - `DELETE /api/groups/:slug/members/:uid` — remove member
 
 ### Showtimes & RSVPs
+- `GET /api/discover?group_id=` — Discover shelves, double features, spotlights
+- `GET /api/discover/browse?group_id=&when=&genres=&…&q=&sort=&offset=` — filtered films + facet counts
+- `GET /api/discover/surprise?group_id=&when=&exclude=` — one weighted pick
+- `GET /api/films/:id?group_id=` — film page: every upcoming showing, club interest, rarity
 - `GET /api/feed?group_id=&offset=` — the group's activity cards (20 per page, last 90 days)
 - `GET /api/showtimes?start=&end=&group_id=` — showtimes for date range
 - `POST /api/rsvp` — create/update RSVP (going/maybe/not_going)

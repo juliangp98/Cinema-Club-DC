@@ -11,6 +11,8 @@ import LeaderboardPage from "./pages/LeaderboardPage";
 import VerifySignin from "./pages/VerifySignin";
 import MePage from "./pages/MePage";
 import FilmPage from "./pages/FilmPage";
+import DiscoverPage from "./pages/DiscoverPage";
+import BrowsePage from "./pages/BrowsePage";
 import AppShell from "./shell/AppShell";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -211,6 +213,22 @@ export default function App() {
             element={
               <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
                 <FilmPage user={user} apiBase={API_BASE} groupId={activeGroupId} />
+              </GroupGate>
+            }
+          />
+          <Route
+            path="/discover"
+            element={
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <DiscoverPage apiBase={API_BASE} groupId={activeGroupId} />
+              </GroupGate>
+            }
+          />
+          <Route
+            path="/browse"
+            element={
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <BrowsePage apiBase={API_BASE} groupId={activeGroupId} />
               </GroupGate>
             }
           />

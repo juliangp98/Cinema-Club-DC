@@ -14,6 +14,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from functools import wraps
 from dotenv import load_dotenv
+import sys as _sys
+
+# Run directly (`python app.py`) this module is __main__; let `import app`
+# (discover.py, the scrapers) find it instead of loading a second copy with
+# its own database connection. Under gunicorn (`app:app`) it's already `app`.
+_sys.modules.setdefault('app', _sys.modules[__name__])
 
 # Load .env.development if it exists (local dev), otherwise .env (production/Docker)
 env_file = os.path.join(os.path.dirname(__file__), '.env.development')
@@ -1780,6 +1786,55 @@ def film_detail(movie_id):
     })
 
 
+# ─── Discover (shelves, browse, surprise) ─────────────────────────────────────
+# The engine lives in discover.py; the bot's internal routes use it too.
+
+def _discover_group():
+    """(user, group, error) for a signed-in member's group from ?group_id."""
+    user = current_user()
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    return user, (db.session.get(Group, group_id) if not err else None), err
+
+
+@app.route('/api/discover')
+@require_auth
+def discover_page():
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    return jsonify(discover.discover(group, user))
+
+
+@app.route('/api/discover/browse')
+@require_auth
+def discover_browse():
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    params = {k: request.args.get(k) for k in ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade',
+                                                'format', 'time', 'rarity', 'club', 'runtime', 'mood', 'shelf',
+                                                'q', 'sort')}
+    try:
+        return jsonify(discover.browse(group, user, params, offset=max(0, request.args.get('offset', 0, type=int))))
+    except ValueError:
+        return jsonify({'error': 'Bad date'}), 400
+
+
+@app.route('/api/discover/surprise')
+@require_auth
+def discover_surprise():
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    exclude = [_as_int(x) for x in (request.args.get('exclude') or '').split(',') if _as_int(x)]
+    pick = discover.surprise(group, user, request.args.get('when', 'tonight'), exclude)
+    return jsonify(pick or {'error': 'nothing_playing'}), (200 if pick else 404)
+
+
 # ─── Link previews (Open Graph) ───────────────────────────────────────────────
 # Discord (and other chat apps) fetch a link to show a preview card, but the
 # site is a single-page app with one generic <head>. nginx sends those
@@ -3353,6 +3408,13 @@ def rarity(s, showings, venues, this_year):
     return score, why
 
 
+def is_last_chance(final_start, theatre_ids, horizon):
+    """A film's last listed showing is really its last only if every theatre
+    showing it has published its full schedule well past that date — otherwise
+    the run may just extend beyond a theatre's one-week listing horizon."""
+    return all(horizon.get(tid, final_start) >= final_start + LAST_CHANCE_MARGIN for tid in theatre_ids)
+
+
 def schedule_horizons(group, now):
     """{theatre_id: the date through which it has published its full schedule}.
     Theatres list regular films only a week or so out but special events months
@@ -3487,7 +3549,7 @@ def internal_digest():
         final = shows[-1]
         if mid in used or total < 3 or last != final.start_time or len(last_chance) >= DIGEST_CAPS['last_chance']:
             continue
-        if horizon.get(final.theatre_id, final.start_time) >= final.start_time + LAST_CHANCE_MARGIN:
+        if is_last_chance(final.start_time, {x.theatre_id for x in shows}, horizon):
             last_chance.append(_showtime_brief(final))
             used.add(mid)
 

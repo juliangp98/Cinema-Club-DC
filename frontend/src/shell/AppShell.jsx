@@ -5,7 +5,7 @@ import ProfileEditor from "../components/ProfileMenu";
 import Sheet from "../ui/Sheet";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { HomeIcon, CalendarIcon, PollIcon, UserIcon, EditIcon, LogoutIcon } from "../ui/icons";
+import { HomeIcon, CalendarIcon, CompassIcon, PollIcon, UserIcon, EditIcon, LogoutIcon } from "../ui/icons";
 import { accountLabel } from "../accountLabel";
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
@@ -17,10 +17,12 @@ export const useShell = () => useContext(ShellContext);
 const NAV = [
   { to: "/", label: "Home", icon: HomeIcon, end: true },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
+  { to: "/discover", label: "Discover", icon: CompassIcon, also: "/browse" },
   { to: "/polls", label: "Polls", icon: PollIcon },
 ];
 
-const linkClass = base => ({ isActive }) => `${base}${isActive ? " active" : ""}`;
+const linkClass = (base, also, pathname) => ({ isActive }) =>
+  `${base}${isActive || (also && pathname.startsWith(also)) ? " active" : ""}`;
 
 export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }) {
   const navigate = useNavigate();
@@ -49,7 +51,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
           </NavLink>
           <nav className="topbar-nav" aria-label="Main">
             {NAV.map(n => (
-              <NavLink key={n.to} to={n.to} end={n.end} className={linkClass("topbar-link")}>{n.label}</NavLink>
+              <NavLink key={n.to} to={n.to} end={n.end} className={linkClass("topbar-link", n.also, pathname)}>{n.label}</NavLink>
             ))}
           </nav>
           <div className="topbar-spacer" />
@@ -72,8 +74,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
         </main>
 
         <nav className="tabbar" aria-label="Main">
-          {[...NAV, { to: "/me", label: "Me", icon: UserIcon }].map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={linkClass("tabbar-link")}>
+          {[...NAV, { to: "/me", label: "Me", icon: UserIcon }].map(({ to, label, icon: Icon, end, also }) => (
+            <NavLink key={to} to={to} end={end} className={linkClass("tabbar-link", also, pathname)}>
               <Icon />{label}
             </NavLink>
           ))}

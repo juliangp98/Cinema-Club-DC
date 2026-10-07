@@ -289,3 +289,37 @@ button.attendee-chip { background: none; border: none; padding: 0; color: var(--
 
 a.feed-title:hover { color: var(--amber); }
 a.feed-poster { display: block; }
+
+/* ── Poster card (Discover, Browse, Home) ──────────────────────────────── */
+.poster-card { display: flex; flex-direction: column; gap: 0.3rem; width: 150px; flex-shrink: 0; color: var(--cream); }
+.poster-card.sm { width: 120px; }
+.poster-card-img {
+  position: relative; aspect-ratio: 2 / 3; border-radius: var(--radius); overflow: hidden;
+  background: var(--bg3); border: 1px solid var(--border); transition: transform 0.15s, border-color 0.15s;
+}
+.poster-card:hover .poster-card-img { transform: translateY(-2px); border-color: var(--amber); }
+.poster-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster-card-ph { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 0.6rem;
+                  font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-sm); line-height: 1.2; }
+.poster-card-badge {
+  position: absolute; top: 6px; left: 6px; padding: 2px 8px; border-radius: var(--radius-pill);
+  background: rgba(31, 7, 12, 0.85); color: #6fbf98; font-size: var(--fs-xs); font-weight: 500;
+}
+.poster-card-title { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-sm); line-height: 1.25;
+                     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.poster-card:hover .poster-card-title { color: var(--amber); }
+.poster-card-year { color: var(--muted); font-weight: 400; }
+.poster-card-next { font-size: var(--fs-xs); color: var(--muted); }
+.poster-card-reasons { font-size: var(--fs-xs); color: var(--amber); }
+
+/* ── Search box ────────────────────────────────────────────────────────── */
+.searchbox {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0 0.9rem; height: 44px;
+  background: var(--bg3); border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  color: var(--muted); margin-bottom: 1.25rem;
+}
+.searchbox:focus-within { border-color: var(--amber); }
+.searchbox input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--cream);
+                   font: 400 var(--fs-md) var(--font-body); }
+.searchbox input::-webkit-search-cancel-button { display: none; }
+.searchbox-clear { color: var(--muted); font-size: 1.3rem; line-height: 1; }
