@@ -1,45 +1,48 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Menu, { MenuItem, MenuLabel, MenuDivider } from "../ui/Menu";
-import { UsersIcon, TrophyIcon, CompassIcon } from "../ui/icons";
+import { ClubBadge, shortNameOf } from "../ui/Avatar";
+import { UsersIcon, CompassIcon } from "../ui/icons";
 
-// The group pill in the top bar: switch groups, and reach the group's pages.
-export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId }) {
-  const [groups, setGroups] = useState([]);
+// The club pill in the top bar: the club's picture and name — the full name
+// on wide screens, its short name (or initials) when space is tight — and a
+// menu to switch clubs or open the club's page.
+export default function GroupSwitcher({ groups, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetch(`${apiBase}/api/groups`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
-      .then(setGroups)
-      .catch(() => {});
-  }, [apiBase, activeGroupId]);
-
   const active = groups.find(g => g.id === activeGroupId);
 
   return (
     <Menu
-      label="Switch group"
+      label={active ? `${active.name}: switch club` : "Switch club"}
       className="topbar-groupmenu"
       triggerClassName="topbar-group"
-      trigger={<><span className="topbar-group-name">{active ? active.name : "Choose a group"}</span>
-                 <span className="caret">▾</span></>}
+      trigger={<>
+        {active && (
+          <span className={`topbar-group-badge${active.photo_url || active.emoji ? "" : " initials"}`}>
+            <ClubBadge group={active} size={24} />
+          </span>
+        )}
+        <span className="topbar-group-name" title={active?.name}>{active ? active.name : "Choose a club"}</span>
+        <span className="topbar-group-short" title={active?.name}>{active ? shortNameOf(active) : "Club"}</span>
+        <span className="caret">▾</span>
+      </>}
     >
-      {groups.length > 0 && <MenuLabel>Your groups</MenuLabel>}
-      {groups.map(g => (
-        <MenuItem key={g.id} active={g.id === activeGroupId} onSelect={() => setGroupId(g.id)}>
-          <span style={{ flex: 1 }}>{g.name}</span>
-          {g.role === "admin" && <span className="chip">admin</span>}
-        </MenuItem>
-      ))}
-      {active && (
+      {active && <MenuLabel>{active.name}</MenuLabel>}
+      {active && <MenuItem onSelect={() => navigate("/club")}><UsersIcon /> Club page</MenuItem>}
+      {groups.length > 1 && (
         <>
           <MenuDivider />
-          <MenuItem onSelect={() => navigate("/members")}><UsersIcon /> Members</MenuItem>
-          <MenuItem onSelect={() => navigate("/leaderboard")}><TrophyIcon /> Leaderboard</MenuItem>
+          <MenuLabel>Switch club</MenuLabel>
+          {groups.map(g => (
+            <MenuItem key={g.id} active={g.id === activeGroupId} onSelect={() => setGroupId(g.id)}>
+              <ClubBadge group={g} size={22} />
+              <span style={{ flex: 1 }}>{g.name}</span>
+              {g.role === "admin" && <span className="chip">admin</span>}
+            </MenuItem>
+          ))}
         </>
       )}
-      <MenuItem onSelect={() => navigate("/groups")}><CompassIcon /> Browse groups</MenuItem>
+      <MenuDivider />
+      <MenuItem onSelect={() => navigate("/groups")}><CompassIcon /> Find or start a club</MenuItem>
     </Menu>
   );
 }

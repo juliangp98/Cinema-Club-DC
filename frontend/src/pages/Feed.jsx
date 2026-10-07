@@ -4,6 +4,7 @@ import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
+import { AvatarFace } from "../ui/Avatar";
 
 function timeAgo(iso) {
   const diff = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
@@ -51,7 +52,7 @@ function Avatars({ users, onViewProfile, max = 5 }) {
           title={u.discord_only ? `${u.name} (Discord)` : u.name}
           onClick={() => onViewProfile(u.id)}
         >
-          {u.name.slice(0, 2).toUpperCase()}
+          <AvatarFace user={u} />
         </button>
       ))}
     </span>

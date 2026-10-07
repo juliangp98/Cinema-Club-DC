@@ -97,7 +97,7 @@ function whoGoing(users, viewerId) {
 
 // "This week in the club": what members are going to, open polls, and new
 // comments, with a way into the full activity panel.
-function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtime, onOpenActivity }) {
+export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtime, onOpenActivity }) {
   const [week, setWeek] = useState(null);
   useEffect(() => {
     let live = true;

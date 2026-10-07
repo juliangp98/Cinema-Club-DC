@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
 import { Segmented } from "../ui/TicketRow";
 import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
+import Avatar from "../ui/Avatar";
+import PicturePicker, { sendPicture, sendJson } from "../ui/PicturePicker";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
 
@@ -145,12 +147,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         <span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Edit profile</span>
       </h2>
       <div className="profile-menu-header">
-        <div
-          className="profile-avatar-large"
-          style={{ background: avatarColor, color: "var(--ink)" }}
-        >
-          {(name || "?").slice(0, 2).toUpperCase()}
-        </div>
+        <Avatar user={{ ...user, name, avatar_color: avatarColor }} size={56} />
         <div className="profile-header-info">
           <div className="profile-email">{accountLabel(user)}</div>
           {kernels !== null && (
@@ -167,7 +164,22 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         maxLength={100}
       />
 
-      <label className="profile-field-label">Avatar Color</label>
+      <label className="profile-field-label">Picture</label>
+      <PicturePicker
+        preview={<Avatar user={{ ...user, name, avatar_color: avatarColor }} size={64} />}
+        canUpload={!user.is_guest}
+        uploadNote={user.is_guest ? "Keep your profile (add an email or Discord) to upload a photo." : undefined}
+        onUpload={file => sendPicture(`${apiBase}/api/me/picture`, file).then(d => onUpdate(d.user))}
+        onEmoji={emoji => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "emoji", emoji }).then(d => onUpdate(d.user))}
+        onClear={user.avatar_kind !== "initials"
+          ? () => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "initials" }).then(d => onUpdate(d.user)) : null}
+        extra={user.discord_avatar_url && user.avatar_kind !== "discord" && (
+          <button type="button" className="btn btn-sm" onClick={() => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "discord" })
+            .then(d => onUpdate(d.user)).catch(() => {})}>Use my Discord picture</button>
+        )}
+      />
+
+      <label className="profile-field-label">Initials color</label>
       <div className="color-swatches">
         {AVATAR_COLORS.map(c => (
           <button

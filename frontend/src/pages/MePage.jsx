@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
-import { EditIcon, LogoutIcon, UsersIcon, TrophyIcon, CompassIcon } from "../ui/icons";
+import { EditIcon, LogoutIcon, CompassIcon } from "../ui/icons";
+import { ClubBadge } from "../ui/Avatar";
 import { WatchlistTab, GoingTab, HistoryTab } from "../components/UserProfileDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import { useShell } from "../shell/AppShell";
@@ -14,7 +15,7 @@ const TABS = ["Watchlist", "Going", "History"];
 // "Me": your profile, your lists, and your group's pages — one place to find
 // what used to hide in the avatar and group dropdowns.
 export default function MePage({ user, apiBase, groupId }) {
-  const { editProfile, logout } = useShell();
+  const { editProfile, logout, group } = useShell();
   const navigate = useNavigate();
   const [tab, setTab] = useState("Watchlist");
   const [profileUserId, setProfileUserId] = useState(null);
@@ -69,17 +70,15 @@ export default function MePage({ user, apiBase, groupId }) {
 
       {!user.is_guest && groupId && (<>
       <div style={{ marginTop: "2rem" }}>
-        <SectionTitle>Your group</SectionTitle>
+        <SectionTitle>Your club</SectionTitle>
       </div>
       <div className="me-links">
-        <button className="me-link" onClick={() => navigate("/members")}>
-          <UsersIcon /><span>Members<small>Who's in the club, and their lists</small></span>
-        </button>
-        <button className="me-link" onClick={() => navigate("/leaderboard")}>
-          <TrophyIcon /><span>Leaderboard<small>Kernels and screenings attended</small></span>
+        <button className="me-link" onClick={() => navigate("/club")}>
+          {group && <ClubBadge group={group} size={28} />}
+          <span>{group?.name || "Club page"}<small>Members, leaderboard and activity</small></span>
         </button>
         <button className="me-link" onClick={() => navigate("/groups")}>
-          <CompassIcon /><span>Browse groups<small>Join or start another club</small></span>
+          <CompassIcon /><span>Other clubs<small>Join or start another club</small></span>
         </button>
       </div>
       </>)}

@@ -28,7 +28,7 @@ const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: Users
 const linkClass = (base, also, pathname) => ({ isActive }) =>
   `${base}${isActive || (also && pathname.startsWith(also)) ? " active" : ""}`;
 
-export default function AppShell({ user, setUser, apiBase, groupId, group, setGroupId }) {
+export default function AppShell({ user, setUser, apiBase, groupId, group, groups, setGroupId, refreshGroups }) {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const NAV = !user || user.is_guest ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
@@ -61,7 +61,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, setGr
   // Your role in the club you're viewing (R5c): read-only members see, but don't post.
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";
-  const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, logout, ensureProfile,
+  const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
                   editProfile: () => setEditing(true),
                   openActivity: activity.open };
 
@@ -78,7 +78,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, setGr
             ))}
           </nav>
           <div className="topbar-spacer" />
-          {user && groupId && <GroupSwitcher apiBase={apiBase} activeGroupId={groupId} setGroupId={setGroupId} />}
+          {user && groupId && <GroupSwitcher groups={groups} activeGroupId={groupId} setGroupId={setGroupId} />}
           {user && groupId && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
           {!user && <Link className="btn btn-sm btn-primary topbar-signin" to={signInLink}>Sign in</Link>}
           {user && <Menu

@@ -23,3 +23,6 @@ frontend/dist/
 
 # Automatic pre-migration database backups
 backend/instance/*.bak
+
+# R6b: uploaded pictures (dev)
+backend/instance/media/

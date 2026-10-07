@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { accountLabel } from "../accountLabel";
 import Sheet from "../ui/Sheet";
+import Avatar from "../ui/Avatar";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -258,12 +259,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
         {!loading && !error && user && (
           <div className="drawer-content">
             <div className="user-profile-header">
-              <div
-                className="user-profile-avatar"
-                style={{ background: user.avatar_color, color: "var(--ink)" }}
-              >
-                {user.name.slice(0, 2).toUpperCase()}
-              </div>
+              <Avatar user={user} size={72} />
               <div className="user-profile-name">{user.name}</div>
               <div className="user-profile-email">{accountLabel(user)}</div>
               {kernels !== null && (

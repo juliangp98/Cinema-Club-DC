@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import GroupAdmin from "../components/GroupAdmin";
+import { ClubBadge } from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import PageHeader from "../ui/PageHeader";
 
@@ -27,7 +27,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
   const [creating, setCreating] = useState(false);
 
   // Admin panel
-  const [adminGroup, setAdminGroup] = useState(null);
 
 
   // Profile drawer
@@ -127,24 +126,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     finally { setCreating(false); }
   }
 
-
-
-  function handleAdminGroupUpdated(updated) {
-    setMyGroups(prev => prev.map(g => (g.id === updated.id ? { ...g, ...updated } : g)));
-    setAdminGroup(prev => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
-  }
-
-  function handleGroupDeleted(groupId) {
-    setAdminGroup(null);
-    fetchMyGroups();
-    fetchPublicGroups(page, query);
-    if (activeGroupId === groupId) {
-      // Reset to first remaining group or null
-      const remaining = myGroups.filter(g => g.id !== groupId);
-      setGroupId(remaining.length > 0 ? remaining[0].id : null);
-    }
-  }
-
   return (
     <div className="group-discovery-page">
       <div className="group-discovery-container">
@@ -162,6 +143,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                   key={g.id}
                   className={`group-card${g.id === activeGroupId ? " active" : ""}`}
                 >
+                  <ClubBadge group={g} size={40} />
                   <div className="group-card-info">
                     <span className="group-card-name">{g.name}</span>
                     <span className="group-card-meta">
@@ -183,14 +165,14 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                     )}
                     <button
                       className="group-card-members-btn"
-                      onClick={() => { setGroupId(g.id); navigate("/members"); }}
+                      onClick={() => { setGroupId(g.id); navigate("/club"); }}
                     >
-                      Members
+                      Club page
                     </button>
                     {g.role === "admin" && (
                       <button
                         className="group-action-btn admin"
-                        onClick={() => setAdminGroup(adminGroup?.slug === g.slug ? null : g)}
+                        onClick={() => { setGroupId(g.id); navigate("/club?tab=settings"); }}
                       >
                         Manage
                       </button>
@@ -201,18 +183,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
             </div>
           )}
         </section>
-
-        {/* Admin panel */}
-        {adminGroup && (
-          <GroupAdmin
-            group={adminGroup}
-            apiBase={apiBase}
-            onClose={() => setAdminGroup(null)}
-            onGroupUpdated={handleAdminGroupUpdated}
-            onGroupDeleted={handleGroupDeleted}
-            onViewProfile={setProfileUserId}
-          />
-        )}
 
         {/* Browse / Search public groups */}
         <section className="group-section">
@@ -242,6 +212,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
             <div className="group-cards" style={{ marginTop: "0.75rem" }}>
               {publicGroups.map(g => (
                 <div key={g.id} className="group-card">
+                  <ClubBadge group={g} size={40} />
                   <div className="group-card-info">
                     <span className="group-card-name">{g.name}</span>
                     <span className="group-card-meta">

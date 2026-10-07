@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, session, make_response, redirect
+from flask import Flask, jsonify, request, session, make_response, redirect, send_from_directory
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
@@ -42,6 +42,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # The cookie lasts 90 days (guest profiles live in it); members' sessions
 # still end after MEMBER_IDLE_LIMIT without a visit (see _session_upkeep).
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
+app.config['MAX_CONTENT_LENGTH'] = 6 * 1024 * 1024     # picture uploads are capped at 5 MB (media.py)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FRONTEND_URL', '').startswith('https://')
 
@@ -184,7 +185,13 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
     name = db.Column(db.String(100), nullable=False)
     avatar_color = db.Column(db.String(20), default='#e8a838')
+    # The picture shown for you (R6b): avatar_kind is your choice — 'photo'
+    # (an upload: avatar_url), 'emoji', 'initials' or 'discord'; None means you
+    # haven't chosen, so your Discord picture shows if you have one.
     avatar_url = db.Column(db.Text)
+    avatar_emoji = db.Column(db.String(16))
+    avatar_kind = db.Column(db.String(10))
+    discord_avatar_url = db.Column(db.Text)        # your Discord picture, for "use my Discord picture"
     bio = db.Column(db.Text, default='')
     favorite_genres = db.Column(db.Text, default='')
     invite_token = db.Column(db.String(64), unique=True)
@@ -212,6 +219,9 @@ class User(db.Model):
             'name': self.name,
             'avatar_color': self.avatar_color,
             'avatar_url': self.avatar_url,
+            'avatar_emoji': self.avatar_emoji,
+            'avatar_kind': self.avatar_kind or ('discord' if self.avatar_url else 'initials'),
+            'discord_avatar_url': self.discord_avatar_url,
             'bio': self.bio or '',
             'favorite_genres': self.favorite_genres or '',
             'discord_linked': bool(self.discord_user_id),
@@ -222,6 +232,21 @@ class User(db.Model):
             'share_prefs': share_prefs(self),
             'is_guest': bool(self.is_guest),
         }
+
+
+def face(u):
+    """What an avatar needs: color for initials, and the picture if any."""
+    return {'avatar_color': u.avatar_color, 'avatar_url': u.avatar_url, 'avatar_emoji': u.avatar_emoji}
+
+
+def follow_discord_avatar(user, url):
+    """Remember a member's Discord picture, and show it unless they chose
+    something else (a photo, an emoji or initials)."""
+    if not url:
+        return
+    user.discord_avatar_url = url[:500]
+    if user.avatar_kind in (None, 'discord'):
+        user.avatar_url = url[:500]
 
 
 class LoginToken(db.Model):
@@ -255,6 +280,11 @@ class Group(db.Model):
     # Superseded by announce_enabled_theatres (alerts are now opt-in); kept
     # only because SQLite can't drop columns.
     announce_muted_theatres = db.Column(db.String(400), default='')
+    # Its picture (R6b): a photo, or an emoji; short_name is what the top bar
+    # shows when there's no room for the name (initials if blank).
+    photo_url = db.Column(db.String(200))
+    emoji = db.Column(db.String(16))
+    short_name = db.Column(db.String(12))
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False):
@@ -267,6 +297,9 @@ class Group(db.Model):
             'theatres': [t.strip() for t in (self.theatres or '').split(',') if t.strip()],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'member_count': sum(1 for m in self.memberships if m.status == 'active'),
+            'photo_url': self.photo_url,
+            'emoji': self.emoji,
+            'short_name': self.short_name or '',
             'discord': discord_group(self.id),        # the club's Discord server's group
         }
         if include_members:
@@ -410,11 +443,11 @@ class Showtime(db.Model):
             rsvps = [r for r in rsvps if r.group_id == group_id]
 
         attendees = [
-            {'id': r.user.id, 'name': r.user.name, 'avatar_color': r.user.avatar_color}
+            {'id': r.user.id, 'name': r.user.name, **face(r.user)}
             for r in rsvps if r.status == 'going'
         ]
         maybes = [
-            {'id': r.user.id, 'name': r.user.name, 'avatar_color': r.user.avatar_color}
+            {'id': r.user.id, 'name': r.user.name, **face(r.user)}
             for r in rsvps if r.status == 'maybe'
         ]
         user_rsvp = None
@@ -1076,8 +1109,8 @@ def resolve_discord_user(data):
         user.name = name
     if data.get('discord_username'):
         user.discord_username = str(data['discord_username'])[:40]
-    if data.get('discord_avatar') and (user.email is None or not user.avatar_url):
-        user.avatar_url = str(data['discord_avatar'])[:500]
+    if data.get('discord_avatar'):
+        follow_discord_avatar(user, str(data['discord_avatar']))
 
     # Being in the club's server is membership of its group.
     group = db.session.get(Group, _as_int(data.get('group_id'))) if create else None
@@ -1337,6 +1370,106 @@ def update_profile():
     return jsonify({'user': user.to_dict()})
 
 
+# ─── Pictures (R6b) ───────────────────────────────────────────────────────────
+# Members and clubs pick a photo, an emoji, or initials. Photos are processed
+# and stored by media.py; uploads are limited per person.
+
+UPLOADS_PER_HOUR = 20
+_uploads = {}              # user id -> recent upload times (per server process)
+
+
+def _upload_allowed(user):
+    now = time.monotonic()
+    recent = [t for t in _uploads.get(user.id, []) if now - t < 3600]
+    _uploads[user.id] = recent
+    if len(recent) >= UPLOADS_PER_HOUR:
+        return False
+    recent.append(now)
+    return True
+
+
+def _upload(kind):
+    """(url, error response) for the request's uploaded file."""
+    import media
+    f = request.files.get('file')
+    if not f:
+        return None, (jsonify({'error': 'Choose a picture to upload.'}), 400)
+    if not _upload_allowed(current_user()):
+        return None, (jsonify({'error': "That's a lot of uploads. Try again in a while."}), 429)
+    try:
+        return media.save(app.instance_path, f.read(media.MAX_BYTES + 1), kind), None
+    except media.BadImage as e:
+        return None, (jsonify({'error': str(e)}), 400)
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return jsonify({'error': 'That file is over 5 MB. Try a smaller one.'}), 413
+
+
+@app.route('/api/media/<name>')
+def get_media(name):
+    """An uploaded picture. Names are random and never reused, so they're cached for good."""
+    import media
+    if not media.NAME_RE.match(name):
+        return jsonify({'error': 'Not found'}), 404
+    resp = send_from_directory(media.media_dir(app.instance_path), name, mimetype='image/webp', max_age=31536000)
+    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return resp
+
+
+def _set_picture(user, kind, url=None, emoji=None):
+    """Switch your picture, removing an uploaded photo you no longer use."""
+    import media
+    old = user.avatar_url
+    user.avatar_kind = kind
+    user.avatar_url = url if kind == 'photo' else user.discord_avatar_url if kind == 'discord' else None
+    user.avatar_emoji = emoji if kind == 'emoji' else None
+    if old != user.avatar_url:
+        media.delete(app.instance_path, old)
+
+
+@app.route('/api/me/picture', methods=['POST'])
+@require_auth
+def upload_my_picture():
+    """Upload a photo (multipart 'file'). Guests keep their profile first."""
+    user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
+    url, err = _upload('avatar')
+    if err:
+        return err
+    _set_picture(user, 'photo', url=url)
+    db.session.commit()
+    return jsonify({'user': user.to_dict()})
+
+
+@app.route('/api/me/picture', methods=['PUT'])
+@require_auth
+def choose_my_picture():
+    """{kind: 'initials' | 'emoji' (+ emoji) | 'discord'}."""
+    import media
+    user = current_user()
+    data = request.json or {}
+    kind = data.get('kind')
+    if kind == 'emoji':
+        emoji = media.clean_emoji(data.get('emoji'))
+        if not emoji:
+            return jsonify({'error': 'Pick an emoji.'}), 400
+        _set_picture(user, 'emoji', emoji=emoji)
+    elif kind == 'discord':
+        if not user.discord_avatar_url:
+            return jsonify({'error': "There's no Discord picture to use."}), 400
+        _set_picture(user, 'discord')
+    elif kind == 'initials':
+        _set_picture(user, 'initials')
+    else:
+        return jsonify({'error': 'Unknown choice'}), 400
+    db.session.commit()
+    return jsonify({'user': user.to_dict()})
+
+
 def _update_profile_fields(user, data):
     """Bio, favorite genres and Letterboxd handle — shared by the site's profile
     menu and Discord's /profile. Genres may be a comma string or a list."""
@@ -1453,7 +1586,7 @@ def discord_oauth_callback():
             merge_users(user, existing)
         user.discord_user_id = discord_id
         user.discord_username = (me.get('username') or '')[:40] or None
-        user.avatar_url = user.avatar_url or avatar
+        follow_discord_avatar(user, avatar)
         db.session.commit()
         return back(discord='connected')
 
@@ -1463,7 +1596,7 @@ def discord_oauth_callback():
     if user and not user.is_active:
         return back(discord_error='inactive')
     if not user and guest:                 # the guest profile becomes the account
-        user = keep_guest(guest, discord_user_id=discord_id, name=name, avatar_url=avatar)
+        user = keep_guest(guest, discord_user_id=discord_id, name=name)   # picture: below
         guest = None
     elif not user:
         user = User(discord_user_id=discord_id, name=name, avatar_color=random.choice(AVATAR_COLORS),
@@ -1471,8 +1604,9 @@ def discord_oauth_callback():
         db.session.add(user)
     if guest:                              # signing into an existing account: bring the guest's plans
         absorb_guest(user, guest)
-    if user.email is None:             # Discord-only accounts track Discord
-        user.name, user.avatar_url = name, avatar or user.avatar_url
+    if user.email is None:             # Discord-only accounts track Discord's name
+        user.name = name
+    follow_discord_avatar(user, avatar)
     user.discord_username = (me.get('username') or '')[:40] or None
     db.session.commit()
     _start_session(user)
@@ -1727,6 +1861,42 @@ def update_group(slug):
         theatres_list = data.get('theatres', [])
         group.theatres = ','.join(s for s in theatres_list if s in valid_slugs)
 
+    # Picture (R6b): an emoji replaces a photo; "photo": null removes it.
+    import media
+    if 'emoji' in data:
+        emoji = media.clean_emoji(data.get('emoji'))
+        if data.get('emoji') and not emoji:
+            return jsonify({'error': 'Pick an emoji.'}), 400
+        group.emoji = emoji
+        if emoji:
+            media.delete(app.instance_path, group.photo_url)
+            group.photo_url = None
+    if 'photo' in data and data['photo'] is None:
+        media.delete(app.instance_path, group.photo_url)
+        group.photo_url = None
+    if 'short_name' in data:
+        group.short_name = re.sub(r'\s+', ' ', (data.get('short_name') or '')).strip()[:12] or None
+
+    db.session.commit()
+    return jsonify(group.to_dict())
+
+
+@app.route('/api/groups/<slug>/picture', methods=['POST'])
+@require_auth
+def upload_group_picture(slug):
+    """An admin uploads the club's photo (multipart 'file'); it replaces any emoji."""
+    import media
+    group = Group.query.filter_by(slug=slug).first()
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    _, err = require_role(current_user(), group.id, 'admin')
+    if err:
+        return err
+    url, err = _upload('club')
+    if err:
+        return err
+    media.delete(app.instance_path, group.photo_url)
+    group.photo_url, group.emoji = url, None
     db.session.commit()
     return jsonify(group.to_dict())
 
@@ -1758,6 +1928,8 @@ def delete_group(slug):
     Reaction.query.filter_by(group_id=group.id).delete()
     RSVP.query.filter_by(group_id=group.id).delete()
     GroupMembership.query.filter_by(group_id=group.id).delete()
+    import media
+    media.delete(app.instance_path, group.photo_url)
     db.session.delete(group)
     db.session.commit()
 
@@ -2054,7 +2226,7 @@ def get_movie_detail(movie_id):
 
 
 def _brief_user(u):
-    return {'id': u.id, 'name': u.name, 'avatar_color': u.avatar_color}
+    return {'id': u.id, 'name': u.name, **face(u)}
 
 
 @app.route('/api/films/<int:movie_id>')
@@ -3268,7 +3440,7 @@ FEED_PAGE = 20
 
 
 def _feed_user(u):
-    return {'id': u.id, 'name': u.name, 'avatar_color': u.avatar_color, 'discord_only': u.email is None}
+    return {'id': u.id, 'name': u.name, **face(u), 'discord_only': u.email is None}
 
 
 def _went_visible_in(group_id, rows):
@@ -3592,7 +3764,7 @@ def get_messages():
 def _message_dict(m, viewer):
     return {
         'id': m.id,
-        'user': {'id': m.user.id, 'name': m.user.name, 'avatar_color': m.user.avatar_color},
+        'user': {'id': m.user.id, 'name': m.user.name, **face(m.user)},
         'body': m.body,
         'created_at': utc_iso(m.created_at),
         'via_discord': m.source in ('discord', 'discord_bot'),
@@ -5884,6 +6056,13 @@ def migrate():
         "ALTER TABLE user ADD COLUMN guest_ip_hash VARCHAR(64)",
         "CREATE INDEX IF NOT EXISTS ix_user_guest_ip_hash ON user (guest_ip_hash)",
         "ALTER TABLE login_token ADD COLUMN guest_user_id INTEGER",
+        # R6b: pictures
+        "ALTER TABLE user ADD COLUMN avatar_emoji VARCHAR(16)",
+        "ALTER TABLE user ADD COLUMN avatar_kind VARCHAR(10)",
+        "ALTER TABLE user ADD COLUMN discord_avatar_url TEXT",
+        "ALTER TABLE 'group' ADD COLUMN photo_url VARCHAR(200)",
+        "ALTER TABLE 'group' ADD COLUMN emoji VARCHAR(16)",
+        "ALTER TABLE 'group' ADD COLUMN short_name VARCHAR(12)",
     ]
     for sql in stmts:
         try:
@@ -5902,6 +6081,9 @@ def migrate():
     except Exception:
         db.session.rollback()   # already added
     db.session.execute(db.text("UPDATE rsvp SET updated_at = created_at WHERE updated_at IS NULL"))
+    # Pictures so far all came from Discord: remember them as such.
+    db.session.execute(db.text("UPDATE user SET discord_avatar_url = avatar_url WHERE discord_avatar_url IS NULL "
+                               "AND avatar_url LIKE 'https://cdn.discordapp.com/%'"))
     db.session.commit()
     # Every movie's current title is a venue label the scraper may see again.
     db.session.execute(db.text(

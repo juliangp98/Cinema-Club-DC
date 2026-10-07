@@ -58,6 +58,13 @@
 }
 button.ui-avatar { cursor: pointer; }
 button.ui-avatar:hover { box-shadow: 0 0 0 2px var(--amber); }
+.ui-avatar.photo, .ui-avatar.emoji { overflow: hidden; border: 1px solid var(--border); line-height: 1; }
+.ui-avatar img, .ui-club-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ui-club-badge {
+  border-radius: 28%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  overflow: hidden; line-height: 1; background: var(--bg3); border: 1px solid var(--gold-line);
+  color: var(--amber); font-family: var(--font-body); font-weight: 700; letter-spacing: 0.02em;
+}
 
 /* ── Page & section titles ─────────────────────────────────────────────── */
 .ui-page-header { margin-bottom: 1.25rem; }
@@ -171,13 +178,22 @@ button.ui-avatar:hover { box-shadow: 0 0 0 2px var(--amber); }
 .topbar-link.active { color: var(--cream); background: rgba(220, 177, 92, 0.15); }
 .topbar-spacer { flex: 1; }
 .topbar-group {
-  max-width: 260px; padding: 0.4rem 0.85rem; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  max-width: min(480px, 40vw); padding: 0.3rem 0.85rem 0.3rem 0.35rem; border-radius: var(--radius-pill);
   background: var(--bg3); border: 1px solid var(--border);
-  font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-sm); overflow: hidden; white-space: nowrap;
 }
 .topbar-group:hover { border-color: var(--border-strong); }
 .topbar-group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-group-short { display: none; white-space: nowrap; font-weight: 600; }
+.topbar-group-badge { display: inline-flex; }
 .topbar-group .caret { color: var(--muted); font-size: 0.7rem; }
+/* Not enough room for the whole name: the club's short name (or initials). */
+@media (max-width: 1179px) {
+  .topbar-group-name { display: none; }
+  .topbar-group-short { display: inline; }
+  .topbar-group-badge.initials { display: none; }      /* it would only repeat the initials */
+}
 
 .tabbar { display: none; }
 
@@ -208,7 +224,7 @@ button.ui-avatar:hover { box-shadow: 0 0 0 2px var(--amber); }
   .topbar-nav, .topbar-avatar, .topbar-spacer { display: none; }
   .topbar-logo { flex-shrink: 0; }
   .topbar-groupmenu { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
-  .topbar-group { max-width: 100%; min-width: 0; font-size: var(--fs-xs); }
+  .topbar-group { max-width: 100%; min-width: 0; font-size: var(--fs-xs); padding: 0.25rem 0.7rem 0.25rem 0.3rem; }
   .topbar-bell { width: 34px; height: 34px; }
   .tabbar {
     display: flex; flex-shrink: 0;
@@ -437,3 +453,22 @@ a.share-state { color: #6fbf98; }
 .bring-plans-list label { display: flex; gap: 0.5rem; align-items: baseline; font-size: var(--fs-sm); color: var(--cream); cursor: pointer; }
 .bring-plans-list input { accent-color: var(--amber); }
 .bring-plans-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+
+/* ── Picture picker (profiles and clubs, R6b) ─────────────────────────── */
+.picture-picker { display: flex; flex-direction: column; gap: 0.6rem; }
+.picture-picker-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.picture-picker-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.picture-picker-emoji { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.picture-emoji {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg3);
+  font-size: 1.15rem; cursor: pointer; line-height: 1;
+}
+.picture-emoji:hover { border-color: var(--amber); }
+.picture-emoji-own { display: flex; gap: 0.35rem; align-items: center; }
+.picture-emoji-own .share-input { width: 7.5rem; }
+.picture-picker-note { margin: 0; color: var(--muted); font-size: var(--fs-xs); }
+
+/* Pictures inside avatars that have their own sizing (feed stacks, chat) */
+.feed-avatar, .chat-avatar { overflow: hidden; }
+.avatar-face-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-face-emoji { font-size: 1.35em; line-height: 1; }

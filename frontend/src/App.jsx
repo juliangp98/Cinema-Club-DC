@@ -3,11 +3,10 @@ import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useSear
 import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import GroupDiscovery from "./pages/GroupDiscovery";
-import MembersPage from "./pages/MembersPage";
+import ClubPage from "./pages/ClubPage";
 import PollsPage from "./pages/PollsPage";
 import PollDetailPage from "./pages/PollDetailPage";
 import PollEditorPage from "./pages/PollEditorPage";
-import LeaderboardPage from "./pages/LeaderboardPage";
 import VerifySignin from "./pages/VerifySignin";
 import MePage from "./pages/MePage";
 import FilmPage from "./pages/FilmPage";
@@ -172,8 +171,8 @@ export default function App() {
         <Route path="/signin" element={<SignIn user={user} onLogin={handleLogin} apiBase={API_BASE} />} />
         <Route path="/invite/:token" element={<InviteRoute user={user} onLogin={handleLogin} apiBase={API_BASE} />} />
         {/* Every page shares the app shell; what's playing is public (R5a). */}
-        <Route element={<AppShell user={user} setUser={setUser} apiBase={API_BASE}
-                                  groupId={scopeGroupId} group={scopeGroup} setGroupId={handleSetGroupId} />}>
+        <Route element={<AppShell user={user} setUser={setUser} apiBase={API_BASE} groupId={scopeGroupId} group={scopeGroup}
+                                  groups={groups} setGroupId={handleSetGroupId} refreshGroups={fetchGroups} />}>
           <Route path="/" element={<DiscoverPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/calendar" element={<Calendar user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/films/:id" element={<FilmPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
@@ -185,14 +184,15 @@ export default function App() {
             <RequireSignIn user={user}>
               <GroupDiscovery user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />
             </RequireSignIn>} />
-          <Route path="/members" element={
-            <RequireSignIn user={user}><MembersPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
+          <Route path="/club" element={
+            <RequireSignIn user={user}><ClubPage user={user} apiBase={API_BASE} /></RequireSignIn>} />
+          {/* The Club page has the old Members and Leaderboard pages as tabs (R6b). */}
+          <Route path="/members" element={<Navigate to="/club?tab=members" replace />} />
+          <Route path="/leaderboard" element={<Navigate to="/club?tab=leaderboard" replace />} />
           <Route path="/polls" element={
             <RequireSignIn user={user}>
               <PollsPage apiBase={API_BASE} activeGroupId={scopeGroupId} />
             </RequireSignIn>} />
-          <Route path="/leaderboard" element={
-            <RequireSignIn user={user}><LeaderboardPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
           <Route path="/polls/new" element={
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/polls/:pollId" element={
