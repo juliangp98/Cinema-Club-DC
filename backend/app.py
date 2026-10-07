@@ -1176,6 +1176,10 @@ def discord_oauth_callback():
     pending = session.pop('discord_oauth', None)
 
     def back(**params):
+        # One line per attempt in `docker logs cinemaclub-backend`, so a failed
+        # sign-in is never silent (no ids or codes logged).
+        print(f"Discord {pending['mode'] if pending else 'sign-in'}: {params} -> {FRONTEND_URL}"
+              f" (cookie {'present' if pending else 'missing'}, host {request.host})", flush=True)
         return redirect(f"{FRONTEND_URL}/?{urlencode(params)}")
 
     if not pending or not request.args.get('state') or \
@@ -2382,6 +2386,51 @@ def feed():
     more = len(skeletons) > offset + FEED_PAGE
     return jsonify({'cards': hydrate_feed(current_user(), group_id, page, member_ids),
                     'next_offset': offset + FEED_PAGE if more else None, 'days': FEED_DAYS})
+
+
+@app.route('/api/club/week')
+@require_auth
+def club_week():
+    """Discover's "This week in the club" strip: screenings members are going
+    to in the next 7 days (most-attended first), open polls, and how many
+    comments others left this week (with the latest)."""
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    viewer, now = current_user(), datetime.now()
+    rows = (db.session.query(RSVP, Showtime).join(Showtime, RSVP.showtime_id == Showtime.id)
+            .filter(RSVP.group_id == group_id, RSVP.status == 'going',
+                    Showtime.start_time >= now, Showtime.start_time <= now + timedelta(days=7)).all())
+    by_show = {}
+    for r, s in rows:
+        by_show.setdefault(s.id, (s, []))[1].append(r.user)
+    plans = sorted(by_show.values(), key=lambda x: (-len(x[1]), x[0].start_time))[:4]
+
+    polls = Poll.query.filter_by(group_id=group_id, status='open').order_by(Poll.created_at.desc()).limit(3).all()
+    open_polls = []
+    for p in polls:
+        cat_ids = [c.id for c in p.categories]
+        voted = bool(cat_ids) and PollVote.query.filter(PollVote.category_id.in_(cat_ids),
+                                                        PollVote.user_id == viewer.id).first() is not None
+        open_polls.append({'id': p.id, 'title': p.title, 'you_voted': voted})
+
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    recent = (Message.query.filter(Message.group_id == group_id, Message.user_id != viewer.id,
+                                   Message.created_at >= since)
+              .order_by(Message.created_at.desc()))
+    latest = recent.first()
+    return jsonify({
+        'plans': [{'showtime_id': s.id, 'start_time': s.start_time.isoformat(),
+                   'movie': {'id': s.movie.id, 'title': s.movie.title, 'poster_url': s.movie.poster_url},
+                   'theatre': s.theatre.short_name or s.theatre.name,
+                   'going': [_brief_user(u) for u in users], 'you_going': any(u.id == viewer.id for u in users)}
+                  for s, users in plans],
+        'polls': open_polls,
+        'comments': {'count': recent.count(),
+                     'latest': {'showtime_id': latest.showtime_id, 'movie': db.session.get(Showtime, latest.showtime_id).movie.title,
+                                'user': latest.user.name, 'body': latest.body[:140]} if latest else None},
+    })
 
 
 @app.route('/api/attendance/pending')

@@ -92,3 +92,33 @@
   .poster-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem 0.65rem; }
   .browse-count { margin-left: 0; width: 100%; }
 }
+
+/* ── This week in the club (R3c) ───────────────────────────────────────── */
+.discover .attendance-prompt { margin: 0 0 1rem; }
+.club-week { margin-bottom: 1.5rem; }
+.club-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
+.club-week-title { color: var(--amber); font-size: 1.2rem; }
+.club-week-head .shelf-all { background: none; border: none; padding: 0; cursor: pointer; }
+.club-week-empty { color: var(--muted); font-size: var(--fs-sm); }
+.club-week-row {
+  display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.4rem;
+  scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+}
+.club-week-item {
+  flex: 0 0 auto; width: 280px; display: flex; align-items: center; gap: 0.75rem; text-align: left;
+  padding: 0.6rem 0.75rem; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); color: var(--cream); cursor: pointer;
+}
+.club-week-item:hover { border-color: var(--border-strong); }
+.club-week-item.mine { border-color: rgba(220, 177, 92, 0.45); }
+.club-week-poster { width: 40px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.club-week-icon { width: 40px; flex-shrink: 0; text-align: center; font-size: 1.4rem; }
+.club-week-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.club-week-name { font-weight: 600; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.club-week-meta, .club-week-who {
+  font-size: var(--fs-xs); color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.club-week-who { color: var(--cream); }
+.club-week-meta.nudge { color: var(--amber); }
+@media (max-width: 767px) { .club-week-item { width: 240px; } }

@@ -122,7 +122,7 @@ export default function BrowsePage({ apiBase, groupId }) {
 
   return (
     <div className="page browse">
-      <PageHeader title={title} back={{ to: "/discover", label: "Discover" }} />
+      <PageHeader title={title} back={{ to: "/", label: "Discover" }} />
       <SearchBox initial={query.q || ""} onSearch={q => set("q", q || null)} />
 
       <div className="browse-when" role="group" aria-label="When">

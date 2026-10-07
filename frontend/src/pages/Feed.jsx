@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
-import AttendancePrompt from "../components/AttendancePrompt";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
 
@@ -34,7 +33,7 @@ const pluralVerb = (users, viewerId, one, many) =>
   users.length === 1 && users[0].id !== viewerId ? one : many;
 
 const ACTIVITY = {
-  rsvp: a => (a.detail === "maybe" ? "might go" : "is going"),
+  rsvp: (a, you) => (a.detail === "maybe" ? "might go" : you ? "are going" : "is going"),
   went: () => "went",
   comment: () => "commented",
   reaction: a => `reacted ${a.detail}`,
@@ -104,7 +103,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {people.length > 0 && <Avatars users={people} onViewProfile={onViewProfile} />}
           {latest && (
             <div className="feed-activity">
-              {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest)}
+              {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId)}
             </div>
           )}
         </div>
@@ -236,7 +235,9 @@ function JoinedCard({ card, viewerId, onViewProfile }) {
   );
 }
 
-export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
+// The club's recent activity. Lives in the top bar's activity panel (R3c);
+// "Did you make it?" moved to Discover.
+export default function Feed({ user, apiBase, groupId }) {
   const navigate = useNavigate();
   const [cards, setCards] = useState([]);
   const [nextOffset, setNextOffset] = useState(null);
@@ -246,7 +247,6 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
   const [expanded, setExpanded] = useState(null);     // one open discussion at a time
   const [selected, setSelected] = useState(null);     // showtimes for the drawer
   const [profileUserId, setProfileUserId] = useState(null);
-  const [attendanceKey, setAttendanceKey] = useState(0);
   const loadedRef = useRef(0);
   const groupRef = useRef(groupId);   // responses for a group we've left are dropped
   groupRef.current = groupId;
@@ -351,7 +351,6 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
     });
     if (!r.ok) return false;
     patchShowtime(showtimeId, { user_attendance: status });
-    setAttendanceKey(k => k + 1);
     reload();
     return true;
   }
@@ -387,19 +386,12 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
     <div className="feed-page">
 
       <div className="feed-main">
-        <AttendancePrompt
-          apiBase={apiBase}
-          refreshKey={attendanceKey}
-          onAnswer={handleAttendance}
-          onOpenShowtime={openShowtime}
-        />
-
         {loading && !cards.length && <div className="feed-empty">Loading…</div>}
         {error && <div className="feed-empty">Couldn't load the feed. <button type="button" className="attendance-link" onClick={reload}>Try again</button></div>}
         {!loading && !error && !cards.length && (
           <div className="feed-empty">
             <p>Nothing here yet. RSVP to a screening, add films to your watchlist, or start a discussion and it'll show up here.</p>
-            <button type="button" className="feed-action" onClick={() => navigate("/calendar")}>Browse the calendar</button>
+            <button type="button" className="feed-action" onClick={() => navigate("/")}>Find something to see</button>
           </div>
         )}
 
@@ -432,7 +424,7 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
           viewerId={user.id}
           apiBase={apiBase}
           onClose={() => setProfileUserId(null)}
-          onAttendanceChange={() => { setAttendanceKey(k => k + 1); reload(); }}
+          onAttendanceChange={reload}
           onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }}
         />
       )}

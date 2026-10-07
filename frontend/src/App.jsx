@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
 import Calendar from "./pages/Calendar";
-import Feed from "./pages/Feed";
 import Login from "./pages/Login";
 import GroupDiscovery from "./pages/GroupDiscovery";
 import MembersPage from "./pages/MembersPage";
@@ -61,7 +60,7 @@ function AuthGuard({ user, loading, children, apiBase, onLogin }) {
   return children;
 }
 
-// Group pages (Feed, Calendar): redirect to /groups if the user has no groups.
+// Group pages (Discover, Calendar…): redirect to /groups if the user has no groups.
 function GroupGate({ user, groupId, hasGroups, children }) {
   const navigate = useNavigate();
 
@@ -97,6 +96,9 @@ export default function App() {
     return stored ? parseInt(stored, 10) : null;
   });
   const [notice, setNotice] = useState(readDiscordNotice);
+  // Back from "Sign in with Discord" as signed in: if the browser didn't keep
+  // the session, say so instead of silently showing the sign-in page again.
+  const [fromDiscord] = useState(() => new URLSearchParams(window.location.search).get("discord") === "signed_in");
 
   // Drop the ?discord… result params once read, keeping any others (?showtime=).
   useEffect(() => {
@@ -136,6 +138,10 @@ export default function App() {
       const r = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
       const d = await r.json();
       setUser(d.user || null);
+      if (!d.user && fromDiscord) {
+        setNotice({ error: true, text: "Discord signed you in, but this browser didn't keep the sign-in. "
+          + "Try once more, or use the email link below." });
+      }
       if (d.user) {
         await fetchGroups();
       }
@@ -144,7 +150,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [fetchGroups]);
+  }, [fetchGroups, fromDiscord]);
 
   useEffect(() => { fetchUser(); }, [fetchUser]);
 
@@ -194,8 +200,7 @@ export default function App() {
             path="/"
             element={
               <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <Feed user={user} setUser={setUser} apiBase={API_BASE}
-                      groupId={activeGroupId} setGroupId={handleSetGroupId} />
+                <DiscoverPage user={user} apiBase={API_BASE} groupId={activeGroupId} />
               </GroupGate>
             }
           />
@@ -216,14 +221,8 @@ export default function App() {
               </GroupGate>
             }
           />
-          <Route
-            path="/discover"
-            element={
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <DiscoverPage apiBase={API_BASE} groupId={activeGroupId} />
-              </GroupGate>
-            }
-          />
+          {/* Discover is home now; old /discover links land there too. */}
+          <Route path="/discover" element={<Navigate to="/" replace />} />
           <Route
             path="/browse"
             element={

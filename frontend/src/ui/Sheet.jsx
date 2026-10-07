@@ -4,24 +4,38 @@ import { createPortal } from "react-dom";
 // The one overlay panel: slides in from the right on desktop, up from the
 // bottom on phones (with a handle you can drag down to close). Escape, the
 // close button, or a click on the backdrop close it; the page behind doesn't
-// scroll while it's open.
+// scroll while it's open. Sheets can stack (a screening opened from the
+// activity panel); Escape closes only the top one.
+const openSheets = [];
+
 export default function Sheet({ onClose, label, children, className = "" }) {
   const panelRef = useRef(null);
   const drag = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
+  // Registered once per open sheet (callers often pass a new onClose each render).
   useEffect(() => {
-    function onKey(e) { if (e.key === "Escape" && !e.defaultPrevented) onClose(); }
+    const me = {};
+    openSheets.push(me);
+    function onKey(e) {
+      if (e.key === "Escape" && !e.defaultPrevented && openSheets[openSheets.length - 1] === me) {
+        e.preventDefault();
+        closeRef.current();
+      }
+    }
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const prevFocus = document.activeElement;
     panelRef.current?.focus({ preventScroll: true });
     return () => {
+      openSheets.splice(openSheets.indexOf(me), 1);
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
       prevFocus?.focus?.({ preventScroll: true });
     };
-  }, [onClose]);
+  }, []);
 
   // Drag the handle down (phones) to dismiss.
   function onPointerDown(e) {

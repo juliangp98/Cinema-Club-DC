@@ -5,19 +5,21 @@ import ProfileEditor from "../components/ProfileMenu";
 import Sheet from "../ui/Sheet";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { HomeIcon, CalendarIcon, CompassIcon, PollIcon, UserIcon, EditIcon, LogoutIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, PollIcon, UserIcon, EditIcon, LogoutIcon } from "../ui/icons";
+import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
-// your menu), the bottom tab bar on phones, and the profile editor. Pages get
-// at these through useShell() instead of each building its own header.
+// the activity bell, your menu), the bottom tab bar on phones, the profile
+// editor and the activity panel. Pages get at these through useShell()
+// instead of each building its own header.
 const ShellContext = createContext(null);
 export const useShell = () => useContext(ShellContext);
 
+// Discover is home (R3c); the old Feed lives in the activity panel.
 const NAV = [
-  { to: "/", label: "Home", icon: HomeIcon, end: true },
+  { to: "/", label: "Discover", icon: CompassIcon, end: true, also: "/browse" },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
-  { to: "/discover", label: "Discover", icon: CompassIcon, also: "/browse" },
   { to: "/polls", label: "Polls", icon: PollIcon },
 ];
 
@@ -38,7 +40,9 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
     }
   }, [apiBase, setUser, navigate]);
 
-  const shell = { user, setUser, apiBase, groupId, setGroupId, logout, editProfile: () => setEditing(true) };
+  const activity = useActivity({ apiBase, groupId, user });
+  const shell = { user, setUser, apiBase, groupId, setGroupId, logout, editProfile: () => setEditing(true),
+                  openActivity: activity.open };
   // The calendar scrolls its own grid; every other page scrolls the main area.
   const fixed = pathname.startsWith("/calendar");
 
@@ -56,6 +60,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
           </nav>
           <div className="topbar-spacer" />
           <GroupSwitcher apiBase={apiBase} activeGroupId={groupId} setGroupId={setGroupId} />
+          <ActivityBell unread={activity.unread} onOpen={activity.open} />
           <Menu
             className="topbar-avatar"
             label="Your account"
@@ -80,6 +85,10 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
             </NavLink>
           ))}
         </nav>
+
+        {activity.isOpen && (
+          <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} onClose={activity.close} />
+        )}
 
         {editing && (
           <Sheet label="Edit profile" onClose={() => setEditing(false)}>
