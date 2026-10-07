@@ -3222,6 +3222,9 @@ def internal_showtimes():
         q = q.filter(Showtime.start_time <= datetime.fromisoformat(end_str))
     if search:
         q = q.filter(Movie.title.ilike(f'%{search}%'))
+    movie_id = request.args.get('movie_id', type=int)
+    if movie_id:
+        q = q.filter(Showtime.movie_id == movie_id)
 
     limit = min(request.args.get('limit', 200, type=int), 500)
     showtimes = q.order_by(Showtime.start_time).limit(limit).all()
@@ -3285,6 +3288,12 @@ def internal_chat_context():
                 break
         out['attended'] = attended
 
+    # What the ask is about (R3b): films that fit it, from the Discover engine.
+    prompt = (request.args.get('prompt') or '').strip()
+    if prompt and group:
+        import discover
+        out['picks'] = discover.chat_picks(group, user, prompt[:500], now)
+
     # Always include what's playing (group-scoped) so unlinked askers still get help.
     upcoming = (_group_showtime_query(group)
                 .filter(Showtime.start_time >= now,
@@ -3299,6 +3308,67 @@ def internal_chat_context():
     } for s in upcoming]
 
     return jsonify(out)
+
+
+# ─── Discover in Discord (R3b) ───────────────────────────────────────────────
+# /find and /surprise. Anyone can use them; an existing account (never created
+# here) personalizes "For you", "Your list" and the you-are-going marks.
+
+def _internal_discover_args():
+    discord_id = str(request.args.get('discord_user_id') or '').strip()
+    viewer = User.query.filter_by(discord_user_id=discord_id, is_active=True).first() if discord_id.isdigit() else None
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    return viewer, group
+
+
+@app.route('/api/internal/discover/options')
+@require_internal
+def internal_discover_options():
+    import discover
+    _, group = _internal_discover_args()
+    if not group:
+        return jsonify({'error': 'group not found'}), 404
+    return jsonify({'types': discover.find_types(group),
+                    'regions': [{'value': f'region:{k}', 'label': v} for k, v in discover.REGION_KEYS.items()]})
+
+
+@app.route('/api/internal/discover/find')
+@require_internal
+def internal_discover_find():
+    import discover
+    viewer, group = _internal_discover_args()
+    if not group:
+        return jsonify({'error': 'group not found'}), 404
+    a = request.args
+    params = discover.find_params(a.get('type'), a.get('where'), a.get('when'), a.get('q'))
+    limit = max(1, min(a.get('limit', 8, type=int), 25))
+    result = discover.browse(group, viewer, params, limit=limit)
+    names = {t.slug: t.short_name or t.name for t in Theatre.query.filter(
+        Theatre.slug.in_([x for x in params.get('theatres', '').split(',') if x]))}
+    if params.get('theatres'):
+        params['_theatre_label'] = ', '.join(names.get(x, x) for x in params['theatres'].split(','))
+    result.pop('facets', None)
+    result.pop('regions', None)
+    return jsonify({**result, 'params': {k: v for k, v in params.items() if not k.startswith('_')},
+                    'label': discover.describe(params, result.get('title')),
+                    'browse_path': discover.browse_path(params)})
+
+
+@app.route('/api/internal/discover/surprise')
+@require_internal
+def internal_discover_surprise():
+    import discover
+    viewer, group = _internal_discover_args()
+    if not group:
+        return jsonify({'error': 'group not found'}), 404
+    a = request.args
+    params = discover.find_params(where=a.get('where'))
+    theatres = {x for x in params.get('theatres', '').split(',') if x} | \
+        {s for s, r in discover.REGIONS.items() if r.lower() in params.get('regions', '').split(',')}
+    exclude = [_as_int(x) for x in (a.get('exclude') or '').split(',') if _as_int(x)]
+    when = a.get('when') if a.get('when') in discover.WHEN else 'tonight'
+    pick = discover.surprise(group, viewer, when, exclude, theatres=theatres or None)
+    return jsonify(pick or {'error': 'nothing_playing'}), (200 if pick else 404)
 
 
 @app.route('/api/internal/theatres')

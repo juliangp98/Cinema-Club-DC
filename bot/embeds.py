@@ -544,3 +544,93 @@ def backfilled_comment(item):
     """A copied site comment: its text, then when it was really written."""
     day = datetime.fromisoformat(item['created_at']).astimezone(ET).strftime('%b %-d')
     return f"{item['body'][:1950]}\n-# {day} · on the site"
+
+
+# ─── Discover: /find and /surprise ────────────────────────────────────────────
+
+def _film_title(movie):
+    return f"{movie['title']} ({movie['year']})" if movie.get('year') else movie['title']
+
+
+def _next_line(card):
+    nxt = card['next']
+    bits = [f"{_fmt_day(nxt['start_time'])} {_fmt_time(nxt['start_time'])}", nxt['theatre']]
+    if nxt.get('format_label'):
+        bits.append(nxt['format_label'])
+    more = card.get('showings', 1) - 1
+    return ' · '.join(bits) + (f"  (+{more} more)" if more > 0 else '')
+
+
+def _reasons(card):
+    """Why it's notable, minus the year (already in the title)."""
+    year = str(card['movie'].get('year') or '')
+    return [str(r) for r in card.get('reasons') or [] if str(r) != year]
+
+
+def _club_bits(club):
+    bits = []
+    if club.get('you_going'):
+        bits.append("you're going")
+    if club.get('going'):
+        bits.append(f"🎟️ {club['going']} going")
+    if club.get('wanted'):
+        bits.append(f"⭐ {club['wanted']} want it")
+    return bits
+
+
+def find_embed(result):
+    """/find: a short list of films of one kind, linking to the same Browse view."""
+    films, total = result['films'], result['total']
+    embed = discord.Embed(title=f"🔎 {result['label']}"[:256], colour=AMBER,
+                          url=f"{SITE_URL}{result['browse_path']}")
+    if not films:
+        embed.description = 'Nothing matches that right now. Try a wider window (`when`) or fewer filters.'
+        return embed
+    lines = []
+    for c in films:
+        m = c['movie']
+        extra = [f"*{' · '.join(_reasons(c))}*"] if _reasons(c) else []
+        extra += _club_bits(c.get('club') or {})
+        lines.append(f"**[{_film_title(m)}]({SITE_URL}/films/{m['id']})**\n{_next_line(c)}"
+                     + (f"\n{' · '.join(extra)}" if extra else ''))
+    embed.description = '\n\n'.join(lines)[:4000]
+    thumb = _image_url(films[0]['movie'].get('poster_url'))
+    if thumb:
+        embed.set_thumbnail(url=thumb)
+    shown = len(films)
+    embed.set_footer(text=f"{total} film{'s' if total != 1 else ''} match"
+                          + (f" · showing {shown}" if total > shown else '')
+                          + ' · pick one below for showtimes')
+    return embed
+
+
+SURPRISE_WHEN = {'tonight': 'tonight', 'tomorrow': 'tomorrow', 'weekend': 'this weekend',
+                 'week': 'this week', '2weeks': 'in the next two weeks', 'month': 'this month'}
+
+
+def surprise_embed(pick, asked_when=None, spun_by=None):
+    """/surprise: one film, why it was picked, and its next showing."""
+    m = pick['movie']
+    meta = [b for b in (f"dir. {m['director']}" if m.get('director') else None,
+                        f"{m['runtime']} min" if m.get('runtime') else None,
+                        ', '.join(g.title() for g in (m.get('genres') or [])[:3]) or None) if b]
+    lines = []
+    if asked_when and pick.get('when') != asked_when:
+        lines.append(f"*Nothing left {SURPRISE_WHEN.get(asked_when, asked_when)}, so here's one from this week.*")
+    if meta:
+        lines.append(' · '.join(meta))
+    lines.append(f"**Next:** {_next_line(pick)}")
+    why = _reasons(pick) + _club_bits(pick.get('club') or {})
+    if why:
+        lines.append(f"**Why:** {' · '.join(why)}")
+    embed = discord.Embed(title=f"🎲 {_film_title(m)}"[:256], description='\n'.join(lines)[:4000],
+                          colour=AMBER, url=f"{SITE_URL}/films/{m['id']}")
+    poster, backdrop = _image_url(m.get('poster_url')), _image_url(m.get('backdrop_url'))
+    if backdrop:
+        embed.set_image(url=backdrop)
+        if poster:
+            embed.set_thumbnail(url=poster)
+    elif poster:
+        embed.set_thumbnail(url=poster)
+    embed.set_footer(text=(f"Spun by {spun_by} · " if spun_by else '') + 'Spin again for another pick')
+    return embed

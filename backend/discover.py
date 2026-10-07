@@ -449,13 +449,14 @@ def browse(group, viewer, params, now=None, limit=24, offset=0):
 
 # ─── Fun finders ──────────────────────────────────────────────────────────────
 
-def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random):
+def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random, theatres=None):
     """One pick, weighted toward rare screenings, your genres, and what the
     club wants. Falls back to a wider window when tonight is empty."""
     now = now or datetime.now()
     for w in (when, 'week') if when != 'week' else ('week',):
         start, end = window(w, now)
-        films = [f for f in catalog(group, start, end, viewer).values() if f.movie.id not in set(exclude)]
+        films = [f for f in catalog(group, start, end, viewer, theatres=theatres).values()
+                 if f.movie.id not in set(exclude)]
         if films:
             break
     else:
@@ -534,3 +535,294 @@ def spotlights(group, viewer, now=None, limit=6):
     return [{'role': role, 'name': name, 'count': len(fs),
              'films': [card(f) for f in sorted(fs, key=lambda f: f.next.start_time)[:6]]}
             for role, name, fs in out[:limit]]
+
+
+# ─── Discord: /find, /surprise and the chatbot (R3b) ─────────────────────────
+# The bot sends a "type" (shelf:rare, mood:laugh, genre:horror, or free text)
+# and a "where" (region:dc, theatre:afi, or free text); these turn them into
+# the same params Browse uses, so every answer can link to the matching view.
+
+BROWSE_KEYS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time',
+               'rarity', 'club', 'runtime', 'mood', 'shelf', 'q', 'sort')
+REGION_KEYS = {'dc': 'DC', 'maryland': 'Maryland', 'virginia': 'Virginia'}
+# /find's type list, in the order it's offered before anyone types.
+FIND_SHELVES = ('rare', 'one-night', 'on-film', 'big-screen', 'events', 'arthouse', 'classics', 'opening',
+                'last-chance', 'friends', 'most-wanted', 'for-you', 'critics', 'awards', 'blockbusters',
+                'documentaries', 'horror', 'late-night', 'short', 'epics')
+
+
+def browse_path(params):
+    """The site's Browse URL for a set of filters."""
+    from urllib.parse import urlencode
+    return '/browse?' + urlencode([(k, params[k]) for k in BROWSE_KEYS if params.get(k)])
+
+
+def describe(params, title=None):
+    """Short human label: 'Rare gems · Horror · This weekend · Virginia'."""
+    bits = [title or SHELF_TITLES.get(params.get('shelf')) or MOODS.get(params.get('mood'), {}).get('label')]
+    if params.get('genres') and not params.get('mood'):
+        bits.append(', '.join(g.title() for g in params['genres'].split(',')))
+    if params.get('decade'):
+        bits.append(f"{params['decade']}s")
+    if params.get('format') == 'film' and params.get('shelf') != 'on-film':
+        bits.append('On film')
+    if params.get('club') == 'mine':
+        bits.append('Your list')
+    if params.get('q'):
+        bits.append(f"“{params['q']}”")
+    bits.append(WHEN.get(params.get('when') or 'week'))
+    if params.get('regions'):
+        bits.append(' + '.join(REGION_KEYS.get(r, r) for r in params['regions'].split(',')))
+    if params.get('theatres'):
+        bits.append(params.get('_theatre_label') or params['theatres'].replace(',', ', '))
+    return ' · '.join(b for b in bits if b)
+
+
+def find_types(group, now=None):
+    """Everything /find's type box offers: shelves, moods, and the genres
+    actually playing in the next month (most common first)."""
+    now = now or datetime.now()
+    blurbs = {k: b for k, _, b in SHELVES}
+    out = [{'value': f'shelf:{k}', 'label': SHELF_TITLES[k], 'hint': blurbs[k]} for k in FIND_SHELVES]
+    out += [{'value': f'mood:{k}', 'label': v['label'], 'hint': 'Mood'} for k, v in MOODS.items()]
+    counts = {}
+    for f in catalog(group, *window('month', now)).values():
+        for g in f.genres:
+            counts[g] = counts.get(g, 0) + 1
+    out += [{'value': f'genre:{g}', 'label': g.title(), 'hint': f'Genre · {n} film{"s" if n != 1 else ""}'}
+            for g, n in sorted(counts.items(), key=lambda x: (-x[1], x[0]))]
+    return out
+
+
+# Words people use for each filter, for free-text /find input and the chatbot.
+# Order matters where one message could match several shelves: the first wins.
+_SHELF_WORDS = [
+    ('one-night', r"\bone[- ]night( only)?\b|\bone[- ]offs?\b|\bsingle (showing|screening)\b"),
+    ('last-chance', r"\blast chance\b|\bbefore (it'?s|they'?re) gone\b|\bfinal (showing|screening)s?\b|\bleaving theat"),
+    ('on-film', r"\b(35|16|70) ?mm\b|\bon film\b|\bfilm prints?\b|\bcelluloid\b"),
+    ('big-screen', r"\bimax\b|\bdolby\b|\bbig(gest)? screen\b"),
+    ('events', r"\bq ?(&|and) ?a\b|\bpremieres?\b|\bspecial events?\b|\bmarathons?\b|\bin person\b|\bintroduction\b"),
+    ('rare', r"\brare\b|\brarit|\bhard to (find|see|catch)\b|\bobscure\b|\bweird\b|\bstrange\b|\bcult\b"
+             r"|\bunusual\b|\bdeep cuts?\b|\boff the beaten"),
+    ('arthouse', r"\bart ?house\b|\bindie\b|\bindependent\b|\bartsy\b|\bforeign\b|\binternational\b"),
+    ('classics', r"\bclassics?\b|\bold(er)? (movie|film)s?\b|\boldies?\b|\brepertory\b|\bretro\b|\bvintage\b"),
+    ('blockbusters', r"\bblockbusters?\b|\bbig (new )?(movie|release)s?\b|\bpopcorn (movie|flick)s?\b|\bmainstream\b"),
+    ('opening', r"\bnew (release|movie|film)s?\b|\bjust (came out|opened|released)\b|\bwhat'?s opening\b"
+                r"|\bopening (this|next) week\b|\bnew this week\b"),
+    ('critics', r"\bacclaimed\b|\bcritics?'? (pick|darling|favorite)s?\b|\bbest reviewed\b|\bhighly rated\b|\bwell reviewed\b"),
+    ('awards', r"\boscars?\b|\baward[- ]winn|\bacademy awards?\b"),
+    ('friends', r"\b(friends|anyone|everyone|people|the club|who'?s) (are |is )?going\b"),
+    ('most-wanted', r"\bmost wanted\b|\bclub wants\b|\beveryone wants\b"),
+    ('late-night', r"\blate[- ]night\b|\blate (show|screening)s?\b|\bmidnight\b"),
+    ('short', r"\bshort (one|movie|film)\b|\bquick (one|movie|watch)\b|\bnot too long\b"),
+    ('epics', r"\bepics?\b|\blong (one|movie|film)\b|\b(3|three)[- ]hours?\b"),
+    ('documentaries', r"\bdocumentar(y|ies)\b|\bdocs\b"),
+    ('for-you', r"\bfor me\b|\bmy taste\b|\bmy (kind|type) of\b"),
+]
+_MOOD_WORDS = [
+    ('scare-me', r"\bscar(e|ed|y|iest)\b|\bspooky\b|\bcreepy\b|\bterrif|\bfrighten|\bhorror\b|\bhalloween\b"),
+    ('laugh', r"\bfunny\b|\blaugh|\bhilarious\b|\bcomed(y|ies)\b|\blight ?hearted\b"),
+    ('mind-bender', r"\bmind[- ]?(bend|blow)|\btrippy\b|\bsci[- ]?fi\b|\bcerebral\b|\bheady\b"),
+    ('date-night', r"\bdate night\b|\bon a date\b|\bfor a date\b|\bromantic\b|\bromance\b|\brom ?coms?\b"),
+    ('tissues', r"\bcry\b|\bsad\b|\btear ?jerkers?\b|\bemotional\b"),
+    ('feel-good', r"\bfeel[- ]good\b|\buplifting\b|\bwholesome\b|\bcheer (me|us) up\b|\bcozy\b|\bfamily\b|\bkids\b"),
+    ('thrills', r"\baction\b|\bthrill|\bexciting\b|\badrenaline\b|\bintense\b"),
+]
+_WHEN_WORDS = [
+    ('tonight', r"\btonight\b|\btoday\b|\bthis evening\b"),
+    ('tomorrow', r"\btomorrow\b"),
+    ('weekend', r"\bweekend\b|\b(friday|saturday|sunday)\b"),
+    ('2weeks', r"\bnext week\b|\b(two|2|couple( of)?) weeks\b"),
+    ('week', r"\bthis week\b|\bnext few days\b"),
+    ('month', r"\b(this|next) month\b"),
+]
+_REGION_WORDS = [
+    ('dc', r"\bd\.?c\.?\b|\bthe district\b"),
+    ('maryland', r"\bmaryland\b|\bmd\b|\bsilver spring\b|\bbethesda\b|\brockville\b"),
+    ('virginia', r"\bvirginia\b|\bva\b|\bnova\b|\barlington\b|\balexandria\b|\bfairfax\b|\bcrystal city\b"),
+]
+_THEATRE_WORDS = [
+    ('afi', r"\bafi\b"), ('suns', r"\bsuns\b"), ('alamo', r"\balamo\b"), ('regal', r"\bregal\b"),
+    ('angelika', r"\bangelika\b"), ('amc', r"\bamc\b"), ('avalon', r"\bavalon\b"),
+    ('nga', r"\bnational gallery\b|\bnga\b"), ('smi', r"\bsmithsonian\b|\bair and space\b|\budvar"),
+]
+_DECADE = re.compile(r"(?<![\d])'?(?:19)?([2-9]0)'?s\b|\b(20[0-2]0)'?s\b")
+_ASKING = re.compile(r"\?|\b(any|anything|something|recommend\w*|recs?|suggest\w*|what'?s (on|playing|showing)"
+                     r"|where can|should (i|we)|looking for|worth (seeing|catching)|playing|showing)\b")
+
+
+def _match(words, text):
+    return [key for key, pattern in words if re.search(pattern, text)]
+
+
+def _theatre_slugs(prefix):
+    return {s for s in REGIONS if s == prefix or s.startswith(prefix + '-')}
+
+
+def parse_request(text, genres=()):
+    """Filters a plain-English ask names: ("anything weird and rare in
+    Virginia this weekend?") -> {'shelf': 'rare', 'when': 'weekend',
+    'regions': 'virginia'}. Only what's clearly named; never search text."""
+    t = normalize(text).replace('’', "'")
+    p = {}
+    shelves = _match(_SHELF_WORDS, t)
+    if shelves:
+        p['shelf'] = shelves[0]
+    moods = _match(_MOOD_WORDS, t)
+    if moods:
+        p['mood'] = moods[0]
+    picked = sorted(g for g in genres if re.search(rf"\b{re.escape(g)}\b", t))
+    if picked:
+        p['genres'] = ','.join(picked)
+    m = _DECADE.search(t)
+    if m:
+        d = m.group(2) or m.group(1)
+        p['decade'] = d if len(d) == 4 else ('19' + d)
+    if re.search(r"\b(my watchlist|on my list)\b", t):
+        p['club'] = 'mine'
+    when = _match(_WHEN_WORDS, t)
+    if when:
+        p['when'] = when[0]
+    regions = _match(_REGION_WORDS, t)
+    if regions:
+        p['regions'] = ','.join(regions)
+    theatres = set().union(*[_theatre_slugs(k) for k in _match(_THEATRE_WORDS, t)])
+    if theatres:
+        p['theatres'] = ','.join(sorted(theatres))
+    return p
+
+
+def find_params(type_value=None, where=None, when=None, q=None):
+    """Browse params for /find's (type, where, when, search) options."""
+    p = {}
+    tv = (type_value or '').strip()
+    kind, _, key = tv.partition(':')
+    if kind == 'shelf' and key in SHELF_TITLES:
+        p['shelf'] = key
+    elif kind == 'mood' and key in MOODS:
+        p['mood'] = key
+    elif kind == 'genre' and key:
+        p['genres'] = key.lower()
+    elif tv:
+        n = normalize(tv)
+        exact = next((k for k, title, _ in SHELVES if normalize(title) == n or k == n), None) \
+            or next((k for k, v in MOODS.items() if normalize(v['label']) == n or k == n), None)
+        if exact in SHELF_TITLES:
+            p['shelf'] = exact
+        elif exact:
+            p['mood'] = exact
+        else:
+            parsed = {k: v for k, v in parse_request(tv, COMMON_GENRES).items()
+                      if k not in ('when', 'regions', 'theatres')}
+            p.update(parsed or {'q': tv})
+
+    w = (where or '').strip()
+    kind, _, key = w.partition(':')
+    if kind == 'region' and key in REGION_KEYS:
+        p['regions'] = key
+    elif kind == 'theatre' and key:
+        p['theatres'] = key
+    elif w:
+        n = normalize(w)
+        if n in REGIONS:
+            p['theatres'] = n
+        else:
+            parsed = parse_request(w)
+            if parsed.get('theatres') or parsed.get('regions'):
+                p.update({k: parsed[k] for k in ('theatres', 'regions') if k in parsed})
+            else:
+                p['theatres'] = n
+
+    if when in WHEN:
+        p['when'] = when
+    if q and q.strip():
+        p['q'] = (p.get('q', '') + ' ' + q.strip()).strip() if 'q' in p else q.strip()
+    return p
+
+
+# Genre names free-text /find input is checked against (the chatbot uses
+# whatever's actually playing instead).
+COMMON_GENRES = {'action', 'adventure', 'animation', 'comedy', 'crime', 'documentary', 'drama', 'family',
+                 'fantasy', 'history', 'horror', 'music', 'mystery', 'romance', 'science fiction', 'thriller',
+                 'war', 'western'}
+
+
+def _pick_line(f, reasons=()):
+    s = f.next
+    return {'title': f.movie.title, 'year': f.year, 'when': s.start_time.strftime('%a %-m/%-d %-I:%M %p'),
+            'theatre': s.theatre.short_name or s.theatre.name, 'format': s.format_label or '',
+            'more': len(f.shows) - 1, 'reasons': [str(r) for r in reasons if r and str(r) != str(f.year)][:2]}
+
+
+def chat_picks(group, viewer, text, now=None, limit=10):
+    """What the @CinemaBot chat gets handed as "what's playing": films that fit
+    what was asked (or, for a vague ask, a mix of rare, club and soonest),
+    plus anything playing that the message names. `link` says whether the
+    reply should carry a "more like this" Browse link."""
+    now = now or datetime.now()
+    films = catalog(group, *window('2weeks', now), viewer)
+    genres = {g for f in films.values() for g in f.genres}
+    p = parse_request(text, genres)
+    t = normalize(text).replace('’', "'")
+    typed = any(k in p for k in ('shelf', 'mood', 'genres', 'decade', 'club'))
+    placed = any(k in p for k in ('regions', 'theatres'))
+
+    picks, seen = [], set()
+
+    def add(f, reasons=()):
+        if f.movie.id not in seen and len(picks) < limit:
+            seen.add(f.movie.id)
+            picks.append(_pick_line(f, reasons))
+
+    # Films the message names come first, so "is X still playing?" gets a real answer.
+    for f in sorted(films.values(), key=lambda f: -len(f.movie.title)):
+        name = normalize(f.movie.title)
+        name = name[4:] if name.startswith('the ') else name
+        if len(name) >= 4 and re.search(rf"(?<!\w){re.escape(name)}(?!\w)", t):
+            add(f, f.rare_reasons if f.rare_score >= 4 else ())
+        if len(picks) >= 3:
+            break
+
+    if typed or placed or 'when' in p:
+        params = {**p, 'when': p.get('when', '2weeks')}
+        if typed:
+            result = browse(group, viewer, params, now, limit=limit)
+            for c in result['films']:
+                f = films.get(c['movie']['id'])
+                if f:
+                    add(f, c['reasons'])
+                else:            # outside the two-week catalog (e.g. "this month")
+                    if c['movie']['id'] not in seen and len(picks) < limit:
+                        seen.add(c['movie']['id'])
+                        dt = datetime.fromisoformat(c['next']['start_time'])
+                        picks.append({'title': c['movie']['title'], 'year': c['movie']['year'],
+                                      'when': dt.strftime('%a %-m/%-d %-I:%M %p'), 'theatre': c['next']['theatre'],
+                                      'format': c['next']['format_label'] or '', 'more': c['showings'] - 1,
+                                      'reasons': [str(r) for r in c['reasons'] if str(r) != str(c['movie']['year'])][:2]})
+            total = result['total']
+        else:
+            start, end = window(params['when'], now)
+            theatres = {x for x in (p.get('theatres') or '').split(',') if x} | \
+                {s for s, r in REGIONS.items() if r.lower() in (p.get('regions') or '').split(',')}
+            scoped = catalog(group, start, end, viewer, theatres=theatres or None)
+            _mix(scoped, group, viewer, now, add)
+            total = len(scoped)
+    else:
+        params = {'when': '2weeks'}
+        _mix(films, group, viewer, now, add)
+        total = len(films)
+
+    return {'label': describe(params), 'films': picks, 'total': total,
+            'browse_path': browse_path(params),
+            'link': bool((typed or placed) and _ASKING.search(t))}
+
+
+def _mix(films, group, viewer, now, add):
+    """A vague ask: a few rare ones, what friends are going to, then soonest."""
+    ctx = context(group, viewer, films, now)
+    for f, r in shelf('rare', films, ctx)[:4]:
+        add(f, r)
+    for f, r in shelf('friends', films, ctx)[:3]:
+        add(f, r)
+    for f in sorted(films.values(), key=lambda f: f.next.start_time):
+        add(f)
