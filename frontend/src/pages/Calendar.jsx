@@ -1,716 +1,469 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import PageHeader from "../ui/PageHeader";
+import FilterSheet, { listOf } from "../ui/FilterSheet";
+import Avatar from "../ui/Avatar";
+import { Segmented } from "../ui/TicketRow";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
+import "./DiscoverPage.css";        // the Filters sheet looks the same as Browse's
+import "./Calendar.css";
 
-const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-const MONTHS = ["January","February","March","April","May","June",
-                "July","August","September","October","November","December"];
+// The calendar (R4): Agenda (a poster grid per day), Week (columns) and Month
+// (overview; tap a day for just that day). A film playing at several theatres
+// on a day is one entry. View, date and filters live in the URL; the filters
+// are Browse's (same names, applied by the same server code), plus who's going.
 
-// Strip diacritics for search matching (e.g. SIRÂT → SIRAT)
-function normalize(str) {
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-// Deep links from Discord embeds: /calendar?showtime=<id> opens the drawer,
-// ?theatre=<slug> pre-filters the calendar (old /?… links are rewritten by
-// legacyLinks.js). Captured once at module load
-// (a component-level capture would be consumed by StrictMode's double-mount).
+// Deep links from Discord: /calendar?showtime=<id> opens the screening,
+// ?theatre=<slug> pre-filters. Captured once at module load (StrictMode
+// would otherwise consume them on its first mount).
 const DEEP_LINK = (() => {
   const params = new URLSearchParams(window.location.search);
   const link = { showtime: params.get("showtime"), theatre: params.get("theatre") };
   if (link.showtime || link.theatre) {
-    // Remove only our own params — others (e.g. ?discord_error=) belong to App.
     params.delete("showtime");
     params.delete("theatre");
+    if (link.theatre) params.set("theatres", link.theatre);
     const rest = params.toString();
     window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : ""));
   }
   return link;
 })();
 
-// Time-of-day buckets
-const TIME_BUCKETS = [
-  { key: "morning",   label: "Morning",   icon: "\u2600\uFE0F", test: h => h < 12 },
-  { key: "afternoon", label: "Afternoon", icon: "\u26C5", test: h => h >= 12 && h < 17 },
-  { key: "evening",   label: "Evening",   icon: "\uD83C\uDF19", test: h => h >= 17 },
-];
+const VIEWS = [{ status: "agenda", label: "Agenda" }, { status: "week", label: "Week" }, { status: "month", label: "Month" }];
+const MULTI = new Set(["theatres", "regions", "genres", "format", "members"]);
+const FILTER_KEYS = ["theatres", "regions", "genres", "decade", "format", "time", "rarity", "club", "runtime", "mood", "shelf", "q", "members"];
+// Smart pills, after Discover's main sections. Shelf pills replace each other.
+const QUICK = [["club", "going", "Friends going"], ["rarity", "rare", "Rare"], ["shelf", "one-night", "One night only"],
+               ["format", "film", "On film"], ["shelf", "classics", "Classics"], ["shelf", "arthouse", "Arthouse"],
+               ["shelf", "awards", "Award winners"], ["shelf", "events", "Special events"], ["time", "late", "Late night"],
+               ["club", "mine", "My plans"]];
+const AGENDA_SPAN = 14;
+const WEEK_TOP = 8;               // films shown per day in Week before "+N more"
 
-function formatTime(iso) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-}
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const time = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const dayTitle = (d, today) => {
+  const label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const diff = Math.round((startOfDay(d) - today) / 864e5);
+  return diff === 0 ? `Today · ${label}` : diff === 1 ? `Tomorrow · ${label}` : label;
+};
+const short = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-// Condense a group's showtimes: list them when few, else first–last + count,
-// so a movie with many screenings doesn't fill the cell with a wall of times.
-function formatShowtimeList(showtimes) {
-  const times = [...showtimes]
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-    .map(s => formatTime(s.start_time));
-  if (times.length <= 3) return times.join(", ");
-  return `${times[0]} – ${times[times.length - 1]} (${times.length})`;
-}
-
-function startOfMonth(year, month) {
-  return new Date(year, month, 1);
-}
-
-function buildCalendarDays(year, month) {
-  const first = startOfMonth(year, month);
-  const startDay = first.getDay(); // 0 = Sun
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const daysInPrev = new Date(year, month, 0).getDate();
-  const days = [];
-
-  // Previous month tail
-  for (let i = startDay - 1; i >= 0; i--) {
-    days.push({ date: new Date(year, month - 1, daysInPrev - i), outside: true });
+// The days a view covers: [start, end) plus the grid for Month.
+function viewRange(view, anchor, span) {
+  if (view === "month") {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const start = addDays(first, -first.getDay());
+    const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+    return { start, end: addDays(last, 7 - last.getDay()) };
   }
-  // Current month
-  for (let d = 1; d <= daysInMonth; d++) {
-    days.push({ date: new Date(year, month, d), outside: false });
-  }
-  // Next month head (fill to complete rows)
-  let next = 1;
-  while (days.length % 7 !== 0) {
-    days.push({ date: new Date(year, month + 1, next++), outside: true });
-  }
-  return days;
+  return { start: anchor, end: addDays(anchor, view === "week" ? 7 : span) };
 }
 
-function isSameDay(a, b) {
-  return a.getFullYear() === b.getFullYear() &&
-         a.getMonth() === b.getMonth() &&
-         a.getDate() === b.getDate();
+function passes(s, members) {
+  if (!members.length) return true;
+  return [...(s.attendees || []), ...(s.maybes || [])].some(a => members.includes(String(a.id)));
 }
 
-export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }) {
-  const today = new Date();
-  const [year, setYear]       = useState(today.getFullYear());
-  const [month, setMonth]     = useState(today.getMonth());
-  const [showtimes, setShowtimes] = useState([]);
-  const [selected, setSelected]   = useState(null); // array of showtimes (grouped)
-  const [attendanceKey, setAttendanceKey] = useState(0); // refreshes "Did you make it?"
-  const [allTheatres, setAllTheatres] = useState([]);   // all theatres from API
-  const [groupTheatres, setGroupTheatres] = useState([]); // group's selected theatre slugs
-  const [activeTheatres, setActiveTheatres] = useState(new Set());
-  const [loading, setLoading]     = useState(false);
+// {day: [entry]}: one entry per film per day, most interesting first
+// (you're going, then friends, rare, recommended), then soonest.
+function groupByDay(showtimes, userId) {
+  const days = new Map();
+  for (const s of showtimes) {
+    const day = ymd(new Date(s.start_time));
+    if (!days.has(day)) days.set(day, new Map());
+    const films = days.get(day);
+    if (!films.has(s.movie.id)) films.set(s.movie.id, { movie: s.movie, shows: [], going: new Map(), rare: null, recommended: false });
+    const e = films.get(s.movie.id);
+    e.shows.push(s);
+    for (const a of s.attendees || []) e.going.set(a.id, a);
+    if (s.rare && (!e.rare || s.rare.length > e.rare.length)) e.rare = s.rare;
+    if (s.recommended) e.recommended = true;
+  }
+  const out = {};
+  for (const [day, films] of days) {
+    out[day] = [...films.values()].map(e => {
+      const going = [...e.going.values()];
+      const youGoing = e.shows.some(s => s.user_rsvp === "going" || s.user_rsvp === "maybe");
+      const theatres = new Map();
+      for (const s of e.shows) {
+        if (!theatres.has(s.theatre.id)) theatres.set(s.theatre.id, { theatre: s.theatre, shows: [] });
+        theatres.get(s.theatre.id).shows.push(s);
+      }
+      return { ...e, going, youGoing, byTheatre: [...theatres.values()],
+               score: (youGoing ? 100 : 0) + 10 * going.filter(a => a.id !== userId).length + (e.rare ? 5 : 0) + (e.recommended ? 2 : 0) };
+    }).sort((a, b) => b.score - a.score || new Date(a.shows[0].start_time) - new Date(b.shows[0].start_time));
+  }
+  return out;
+}
+
+function Poster({ movie, size = "sm" }) {
+  return movie.poster_url
+    ? <img className={`cal-poster ${size}`} src={movie.poster_url} alt="" loading="lazy" />
+    : <span className={`cal-poster ${size} ph`}>{movie.title.slice(0, 2)}</span>;
+}
+
+// Times grouped by theatre; each opens that theatre's screenings of the film that day.
+function TimeChips({ entry, onOpen, compact = false }) {
+  return (
+    <div className={`cal-times${compact ? " compact" : ""}`}>
+      {entry.byTheatre.map(({ theatre, shows }) => (
+        <div key={theatre.id} className="cal-times-theatre">
+          <span className="cal-theatre" style={{ "--tcolor": theatre.color }}>{theatre.short_name || theatre.name}</span>
+          {shows.map(s => (
+            <button key={s.id} type="button" onClick={() => onOpen(shows, s)}
+                    className={`cal-time${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}
+                    title={[s.format_label, s.event_label, s.is_sold_out && "Sold out"].filter(Boolean).join(" · ") || undefined}>
+              {time(s.start_time)}{s.format_label && !compact ? <span className="cal-time-fmt">{s.format_label}</span> : null}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Agenda: a poster tile per film, with the essentials summarized: first time
+// (+ how many more), theatres, who's going, rare. Tap for the screening.
+function AgendaTile({ entry, onOpen }) {
+  const m = entry.movie;
+  const [broken, setBroken] = useState(false);      // a poster URL that doesn't load
+  const first = entry.byTheatre[0];
+  const times = entry.shows.length;
+  const theatres = entry.byTheatre.map(t => t.theatre.short_name || t.theatre.name);
+  return (
+    <article className={`cal-tile${entry.youGoing ? " mine" : ""}`}>
+      <button type="button" className="cal-tile-poster" onClick={() => onOpen(first.shows, first.shows[0])} aria-label={`${m.title} — showtimes`}>
+        {m.poster_url && !broken
+          ? <img src={m.poster_url} alt="" loading="lazy" onError={() => setBroken(true)} />
+          : <span className="cal-tile-ph">{m.title}</span>}
+        {entry.rare && <span className="cal-pill rare" title={entry.rare.join(" · ")}>Rare</span>}
+        {entry.going.length > 0 && <span className="cal-pill going" title={entry.going.map(u => u.name).join(", ")}>🎟️ {entry.going.length}</span>}
+        {entry.youGoing && <span className="cal-pill you">You</span>}
+      </button>
+      <Link to={`/films/${m.id}`} className="cal-tile-title">{m.title}</Link>
+      <div className="cal-tile-when">
+        <button type="button" className="cal-tile-time" onClick={() => onOpen(first.shows, first.shows[0])}>{time(entry.shows[0].start_time)}</button>
+        {times > 1 && <span className="cal-tile-more">+{times - 1}</span>}
+      </div>
+      <div className="cal-tile-where" title={theatres.join(", ")}>
+        {theatres.slice(0, 2).join(", ")}{theatres.length > 2 ? ` +${theatres.length - 2}` : ""}
+      </div>
+    </article>
+  );
+}
+
+function WeekCard({ entry, onOpen }) {
+  const m = entry.movie;
+  return (
+    <div className={`cal-card${entry.youGoing ? " mine" : ""}`}>
+      <button type="button" className="cal-card-head" onClick={() => onOpen(entry.byTheatre[0].shows, entry.byTheatre[0].shows[0])}>
+        <Poster movie={m} />
+        <span className="cal-card-title">
+          {entry.rare && <span className="cal-rare-dot" title={`Rare · ${entry.rare.join(" · ")}`} />}
+          {m.title}
+        </span>
+      </button>
+      <TimeChips entry={entry} onOpen={onOpen} compact />
+      {entry.going.length > 0 && (
+        <span className="cal-card-going">
+          {entry.going.slice(0, 5).map(u => <span key={u.id} className="cal-dot" style={{ background: u.avatar_color }} title={u.name} />)}
+          {entry.going.length} going
+        </span>
+      )}
+    </div>
+  );
+}
+
+export default function Calendar({ user, apiBase, groupId }) {
+  const [params, setParams] = useSearchParams();
+  const today = startOfDay(new Date());
+  // The URL's view, else the last one you used, else Week on desktop / Agenda on phones.
+  const [fallbackView] = useState(() => {
+    let v = null;
+    try { v = localStorage.getItem("cinemaclub_cal_view"); } catch { /* private mode */ }
+    return VIEWS.some(x => x.status === v) ? v : window.innerWidth >= 768 ? "week" : "agenda";
+  });
+  const view = VIEWS.some(x => x.status === params.get("view")) ? params.get("view") : fallbackView;
+  const anchor = parseYmd(params.get("date")) || today;
+  const dayOnly = view === "agenda" && params.get("only") === "1";     // a day picked in Month
+  const [span, setSpan] = useState(AGENDA_SPAN);
+  const [data, setData] = useState({ showtimes: [], total: 0, facets: null, regions: {} });
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [theatreNames, setTheatreNames] = useState({});
+  const [members, setMembers] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [profileUserId, setProfileUserId] = useState(null);
+  const [attendanceKey, setAttendanceKey] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [expanded, setExpanded] = useState(new Set());   // Week days showing every film
+  const deepLink = useRef(DEEP_LINK);
 
-  // Filter bar state
-  const [searchText, setSearchText]       = useState("");
-  const [selectedMovies, setSelectedMovies] = useState(new Set());
-  const [selectedMembers, setSelectedMembers] = useState(new Set());
-  const [timeOfDay, setTimeOfDay]         = useState(new Set());
-  const [showTheatreDD, setShowTheatreDD] = useState(false);
-  const [showMovieDD, setShowMovieDD]     = useState(false);
-  const [showMemberDD, setShowMemberDD]   = useState(false);
-  const [groupMembers, setGroupMembers]   = useState([]);
-  const theatreDDRef = useRef(null);
-  const movieDDRef   = useRef(null);
-  const memberDDRef  = useRef(null);
-  const deepLinkRef = useRef(DEEP_LINK);
+  const { start, end } = viewRange(view, anchor, dayOnly ? 1 : span);
+  const startKey = ymd(start), lastKey = ymd(addDays(end, -1));
 
-  const calDays = buildCalendarDays(year, month);
+  const query = useMemo(() => Object.fromEntries(FILTER_KEYS.filter(k => params.get(k)).map(k => [k, params.get(k)])), [params]);
+  const serverQs = new URLSearchParams(Object.entries(query).filter(([k]) => k !== "members")).toString();
+  const members_ = listOf(query.members);
+  const nFilters = FILTER_KEYS.reduce((n, k) => n + (MULTI.has(k) ? listOf(query[k]).length : query[k] ? 1 : 0), 0);
 
-  // Unique movies in current showtimes (for movie search dropdown)
-  const availableMovies = useMemo(() => {
-    const map = new Map();
-    for (const s of showtimes) {
-      if (!map.has(s.movie.id)) map.set(s.movie.id, s.movie);
-    }
-    return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
-  }, [showtimes]);
+  function update(changes, { replace = true } = {}) {
+    const next = new URLSearchParams(params);
+    for (const [k, v] of Object.entries(changes)) (v == null || v === "" ? next.delete(k) : next.set(k, v));
+    setParams(next, { replace });
+  }
+  function toggle(key, value) {
+    if (MULTI.has(key)) {
+      const cur = listOf(query[key]);
+      const nextList = cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value];
+      update({ [key]: nextList.join(",") || null });
+    } else update({ [key]: query[key] === value ? null : value });
+  }
+  const clearFilters = () => update(Object.fromEntries(FILTER_KEYS.map(k => [k, null])));
+  function setView(v) {
+    try { localStorage.setItem("cinemaclub_cal_view", v); } catch { /* private mode */ }
+    update({ view: v, only: null });
+  }
+  function goTo(date) {
+    setSpan(AGENDA_SPAN);
+    update({ date: ymd(date) === ymd(today) ? null : ymd(date), only: null });
+  }
+  function step(dir) {
+    if (view === "month") goTo(new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1));
+    else goTo(addDays(anchor, (dayOnly ? 1 : 7) * dir));
+  }
 
-  // Filtered movie list for search
-  const filteredMovies = useMemo(() => {
-    if (!searchText.trim()) return availableMovies;
-    const q = normalize(searchText);
-    return availableMovies.filter(m => normalize(m.title).includes(q));
-  }, [availableMovies, searchText]);
-
-  // Close dropdowns on outside click
+  // Theatre names and the group's members (for filters).
   useEffect(() => {
-    function handleClick(e) {
-      if (theatreDDRef.current && !theatreDDRef.current.contains(e.target)) setShowTheatreDD(false);
-      if (movieDDRef.current && !movieDDRef.current.contains(e.target)) setShowMovieDD(false);
-      if (memberDDRef.current && !memberDDRef.current.contains(e.target)) setShowMemberDD(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  // Fetch all theatres + active group's theatre config + group members
-  useEffect(() => {
-    async function loadTheatreData() {
-      try {
-        const [theatresRes, groupRes] = await Promise.all([
-          fetch(`${apiBase}/api/theatres`, { credentials: "include" }),
-          groupId ? fetch(`${apiBase}/api/groups/by-id/${groupId}`, { credentials: "include" }) : null,
-        ]);
-        if (theatresRes.ok) {
-          const theatres = await theatresRes.json();
-          setAllTheatres(theatres);
-          // Get group's theatres (or default to all)
-          let gTheatres = theatres.map(t => t.slug);
-          if (groupRes && groupRes.ok) {
-            const gData = await groupRes.json();
-            if (gData.theatres && gData.theatres.length > 0) {
-              gTheatres = gData.theatres;
-            }
-            // Fetch group members
-            if (gData.slug) {
-              try {
-                const membersRes = await fetch(`${apiBase}/api/groups/${gData.slug}/members`, { credentials: "include" });
-                if (membersRes.ok) {
-                  const membersData = await membersRes.json();
-                  setGroupMembers(
-                    membersData
-                      .filter(m => m.status === "active" && m.user)
-                      .map(m => m.user)
-                  );
-                }
-              } catch { /* ignore */ }
-            }
-          }
-          setGroupTheatres(gTheatres);
-          // Deep-linked theatre (from a Discord embed) narrows the initial
-          // filter. Deliberately not consumed here — StrictMode runs this
-          // effect twice and both passes must produce the same result.
-          const linkTheatre = deepLinkRef.current.theatre;
-          if (linkTheatre && gTheatres.includes(linkTheatre)) {
-            setActiveTheatres(new Set([linkTheatre]));
-          } else {
-            setActiveTheatres(new Set(gTheatres));
-          }
-        }
-      } catch { /* ignore */ }
-    }
-    loadTheatreData();
-    setSelectedMembers(new Set());
-  }, [apiBase, groupId]);
-
-  // Open one screening's drawer (deep links, the "Did you make it?" card).
-  const openShowtime = useCallback((stId) => {
-    fetch(`${apiBase}/api/showtimes/${stId}${groupId ? `?group_id=${groupId}` : ""}`, { credentials: "include" })
+    let live = true;
+    fetch(`${apiBase}/api/theatres`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(ts => { if (live) setTheatreNames(Object.fromEntries(ts.map(t => [t.slug, t.short_name || t.name]))); })
+      .catch(() => {});
+    fetch(`${apiBase}/api/groups/by-id/${groupId}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (!data) return;
-        const dt = new Date(data.start_time);
-        setYear(dt.getFullYear());
-        setMonth(dt.getMonth());
-        setSelected([data]);
-      })
-      .catch(() => { /* ignore */ });
+      .then(g => (g?.slug ? fetch(`${apiBase}/api/groups/${g.slug}/members`, { credentials: "include" }) : null))
+      .then(r => (r?.ok ? r.json() : []))
+      .then(ms => { if (live) setMembers(ms.filter(m => m.status === "active" && m.user).map(m => m.user)); })
+      .catch(() => {});
+    return () => { live = false; };
   }, [apiBase, groupId]);
-
-  // Deep link: open a specific showtime's drawer
-  useEffect(() => {
-    const stId = deepLinkRef.current.showtime;
-    if (!stId || !user) return;
-    deepLinkRef.current.showtime = null;
-    openShowtime(stId);
-  }, [openShowtime, user]);
 
   const fetchShowtimes = useCallback(async () => {
     setLoading(true);
-    const start = new Date(year, month, 1).toISOString();
-    const end   = new Date(year, month + 1, 0, 23, 59).toISOString();
-    const params = new URLSearchParams({ start, end });
-    if (groupId) params.set("group_id", groupId);
     try {
-      const r = await fetch(
-        `${apiBase}/api/showtimes?${params}`,
-        { credentials: "include" }
-      );
-      const data = await r.json();
-      setShowtimes(Array.isArray(data) ? data : []);
+      const r = await fetch(`${apiBase}/api/discover/calendar?group_id=${groupId}&from=${startKey}&to=${lastKey}${serverQs ? `&${serverQs}` : ""}`,
+                            { credentials: "include" });
+      if (!r.ok) throw new Error();
+      setData(await r.json());
+      setFailed(false);
     } catch {
-      setShowtimes([]);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [apiBase, year, month, groupId]);
-
+  }, [apiBase, groupId, startKey, lastKey, serverQs]);
   useEffect(() => { fetchShowtimes(); }, [fetchShowtimes]);
 
-  // Open on today, not the 1st of the month (on phones the month is one long
-  // list). Once, after the first load.
-  const scrolledToToday = useRef(false);
+  // Deep link: open one screening.
+  const openShowtime = useCallback(id => {
+    fetch(`${apiBase}/api/showtimes/${id}?group_id=${groupId}`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(s => { if (s) setSelected([s]); })
+      .catch(() => {});
+  }, [apiBase, groupId]);
   useEffect(() => {
-    if (loading || scrolledToToday.current || !showtimes.length) return;
-    scrolledToToday.current = true;
-    const el = document.querySelector(".cal-day.today");
-    const container = document.querySelector(".calendar-grid");
-    if (el && container) {
-      const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-      container.scrollTo({ top: Math.max(0, top - 8) });
-    }
-  }, [loading, showtimes]);
+    const id = deepLink.current.showtime;
+    if (!id) return;
+    deepLink.current.showtime = null;
+    openShowtime(id);
+  }, [openShowtime]);
 
-  function prevMonth() {
-    if (month === 0) { setYear(y => y - 1); setMonth(11); }
-    else setMonth(m => m - 1);
-  }
-  function nextMonth() {
-    if (month === 11) { setYear(y => y + 1); setMonth(0); }
-    else setMonth(m => m + 1);
-  }
-  function goToday() {
-    setYear(today.getFullYear());
-    setMonth(today.getMonth());
-    setSelected(null);
-    // scroll to today's cell within the calendar grid (not the whole page)
-    setTimeout(() => {
-      const el = document.querySelector(".cal-day.today");
-      const container = document.querySelector(".calendar-grid");
-      if (el && container) {
-        const elRect = el.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const offset = elRect.top - containerRect.top + container.scrollTop - container.clientHeight / 2 + elRect.height / 2;
-        container.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
-      }
-    }, 100);
-  }
+  const visible = useMemo(() => data.showtimes.filter(s => passes(s, members_)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, query.members]);
+  const days = useMemo(() => groupByDay(visible, user.id), [visible, user.id]);
+  const dayList = [];
+  for (let d = start; d < end; d = addDays(d, 1)) dayList.push(d);
+  const filmCount = new Set(visible.map(s => s.movie.id)).size;
 
-  function toggleTheatre(slug) {
-    setActiveTheatres(prev => {
-      const next = new Set(prev);
-      if (next.has(slug)) { if (next.size > 1) next.delete(slug); }
-      else next.add(slug);
-      return next;
-    });
-  }
-
-  function toggleMovie(movieId) {
-    setSelectedMovies(prev => {
-      const next = new Set(prev);
-      if (next.has(movieId)) next.delete(movieId);
-      else next.add(movieId);
-      return next;
-    });
-  }
-
-  function toggleTime(key) {
-    setTimeOfDay(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function toggleMember(userId) {
-    setSelectedMembers(prev => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
-  }
-
-  function clearAllFilters() {
-    setSelectedMovies(new Set());
-    setSelectedMembers(new Set());
-    setTimeOfDay(new Set());
-    setSearchText("");
-  }
-
-  const hasActiveFilters = selectedMovies.size > 0 || timeOfDay.size > 0 || selectedMembers.size > 0;
-
-  function getGroupedShowtimes(date) {
-    const dayShowtimes = showtimes.filter(s => {
-      if (!activeTheatres.has(s.theatre.slug)) return false;
-      // Movie filter
-      if (selectedMovies.size > 0 && !selectedMovies.has(s.movie.id)) return false;
-      // Time-of-day filter
-      if (timeOfDay.size > 0) {
-        const hour = new Date(s.start_time).getHours();
-        const match = TIME_BUCKETS.some(b => timeOfDay.has(b.key) && b.test(hour));
-        if (!match) return false;
-      }
-      return isSameDay(new Date(s.start_time), date);
-    }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-
-    // Group by movie + theatre
-    const groups = new Map();
-    for (const s of dayShowtimes) {
-      const key = `${s.movie.id}_${s.theatre.id}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          movie: s.movie,
-          theatre: s.theatre,
-          showtimes: [],
-          recommended: false,
-          allSoldOut: true,
-        });
-      }
-      const g = groups.get(key);
-      g.showtimes.push(s);
-      if (s.recommended) g.recommended = true;
-      if (!s.is_sold_out) g.allSoldOut = false;
-    }
-
-    // Deduplicate attendees across showtimes; collect formats (70mm, Digital…)
-    return Array.from(groups.values()).map(g => {
-      const seen = new Set();
-      const uniqueAttendees = [];
-      for (const s of g.showtimes) {
-        for (const a of (s.attendees || [])) {
-          if (!seen.has(a.id)) {
-            seen.add(a.id);
-            uniqueAttendees.push(a);
-          }
-        }
-      }
-      const formats = [...new Set(g.showtimes.map(s => s.format_label).filter(Boolean))];
-      return { ...g, uniqueAttendees, formats };
-    }).filter(g => {
-      // Member filter: only show if at least one selected member is attending
-      if (selectedMembers.size === 0) return true;
-      return g.uniqueAttendees.some(a => selectedMembers.has(a.id));
-    });
-  }
-
-  async function handleRsvp(showtimeId, status) {
+  const open = (shows, s) => setSelected([s, ...shows.filter(x => x.id !== s.id)].sort((a, b) => new Date(a.start_time) - new Date(b.start_time)));
+  const patch = updated => {
+    setData(prev => ({ ...prev, showtimes: prev.showtimes.map(s => (s.id === updated.id ? { ...s, ...updated } : s)) }));
+    setSelected(prev => (prev ? prev.map(s => (s.id === updated.id ? { ...s, ...updated } : s)) : prev));
+  };
+  async function handleRsvp(id, status) {
     const r = await fetch(`${apiBase}/api/rsvp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status, group_id: groupId }),
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ showtime_id: id, status, group_id: groupId }),
     });
-    if (r.ok) {
-      const updated = await r.json();
-      setShowtimes(prev => prev.map(s => s.id === updated.id ? updated : s));
-      // Update the selected array in place
-      setSelected(prev =>
-        prev ? prev.map(s => s.id === updated.id ? updated : s) : prev
-      );
-    }
+    if (r.ok) patch(await r.json());
   }
-
-  // Went / Didn't go (null clears). Shared by the drawer and the prompt card.
-  async function handleAttendance(showtimeId, status) {
+  async function handleAttendance(id, status) {
     const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status }),
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ showtime_id: id, status }),
     });
     if (!r.ok) return false;
-    const mark = s => (s.id === showtimeId ? { ...s, user_attendance: status } : s);
-    setShowtimes(prev => prev.map(mark));
-    setSelected(prev => (prev ? prev.map(mark) : prev));
+    patch({ id, user_attendance: status });
     setAttendanceKey(k => k + 1);
     return true;
   }
 
+  const rangeLabel = view === "month"
+    ? anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    : view === "week" ? `${short(start)} – ${short(addDays(end, -1))}`
+    : dayOnly ? dayTitle(start, today) : `From ${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
+  const atToday = !dayOnly && (ymd(anchor) === ymd(today) || (view === "month" && anchor.getMonth() === today.getMonth() && anchor.getFullYear() === today.getFullYear()));
+  const browseLink = `/browse?${new URLSearchParams({ from: startKey, to: lastKey, ...Object.fromEntries(Object.entries(query).filter(([k]) => k !== "members")) })}`;
+  const title = data.title ? `Calendar · ${data.title}` : "Calendar";
+
   return (
-    <div className="app-shell">
+    <div className={`page calendar view-${view}`}>
+      <PageHeader title={title} subtitle={loading ? "Loading…" : `${filmCount} film${filmCount === 1 ? "" : "s"} · ${rangeLabel}`} />
 
-      {/* Filter bar */}
-      <div className="filter-bar">
-        {/* Month controls (the app shell's top bar has the site nav) */}
-        <div className="nav-week filter-nav-week">
-          <button className="nav-btn" onClick={prevMonth}>&lsaquo;</button>
-          <button className="nav-today" onClick={goToday}>Today</button>
-          <button className="nav-btn" onClick={nextMonth}>&rsaquo;</button>
-          <span className="nav-range">
-            {MONTHS[month]} {year}
-          </span>
+      <div className="cal-bar">
+        <Segmented label="View" options={VIEWS} value={view} onChange={v => v && setView(v)} />
+        <div className="cal-nav">
+          <button type="button" className="btn btn-sm" onClick={() => step(-1)} aria-label="Earlier">‹</button>
+          <button type="button" className="btn btn-sm" onClick={() => goTo(today)} disabled={atToday}>Today</button>
+          <button type="button" className="btn btn-sm" onClick={() => step(1)} aria-label="Later">›</button>
+          <span className="cal-range">{rangeLabel}</span>
         </div>
-
-        {/* Theatre dropdown */}
-        <div className="filter-dd" ref={theatreDDRef}>
-          <button
-            className="filter-dd-btn"
-            onClick={() => { setShowTheatreDD(v => !v); setShowMovieDD(false); setShowMemberDD(false); }}
-          >
-            {(() => {
-              const active = allTheatres.filter(t => groupTheatres.includes(t.slug) && activeTheatres.has(t.slug));
-              const total = allTheatres.filter(t => groupTheatres.includes(t.slug)).length;
-              const shown = active.slice(0, 3);
-              const extra = active.length - shown.length;
-              return (
-                <>
-                  <span className="filter-dd-dots">
-                    {shown.map(t => (
-                      <span key={t.slug} className="filter-dot" data-theatre={t.slug} style={{ "--tcolor": t.color }} />
-                    ))}
-                    {extra > 0 && <span className="filter-dd-more">+{extra}</span>}
-                  </span>
-                  Theatres
-                  {active.length < total && (
-                    <span className="filter-dd-count">{active.length}/{total}</span>
-                  )}
-                </>
-              );
-            })()}
-            <span className="filter-dd-arrow">{showTheatreDD ? "\u25B4" : "\u25BE"}</span>
-          </button>
-          {showTheatreDD && (
-            <div className="filter-dd-menu">
-              {(() => {
-                const visible = allTheatres.filter(t => groupTheatres.includes(t.slug));
-                const allSelected = visible.every(t => activeTheatres.has(t.slug));
-                return (
-                  <>
-                    {visible.length > 1 && (
-                      <button
-                        className="filter-select-all"
-                        onClick={() => {
-                          setActiveTheatres(allSelected
-                            ? new Set()
-                            : new Set(visible.map(t => t.slug))
-                          );
-                        }}
-                      >
-                        {allSelected ? "Deselect All" : "Select All"}
-                      </button>
-                    )}
-                    {visible.map(t => (
-                      <label key={t.slug} className="filter-dd-item" data-theatre={t.slug} style={{ "--tcolor": t.color }}>
-                        <input
-                          type="checkbox"
-                          checked={activeTheatres.has(t.slug)}
-                          onChange={() => toggleTheatre(t.slug)}
-                        />
-                        <span className="filter-dot" data-theatre={t.slug} />
-                        {t.short_name || t.name}
-                      </label>
-                    ))}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        </div>
-
-        {/* Members dropdown */}
-        <div className="filter-dd" ref={memberDDRef}>
-          <button
-            className="filter-dd-btn"
-            onClick={() => { setShowMemberDD(v => !v); setShowTheatreDD(false); setShowMovieDD(false); }}
-          >
-            {selectedMembers.size > 0 && (
-              <span className="filter-dd-dots">
-                {groupMembers
-                  .filter(m => selectedMembers.has(m.id))
-                  .slice(0, 3)
-                  .map(m => (
-                    <span key={m.id} className="filter-dot" style={{ background: m.avatar_color }} />
-                  ))}
-              </span>
-            )}
-            Members
-            {selectedMembers.size > 0 && <span className="filter-badge">{selectedMembers.size}</span>}
-            <span className="filter-dd-arrow">{showMemberDD ? "\u25B4" : "\u25BE"}</span>
-          </button>
-          {showMemberDD && (
-            <div className="filter-dd-menu filter-member-menu">
-              {groupMembers.length === 0 && (
-                <div className="filter-dd-empty">No members</div>
-              )}
-              {groupMembers.length > 1 && (
-                <button
-                  className="filter-select-all"
-                  onClick={() => {
-                    const allSelected = groupMembers.every(m => selectedMembers.has(m.id));
-                    setSelectedMembers(allSelected
-                      ? new Set()
-                      : new Set(groupMembers.map(m => m.id))
-                    );
-                  }}
-                >
-                  {groupMembers.every(m => selectedMembers.has(m.id)) ? "Deselect All" : "Select All"}
-                </button>
-              )}
-              {groupMembers.map(m => (
-                <label key={m.id} className="filter-dd-item filter-member-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedMembers.has(m.id)}
-                    onChange={() => toggleMember(m.id)}
-                  />
-                  <span className="filter-member-dot" style={{ background: m.avatar_color }} />
-                  {m.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Movie search */}
-        <div className="filter-dd filter-search-wrap" ref={movieDDRef}>
-          <div className="filter-search-box">
-            <span className="filter-search-icon">&#128269;</span>
-            <input
-              className="filter-search-input"
-              type="text"
-              placeholder="Search movies..."
-              value={searchText}
-              onChange={e => { setSearchText(e.target.value); setShowMovieDD(true); setShowMemberDD(false); setShowTheatreDD(false); }}
-              onFocus={() => { setShowMovieDD(true); setShowMemberDD(false); setShowTheatreDD(false); }}
-            />
-            {selectedMovies.size > 0 && (
-              <span className="filter-badge">{selectedMovies.size}</span>
-            )}
-          </div>
-          {showMovieDD && (
-            <div className="filter-dd-menu filter-movie-menu">
-              {filteredMovies.length > 0 && (
-                <button
-                  className="filter-select-all"
-                  onClick={() => {
-                    const allSelected = filteredMovies.every(m => selectedMovies.has(m.id));
-                    setSelectedMovies(prev => {
-                      const next = new Set(prev);
-                      filteredMovies.forEach(m => allSelected ? next.delete(m.id) : next.add(m.id));
-                      return next;
-                    });
-                  }}
-                >
-                  {filteredMovies.every(m => selectedMovies.has(m.id)) ? "Deselect All" : "Select All"}
-                </button>
-              )}
-              {filteredMovies.length === 0 && (
-                <div className="filter-dd-empty">No matches</div>
-              )}
-              {filteredMovies.map(m => (
-                <label key={m.id} className="filter-dd-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedMovies.has(m.id)}
-                    onChange={() => toggleMovie(m.id)}
-                  />
-                  {m.title}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Time-of-day pills */}
-        <div className="filter-time-pills">
-          {TIME_BUCKETS.map(b => (
-            <button
-              key={b.key}
-              className={`filter-time-pill${timeOfDay.has(b.key) ? " active" : ""}`}
-              onClick={() => toggleTime(b.key)}
-              title={b.label}
-            >
-              <span className="filter-time-icon">{b.icon}</span>
-              <span className="filter-time-label">{b.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Clear filters */}
-        {hasActiveFilters && (
-          <button className="filter-clear" onClick={clearAllFilters} title="Clear all filters">
-            &#x2715;
-          </button>
-        )}
+        <button type="button" className="btn btn-sm cal-filters-btn" onClick={() => setFiltersOpen(true)}>
+          Filters{nFilters ? ` (${nFilters})` : ""}
+        </button>
       </div>
 
-      <AttendancePrompt
-        apiBase={apiBase}
-        refreshKey={attendanceKey}
-        onAnswer={handleAttendance}
-        onOpenShowtime={openShowtime}
-      />
-
-      {/* Day-of-week headers */}
-      <div className="day-headers">
-        {DAYS.map(d => (
-          <div key={d} className="day-header">{d}</div>
-        ))}
+      <div className="cal-quick" role="group" aria-label="Quick filters">
+        {QUICK.map(([k, v, label]) => {
+          const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
+          return <button key={`${k}:${v}`} type="button" className={`chip${on ? " gold" : ""}`} aria-pressed={on} onClick={() => toggle(k, v)}>{label}</button>;
+        })}
+        {nFilters > 0 && <button type="button" className="chip" onClick={clearFilters}>Clear all</button>}
       </div>
 
-      {/* Calendar body */}
-      <div className="calendar-body">
-        <div className="calendar-grid">
-          {calDays.map(({ date, outside }, i) => {
-            const grouped = getGroupedShowtimes(date);
-            const isToday = isSameDay(date, today);
+      <AttendancePrompt apiBase={apiBase} refreshKey={attendanceKey} onAnswer={handleAttendance} onOpenShowtime={openShowtime} />
+
+      {failed ? (
+        <p className="cal-empty">Couldn't load the calendar — <button type="button" className="share-link" onClick={fetchShowtimes}>try again</button>.</p>
+      ) : view === "month" ? (
+        <div className="cal-month">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d} className="cal-month-dow">{d}</div>)}
+          {dayList.map(d => {
+            const key = ymd(d);
+            const entries = days[key] || [];
+            const outside = d.getMonth() !== anchor.getMonth();
             return (
-              <div
-                key={i}
-                className={[
-                  "cal-day",
-                  outside ? "outside-month" : "",
-                  isToday ? "today" : ""
-                ].join(" ")}
-              >
-                <span className="cal-day-number">
-                  <span className="cal-day-weekday">{DAYS[date.getDay()]} </span>
-                  {date.getDate()}
+              <button key={key} type="button" disabled={!entries.length}
+                      className={`cal-cell${outside ? " outside" : ""}${d < today ? " past" : ""}${key === ymd(today) ? " today" : ""}${entries.some(e => e.youGoing) ? " mine" : ""}`}
+                      onClick={() => { setSpan(AGENDA_SPAN); update({ view: "agenda", date: key, only: "1" }, { replace: false }); }}
+                      aria-label={`${d.toDateString()}: ${entries.length} films`}>
+                <span className="cal-cell-num">{d.getDate()}</span>
+                {entries.length > 0 && <span className="cal-cell-count">{entries.length} film{entries.length === 1 ? "" : "s"}</span>}
+                <span className="cal-cell-posters">
+                  {entries.slice(0, 3).map(e => <Poster key={e.movie.id} movie={e.movie} />)}
                 </span>
-                {grouped.map(group => (
-                  <div
-                    key={group.key}
-                    className={`cal-event${group.allSoldOut ? " cal-event-sold-out" : ""}${group.recommended ? " recommended" : ""}`}
-                    data-theatre={group.theatre.slug}
-                    style={{ "--tcolor": group.theatre.color }}
-                    onClick={() => setSelected(group.showtimes)}
-                  >
-                    <span className="cal-event-time">
-                      {formatShowtimeList(group.showtimes)}
-                      {group.formats.length > 0 && (
-                        <span className="cal-format">{group.formats.join(" · ")}</span>
-                      )}
-                    </span>
-                    <div>
-                      <div className="cal-event-title">
-                        {group.recommended && <span className="rec-star" title="Recommended for you">&#9733; </span>}
-                        {group.movie.title}
-                      </div>
-                      {group.uniqueAttendees.length > 0 && (
-                        <div className="event-dots">
-                          {group.uniqueAttendees.map(a => (
-                            <div
-                              key={a.id}
-                              className="event-dot"
-                              style={{ background: a.avatar_color }}
-                              title={a.name}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {entries.some(e => e.going.length) && <span className="cal-cell-club">🎟️</span>}
+              </button>
             );
           })}
         </div>
-      </div>
-
-      {/* Detail drawer */}
-      {selected && (
-        <ShowtimeDrawer
-          showtimes={selected}
-          user={user}
-          groupId={groupId}
-          apiBase={apiBase}
-          onClose={() => setSelected(null)}
-          onRsvp={handleRsvp}
-          onAttendance={handleAttendance}
-          onViewProfile={setProfileUserId}
-        />
+      ) : view === "week" ? (
+        <div className="cal-week">
+          {dayList.map(d => {
+            const key = ymd(d);
+            const entries = days[key] || [];
+            const all = expanded.has(key);
+            return (
+              <section key={key} className={`cal-col${key === ymd(today) ? " today" : ""}`} aria-label={dayTitle(d, today)}>
+                <h2 className="cal-col-head">{dayTitle(d, today)}</h2>
+                {!loading && !entries.length && <p className="cal-col-empty">Nothing matches.</p>}
+                {(all ? entries : entries.slice(0, WEEK_TOP)).map(e => <WeekCard key={e.movie.id} entry={e} onOpen={open} />)}
+                {entries.length > WEEK_TOP && (
+                  <button type="button" className="cal-more" onClick={() => setExpanded(prev => {
+                    const next = new Set(prev); all ? next.delete(key) : next.add(key); return next;
+                  })}>
+                    {all ? "Show fewer" : `+${entries.length - WEEK_TOP} more`}
+                  </button>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="cal-agenda">
+          {dayOnly && (
+            <div className="cal-only">
+              Showing {dayTitle(start, today)} only ·{" "}
+              <button type="button" className="share-link" onClick={() => update({ only: null })}>show the days after</button>
+            </div>
+          )}
+          {dayList.map(d => {
+            const key = ymd(d);
+            const entries = days[key] || [];
+            if (!entries.length) return null;
+            return (
+              <section key={key} className="cal-day">
+                <h2 className="cal-day-head">{dayTitle(d, today)} <span>{entries.length} film{entries.length === 1 ? "" : "s"}</span></h2>
+                <div className="cal-tiles">
+                  {entries.map(e => <AgendaTile key={e.movie.id} entry={e} onOpen={open} />)}
+                </div>
+              </section>
+            );
+          })}
+          {!loading && !visible.length && (
+            <div className="cal-empty">
+              <p>Nothing matches{dayOnly ? " that day" : " in these two weeks"}.</p>
+              {nFilters > 0 && <button type="button" className="btn btn-sm" onClick={clearFilters}>Clear filters</button>}
+            </div>
+          )}
+          {!loading && !dayOnly && (
+            <div className="cal-load-more">
+              <button type="button" className="btn" onClick={() => setSpan(s => s + AGENDA_SPAN)}>Show the next two weeks</button>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* User profile drawer */}
+      {filtersOpen && (
+        <FilterSheet query={query} multi={MULTI} meta={data} theatreNames={theatreNames} total={filmCount}
+                     onToggle={toggle} onClear={clearFilters} onClose={() => setFiltersOpen(false)}
+                     note={<>Sort, search and more in <Link to={browseLink} onClick={() => setFiltersOpen(false)}>Browse →</Link></>}>
+          {members.length > 0 && (
+            <fieldset><legend>Who's going</legend>
+              <div className="filter-chips">
+                {members.map(m => {
+                  const on = members_.includes(String(m.id));
+                  return (
+                    <button key={m.id} type="button" className={`chip filter-choice${on ? " gold" : ""}`} aria-pressed={on} onClick={() => toggle("members", String(m.id))}>
+                      <Avatar user={m} size={18} /> {m.id === user.id ? "You" : m.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
+        </FilterSheet>
+      )}
+
+      {selected && (
+        <ShowtimeDrawer showtimes={selected} user={user} groupId={groupId} apiBase={apiBase}
+                        onClose={() => setSelected(null)} onRsvp={handleRsvp} onAttendance={handleAttendance}
+                        onViewProfile={setProfileUserId} />
+      )}
       {profileUserId && (
-        <UserProfileDrawer
-          userId={profileUserId}
-          viewerId={user.id}
-          apiBase={apiBase}
-          onClose={() => setProfileUserId(null)}
-          onAttendanceChange={() => setAttendanceKey(k => k + 1)}
-          onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }}
-        />
+        <UserProfileDrawer userId={profileUserId} viewerId={user.id} apiBase={apiBase}
+                           onClose={() => setProfileUserId(null)}
+                           onAttendanceChange={() => setAttendanceKey(k => k + 1)}
+                           onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }} />
       )}
     </div>
   );

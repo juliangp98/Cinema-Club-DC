@@ -1859,13 +1859,43 @@ def discover_browse():
     user, group, err = _discover_group()
     if err:
         return err
-    params = {k: request.args.get(k) for k in ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade',
-                                                'format', 'time', 'rarity', 'club', 'runtime', 'mood', 'shelf',
-                                                'q', 'sort')}
+    params = {k: request.args.get(k) for k in BROWSE_PARAMS}
     try:
         return jsonify(discover.browse(group, user, params, offset=max(0, request.args.get('offset', 0, type=int))))
     except ValueError:
         return jsonify({'error': 'Bad date'}), 400
+
+
+BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time', 'rarity',
+                 'club', 'runtime', 'mood', 'shelf', 'q', 'sort')
+
+
+@app.route('/api/discover/calendar')
+@require_auth
+def discover_calendar():
+    """The Calendar's screenings: every showing of the films matching Browse's
+    filters (same parameters, from/to = the days shown), each marked rare as
+    Discover would, plus facet counts for the Filters sheet."""
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    params = {k: request.args.get(k) for k in BROWSE_PARAMS}
+    try:
+        films, ctx, reasons, start, end = discover.select(group, user, params)
+    except ValueError:
+        return jsonify({'error': 'Bad date'}), 400
+    rare = {f.movie.id: f.rare_reasons for f in films if f.rare_score >= ctx['rare_min']}
+    shows = sorted((s for f in films for s in f.shows), key=lambda s: s.start_time)
+    dicts = _with_attendance(user, shows, [
+        s.to_dict(user_id=user.id, group_id=group.id, user_genres=user.favorite_genres) for s in shows], group.id)
+    for s, d in zip(shows, dicts):
+        d['rare'] = rare.get(s.movie_id)
+        d['shelf_reasons'] = reasons.get(s.movie_id)
+    return jsonify({'showtimes': dicts, 'total': len(films), 'facets': discover.facets(films),
+                    'regions': discover.REGIONS,
+                    'title': discover.SHELF_TITLES.get(params.get('shelf'))
+                    or discover.MOODS.get(params.get('mood') or '', {}).get('label')})
 
 
 @app.route('/api/discover/surprise')

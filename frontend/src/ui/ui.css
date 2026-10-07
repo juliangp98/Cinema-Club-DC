@@ -264,7 +264,7 @@ button.ui-avatar:hover { box-shadow: 0 0 0 2px var(--amber); }
 }
 .seg-btn:last-child { border-right: none; }
 .seg-btn:hover { color: var(--cream); background: rgba(220, 177, 92, 0.08); }
-.seg-btn.on { color: var(--ink); }
+.seg-btn.on { color: var(--ink); background: var(--amber); }   /* RSVP states recolor it below */
 .seg-going.on, .seg-went.on { background: #6fbf98; }
 .seg-maybe.on { background: var(--amber); }
 .seg-not_going.on, .seg-missed.on { background: #d98a78; }

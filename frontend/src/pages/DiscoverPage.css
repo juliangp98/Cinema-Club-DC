@@ -122,3 +122,6 @@
 .club-week-who { color: var(--cream); }
 .club-week-meta.nudge { color: var(--amber); }
 @media (max-width: 767px) { .club-week-item { width: 240px; } }
+
+.filter-note { font-size: var(--fs-xs); color: var(--muted); }
+.filter-note a { color: var(--amber); }

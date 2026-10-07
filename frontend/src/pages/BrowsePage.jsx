@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
-import Sheet from "../ui/Sheet";
+import FilterSheet, { FILTER_LABEL as LABEL, listOf } from "../ui/FilterSheet";
 import Menu, { MenuItem } from "../ui/Menu";
 import "./DiscoverPage.css";
 
@@ -16,18 +16,7 @@ const MULTI = new Set(["theatres", "regions", "genres", "format"]);
 const WHEN = [["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"],
               ["week", "7 days"], ["2weeks", "2 weeks"], ["month", "30 days"]];
 const SORTS = [["soonest", "Soonest"], ["rarest", "Rarest"], ["wanted", "Most wanted"], ["critics", "Top rated"], ["title", "A–Z"]];
-const OPTIONS = {
-  format: [["film", "On film (35/16/70mm)"], ["big", "Big screen (IMAX, 70mm, Dolby)"]],
-  time: [["matinee", "Matinee (before 5pm)"], ["evening", "Evening (5–9pm)"], ["late", "Late night (9:30pm+)"]],
-  rarity: [["rare", "Rare"], ["repertory", "Repertory (5+ years old)"], ["wide", "Wide release"]],
-  club: [["going", "Friends going"], ["wanted", "The club wants it"], ["mine", "Mine"]],
-  runtime: [["short", "Under 95 min"], ["long", "Over 2½ hours"]],
-  mood: [["scare-me", "Scare me"], ["laugh", "Make me laugh"], ["mind-bender", "Mind-bender"], ["date-night", "Date night"],
-         ["tissues", "Bring tissues"], ["feel-good", "Feel-good"], ["thrills", "Pure thrills"]],
-};
-const LABEL = Object.fromEntries(Object.entries(OPTIONS).flatMap(([k, opts]) => opts.map(([v, l]) => [`${k}:${v}`, l])));
 
-const listOf = v => (v ? v.split(",").filter(Boolean) : []);
 
 export default function BrowsePage({ apiBase, groupId }) {
   const [params, setParams] = useSearchParams();
@@ -102,14 +91,6 @@ export default function BrowsePage({ apiBase, groupId }) {
   const title = meta?.title || (query.q ? `“${query.q}”` : "Browse");
   const whenLabel = WHEN.find(([k]) => k === query.when)?.[1] || "Custom dates";
 
-  const facetGenres = Object.entries(meta?.facets.genres || {}).sort((a, b) => b[1] - a[1]);
-  for (const g of listOf(query.genres)) if (!facetGenres.some(([x]) => x === g)) facetGenres.push([g, 0]);
-  const decades = Object.entries(meta?.facets.decades || {}).sort((a, b) => b[0] - a[0]);
-  const byRegion = {};
-  for (const slug of Object.keys({ ...meta?.facets.theatres, ...Object.fromEntries(listOf(query.theatres).map(s => [s, 0])) })) {
-    const region = meta?.regions?.[slug] || "Other";
-    (byRegion[region] = byRegion[region] || []).push(slug);
-  }
 
   const Choice = ({ k, v, children, count }) => {
     const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
@@ -176,51 +157,8 @@ export default function BrowsePage({ apiBase, groupId }) {
       )}
 
       {filtersOpen && (
-        <Sheet label="Filters" onClose={() => setFiltersOpen(false)}>
-          <div className="filters">
-            <h2 className="ui-section-title"><span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Filters</span></h2>
-            {Object.keys(byRegion).length > 0 && (
-              <fieldset><legend>Where</legend>
-                {Object.entries(byRegion).map(([region, slugs]) => (
-                  <div key={region} className="filter-group">
-                    <span className="filter-sub">{region}</span>
-                    <div className="filter-chips">
-                      {slugs.map(slug => (
-                        <Choice key={slug} k="theatres" v={slug} count={meta?.facets.theatres[slug]}>{theatreNames[slug] || slug}</Choice>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </fieldset>
-            )}
-            {facetGenres.length > 0 && (
-              <fieldset><legend>Genre</legend>
-                <div className="filter-chips">
-                  {facetGenres.map(([g, n]) => <Choice key={g} k="genres" v={g} count={n}>{g}</Choice>)}
-                </div>
-              </fieldset>
-            )}
-            <fieldset><legend>Mood</legend>
-              <div className="filter-chips">{OPTIONS.mood.map(([v, l]) => <Choice key={v} k="mood" v={v}>{l}</Choice>)}</div>
-            </fieldset>
-            {decades.length > 0 && (
-              <fieldset><legend>Decade</legend>
-                <div className="filter-chips">{decades.map(([d, n]) => <Choice key={d} k="decade" v={d} count={n}>{d}s</Choice>)}</div>
-              </fieldset>
-            )}
-            {["format", "time", "rarity", "club", "runtime"].map(k => (
-              <fieldset key={k}><legend>{{ format: "Format", time: "Time of day", rarity: "Rarity", club: "The club", runtime: "Length" }[k]}</legend>
-                <div className="filter-chips">{OPTIONS[k].map(([v, l]) => <Choice key={v} k={k} v={v}>{l}</Choice>)}</div>
-              </fieldset>
-            ))}
-            <div className="filters-foot">
-              <button className="btn btn-ghost" onClick={clearAll}>Clear all</button>
-              <button className="btn btn-primary" onClick={() => setFiltersOpen(false)}>
-                Show {meta?.total ?? 0} film{meta?.total === 1 ? "" : "s"}
-              </button>
-            </div>
-          </div>
-        </Sheet>
+        <FilterSheet query={query} multi={MULTI} meta={meta} theatreNames={theatreNames} total={meta?.total}
+                     onToggle={set} onClear={clearAll} onClose={() => setFiltersOpen(false)} />
       )}
     </div>
   );

@@ -369,10 +369,12 @@ def discover(group, viewer, per_shelf=12, now=None):
 SORTS = ('soonest', 'rarest', 'wanted', 'critics', 'title')
 
 
-def browse(group, viewer, params, now=None, limit=24, offset=0):
-    """Filtered, sorted films + facet counts. `params` is a dict of the URL
-    filters: when/from/to, theatres, regions, genres, decade, format, time,
-    rarity, club, runtime, mood, shelf, q, sort."""
+def select(group, viewer, params, now=None):
+    """The films matching Browse's filters, sorted, as (films, ctx, reasons,
+    start, end). `params` is a dict of the URL filters: when/from/to,
+    theatres, regions, genres, decade, format, time, rarity, club, runtime,
+    mood, shelf, q, sort. Browse and the Calendar both use this, so a filter
+    means the same thing on both."""
     now = now or datetime.now()
     p = {k: v for k, v in params.items() if v not in (None, '')}
     split = lambda k: {x.strip().lower() for x in str(p.get(k, '')).split(',') if x.strip()}
@@ -428,22 +430,32 @@ def browse(group, viewer, params, now=None, limit=24, offset=0):
     }
     if not (p.get('shelf') and 'sort' not in p):        # shelves keep their own order
         out.sort(key=keys.get(sort, keys['soonest']))
+    return out, ctx, reasons, start, end
 
-    facets = {'genres': {}, 'theatres': {}, 'decades': {}}
-    for f in out:
+
+def facets(films):
+    """Counts per genre, theatre and decade (for the Filters sheet)."""
+    out = {'genres': {}, 'theatres': {}, 'decades': {}}
+    for f in films:
         for g in f.genres:
-            facets['genres'][g] = facets['genres'].get(g, 0) + 1
-        for s in {x.theatre for x in f.shows}:
-            key = s.slug
-            facets['theatres'][key] = facets['theatres'].get(key, 0) + 1
+            out['genres'][g] = out['genres'].get(g, 0) + 1
+        for slug in {x.theatre.slug for x in f.shows}:
+            out['theatres'][slug] = out['theatres'].get(slug, 0) + 1
         if f.year:
             d = f"{str(f.year)[:3]}0"
-            facets['decades'][d] = facets['decades'].get(d, 0) + 1
+            out['decades'][d] = out['decades'].get(d, 0) + 1
+    return out
+
+
+def browse(group, viewer, params, now=None, limit=24, offset=0):
+    """Filtered, sorted films (a page of cards) + facet counts."""
+    p = {k: v for k, v in params.items() if v not in (None, '')}
+    out, ctx, reasons, start, end = select(group, viewer, p, now)
     page = out[offset:offset + limit]
     return {'films': [card(f, reasons.get(f.movie.id) or (f.rare_reasons if f.rare_score >= ctx['rare_min'] else []))
                       for f in page],
             'total': len(out), 'next_offset': offset + limit if len(out) > offset + limit else None,
-            'facets': facets, 'regions': REGIONS, 'window': {'start': start.isoformat(), 'end': end.isoformat()},
+            'facets': facets(out), 'regions': REGIONS, 'window': {'start': start.isoformat(), 'end': end.isoformat()},
             'title': SHELF_TITLES.get(p.get('shelf')) or MOODS.get(p.get('mood'), {}).get('label')}
 
 

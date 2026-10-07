@@ -11,7 +11,7 @@ import "./DiscoverPage.css";
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
 // non-shelf sections; shelves not listed become "more ways to browse" chips.
-const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics", "awards",
+const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics", "awards", "arthouse",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });

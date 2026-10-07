@@ -43,8 +43,6 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
   const activity = useActivity({ apiBase, groupId, user });
   const shell = { user, setUser, apiBase, groupId, setGroupId, logout, editProfile: () => setEditing(true),
                   openActivity: activity.open };
-  // The calendar scrolls its own grid; every other page scrolls the main area.
-  const fixed = pathname.startsWith("/calendar");
 
   return (
     <ShellContext.Provider value={shell}>
@@ -74,7 +72,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
           </Menu>
         </header>
 
-        <main className={`shell-main${fixed ? " fixed" : ""}`}>
+        <main className="shell-main">
           <Outlet />
         </main>
 
