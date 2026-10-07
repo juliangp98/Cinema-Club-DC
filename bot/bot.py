@@ -152,20 +152,13 @@ async def dm_owner(text):
 
 
 async def setup_llm():
-    """Load /llm overrides saved in the backend, then pick the chatbot's models
-    from Groq's live list (llm.py DMs the owner if a pinned model is gone)."""
+    """The AI lives in the backend now (shared with the site, R6a): point the
+    chatbot at it and warm its model choice."""
+    llm.configure(api)
     try:
-        saved = await api.get('/api/internal/settings', keys='llm_primary,llm_fallback')
-        llm.set_overrides(primary=saved.get('llm_primary', ''), fallback=saved.get('llm_fallback', ''))
+        await llm.status()
     except Exception as e:
-        print(f'llm: loading /llm overrides failed: {e}')
-    llm.configure(probe_messages=[{'role': 'system', 'content': CHAT_SYSTEM},
-                                  {'role': 'user', 'content': 'what should i see this weekend?'}],
-                  on_switch=dm_owner)
-    try:
-        await llm.refresh('startup')
-    except Exception as e:
-        print(f'llm: startup model selection failed: {e}')
+        print(f'llm: AI status check failed: {e}')
 
 
 # ─── Quotes ───────────────────────────────────────────────────────────────────
@@ -802,7 +795,9 @@ async def announce_loop():
     for ev in activity:
         try:
             p = ev.get('payload') or {}
-            if ev['kind'] in ('poll_opened', 'poll_scored'):
+            if ev['kind'] == 'llm_switch':                      # the shared AI changed models: owner only
+                await dm_owner(p.get('message') or 'The AI models changed.')
+            elif ev['kind'] in ('poll_opened', 'poll_scored'):
                 if p.get('group_id') == DEFAULT_GROUP_ID:      # only this server's group's polls
                     if ev['kind'] == 'poll_opened':
                         await channel.send(embed=embeds.poll_opened_embed(p),
@@ -2933,7 +2928,13 @@ llm_admin = app_commands.Group(
 
 @llm_admin.command(name='show', description='Which models the chatbot uses, and what Groq offers')
 async def llm_show(interaction: discord.Interaction):
-    s = llm.status()
+    await interaction.response.defer(ephemeral=True)
+    try:
+        s = await llm.status()
+    except Exception as e:
+        print(f'/llm show failed: {e}')
+        await interaction.followup.send("Couldn't reach the site's AI settings — try again in a bit.", ephemeral=True)
+        return
     how = s['how']
     lines = [
         f"**Primary:** `{s['primary'] or '—'}` ({how.get('primary') or 'not chosen yet'})",
@@ -2941,9 +2942,10 @@ async def llm_show(interaction: discord.Interaction):
         f"Overrides: primary `{s['overrides']['primary'] or 'auto'}` · fallback `{s['overrides']['fallback'] or 'auto'}`",
         f"Env pins: primary `{s['env']['primary'] or '—'}` · fallback `{s['env']['fallback'] or '—'}`",
         'Groq chat models, best first: ' + (', '.join(f'`{m}`' for m in s['available']) or '—'),
-        '_Models are re-checked daily and whenever one is retired; you get a DM if they change._',
+        '_Shared by the chatbot and the site (poll drafts). Re-checked daily and whenever a model is retired; '
+        'you get a DM if they change._',
     ]
-    await interaction.response.send_message('\n'.join(lines), ephemeral=True)
+    await interaction.followup.send('\n'.join(lines), ephemeral=True)
 
 
 @llm_admin.command(name='set', description='Pin the chatbot to a model, or "auto" to let it choose')
@@ -2959,18 +2961,17 @@ async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[st
     if value == 'none' and slot.value == 'primary':
         await interaction.response.send_message("The primary can't be `none`.", ephemeral=True)
         return
-    if value and value != 'none' and value not in llm.status()['available']:
-        await interaction.response.send_message(
+    await interaction.response.defer(ephemeral=True)
+    if value and value != 'none' and value not in (await llm.status())['available']:
+        await interaction.followup.send(
             f"`{value}` isn't a chat model Groq serves right now — pick one from the list.", ephemeral=True)
         return
-    await interaction.response.defer(ephemeral=True)
     try:
         await api.post('/api/internal/settings', {'key': f'llm_{slot.value}', 'value': value})
     except Exception as e:
         print(f'/llm set failed to save: {e}')
         await interaction.followup.send("Couldn't save that setting — try again in a bit.", ephemeral=True)
         return
-    llm.set_overrides(**{slot.value: value})
     s = await llm.refresh(f'/llm set by {interaction.user.display_name}')
     chosen = s[slot.value]
     note = (f"\n⚠️ `{value}` didn't answer a test call, so `{chosen}` is being used instead."
@@ -2980,7 +2981,10 @@ async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[st
 
 @llm_set.autocomplete('model')
 async def llm_model_autocomplete(interaction: discord.Interaction, current: str):
-    options = ['auto'] + llm.status()['available']
+    try:
+        options = ['auto'] + (await llm.status())['available']
+    except Exception:
+        options = ['auto']
     if getattr(interaction.namespace, 'slot', None) == 'fallback':
         options.append('none')
     cur = (current or '').lower()

@@ -5400,6 +5400,74 @@ def internal_quotes_seed():
 BOT_SETTING_KEYS = {'llm_primary', 'llm_fallback'}
 
 
+# ─── Shared AI (R6a) ──────────────────────────────────────────────────────────
+# backend/ai.py owns the model choice for everything AI: the site's poll
+# drafts and the bot's chatbot (which calls /api/internal/ai/chat). /llm
+# overrides are the llm_* settings above; model changes reach the owner by DM
+# (an ActivityEvent the bot turns into one).
+
+def _ai_overrides():
+    rows = {r.key: r.value for r in BotSetting.query.filter(BotSetting.key.in_(('llm_primary', 'llm_fallback')))}
+    return {'primary': rows.get('llm_primary', ''), 'fallback': rows.get('llm_fallback', '')}
+
+
+def _ai_switched(choice, message):
+    """Each server process refreshes on its own; tell the owner once per change."""
+    import json
+    key = '|'.join(str(x) for x in choice) + '|' + hashlib.sha256(
+        '\n'.join(l for l in message.split('\n') if l.startswith('• Note')).encode()).hexdigest()[:12]
+    row = db.session.get(BotSetting, 'ai_choice')
+    if row and row.value == key:
+        return
+    row = row or BotSetting(key='ai_choice')
+    row.value = key
+    db.session.add(row)
+    db.session.add(ActivityEvent(kind='llm_switch', payload_json=json.dumps({'message': message})))
+    db.session.commit()
+
+
+def _ai():
+    import ai
+    ai.configure(on_switch=_ai_switched, load_overrides=_ai_overrides)
+    return ai
+
+
+@app.route('/api/internal/ai/chat', methods=['POST'])
+@require_internal
+def internal_ai_chat():
+    """The bot's chatbot: {messages, max_tokens} → {text}; 429 with retry_after
+    when the daily token cap is spent; 503 when no model can answer."""
+    ai = _ai()
+    data = request.json or {}
+    try:
+        text = ai.chat(data.get('messages') or [], max_tokens=min(int(data.get('max_tokens') or 300), 2000))
+    except ai.RateLimited as e:
+        return jsonify({'error': 'rate_limited', 'retry_after': e.retry_after_sec}), 429
+    except ai.Unavailable as e:
+        return jsonify({'error': 'unavailable', 'detail': str(e)}), 503
+    except Exception as e:
+        print(f'ai chat failed: {e}')
+        return jsonify({'error': 'failed', 'detail': str(e)[:200]}), 502
+    return jsonify({'text': text})
+
+
+@app.route('/api/internal/ai/status')
+@require_internal
+def internal_ai_status():
+    ai = _ai()
+    s = ai.status()
+    if not s['primary']:
+        s = ai.refresh('first use')
+    return jsonify(s)
+
+
+@app.route('/api/internal/ai/refresh', methods=['POST'])
+@require_internal
+def internal_ai_refresh():
+    """Re-pick models now (e.g. after /llm changes an override)."""
+    return jsonify(_ai().refresh((request.json or {}).get('reason') or 'requested'))
+
+
 @app.route('/api/internal/settings')
 @require_internal
 def internal_settings():

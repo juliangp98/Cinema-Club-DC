@@ -13,4 +13,5 @@ print('Database initialized.')
 "
 
 # Start Gunicorn
-exec gunicorn -w 2 -b 0.0.0.0:5001 --timeout 120 app:app
+# Threads: AI calls (the chatbot, poll drafts) take seconds; they mustn't hold up page loads.
+exec gunicorn -w 2 --threads 4 -b 0.0.0.0:5001 --timeout 120 app:app
