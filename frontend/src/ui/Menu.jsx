@@ -14,7 +14,11 @@ export default function Menu({ trigger, label, align = "end", className = "", tr
     if (!open) return;
     function onDown(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
     function onKey(e) {
-      if (e.key === "Escape") { setOpen(false); ref.current?.querySelector(".ui-menu-trigger")?.focus(); }
+      if (e.key === "Escape") {
+        e.preventDefault();          // close just the menu, not a Sheet it sits in
+        setOpen(false);
+        ref.current?.querySelector(".ui-menu-trigger")?.focus();
+      }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const items = [...(ref.current?.querySelectorAll(".ui-menu-item:not(:disabled)") || [])];
         if (!items.length) return;
@@ -25,10 +29,10 @@ export default function Menu({ trigger, label, align = "end", className = "", tr
       }
     }
     window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);   // capture: runs before a Sheet's Escape
     return () => {
       window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
 

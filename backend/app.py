@@ -1724,6 +1724,150 @@ def get_movie_detail(movie_id):
     return jsonify(movie.to_dict())
 
 
+def _brief_user(u):
+    return {'id': u.id, 'name': u.name, 'avatar_color': u.avatar_color}
+
+
+@app.route('/api/films/<int:movie_id>')
+@require_auth
+def film_detail(movie_id):
+    """A film's page: its details, every upcoming screening at the group's
+    theatres (with the viewer's RSVPs and who's going), where the club stands
+    on it (want to see / going / seen), and whether this week's screenings
+    are rare."""
+    user = current_user()
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    movie = db.session.get(Movie, movie_id)
+    if not movie:
+        return jsonify({'error': 'Film not found'}), 404
+    group = db.session.get(Group, group_id)
+    now = datetime.now()
+
+    base = _group_showtime_query(group).filter(Showtime.movie_id == movie_id)
+    upcoming = base.filter(Showtime.start_time >= now).order_by(Showtime.start_time).all()
+    showtimes = _with_attendance(user, upcoming, [
+        s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres) for s in upcoming
+    ], group_id)
+    for d in showtimes:
+        d.pop('movie', None)          # the page has it once, at the top
+
+    members = {m.user_id: m.user for m in GroupMembership.query.filter_by(group_id=group_id, status='active') if m.user}
+    watchers = {w.user_id for w in Watchlist.query.filter_by(movie_id=movie_id)}
+    going = {r.user_id for s in upcoming for r in s.rsvps if r.group_id == group_id and r.status == 'going'}
+    past = {s.id for s in base.filter(Showtime.start_time < now)}
+    seen = {uid for uid in members if past and past & attended_showtime_ids(uid, {group_id})}
+
+    rare = None
+    week = [s for s in upcoming if s.start_time <= now + timedelta(days=7)]
+    if week:
+        venues = len({s.theatre_id for s in week})
+        score, why = max((rarity(s, len(week), venues, now.year) for s in week), key=lambda x: x[0])
+        if score >= RARE_MIN_SCORE:
+            rare = {'score': score, 'reasons': why}
+
+    def people(ids):
+        return [_brief_user(members[i]) for i in ids if i in members]
+
+    return jsonify({
+        'movie': movie.to_dict(),
+        'showtimes': showtimes,
+        'club': {'wanters': people(watchers), 'going': people(going), 'seen': people(seen)},
+        'viewer_wants': user.id in watchers,
+        'rare': rare,
+    })
+
+
+# ─── Link previews (Open Graph) ───────────────────────────────────────────────
+# Discord (and other chat apps) fetch a link to show a preview card, but the
+# site is a single-page app with one generic <head>. nginx sends those
+# crawlers here instead (see frontend/nginx.conf); people never see these
+# pages. Only public schedule information is used — never who's going.
+
+def _og_page(title, description, image, path, large=False):
+    import html as _html
+    esc = _html.escape
+    url = f"{FRONTEND_URL}{path}"
+    image_tags = (f'<meta property="og:image" content="{esc(image)}">\n'
+                  f'<meta name="twitter:image" content="{esc(image)}">') if image else ''
+    body = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{esc(title if title == 'Cinema Club DC' else f'{title} · Cinema Club DC')}</title>
+<meta property="og:site_name" content="Cinema Club DC">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(description)}">
+<meta property="og:url" content="{esc(url)}">
+{image_tags}
+<meta name="twitter:card" content="{'summary_large_image' if large else 'summary'}">
+<meta name="theme-color" content="#dcb15c">
+<meta http-equiv="refresh" content="0; url={esc(url)}">
+</head><body><a href="{esc(url)}">{esc(title)}</a></body></html>"""
+    resp = make_response(body)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    resp.headers['Cache-Control'] = 'public, max-age=900'
+    return resp
+
+
+def _when_text(dt):
+    return dt.strftime('%a %b %-d · %-I:%M %p')
+
+
+def _blurb(text, limit=180):
+    text = (text or '').strip()
+    return text if len(text) <= limit else text[:limit - 1].rsplit(' ', 1)[0] + '…'
+
+
+@app.route('/api/og/films/<int:movie_id>')
+def og_film(movie_id):
+    movie = db.session.get(Movie, movie_id)
+    if not movie:
+        return _og_page('Cinema Club DC', "DC's repertory and new-release screenings, together.", None, '/')
+    now = datetime.now()
+    upcoming = (Showtime.query.join(Theatre).filter(
+        Showtime.movie_id == movie_id, Showtime.start_time >= now,
+        Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False))
+        .order_by(Showtime.start_time).all())
+    year = f" ({movie.release_year[:4]})" if movie.release_year else ''
+    bits = []
+    if upcoming:
+        s = upcoming[0]
+        fmt = f" · {s.format_label}" if s.format_label else ''
+        bits.append(f"Next: {_when_text(s.start_time)} @ {s.theatre.short_name or s.theatre.name}{fmt}")
+        theatres = len({x.theatre_id for x in upcoming})
+        bits.append(f"{len(upcoming)} showing{'s' if len(upcoming) != 1 else ''}"
+                    + (f" at {theatres} theatres" if theatres > 1 else ''))
+    else:
+        bits.append('No upcoming showings')
+    if movie.director:
+        bits.append(f"Dir. {movie.director}")
+    description = ' · '.join(bits) + (f"\n{_blurb(movie.description)}" if movie.description else '')
+    return _og_page(f"{movie.title}{year}", description, movie.backdrop_url or movie.poster_url,
+                    f"/films/{movie_id}", large=bool(movie.backdrop_url))
+
+
+@app.route('/api/og/showtimes/<int:showtime_id>')
+def og_showtime(showtime_id):
+    s = db.session.get(Showtime, showtime_id)
+    if not s or not s.movie:
+        return _og_page('Cinema Club DC', "DC's repertory and new-release screenings, together.", None, '/')
+    bits = [s.theatre.name]
+    if s.format_label:
+        bits.append(s.format_label)
+    if s.event_label and s.event_label != s.movie.title:
+        bits.append(s.event_label)
+    if s.is_cancelled:
+        bits.append('cancelled')
+    elif s.is_sold_out:
+        bits.append('sold out')
+    description = ' · '.join(bits) + (f"\n{_blurb(s.movie.description)}" if s.movie.description else '')
+    return _og_page(f"{s.movie.title} — {_when_text(s.start_time)}", description,
+                    s.movie.backdrop_url or s.movie.poster_url, f"/calendar?showtime={showtime_id}",
+                    large=bool(s.movie.backdrop_url))
+
+
 # ─── Routes: RSVP ─────────────────────────────────────────────────────────────
 
 def apply_rsvp(user, showtime_id, status, group_id):

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
@@ -159,12 +159,14 @@ function WatchlistCard({ card, viewerId, onOpenShowtime, onViewProfile }) {
       <CardHead at={card.at}>🎯 {names(users, viewerId)} added this to {whose}</CardHead>
       <div className="feed-card-main">
         {movie.poster_url && (
-          <span className="feed-poster"><img src={movie.poster_url} alt="" loading="lazy" /></span>
+          <Link className="feed-poster" to={`/films/${movie.id}`} aria-label={movie.title}>
+            <img src={movie.poster_url} alt="" loading="lazy" />
+          </Link>
         )}
         <div className="feed-card-body">
-          <span className="feed-title static">
+          <Link className="feed-title" to={`/films/${movie.id}`}>
             {movie.title}{movie.release_year ? ` (${movie.release_year})` : ""}
-          </span>
+          </Link>
           <div className="feed-meta">
             {next ? `Next: ${formatWhen(next.start_time)} · ${next.theatre}` : "No showings scheduled yet"}
           </div>

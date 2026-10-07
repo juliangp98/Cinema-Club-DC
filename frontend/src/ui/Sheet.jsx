@@ -10,7 +10,7 @@ export default function Sheet({ onClose, label, children, className = "" }) {
   const drag = useRef(null);
 
   useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
+    function onKey(e) { if (e.key === "Escape" && !e.defaultPrevented) onClose(); }
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";

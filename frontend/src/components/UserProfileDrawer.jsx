@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { accountLabel } from "../accountLabel";
 import Sheet from "../ui/Sheet";
 
@@ -52,8 +53,9 @@ function ScreeningRow({ item, status, onOpen }) {
   );
 }
 
-// A watchlisted film: opens its next showing when there is one.
-function FilmRow({ movie, next, onOpen }) {
+// A watchlisted film: opens its film page (every showing, details).
+function FilmRow({ movie, next }) {
+  const navigate = useNavigate();
   const text = (
     <span className="list-row-text">
       <span className="list-row-title">
@@ -66,11 +68,9 @@ function FilmRow({ movie, next, onOpen }) {
   );
   return (
     <li>
-      {next ? (
-        <button type="button" className="list-row" onClick={() => onOpen(next.showtime_id)}>{text}</button>
-      ) : (
-        <div className="list-row muted">{text}</div>
-      )}
+      <button type="button" className={`list-row${next ? "" : " muted"}`} onClick={() => navigate(`/films/${movie.id}`)}>
+        {text}
+      </button>
     </li>
   );
 }
@@ -88,7 +88,7 @@ export function WatchlistTab({ userId, apiBase, onOpen }) {
   }
   return (
     <ul className="list-rows">
-      {data.items.map(i => <FilmRow key={i.movie.id} movie={i.movie} next={i.next} onOpen={onOpen} />)}
+      {data.items.map(i => <FilmRow key={i.movie.id} movie={i.movie} next={i.next} />)}
     </ul>
   );
 }
@@ -174,7 +174,7 @@ function CompareTab({ userId, apiBase, onOpen }) {
   const name = data.name;
   const sections = [
     ["You both want to see", data.both_want.map(i => (
-      <FilmRow key={`w${i.movie.id}`} movie={i.movie} next={i.next} onOpen={onOpen} />))],
+      <FilmRow key={`w${i.movie.id}`} movie={i.movie} next={i.next} />))],
     ["You're both going", data.both_going.map(i => (
       <ScreeningRow key={`b${i.showtime_id}`} item={i} status={i.status} onOpen={onOpen} />))],
     [`${name}'s going to something on your watchlist`, data.they_go_you_want.map(i => (

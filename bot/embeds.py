@@ -175,7 +175,8 @@ def movie_embed(showtimes, movie):
         title=movie['title'],
         description='\n\n'.join(desc_parts)[:4000],
         colour=AMBER,
-        url=f"{SITE_URL}/calendar?showtime={first_id}" if first_id else SITE_URL,
+        url=(f"{SITE_URL}/films/{movie['id']}" if movie.get('id')       # every showing, on the film page
+             else f"{SITE_URL}/calendar?showtime={first_id}" if first_id else SITE_URL),
     )
     thumb = _image_url(movie.get('poster_url'))
     if thumb:

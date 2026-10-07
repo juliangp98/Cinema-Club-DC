@@ -10,6 +10,7 @@ import PollDetailPage from "./pages/PollDetailPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import VerifySignin from "./pages/VerifySignin";
 import MePage from "./pages/MePage";
+import FilmPage from "./pages/FilmPage";
 import AppShell from "./shell/AppShell";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -202,6 +203,14 @@ export default function App() {
               <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
                 <Calendar user={user} setUser={setUser} apiBase={API_BASE}
                           groupId={activeGroupId} setGroupId={handleSetGroupId} />
+              </GroupGate>
+            }
+          />
+          <Route
+            path="/films/:id"
+            element={
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <FilmPage user={user} apiBase={API_BASE} groupId={activeGroupId} />
               </GroupGate>
             }
           />
