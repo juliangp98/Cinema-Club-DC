@@ -593,7 +593,47 @@ class Message(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'))
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # Where it was written: 'site', 'discord' (typed in a screening thread), or
+    # 'discord_bot' (posted by the bot for a member via /discuss or a Discuss
+    # button). None = from before threads existed.
+    source = db.Column(db.String(12))
+    discord_message_id = db.Column(db.String(30), index=True)   # its copy/original in the thread
     user = db.relationship('User', lazy=True)
+
+    @property
+    def deletable_on_site(self):
+        """The bot can remove its own posts from Discord, but not a member's typed
+        message — those are deleted in Discord (which then removes the site copy)."""
+        return self.source != 'discord'
+
+
+class ShowtimeThread(db.Model):
+    """A screening's discussion thread in the club's #movies channel, mirrored
+    with the site discussion for one group. Created on the first comment."""
+    id = db.Column(db.Integer, primary_key=True)
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    guild_id = db.Column(db.String(30), nullable=False)
+    channel_id = db.Column(db.String(30), nullable=False)
+    thread_id = db.Column(db.String(30), nullable=False, unique=True)
+    starter_message_id = db.Column(db.String(30))
+    card_dirty = db.Column(db.Boolean, default=False)       # RSVPs changed: refresh the starter card
+    card_refreshed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    __table_args__ = (db.UniqueConstraint('showtime_id', 'group_id'),)
+
+    @property
+    def url(self):
+        return f'https://discord.com/channels/{self.guild_id}/{self.thread_id}'
+
+
+class DiscordDeletion(db.Model):
+    """A site-deleted comment whose copy in a Discord thread the bot must remove."""
+    id = db.Column(db.Integer, primary_key=True)
+    thread_id = db.Column(db.String(30), nullable=False)
+    discord_message_id = db.Column(db.String(30), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    done_at = db.Column(db.DateTime)
 
 
 # ─── Poll Models ─────────────────────────────────────────────────────────────
@@ -1458,6 +1498,7 @@ def delete_group(slug):
         PollCategory.query.filter_by(poll_id=poll.id).delete()
     Poll.query.filter_by(group_id=group.id).delete()
     Message.query.filter_by(group_id=group.id).delete()
+    ShowtimeThread.query.filter_by(group_id=group.id).delete()   # threads stay in Discord, unlinked
     Reaction.query.filter_by(group_id=group.id).delete()
     RSVP.query.filter_by(group_id=group.id).delete()
     GroupMembership.query.filter_by(group_id=group.id).delete()
@@ -1634,16 +1675,20 @@ def get_showtimes():
     return jsonify(_with_attendance(user, showtimes, [
         s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)
         for s in showtimes
-    ]))
+    ], group_id))
 
 
-def _with_attendance(user, showtimes, dicts):
-    """Add the viewer's own went/missed answer to each showtime dict (one query)."""
+def _with_attendance(user, showtimes, dicts, group_id=None):
+    """Add the viewer's own went/missed answer to each showtime dict, and (given
+    the group) the link to its Discord thread, if there is one — one query each."""
     ids = [s.id for s in showtimes]
     answers = {a.showtime_id: a.status for a in Attendance.query.filter(
         Attendance.user_id == user.id, Attendance.showtime_id.in_(ids))} if ids else {}
+    threads = {t.showtime_id: t.url for t in ShowtimeThread.query.filter(
+        ShowtimeThread.group_id == group_id, ShowtimeThread.showtime_id.in_(ids))} if ids and group_id else {}
     for d in dicts:
         d['user_attendance'] = answers.get(d['id'])
+        d['discord_thread_url'] = threads.get(d['id'])
     return dicts
 
 
@@ -1660,7 +1705,7 @@ def get_showtime(showtime_id):
     if not showtime:
         return jsonify({'error': 'Showtime not found'}), 404
     return jsonify(_with_attendance(user, [showtime], [
-        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)])[0])
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
 
 
 @app.route('/api/movies')
@@ -1709,6 +1754,11 @@ def apply_rsvp(user, showtime_id, status, group_id):
     else:
         return None, (jsonify({'error': 'Invalid status'}), 400)
 
+    # The screening's thread card in Discord lists who's going: refresh it.
+    thread = ShowtimeThread.query.filter_by(showtime_id=showtime_id, group_id=group_id).first()
+    if thread and not thread.card_dirty:
+        thread.card_dirty = True
+        db.session.commit()
     return db.session.get(Showtime, showtime_id), None
 
 
@@ -1754,7 +1804,7 @@ def rsvp():
         emit_rsvp_activity(user, showtime, status)
 
     return jsonify(_with_attendance(user, [showtime], [
-        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)])[0])
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
 
 
 # ─── Attendance ("did you go?") + watch history ──────────────────────────────
@@ -2053,7 +2103,7 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
     if not s or not s.movie:
         return None
     showtime = _with_attendance(viewer, [s], [
-        s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=viewer.favorite_genres)])[0]
+        s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=viewer.favorite_genres)], group_id)[0]
     went_rows = [a for a in Attendance.query.filter_by(showtime_id=sid, status='went') if a.user_id in member_ids]
     went_ids = [a.user_id for a in _went_visible_in(group_id, went_rows)]
     went = User.query.filter(User.id.in_(went_ids)).all() if went_ids else []
@@ -2256,12 +2306,19 @@ def get_messages():
         query = query.filter(Message.created_at > since_dt)
 
     messages = query.order_by(Message.created_at.asc()).limit(100).all()
-    return jsonify([{
+    viewer = current_user()
+    return jsonify([_message_dict(m, viewer) for m in messages])
+
+
+def _message_dict(m, viewer):
+    return {
         'id': m.id,
         'user': {'id': m.user.id, 'name': m.user.name, 'avatar_color': m.user.avatar_color},
         'body': m.body,
         'created_at': utc_iso(m.created_at),
-    } for m in messages])
+        'via_discord': m.source in ('discord', 'discord_bot'),
+        'can_delete': m.user_id == viewer.id and m.deletable_on_site,
+    }
 
 
 @app.route('/api/messages', methods=['POST'])
@@ -2282,16 +2339,34 @@ def post_message():
     if len(body) > 2000:
         return jsonify({'error': 'Message too long'}), 400
 
-    msg = Message(user_id=user.id, showtime_id=showtime_id, group_id=group_id, body=body)
+    if not db.session.get(Showtime, _as_int(showtime_id)):
+        return jsonify({'error': 'Showtime not found'}), 404
+    # source='site' queues it for the screening's Discord thread (the bot
+    # creates the thread on the first comment).
+    msg = Message(user_id=user.id, showtime_id=showtime_id, group_id=group_id, body=body, source='site')
     db.session.add(msg)
     db.session.commit()
+    return jsonify(_message_dict(msg, user)), 201
 
-    return jsonify({
-        'id': msg.id,
-        'user': {'id': user.id, 'name': user.name, 'avatar_color': user.avatar_color},
-        'body': msg.body,
-        'created_at': utc_iso(msg.created_at),
-    }), 201
+
+@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
+@require_auth
+def delete_message(message_id):
+    """Delete your own comment. If it has a copy in the Discord thread, the bot
+    removes that too. Comments typed in Discord are deleted there instead."""
+    user = current_user()
+    msg = db.session.get(Message, message_id)
+    if not msg or msg.user_id != user.id:
+        return jsonify({'error': 'Not found'}), 404
+    if not msg.deletable_on_site:
+        return jsonify({'error': 'This was posted in Discord — delete it there.'}), 400
+    if msg.discord_message_id:
+        thread = ShowtimeThread.query.filter_by(showtime_id=msg.showtime_id, group_id=msg.group_id).first()
+        if thread:
+            db.session.add(DiscordDeletion(thread_id=thread.thread_id, discord_message_id=msg.discord_message_id))
+    db.session.delete(msg)
+    db.session.commit()
+    return jsonify({'deleted': message_id})
 
 
 # ─── Routes: Calendar Export ──────────────────────────────────────────────────
@@ -3311,6 +3386,218 @@ def internal_poll_vote(poll_id):
     return jsonify(poll_ballot(user, poll))
 
 
+# ─── Discussion threads (mirrored with Discord) ───────────────────────────────
+# Each screening's discussion can have a thread in #movies. The bot owns all
+# Discord calls; the backend keeps the mapping and an outbox: site comments not
+# yet copied to Discord, site deletions to carry out, and starter cards whose
+# RSVP list changed. Thread messages come back in as comments.
+
+DISCUSSION_BACKFILL = 10                      # earlier comments copied into a new thread
+OUTBOX_WINDOW = timedelta(hours=24)           # older unsent comments are backfilled instead
+CARD_REFRESH_EVERY = timedelta(minutes=3)
+
+
+def _pending_post(q):
+    """Site comments the bot still has to copy into Discord."""
+    return q.filter(Message.source == 'site', Message.discord_message_id.is_(None),
+                    Message.created_at >= _utcnow_naive() - OUTBOX_WINDOW)
+
+
+def screening_card(showtime, group_id):
+    rsvps = (RSVP.query.filter(RSVP.showtime_id == showtime.id, RSVP.group_id == group_id,
+                               RSVP.status.in_(('going', 'maybe'))).order_by(RSVP.created_at).all())
+    def people(status):
+        return [{'name': r.user.name, 'discord_user_id': r.user.discord_user_id} for r in rsvps if r.status == status]
+    return {'showtime_id': showtime.id, 'title': showtime.movie.title,
+            'start_time': showtime.start_time.isoformat(),
+            'theatre': showtime.theatre.name, 'theatre_short': showtime.theatre.short_name or showtime.theatre.name,
+            'format_label': showtime.format_label, 'poster_url': showtime.movie.poster_url,
+            'going': people('going'), 'maybe': people('maybe'),
+            'site_path': f'/calendar?showtime={showtime.id}'}
+
+
+def _thread_dict(t):
+    return {'thread_id': t.thread_id, 'channel_id': t.channel_id, 'guild_id': t.guild_id,
+            'starter_message_id': t.starter_message_id, 'showtime_id': t.showtime_id, 'url': t.url}
+
+
+def _outbound(m):
+    """A comment as the bot posts it: under its author's name (and Discord avatar, if linked)."""
+    avatar = m.user.avatar_url if (m.user.avatar_url or '').startswith('https://cdn.discordapp.com/') else None
+    return {'message_id': m.id, 'showtime_id': m.showtime_id, 'body': m.body, 'created_at': utc_iso(m.created_at),
+            'author': {'id': m.user.id, 'name': m.user.name, 'avatar_url': avatar}}
+
+
+def thread_info(showtime, group_id):
+    """The thread (if any) and starter card for a screening; when there's no
+    thread yet, the comments to copy in when it's created: the last
+    DISCUSSION_BACKFILL, minus any the outbox is about to post anyway."""
+    t = ShowtimeThread.query.filter_by(showtime_id=showtime.id, group_id=group_id).first()
+    out = {'thread': _thread_dict(t) if t else None, 'card': screening_card(showtime, group_id)}
+    if not t:
+        q = Message.query.filter_by(showtime_id=showtime.id, group_id=group_id)
+        pending = {m.id for m in _pending_post(q)}
+        earlier = [m for m in q.order_by(Message.created_at.desc(), Message.id.desc()) if m.id not in pending]
+        out['earlier_total'] = len(earlier)
+        out['backfill'] = [_outbound(m) for m in reversed(earlier[:DISCUSSION_BACKFILL])]
+    return out
+
+
+@app.route('/api/internal/discussion/threads')
+@require_internal
+def internal_discussion_threads():
+    """Every linked thread id (the bot only mirrors these)."""
+    group_id = request.args.get('group_id', type=int)
+    return jsonify([t.thread_id for t in ShowtimeThread.query.filter_by(group_id=group_id)])
+
+
+@app.route('/api/internal/discussion/thread')
+@require_internal
+def internal_discussion_thread():
+    showtime = db.session.get(Showtime, request.args.get('showtime_id', type=int) or 0)
+    if not showtime:
+        return jsonify({'error': 'showtime_not_found'}), 404
+    return jsonify(thread_info(showtime, request.args.get('group_id', type=int)))
+
+
+@app.route('/api/internal/discussion/threads', methods=['POST'])
+@require_internal
+def internal_register_thread():
+    """Link a newly created thread. If the screening already has one (a race),
+    returns that with 409 so the bot can drop its duplicate."""
+    data = request.json or {}
+    showtime_id, group_id = _as_int(data.get('showtime_id')), _as_int(data.get('group_id'))
+    existing = ShowtimeThread.query.filter_by(showtime_id=showtime_id, group_id=group_id).first()
+    if existing:
+        return jsonify({'error': 'exists', 'thread': _thread_dict(existing)}), 409
+    t = ShowtimeThread(showtime_id=showtime_id, group_id=group_id, guild_id=str(data.get('guild_id')),
+                       channel_id=str(data.get('channel_id')), thread_id=str(data.get('thread_id')),
+                       starter_message_id=str(data['starter_message_id']) if data.get('starter_message_id') else None,
+                       card_refreshed_at=_utcnow_naive())
+    db.session.add(t)
+    db.session.commit()
+    return jsonify(_thread_dict(t)), 201
+
+
+@app.route('/api/internal/discussion/threads/<thread_id>/unlink', methods=['POST'])
+@require_internal
+def internal_unlink_thread(thread_id):
+    """The thread was deleted in Discord: forget it (comments stay on the site;
+    the next comment starts a new thread)."""
+    t = ShowtimeThread.query.filter_by(thread_id=str(thread_id)).first()
+    if t:
+        Message.query.filter_by(showtime_id=t.showtime_id, group_id=t.group_id) \
+            .update({'discord_message_id': None}, synchronize_session=False)
+        DiscordDeletion.query.filter_by(thread_id=t.thread_id, done_at=None).delete()
+        db.session.delete(t)
+        db.session.commit()
+    return jsonify({'unlinked': bool(t)})
+
+
+@app.route('/api/internal/discussion/outbox')
+@require_internal
+def internal_discussion_outbox():
+    group_id = request.args.get('group_id', type=int)
+    posts = _pending_post(Message.query.filter_by(group_id=group_id)) \
+        .order_by(Message.created_at, Message.id).limit(20).all()
+    stale = _utcnow_naive() - CARD_REFRESH_EVERY
+    cards = ShowtimeThread.query.filter(
+        ShowtimeThread.group_id == group_id, ShowtimeThread.card_dirty.is_(True),
+        db.or_(ShowtimeThread.card_refreshed_at.is_(None), ShowtimeThread.card_refreshed_at < stale)).limit(10).all()
+    deletions = DiscordDeletion.query.filter_by(done_at=None).order_by(DiscordDeletion.id).limit(20).all()
+    return jsonify({
+        'posts': [_outbound(m) for m in posts],
+        'deletions': [{'id': d.id, 'thread_id': d.thread_id, 'discord_message_id': d.discord_message_id}
+                      for d in deletions],
+        'cards': [{**_thread_dict(t), 'card': screening_card(db.session.get(Showtime, t.showtime_id), group_id)}
+                  for t in cards if db.session.get(Showtime, t.showtime_id)],
+    })
+
+
+@app.route('/api/internal/discussion/mirrored', methods=['POST'])
+@require_internal
+def internal_discussion_mirrored():
+    """Record the Discord copies of site comments ({items: [{message_id, discord_message_id}]})."""
+    for item in (request.json or {}).get('items', []):
+        m = db.session.get(Message, _as_int(item.get('message_id')))
+        if m and not m.discord_message_id:
+            m.discord_message_id = str(item.get('discord_message_id'))
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/internal/discussion/deletions/<int:deletion_id>/done', methods=['POST'])
+@require_internal
+def internal_discussion_deletion_done(deletion_id):
+    d = db.session.get(DiscordDeletion, deletion_id)
+    if d and not d.done_at:
+        d.done_at = _utcnow_naive()
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/internal/discussion/cards/<thread_id>/refreshed', methods=['POST'])
+@require_internal
+def internal_discussion_card_refreshed(thread_id):
+    t = ShowtimeThread.query.filter_by(thread_id=str(thread_id)).first()
+    if t:
+        t.card_dirty, t.card_refreshed_at = False, _utcnow_naive()
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/internal/discussion/messages', methods=['POST'])
+@require_internal
+def internal_discussion_message():
+    """A message from a screening thread (typed, or posted by the bot for a
+    member) becomes that member's comment. Idempotent per Discord message."""
+    data = request.json or {}
+    t = ShowtimeThread.query.filter_by(thread_id=str(data.get('thread_id'))).first()
+    if not t:
+        return jsonify({'error': 'unknown_thread'}), 404
+    did = str(data.get('discord_message_id') or '')
+    existing = Message.query.filter_by(discord_message_id=did).first() if did else None
+    if existing:
+        return jsonify({'id': existing.id, 'duplicate': True})
+    body = (data.get('body') or '').strip()[:2000]
+    if not body or not did:
+        return jsonify({'error': 'body and discord_message_id required'}), 400
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    if not _active_membership(user, t.group_id):
+        return jsonify({'error': 'not_member'}), 403
+    source = 'discord_bot' if data.get('source') == 'discord_bot' else 'discord'
+    m = Message(user_id=user.id, showtime_id=t.showtime_id, group_id=t.group_id, body=body,
+                source=source, discord_message_id=did)
+    db.session.add(m)
+    db.session.commit()
+    return jsonify({'id': m.id}), 201
+
+
+@app.route('/api/internal/discussion/messages/edit', methods=['POST'])
+@require_internal
+def internal_discussion_edit():
+    data = request.json or {}
+    m = Message.query.filter_by(discord_message_id=str(data.get('discord_message_id'))).first()
+    body = (data.get('body') or '').strip()[:2000]
+    updated = bool(m and body and m.source == 'discord')   # only messages typed in Discord are edited there
+    if updated:
+        m.body = body
+        db.session.commit()
+    return jsonify({'updated': updated})
+
+
+@app.route('/api/internal/discussion/messages/delete', methods=['POST'])
+@require_internal
+def internal_discussion_delete():
+    """Messages deleted in a thread (by their author or a moderator) leave the site too."""
+    ids = [str(i) for i in (request.json or {}).get('discord_message_ids', [])]
+    n = Message.query.filter(Message.discord_message_id.in_(ids)).delete(synchronize_session=False) if ids else 0
+    db.session.commit()
+    return jsonify({'deleted': n})
+
+
 @app.route('/api/internal/leaderboard')
 @require_internal
 def internal_leaderboard():
@@ -3801,6 +4088,10 @@ def migrate():
         # Feed: when an RSVP last changed, when a poll was scored
         "ALTER TABLE rsvp ADD COLUMN updated_at DATETIME",
         "ALTER TABLE poll ADD COLUMN scored_at DATETIME",
+        # Discussion threads mirrored with Discord
+        "ALTER TABLE message ADD COLUMN source VARCHAR(12)",
+        "ALTER TABLE message ADD COLUMN discord_message_id VARCHAR(30)",
+        "CREATE INDEX IF NOT EXISTS ix_message_discord_message_id ON message (discord_message_id)",
     ]
     for sql in stmts:
         try:

@@ -117,7 +117,8 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
       {expanded ? (
         <div className="feed-discussion">
           <ReactionBar reactions={s.reactions || {}} showtimeId={s.id} groupId={groupId} apiBase={apiBase} onUpdate={onReactions} />
-          <ChatSection showtimeId={s.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile} />
+          <ChatSection showtimeId={s.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
+                       discordThreadUrl={s.discord_thread_url} />
         </div>
       ) : (
         <>
@@ -144,6 +145,9 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {expanded ? "Hide discussion" : `💬 Discuss${s.message_count ? ` (${s.message_count})` : ""}`}
         </button>
         <button type="button" className="feed-action" onClick={onOpen}>Open screening</button>
+        {s.discord_thread_url && (
+          <a className="feed-action" href={s.discord_thread_url} target="_blank" rel="noreferrer">In Discord ↗</a>
+        )}
       </div>
     </article>
   );

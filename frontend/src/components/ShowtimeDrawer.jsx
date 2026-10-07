@@ -473,6 +473,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
               groupId={groupId}
               apiBase={apiBase}
               onViewProfile={onViewProfile}
+              discordThreadUrl={primary.discord_thread_url}
             />
           </Collapsible>
         </div>

@@ -10,29 +10,29 @@ function timeAgo(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfile }) {
+// A cheap fingerprint, so a poll that changes nothing doesn't re-render (or scroll).
+const signature = list => list.map(m => `${m.id}:${m.body.length}:${m.body.slice(-8)}`).join("|");
+
+export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfile, discordThreadUrl }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
-  const lastTimestamp = useRef(null);
+  const lastSignature = useRef("");
 
-  const fetchMessages = useCallback(async (since) => {
+  // The whole (≤100) list each time, so edits and deletions made in the
+  // screening's Discord thread show up too, not just new messages.
+  const fetchMessages = useCallback(async () => {
     const params = new URLSearchParams({ showtime_id: showtimeId });
     if (groupId) params.set("group_id", groupId);
-    if (since) params.set("since", since);
-
     try {
       const r = await fetch(`${apiBase}/api/messages?${params}`, { credentials: "include" });
       if (r.ok) {
         const data = await r.json();
-        if (since && data.length > 0) {
-          setMessages(prev => [...prev, ...data]);
-        } else if (!since) {
+        const sig = signature(data);
+        if (sig !== lastSignature.current) {
+          lastSignature.current = sig;
           setMessages(data);
-        }
-        if (data.length > 0) {
-          lastTimestamp.current = data[data.length - 1].created_at;
         }
       }
     } catch {
@@ -42,16 +42,14 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
 
   // Initial fetch
   useEffect(() => {
-    lastTimestamp.current = null;
+    lastSignature.current = "";
     fetchMessages();
   }, [fetchMessages]);
 
   // Poll every 10s while the tab is visible; catch up as soon as it's shown again.
   useEffect(() => {
     function poll() {
-      if (lastTimestamp.current && !document.hidden) {
-        fetchMessages(lastTimestamp.current);
-      }
+      if (!document.hidden) fetchMessages();
     }
     const interval = setInterval(poll, 10000);
     document.addEventListener("visibilitychange", poll);
@@ -91,8 +89,11 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
       });
       if (r.ok) {
         const msg = await r.json();
-        setMessages(prev => [...prev, msg]);
-        lastTimestamp.current = msg.created_at;
+        setMessages(prev => {
+          const next = [...prev, msg];
+          lastSignature.current = signature(next);
+          return next;
+        });
         setInput("");
       }
     } catch {
@@ -102,8 +103,29 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
     }
   }
 
+  async function handleDelete(m) {
+    if (!window.confirm(m.via_discord ? "Delete this comment here and in Discord?" : "Delete this comment?")) return;
+    try {
+      const r = await fetch(`${apiBase}/api/messages/${m.id}`, { method: "DELETE", credentials: "include" });
+      if (r.ok) {
+        setMessages(prev => {
+          const next = prev.filter(x => x.id !== m.id);
+          lastSignature.current = signature(next);
+          return next;
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="chat-section">
+      {discordThreadUrl && (
+        <a className="chat-discord-link" href={discordThreadUrl} target="_blank" rel="noreferrer">
+          💬 Also in Discord — this discussion is mirrored in its #movies thread →
+        </a>
+      )}
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty">No messages yet. Start the conversation!</div>
@@ -123,7 +145,12 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
                   className="chat-name clickable"
                   onClick={() => onViewProfile?.(m.user.id)}
                 >{m.user.name}</span>
+                {m.via_discord && <span className="chat-via" title="Posted in the Discord thread">via Discord</span>}
                 <span className="chat-time">{timeAgo(m.created_at)}</span>
+                {m.can_delete && (
+                  <button type="button" className="chat-delete" onClick={() => handleDelete(m)}
+                          aria-label="Delete comment" title="Delete">&times;</button>
+                )}
               </div>
               <div className="chat-body">{m.body}</div>
             </div>

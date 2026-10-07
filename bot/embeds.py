@@ -2,10 +2,12 @@
 
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import discord
 
 SITE_URL = os.environ.get('SITE_URL', 'https://cinemaclubdc.com')
+ET = ZoneInfo('America/New_York')
 
 AMBER = discord.Colour.from_str('#e8a838')
 RED = discord.Colour.from_str('#c45c3a')
@@ -455,3 +457,50 @@ def poll_results_embed(p):
     embed.description = '\n'.join(lines) + f"\n\n{voters} {'member' if voters == 1 else 'members'} voted · " \
                                            f"see your own picks with `/vote`"
     return embed
+
+
+# ─── Screening discussion threads ─────────────────────────────────────────────
+
+def thread_name(card):
+    """'SIRÂT · Thu 10/8 9:05 PM · AFI' (Discord's limit is 100)."""
+    when = datetime.fromisoformat(card['start_time']).strftime('%a %-m/%-d %-I:%M %p')
+    return f"{card['title']} · {when} · {card['theatre_short']}"[:100]
+
+
+def _people(people, limit=10):
+    names = [f"<@{p['discord_user_id']}>" if p.get('discord_user_id') else p['name'] for p in people[:limit]]
+    more = f" +{len(people) - limit}" if len(people) > limit else ''
+    return ', '.join(names) + more
+
+
+def thread_card_embed(card):
+    """The #movies post a screening's thread hangs off. Mentions inside an
+    embed never notify anyone."""
+    when = datetime.fromisoformat(card['start_time']).strftime('%a, %b %-d · %-I:%M %p')
+    fmt = f" · {card['format_label']}" if card.get('format_label') else ''
+    lines = [f"{when} · {card['theatre']}{fmt}"]
+    who = []
+    if card.get('going'):
+        who.append(f"**Going:** {_people(card['going'])}")
+    if card.get('maybe'):
+        who.append(f"**Maybe:** {_people(card['maybe'])}")
+    lines.append(' · '.join(who) if who else '*Nobody has RSVP’d yet.*')
+    lines.append('-# Discuss in the thread below — comments here and on the site stay in sync.')
+    embed = discord.Embed(title=card['title'][:256], url=f"{SITE_URL}{card['site_path']}",
+                          description='\n'.join(lines), colour=AMBER)
+    if card.get('poster_url'):
+        embed.set_thumbnail(url=card['poster_url'])
+    return embed
+
+
+def backfill_intro(total, shown, site_path):
+    link = f"[full discussion]({SITE_URL}{site_path})"
+    if total > shown:
+        return f"-# Earlier on the site · {total} comments, the last {shown} below · {link}"
+    return f"-# Earlier on the site · {total} {'comment' if total == 1 else 'comments'}"
+
+
+def backfilled_comment(item):
+    """A copied site comment: its text, then when it was really written."""
+    day = datetime.fromisoformat(item['created_at']).astimezone(ET).strftime('%b %-d')
+    return f"{item['body'][:1950]}\n-# {day} · on the site"

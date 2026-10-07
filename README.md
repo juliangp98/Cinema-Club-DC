@@ -13,7 +13,7 @@ A private calendar app for tracking DC arthouse film showtimes at **Suns Cinema*
 - **Per-screening RSVP** — Going / Maybe / Can't Go for each individual showtime, independent across screenings
 - **Calendar export** — add screenings to Google Calendar or download .ics for Apple Calendar
 - **Emoji reactions** — 24 curated emojis per showtime (group-scoped)
-- **Group chat** — real-time discussion threads per showtime (10s polling)
+- **Group chat** — a discussion per showtime (10s polling), mirrored with a thread in the club's Discord #movies channel
 - **Group system** — create/join public groups, admin approval for join requests, invite by email
 - **Profile menu** — edit display name, avatar color, bio, favorite genres
 - **Smart recommendations** — star icon on showtimes matching your favorite genres
@@ -264,8 +264,10 @@ old `/?showtime=` and `/?theatre=` links are redirected there.
 
 ### Reactions & Chat
 - `POST /api/reactions` — toggle emoji reaction
-- `GET /api/messages?showtime_id=&group_id=` — get messages
-- `POST /api/messages` — send message
+- `GET /api/messages?showtime_id=&group_id=` — get messages (each with `via_discord`, `can_delete`)
+- `POST /api/messages` — send message (queued for the screening's Discord thread)
+- `DELETE /api/messages/:id` — delete your own comment (and its Discord copy); not for comments typed in Discord
+- Showtime objects carry `discord_thread_url` once the screening has a thread
 
 ### Admin
 - `POST /api/admin/invite` — invite user to group by email
@@ -330,11 +332,33 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Theatre announcements (opt-in)**: schedule drops ("AFI just dropped 23 new
   showtimes") post as they happen only for theatres someone turned on with
   `/alerts`. All theatres start off.
+- **Screening threads (mirrored discussions)**: each screening's discussion can
+  have a thread in #movies, hanging off a card post (poster, time, theatre,
+  who's going, with **Going** / **Maybe** buttons that RSVP privately and an
+  **Open on the site** link; the card's RSVP list refreshes within a few
+  minutes of a change). A thread is created on the first comment from either
+  side: a site comment, `/discuss`, or the 💬 **Discuss** button on `/rsvp`
+  confirmations and the "did you go?" follow-up (which opens a comment box —
+  leave it empty to just open the thread). A new thread starts with the last
+  10 site comments, under their authors' names with their real dates.
+  - Site → Discord: comments post through a #movies webhook (named
+    "Cinema Club") under the commenter's name — and Discord avatar, if linked —
+    within ~5 seconds. Discord marks these with an APP tag; @mentions never ping.
+  - Discord → site: messages typed in the thread become that member's comments
+    (Discord-only members included; attachments become links); edits follow.
+  - Deleting: the site has a delete button on your own comments (removing the
+    Discord copy too); deleting in Discord — your own message, or a moderator
+    removing one — removes the site copy. Comments typed in Discord are deleted
+    in Discord.
+  - The bot ignores its own webhook posts (no loops), drops no ambient quotes
+    in screening threads, and replaces a thread that's deleted in Discord on the
+    next comment. Threads archive after a week of quiet and reopen when someone
+    comments. If it lacks permissions it DMs the owner once (see setup step 3).
 - **Poll posts**: when an admin opens a poll on the site, #movies gets one post
   with a **Vote** button; when it's scored, the top 3 with their kernels.
 - **Owner DMs**: scraper errors and chatbot model changes go to the bot owner's
   DMs, not the channel.
-- **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`, `/vote`,
+- **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`, `/vote`, `/discuss`,
   `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
   `/history`, `/compare`, `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
   commands set one up automatically on first use in the club's server (see
@@ -354,6 +378,9 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
     winners, ✅/❌ on your picks, your kernels and your place. Ballots keep
     working after bot restarts. `/polls` has Vote buttons too. Creating,
     closing and scoring polls stays on the site (group admins).
+  - `/discuss [date] [theatre] showtime [comment]`: open a screening's thread
+    (creating it if needed), optionally posting your comment there; the reply
+    with the link is private.
   - `/llm` (server admins only, by default those with Manage Server; grant it
     to roles in Server Settings → Integrations): see the chatbot's models and
     pin or unpin them.
@@ -410,7 +437,9 @@ Bot setup (one-time):
    bot. (No verification needed under ~100 servers. Without it the bot still
    runs, but those two features stay dark and slash commands/@mention chat work.)
 3. Invite it to the server with the `bot` + `applications.commands` scopes and
-   Send Messages / Embed Links permissions.
+   these permissions, at least in #movies: View Channel, Send Messages, Embed
+   Links, Read Message History, **Manage Webhooks**, **Create Public Threads**
+   and **Send Messages in Threads** (the last three are for screening threads).
 4. Set `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` (#movies channel id) in
    `.env.production`, then `docker-compose up -d --build bot`. Slash commands
    sync globally (every server the bot is in) — first appearance in a new

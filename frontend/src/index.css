@@ -3578,3 +3578,38 @@ button.feed-title:hover { color: var(--amber); }
   .feed-main { padding: 0.75rem 0.75rem 2.5rem; }
   .feed-card { padding: 0.75rem; }
 }
+
+/* Discussion mirrored with Discord */
+.chat-discord-link {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+}
+.chat-discord-link:hover { color: var(--amber); }
+.chat-via {
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f9cf2;
+  border: 1px solid rgba(143, 156, 242, 0.35);
+  border-radius: 2px;
+  padding: 0 0.3rem;
+}
+.chat-delete {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.chat-bubble:hover .chat-delete, .chat-delete:focus-visible { opacity: 1; }
+.chat-delete:hover { color: var(--red); }
+@media (hover: none) { .chat-delete { opacity: 1; } }
+a.feed-action { text-decoration: none; display: inline-flex; align-items: center; }
