@@ -4,7 +4,7 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /find, /surprise,
-/rsvp, /whosgoing, /polls, /vote, /discuss, /watch, /history, /compare, /profile,
+/rsvp, /whosgoing, /polls, /poll make, /vote, /discuss, /watch, /history, /compare, /profile,
 /quote, /alerts, /digest, /llm, /link), and DMs members "did you go?" after screenings they RSVP'd to.
 Members choose what they share from the site (RSVPs, "who's in?" invites,
 polls and results); those posts stay in step with the site. Each screening's
@@ -104,6 +104,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(VoteButton, VoteSelect)   # /vote ballots too
         self.add_dynamic_items(DiscussButton, ThreadRsvpButton)   # screening threads
         self.add_dynamic_items(FindPickSelect, SpinButton)       # /find and /surprise
+        self.add_dynamic_items(DraftCreateButton)                 # /poll make
         announce_loop.start()
         share_loop.start()
         digest_loop.start()
@@ -2681,6 +2682,87 @@ async def surprise(interaction: discord.Interaction, when: app_commands.Choice[s
 @surprise.autocomplete('where')
 async def surprise_where_autocomplete(interaction: discord.Interaction, current: str):
     return await where_ac(interaction, current)
+
+
+# ─── /poll make (R6a) ─────────────────────────────────────────────────────────
+# Organizers describe a poll; the site's shared AI drafts it. The preview is
+# private: "Create now" makes it (announced in #movies like any new poll), or
+# "Open in editor" continues on the site.
+
+def draft_embed(d):
+    embed = discord.Embed(title=f"📝 Draft: {d['title']}"[:256], colour=embeds.AMBER,
+                          description=(d.get('description') or '')[:1000] or None)
+    for c in d['categories'][:8]:
+        opts = [o['text'] for o in c['options']]
+        shown = ', '.join(opts[:8]) + (f" +{len(opts) - 8}" if len(opts) > 8 else '')
+        embed.add_field(name=c['title'][:256], value=shown[:1024], inline=False)
+    if len(d['categories']) > 8:
+        embed.add_field(name='…', value=f"+{len(d['categories']) - 8} more categories", inline=False)
+    mode = {'none': 'Plain vote', 'single': 'Predictions · 1 🍿 per correct', 'ranked': 'Ranked top 3',
+            'confidence': 'Predictions · confidence-weighted'}.get(d.get('scoring_mode'), '')
+    foot = [mode, 'Draft — not posted yet']
+    if d.get('notes'):
+        foot.insert(0, f"⚠️ {d['notes']}")
+    embed.set_footer(text=' · '.join(f for f in foot if f)[:2048])
+    return embed
+
+
+class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'polldraft:create:(?P<id>[0-9]+)'):
+    def __init__(self, draft_id):
+        super().__init__(discord.ui.Button(label='✓ Create now', style=discord.ButtonStyle.success,
+                                           custom_id=f'polldraft:create:{draft_id}'))
+        self.draft_id = draft_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match['id']))
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            poll = await api.post(f'/api/internal/poll-drafts/{self.draft_id}/create', discord_identity(interaction))
+        except ApiError as e:
+            body = e.body or ''
+            msg = ("Already created — see it with `/polls`." if 'already_created' in body
+                   else "Only organizers and admins can create polls." if e.status == 403
+                   else NO_ACCOUNT_MSG if no_account(e) else f"Couldn't create it ({e.status}).")
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        await interaction.followup.send(
+            f"✓ **{poll['title']}** is open — it'll be announced in #movies in a moment. {SITE_URL}/polls/{poll['id']}",
+            ephemeral=True)
+
+
+poll_group = app_commands.Group(name='poll', description='Make polls (organizers and admins)')
+
+
+@poll_group.command(name='make', description='Describe a poll; the AI drafts it for you to create or edit')
+@app_commands.describe(request='e.g. "spookiest Halloween movies" or "the 99th Oscar winners"')
+async def poll_make(interaction: discord.Interaction, request: app_commands.Range[str, 3, 300]):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    try:
+        d = await api.post('/api/internal/polls/draft', {**discord_identity(interaction), 'prompt': request})
+    except ApiError as e:
+        try:
+            msg = json.loads(e.body or '{}').get('error')
+        except ValueError:
+            msg = None
+        if e.status == 403:
+            msg = 'Only organizers and admins can make polls — ask an admin for the Organizer role.'
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else msg or f"Couldn't draft that ({e.status}).",
+                                        ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/poll make failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    view = discord.ui.View(timeout=None)
+    view.add_item(DraftCreateButton(d['id']))
+    view.add_item(discord.ui.Button(label='Open in editor', url=f"{SITE_URL}/polls/new?draft={d['id']}"))
+    await interaction.followup.send(embed=draft_embed(d), view=view, ephemeral=True)
+
+
+client.tree.add_command(poll_group)
 
 
 # ─── /quote ───────────────────────────────────────────────────────────────────

@@ -674,6 +674,18 @@ class DiscordPost(db.Model):
     rsvps = db.relationship('SharedRsvp', backref='post', lazy=True, cascade='all, delete-orphan')
 
 
+class PollDraft(db.Model):
+    """An AI-drafted poll (R6a), kept so the editor (site) or "Create now"
+    (Discord) can pick it up. Becomes a poll only when someone creates it."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    prompt = db.Column(db.String(300), nullable=False)
+    data_json = db.Column(db.Text, nullable=False)
+    poll_id = db.Column(db.Integer)                 # once created
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+
 class SharedRsvp(db.Model):
     """One screening in an RSVP post (several quick RSVPs share one post)."""
     id = db.Column(db.Integer, primary_key=True)
@@ -3620,41 +3632,148 @@ def create_poll(group_id):
     user, membership = _require_group_member(group_id)
     if not role_at_least(membership, 'organizer'):
         return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
+    data = request.json or {}
+    poll, err = build_poll(group_id, user, data)
+    if err:
+        return err
+    draft = db.session.get(PollDraft, _as_int(data.get('draft_id')) or 0)
+    if draft and draft.group_id == group_id:          # made from an AI draft (R6a)
+        draft.poll_id = poll.id
+        db.session.commit()
+    announce_new_poll(poll, user, data)
+    return jsonify(poll.to_dict(include_categories=True)), 201
 
-    data = request.json
-    poll = Poll(
-        group_id=group_id,
-        created_by=user.id,
-        title=data.get('title', '').strip(),
-        description=data.get('description', ''),
-        poll_type=data.get('poll_type', 'standard'),
-        scoring_mode=data.get('scoring_mode', 'none'),
-    )
-    if not poll.title:
-        return jsonify({'error': 'Title required'}), 400
+
+def build_poll(group_id, user, data):
+    """Create a poll from {title, description, poll_type, scoring_mode,
+    categories: [{title, options: [{text, extra?}]}]} — the site's form, a
+    Discord "Create now", or an AI draft. Returns (poll, error)."""
+    title = (data.get('title') or '').strip()[:200]
+    if not title:
+        return None, (jsonify({'error': 'Title required'}), 400)
+    poll = Poll(group_id=group_id, created_by=user.id, title=title,
+                description=(data.get('description') or '')[:2000],
+                poll_type=data.get('poll_type') if data.get('poll_type') in ('standard', 'prediction') else 'standard',
+                scoring_mode=data.get('scoring_mode') if data.get('scoring_mode') in ('none', 'single', 'ranked', 'confidence') else 'none')
     db.session.add(poll)
-    db.session.flush()  # get poll.id
-
-    for i, cat_data in enumerate(data.get('categories', [])):
-        cat = PollCategory(
-            poll_id=poll.id,
-            title=cat_data.get('title', '').strip(),
-            sort_order=i,
-        )
+    db.session.flush()
+    order = 0
+    for cat_data in data.get('categories', []):
+        cat_title = (cat_data.get('title') or '').strip()[:200]
+        options = [o for o in cat_data.get('options', []) if (o.get('text') or '').strip()]
+        if not cat_title or not options:
+            continue
+        cat = PollCategory(poll_id=poll.id, title=cat_title, sort_order=order)
+        order += 1
         db.session.add(cat)
         db.session.flush()
-        for j, opt_data in enumerate(cat_data.get('options', [])):
+        for j, opt_data in enumerate(options):
             extra = opt_data.get('extra')
-            opt = PollOption(
-                category_id=cat.id,
-                text=opt_data.get('text', '').strip(),
-                sort_order=j,
-                extra_data=_json.dumps(extra) if extra else None,
-            )
-            db.session.add(opt)
-
+            db.session.add(PollOption(category_id=cat.id, text=opt_data['text'].strip()[:200], sort_order=j,
+                                      extra_data=_json.dumps(extra) if extra else None))
     db.session.commit()
-    announce_new_poll(poll, user, data)
+    return poll, None
+
+
+# ─── Poll drafts from a plain-English ask (R6a) ───────────────────────────────
+
+DRAFTS_PER_HOUR = 12        # per person: drafts use the shared AI's daily budget
+
+
+def _draft_poll(user, group, prompt):
+    """(response, status) — shared by the site and the bot's /poll."""
+    import poll_ai
+    ai = _ai()
+    prompt = re.sub(r'\s+', ' ', prompt or '').strip()[:300]
+    if len(prompt) < 3:
+        return {'error': 'Describe the poll you want (e.g. "spookiest Halloween movies").'}, 400
+    recent = PollDraft.query.filter(PollDraft.user_id == user.id,
+                                    PollDraft.created_at >= datetime.now() - timedelta(hours=1)).count()
+    if recent >= DRAFTS_PER_HOUR:
+        return {'error': "That's a lot of drafts this hour. Try again in a bit, or build the poll by hand."}, 429
+    try:
+        data = poll_ai.draft(group, prompt)
+    except ai.RateLimited as e:
+        mins = max(1, round((e.retry_after_sec or 600) / 60))
+        return {'error': f"The AI is out of juice for now (back in ~{mins} min). You can still build the poll by hand.",
+                'code': 'rate_limited'}, 429
+    except (ai.Unavailable, poll_ai.DraftError) as e:
+        msg = str(e) if isinstance(e, poll_ai.DraftError) else "The AI isn't available right now. You can still build the poll by hand."
+        return {'error': msg, 'code': 'unavailable'}, 502
+    except Exception as e:
+        print(f'poll draft failed: {e}')
+        return {'error': "Couldn't draft that. Try rewording it, or build the poll by hand.", 'code': 'failed'}, 502
+    d = PollDraft(group_id=group.id, user_id=user.id, prompt=prompt, data_json=_json.dumps(data))
+    db.session.add(d)
+    db.session.commit()
+    return {'id': d.id, 'group_id': group.id, 'prompt': prompt, **data}, 201
+
+
+@app.route('/api/groups/<int:group_id>/polls/draft', methods=['POST'])
+@require_auth
+def draft_poll(group_id):
+    """{prompt} → an editable draft (not a poll yet). Organizers and admins."""
+    user = current_user()
+    _, err = require_role(user, group_id, 'organizer')
+    if err:
+        return err
+    body, status = _draft_poll(user, db.session.get(Group, group_id), (request.json or {}).get('prompt'))
+    return jsonify(body), status
+
+
+@app.route('/api/poll-drafts/<int:draft_id>')
+@require_auth
+def get_poll_draft(draft_id):
+    """A saved draft for the editor (e.g. "Open in editor" from Discord)."""
+    user = current_user()
+    d = db.session.get(PollDraft, draft_id)
+    if not d:
+        return jsonify({'error': 'Draft not found'}), 404
+    _, err = require_role(user, d.group_id, 'organizer')
+    if err:
+        return err
+    return jsonify({'id': d.id, 'group_id': d.group_id, 'prompt': d.prompt, 'poll_id': d.poll_id, **_json.loads(d.data_json)})
+
+
+@app.route('/api/internal/polls/draft', methods=['POST'])
+@require_internal
+def internal_draft_poll():
+    """The bot's /poll make: — organizers only, same rules as the site."""
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    group_id = _as_int(data.get('group_id'))
+    _, err = require_role(user, group_id, 'organizer')
+    if err:
+        return err
+    body, status = _draft_poll(user, db.session.get(Group, group_id), data.get('prompt'))
+    return jsonify(body), status
+
+
+@app.route('/api/internal/poll-drafts/<int:draft_id>/create', methods=['POST'])
+@require_internal
+def internal_create_from_draft(draft_id):
+    """Discord's "Create now": the draft becomes an open poll, announced in #movies."""
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    d = db.session.get(PollDraft, draft_id)
+    if not d:
+        return jsonify({'error': 'draft_not_found'}), 404
+    _, err = require_role(user, d.group_id, 'organizer')
+    if err:
+        return err
+    if d.poll_id and db.session.get(Poll, d.poll_id):
+        return jsonify({'error': 'already_created', 'poll_id': d.poll_id}), 409
+    draft = _json.loads(d.data_json)
+    poll, err = build_poll(d.group_id, user, draft)
+    if err:
+        return err
+    d.poll_id = poll.id
+    db.session.commit()
+    announce_new_poll(poll, user, {'announce': 'now'})
     return jsonify(poll.to_dict(include_categories=True)), 201
 
 
