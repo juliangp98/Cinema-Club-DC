@@ -233,6 +233,16 @@ class User(db.Model):
             'is_guest': bool(self.is_guest),
         }
 
+    # What other members see: no email (unless they're an admin of a club you
+    # share), and none of your private settings.
+    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind')
+
+    def public_dict(self, with_email=False):
+        d = {k: v for k, v in self.to_dict().items() if k not in self.PRIVATE}
+        if with_email:
+            d['email'] = self.email
+        return d
+
 
 def face(u):
     """What an avatar needs: color for initials, and the picture if any."""
@@ -287,7 +297,7 @@ class Group(db.Model):
     short_name = db.Column(db.String(12))
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
-    def to_dict(self, include_members=False):
+    def to_dict(self, include_members=False, with_email=False):
         d = {
             'id': self.id,
             'name': self.name,
@@ -303,8 +313,8 @@ class Group(db.Model):
             'discord': discord_group(self.id),        # the club's Discord server's group
         }
         if include_members:
-            d['members'] = [m.to_dict() for m in self.memberships if m.status == 'active']
-            d['pending'] = [m.to_dict() for m in self.memberships if m.status == 'pending']
+            d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']
+            d['pending'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'pending']
         return d
 
 
@@ -318,10 +328,11 @@ class GroupMembership(db.Model):
     user = db.relationship('User', lazy=True)
     __table_args__ = (db.UniqueConstraint('user_id', 'group_id'),)
 
-    def to_dict(self):
+    def to_dict(self, with_email=False):
+        """A membership as other members see it; emails only for club admins."""
         return {
             'id': self.id,
-            'user': self.user.to_dict() if self.user else None,
+            'user': self.user.public_dict(with_email) if self.user else None,
             'role': self.role,
             'status': self.status,
             'joined_at': self.joined_at.isoformat() if self.joined_at else None,
@@ -1625,12 +1636,13 @@ def get_user_profile(user_id):
         return jsonify(target.to_dict())
 
     # Privacy: must share at least one group with active membership
-    my_groups = {m.group_id for m in GroupMembership.query.filter_by(user_id=me.id, status='active').all()}
+    mine = {m.group_id: m for m in GroupMembership.query.filter_by(user_id=me.id, status='active').all()}
     their_groups = {m.group_id for m in GroupMembership.query.filter_by(user_id=target.id, status='active').all()}
-    if not my_groups & their_groups:
+    shared = set(mine) & their_groups
+    if not shared:
         return jsonify({'error': 'You do not share a group with this user'}), 403
-
-    return jsonify(target.to_dict())
+    # Their email only for an admin of a club you share.
+    return jsonify(target.public_dict(with_email=any(role_at_least(mine[g], 'admin') for g in shared)))
 
 
 # ─── Routes: Admin ────────────────────────────────────────────────────────────
@@ -1825,7 +1837,8 @@ def get_group(slug):
     user = current_user()
     membership = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id).first()
     # Pending requesters see the group, not its member list.
-    d = group.to_dict(include_members=bool(membership and membership.status == 'active'))
+    d = group.to_dict(include_members=bool(membership and membership.status == 'active'),
+                      with_email=role_at_least(membership, 'admin'))
     if membership:
         d['role'] = membership.role
         d['membership_status'] = membership.status
@@ -1983,7 +1996,7 @@ def group_members(slug):
         # Only admins can see pending members
         if m.status == 'pending' and membership.role != 'admin':
             continue
-        result.append(m.to_dict())
+        result.append(m.to_dict(with_email=membership.role == 'admin'))   # emails: admins only
 
     return jsonify(result)
 
@@ -2132,7 +2145,7 @@ def set_member_role(slug, uid):
         return jsonify({'error': 'A club needs at least one admin. Make someone else an admin first.', 'code': 'last_admin'}), 400
     target.role = role
     db.session.commit()
-    return jsonify(target.to_dict())
+    return jsonify(target.to_dict(with_email=True))       # admins only
 
 
 # ─── Routes: Theatres ─────────────────────────────────────────────────────────
@@ -4410,7 +4423,7 @@ def poll_leaderboard(poll_id):
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
 
-    return jsonify([{**s, 'user': s['user'].to_dict()} for s in poll_scores(poll)])
+    return jsonify([{**s, 'user': s['user'].public_dict()} for s in poll_scores(poll)])
 
 
 def calc_user_kernels(user_id, group_id=None):
@@ -4447,7 +4460,7 @@ def build_leaderboard(group):
         kernels, correct = calc_user_kernels(m.user_id, group_id=group.id)
         attendance = len(attended_showtime_ids(m.user_id, {group.id}))
         rows.append({
-            'user': m.user.to_dict(),
+            'user': m.user.public_dict(),
             'kernels': kernels,
             'correct': correct,
             'attendance': attendance,
