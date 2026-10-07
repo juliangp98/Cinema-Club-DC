@@ -317,11 +317,19 @@ def sync_to_db(cfg, scraped_movies):
         # Stale cleanup: future showtimes no longer on the venue's calendar.
         # Guarded by the non-empty check above so a broken scraper can't
         # mass-cancel a theatre's schedule.
-        cancelled_count = 0
+        # Dates the scraper couldn't fetch (rate limits, errors) weren't checked,
+        # so their showtimes stay as they are.
+        missed = getattr(scraped_movies, 'missed_dates', set())
+        cancelled_count = kept = 0
         for s in prev_future:
             if (s.movie_id, s.start_time) not in scraped_pairs and not s.is_cancelled:
+                if s.start_time.date() in missed:
+                    kept += 1
+                    continue
                 s.is_cancelled = True
                 cancelled_count += 1
+        if missed:
+            print(f"  {cfg.slug}: {len(missed)} date(s) not checked this run — kept {kept} showtime(s) on them")
 
         db.session.flush()
 

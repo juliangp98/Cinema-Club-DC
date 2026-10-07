@@ -8,17 +8,16 @@ nowShowing.data.movies[] with showdates[].showtypes[].showtimes[]
 
 import datetime
 import re
-import time
 
 import requests
 
-from .base import with_retry
+from .base import PerDateFetcher, ScrapeResult, with_retry
 
 API_BASE = 'https://production-api.readingcinemas.com'
 SITE = 'https://angelikafilmcenter.com'
 COUNTRY_ID = '6'
 MAX_DATES = 60
-REQUEST_SLEEP = 0.3
+REQUEST_PAUSE = 1.0         # seconds between per-date requests (plus up to 0.5s jitter)
 
 _session = None
 
@@ -69,6 +68,7 @@ def scrape_angelika(cinema_id, site_path):
     """Scrape one Angelika venue ('0000000006' Mosaic, '0000000007' Union Market)."""
     print(f"Scraping Angelika ({site_path})...")
     movies = []
+    fetcher = PerDateFetcher(f'Angelika {site_path}', pause=REQUEST_PAUSE, jitter=0.5)
 
     by_slug = {}
 
@@ -91,14 +91,9 @@ def scrape_angelika(cinema_id, site_path):
         today = datetime.date.today().isoformat()
 
         _ingest(by_slug, day_movies, cinema_id, site_path)
-        for d in sorted(set(dates))[:MAX_DATES]:
-            if d == today:
-                continue
-            time.sleep(REQUEST_SLEEP)
-            try:
-                _ingest(by_slug, _films(d).get('movies', []), cinema_id, site_path)
-            except Exception as e:
-                print(f"  Angelika {site_path}: failed {d}: {e}")
+        fetcher.run([d for d in sorted(set(dates))[:MAX_DATES] if d != today], _films,
+                    lambda data: _ingest(by_slug, data.get('movies', []), cinema_id, site_path),
+                    to_date=lambda d: datetime.date.fromisoformat(d[:10]))
 
         movies = [m for m in by_slug.values() if m['showtimes']]
         for movie in movies:
@@ -108,7 +103,7 @@ def scrape_angelika(cinema_id, site_path):
         print(f"  ERROR scraping Angelika {site_path}: {e}")
 
     print(f"  Found {len(movies)} movies at Angelika {site_path}")
-    return movies
+    return ScrapeResult(movies, fetcher.missed)
 
 
 def _ingest(by_slug, day_movies, cinema_id, site_path):

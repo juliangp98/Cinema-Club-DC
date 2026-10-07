@@ -311,7 +311,15 @@ Other behaviors:
 - **API budget.** Films TMDB can't identify (shorts programs, trivia nights) are retried at most weekly instead of on every scrape. OMDb is only called once a film is identified.
 - **Catalog maintenance.** `python backfill_enrichment.py [--force]` cleans titles, merges duplicate films, labels screenings with their format, and looks up unmatched films (`--force` ignores the weekly retry window). It's safe to re-run and never triggers Discord posts.
 - Future showtimes that disappear from a venue's calendar are soft-cancelled
-  (`is_cancelled`), never deleted — RSVPs/chat survive.
+  (`is_cancelled`), never deleted — RSVPs/chat survive. Only dates the scraper
+  actually fetched count: per-date scrapers (Regal, Angelika, AMC) report days
+  they couldn't get (`ScrapeResult.missed_dates`), and showtimes on those days
+  are left alone.
+- **Politeness.** Regal rate-limits bursts, so it's paced at ~2–3s between
+  requests, honors `Retry-After` with back-off (15s → 45s → 2 min), and stops
+  for the run after 3 failed dates in a row (`PerDateFetcher` in
+  `scrapers/base.py`). Angelika is paced at ~1–1.5s. A full nightly run takes
+  several minutes longer as a result.
 - Each run records a `ScrapeRun`; bursts of new showtimes emit a `ScrapeEvent`
   (`new_drop`) that the Discord bot announces. Scrape failures emit rate-limited
   `scrape_error` events.

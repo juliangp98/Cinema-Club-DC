@@ -1,6 +1,7 @@
 """Shared helpers for all theatre scrapers."""
 
 import datetime
+import random
 import re
 import time
 import unicodedata
@@ -77,6 +78,58 @@ def with_retry(fn, attempts=3, base_delay=1.0, label=''):
                 time.sleep(wait)
             else:
                 raise
+
+
+class ScrapeResult(list):
+    """A scraper's movie list plus the dates it couldn't fetch. Sync cancels
+    showtimes that disappeared only on dates that were actually checked, so a
+    rate-limited or failed day never wipes real screenings off the calendar.
+    Plain lists still work (every date counts as checked)."""
+    def __init__(self, movies=(), missed_dates=()):
+        super().__init__(movies)
+        self.missed_dates = set(missed_dates)
+
+
+def polite_pause(seconds, jitter=1.0):
+    """Wait between requests to the same site, with a little randomness."""
+    time.sleep(seconds + random.uniform(0, jitter))
+
+
+def retry_after(response, default):
+    """Seconds a 429/503 response asks us to wait (Retry-After), capped at 2 min."""
+    try:
+        return min(120.0, max(1.0, float(response.headers.get('Retry-After', default))))
+    except (TypeError, ValueError):
+        return default
+
+
+class PerDateFetcher:
+    """Pacing + a circuit breaker for scrapers that make one request per date:
+    after `max_consecutive_failures` failures in a row it stops asking (the
+    site is throttling us), and every date it didn't get is reported missed."""
+    def __init__(self, label, pause=2.0, jitter=1.0, max_consecutive_failures=3):
+        self.label, self.pause, self.jitter = label, pause, jitter
+        self.max_failures, self.failures_in_row = max_consecutive_failures, 0
+        self.missed = set()
+        self.tripped = False
+
+    def run(self, dates, fetch, ingest, to_date=lambda d: d):
+        for d in dates:
+            if self.tripped:
+                self.missed.add(to_date(d))
+                continue
+            polite_pause(self.pause, self.jitter)
+            try:
+                ingest(fetch(d))
+                self.failures_in_row = 0
+            except Exception as e:
+                self.missed.add(to_date(d))
+                self.failures_in_row += 1
+                print(f"  {self.label}: failed {d}: {e}")
+                if self.failures_in_row >= self.max_failures:
+                    self.tripped = True
+                    print(f"  {self.label}: {self.max_failures} failures in a row — stopping for this run; "
+                          f"showtimes on unchecked dates are kept")
 
 
 def safe_text(tag, strip=True):

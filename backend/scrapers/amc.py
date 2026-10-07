@@ -17,6 +17,8 @@ import time
 
 import requests
 
+from .base import ScrapeResult
+
 API_BASE = 'https://api.amctheatres.com'
 DAYS_AHEAD = 45
 REQUEST_SLEEP = 0.35
@@ -39,10 +41,12 @@ def scrape_amc(theatre_id, theatre_slug):
     """Scrape one AMC theatre via the official API. Returns list of movie dicts."""
     print(f"Scraping AMC ({theatre_slug})...")
     movies = {}
+    missed = set()
+    today = datetime.date.today()
+    offset = 0
 
     try:
         s = _session()
-        today = datetime.date.today()
 
         for offset in range(DAYS_AHEAD):
             day = today + datetime.timedelta(days=offset)
@@ -60,10 +64,12 @@ def scrape_amc(theatre_id, theatre_slug):
 
     except Exception as e:
         print(f"  ERROR scraping AMC {theatre_slug}: {e}")
+        # Days from the failure on weren't checked: keep their showtimes.
+        missed = {today + datetime.timedelta(days=o) for o in range(offset, DAYS_AHEAD)}
 
     results = [m for m in movies.values() if m['showtimes']]
     print(f"  Found {len(results)} movies at AMC {theatre_slug}")
-    return results
+    return ScrapeResult(results, missed)
 
 
 def _ingest_showtime(movies, st, theatre_slug):
