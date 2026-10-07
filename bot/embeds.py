@@ -232,6 +232,32 @@ def profile_embed(profile, own=False):
     return embed
 
 
+def compare_embed(data, limit=5):
+    """/compare: where you and a member line up, to plan outings together."""
+    name = data.get('name', 'them')
+    embed = discord.Embed(title=f"🤝 You & {name}", colour=AMBER, url=SITE_URL)
+
+    def next_line(item):
+        nxt = item.get('next')
+        return (f"**{item['movie']['title']}** — next: {_when(nxt['start_time'])} @ {nxt['theatre']}"
+                if nxt else f"**{item['movie']['title']}** — no showings yet")
+
+    sections = [
+        ('🎯 You both want to see', [next_line(i) for i in data.get('both_want', [])]),
+        ('🎟️ You\'re both going', [_screening(i) for i in data.get('both_going', [])]),
+        (f"👀 {name}'s going to something on your watchlist", [_screening(i) for i in data.get('they_go_you_want', [])]),
+        (f"📣 You're going to something on {name}'s watchlist", [_screening(i) for i in data.get('you_go_they_want', [])]),
+        ('🍿 Seen together', [f"**{i['title']}** — {datetime.fromisoformat(i['start_time']).strftime('%b %-d, %Y')}"
+                             for i in data.get('seen_together', [])]),
+    ]
+    for title, lines in sections:
+        _add_field(embed, title[:256], lines, limit=limit)
+    if not embed.fields:
+        embed.description = "Nothing lines up yet — add films with `/watch` and RSVP with `/rsvp`."
+    embed.set_footer(text='Open their profile on the site → Compare for the full picture')
+    return embed
+
+
 def history_embed(data, limit=15):
     """/history: screenings someone saw with the club, newest first."""
     items = data.get('items') or []

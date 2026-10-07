@@ -186,6 +186,14 @@ To send real emails, create a Gmail App Password:
   listed (struck through) so you can undo them. Attendance is its own record
   (`attendance` table), separate from the RSVP. "Attended" (leaderboard, chatbot)
   = confirmed went + unanswered going RSVPs − didn't go.
+- **Profile lists**: every profile has Watchlist (each film with its next
+  showing), Going (upcoming going/maybe RSVPs) and History tabs. Other members'
+  profiles open on **Compare**: films you both want to see, screenings you're
+  both going to, screenings one of you is going to that's on the other's
+  watchlist, and what you've seen together. Any screening in a list opens its
+  drawer. **My lists** in the group menu opens your own profile
+  (`/members?profile=me`). You only see another member's RSVPs from groups you
+  share.
 
 ---
 
@@ -214,6 +222,9 @@ To send real emails, create a Gmail App Password:
 ### Showtimes & RSVPs
 - `GET /api/showtimes?start=&end=&group_id=` — showtimes for date range
 - `POST /api/rsvp` — create/update RSVP (going/maybe/not_going)
+- `GET /api/users/:id/watchlist` — a member's watchlist, each film with its next showing
+- `GET /api/users/:id/rsvps` — a member's upcoming going/maybe RSVPs (shared groups only)
+- `GET /api/users/:id/compare` — where you and a member line up (not yourself)
 - `GET /api/showtimes/:id/ical` — iCal export
 - `GET /api/showtimes/:id/gcal-url` — Google Calendar URL
 
@@ -289,7 +300,7 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
   DMs, not the channel.
 - **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
   `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
-  `/history`, `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
+  `/history`, `/compare`, `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
   commands set one up automatically on first use in the club's server (see
   Discord-only accounts above). Date/theatre filters are dependent:
   pick a movie and the date/theatre options narrow to where it's actually
@@ -336,6 +347,9 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
   command.
 - **`/history [member]`**: screenings you (or a member) saw with the club. ✅ means
   confirmed; 🎟️ means RSVP'd going and never answered.
+- **`/compare member:@someone`**: privately, where you and a member line up:
+  films you both want to see, screenings you're both going to, overlaps with
+  each other's watchlists, and what you've seen together.
 - **`/profile`**: your favorite genres (which the chatbot uses for recommendations), bio
   and Letterboxd, edited in place with a genre picker and a short form. Everything is
   private to you. `/profile member:@someone` shows another member's card.

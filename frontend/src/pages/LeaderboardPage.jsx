@@ -92,6 +92,7 @@ export default function LeaderboardPage({ user, setUser, apiBase, activeGroupId 
       {profileUserId && (
         <UserProfileDrawer
           userId={profileUserId}
+          viewerId={user.id}
           apiBase={apiBase}
           onClose={() => setProfileUserId(null)}
         />

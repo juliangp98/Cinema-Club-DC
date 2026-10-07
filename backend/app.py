@@ -1829,6 +1829,132 @@ def history_items(target, viewer_is_target, group_ids=None):
     return [_screening_item(s, answers.get(s.id) or 'going') for s in showtimes]
 
 
+def viewable_groups(viewer, target):
+    """Groups whose RSVPs `viewer` may see for `target`: all their own when it's
+    themselves, otherwise the active groups they share. None = no access."""
+    mine = {m.group_id for m in GroupMembership.query.filter_by(user_id=viewer.id, status='active')}
+    if viewer.id == target.id:
+        return mine
+    shared = mine & {m.group_id for m in GroupMembership.query.filter_by(user_id=target.id, status='active')}
+    return shared or None
+
+
+def upcoming_rsvps(user, group_ids):
+    """[(showtime, 'going'|'maybe')] for upcoming RSVPs in these groups, soonest
+    first; one per screening, 'going' winning if groups disagree."""
+    if not group_ids:
+        return []
+    rows = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+            .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')),
+                    RSVP.group_id.in_(list(group_ids)), Showtime.start_time > datetime.now(),
+                    Showtime.is_cancelled.isnot(True))
+            .order_by(Showtime.start_time).all())
+    best = {}
+    for r in rows:
+        if best.get(r.showtime_id, (None, None))[1] != 'going':
+            best[r.showtime_id] = (r.showtime, r.status)
+    return sorted(best.values(), key=lambda pair: pair[0].start_time)
+
+
+def next_showings(movie_ids):
+    """{movie_id: its soonest upcoming screening} in one query."""
+    first = {}
+    if movie_ids:
+        for s in (Showtime.query.filter(Showtime.movie_id.in_(list(movie_ids)), Showtime.start_time > datetime.now(),
+                                        Showtime.is_cancelled.isnot(True)).order_by(Showtime.start_time)):
+            first.setdefault(s.movie_id, s)
+    return first
+
+
+def watchlist_items(user):
+    """A member's watchlist, newest first, each with its next showing (if any)."""
+    rows = Watchlist.query.filter_by(user_id=user.id).order_by(Watchlist.created_at.desc()).all()
+    nxt = next_showings({w.movie_id for w in rows})
+    return [{'movie': {'id': w.movie.id, 'title': w.movie.title, 'release_year': w.movie.release_year,
+                       'poster_url': w.movie.poster_url},
+             'added_at': w.created_at.isoformat() if w.created_at else None,
+             'next': _screening_item(nxt[w.movie_id]) if w.movie_id in nxt else None}
+            for w in rows if w.movie]
+
+
+def compare_members(me, other, group_ids):
+    """Where two members line up — to coordinate outings:
+      both_want   — films on both watchlists (with the next showing),
+      both_going  — upcoming screenings both RSVP'd to,
+      they_go_you_want — screenings they're going to that are on your watchlist,
+      you_go_they_want — screenings you're going to that are on theirs,
+      seen_together — screenings you both saw."""
+    my_wl = {w.movie_id for w in Watchlist.query.filter_by(user_id=me.id)}
+    their_wl = {w.movie_id for w in Watchlist.query.filter_by(user_id=other.id)}
+    mine = {s.id: (s, st) for s, st in upcoming_rsvps(me, group_ids)}
+    theirs = {s.id: (s, st) for s, st in upcoming_rsvps(other, group_ids)}
+
+    both_movies = my_wl & their_wl
+    nxt = next_showings(both_movies)
+    movies = {m.id: m for m in Movie.query.filter(Movie.id.in_(list(both_movies)))} if both_movies else {}
+    both_want = sorted(({'movie': {'id': mid, 'title': movies[mid].title, 'release_year': movies[mid].release_year},
+                         'next': _screening_item(nxt[mid]) if mid in nxt else None}
+                        for mid in both_movies if mid in movies),
+                       key=lambda i: (i['next'] is None, i['next']['start_time'] if i['next'] else i['movie']['title']))
+
+    def items(pairs):
+        return [_screening_item(s, st) for s, st in sorted(pairs, key=lambda p: p[0].start_time)]
+
+    seen = attended_showtime_ids(me.id, group_ids) & attended_showtime_ids(other.id, group_ids)
+    seen_rows = (Showtime.query.filter(Showtime.id.in_(seen)).order_by(Showtime.start_time.desc()).limit(50).all()
+                 if seen else [])
+    return {
+        'name': other.name,
+        'both_want': both_want,
+        'both_going': items(theirs[sid] for sid in theirs if sid in mine),
+        'they_go_you_want': items(p for sid, p in theirs.items() if sid not in mine and p[0].movie_id in my_wl),
+        'you_go_they_want': items(p for sid, p in mine.items() if sid not in theirs and p[0].movie_id in their_wl),
+        'seen_together': [_screening_item(s, 'went') for s in seen_rows],
+    }
+
+
+def _profile_target(user_id):
+    """(viewer, target, viewable group ids) for the /api/users/<id>/… lists, or an error."""
+    me, target = current_user(), db.session.get(User, user_id)
+    if not target or not target.is_active:
+        return None, None, None, (jsonify({'error': 'User not found'}), 404)
+    groups = viewable_groups(me, target)
+    if groups is None:
+        return None, None, None, (jsonify({'error': 'You do not share a group with this user'}), 403)
+    return me, target, groups, None
+
+
+@app.route('/api/users/<int:user_id>/watchlist')
+@require_auth
+def user_watchlist(user_id):
+    me, target, _, err = _profile_target(user_id)
+    if err:
+        return err
+    return jsonify({'own': me.id == target.id, 'items': watchlist_items(target)})
+
+
+@app.route('/api/users/<int:user_id>/rsvps')
+@require_auth
+def user_rsvps(user_id):
+    """Upcoming screenings a member is going to (or might), from groups you share."""
+    me, target, groups, err = _profile_target(user_id)
+    if err:
+        return err
+    return jsonify({'own': me.id == target.id,
+                    'items': [_screening_item(s, st) for s, st in upcoming_rsvps(target, groups)]})
+
+
+@app.route('/api/users/<int:user_id>/compare')
+@require_auth
+def user_compare(user_id):
+    me, target, groups, err = _profile_target(user_id)
+    if err:
+        return err
+    if me.id == target.id:
+        return jsonify({'error': 'Pick someone else to compare with'}), 400
+    return jsonify(compare_members(me, target, groups))
+
+
 @app.route('/api/attendance/pending')
 @require_auth
 def attendance_pending():
@@ -1849,17 +1975,13 @@ def attendance_set():
 @app.route('/api/users/<int:user_id>/history')
 @require_auth
 def user_history(user_id):
-    me, target = current_user(), db.session.get(User, user_id)
-    if not target or not target.is_active:
-        return jsonify({'error': 'User not found'}), 404
+    me, target, groups, err = _profile_target(user_id)
+    if err:
+        return err
     if me.id == target.id:
         return jsonify({'own': True, 'items': history_items(target, True)})
-    shared = ({m.group_id for m in GroupMembership.query.filter_by(user_id=me.id, status='active')}
-              & {m.group_id for m in GroupMembership.query.filter_by(user_id=target.id, status='active')})
-    if not shared:
-        return jsonify({'error': 'You do not share a group with this user'}), 403
     # Others see RSVP-based attendance only from groups you share.
-    return jsonify({'own': False, 'items': history_items(target, False, shared)})
+    return jsonify({'own': False, 'items': history_items(target, False, groups)})
 
 
 # ─── Routes: Reactions ────────────────────────────────────────────────────────
@@ -3179,6 +3301,22 @@ def internal_history():
             return err
     items = history_items(user, False, {group_id} if group_id else None)
     return jsonify({'name': user.name, 'items': items})
+
+
+@app.route('/api/internal/compare')
+@require_internal
+def internal_compare():
+    """/compare @member: where the caller and a member line up (this group's RSVPs)."""
+    me, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    other = User.query.filter_by(discord_user_id=str(request.args.get('member_discord_id') or '')).first()
+    if not other or not other.is_active:
+        return jsonify({'error': 'unknown_member'}), 404
+    if other.id == me.id:
+        return jsonify({'error': 'same_person'}), 400
+    group_id = request.args.get('group_id', type=int)
+    return jsonify(compare_members(me, other, {group_id} if group_id else set()))
 
 
 # ─── Quotes (/quote, /wisdom) ─────────────────────────────────────────────────

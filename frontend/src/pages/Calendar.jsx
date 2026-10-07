@@ -749,9 +749,11 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
       {profileUserId && (
         <UserProfileDrawer
           userId={profileUserId}
+          viewerId={user.id}
           apiBase={apiBase}
           onClose={() => setProfileUserId(null)}
           onAttendanceChange={() => setAttendanceKey(k => k + 1)}
+          onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }}
         />
       )}
     </div>

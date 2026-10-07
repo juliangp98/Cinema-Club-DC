@@ -4,8 +4,8 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /rsvp,
-/whosgoing, /polls, /watch, /history, /profile, /quote, /alerts, /digest, /llm,
-/link), and DMs members "did you go?" after screenings they RSVP'd to.
+/whosgoing, /polls, /watch, /history, /compare, /profile, /quote, /alerts, /digest,
+/llm, /link), and DMs members "did you go?" after screenings they RSVP'd to.
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
@@ -1593,6 +1593,28 @@ async def history(interaction: discord.Interaction, member: discord.User = None)
         await interaction.followup.send("Couldn't reach the server — try again in a bit.")
         return
     await interaction.followup.send(embed=embeds.history_embed(data))
+
+
+@client.tree.command(name='compare', description='Where you and a member line up: watchlists, plans, films seen together')
+@app_commands.describe(member='Who to compare with')
+async def compare(interaction: discord.Interaction, member: discord.User):
+    await interaction.response.defer(ephemeral=True)
+    if member.id == interaction.user.id:
+        await interaction.followup.send('Pick someone other than yourself.', ephemeral=True)
+        return
+    try:
+        data = await api.get('/api/internal/compare', **discord_identity(interaction),
+                             member_discord_id=str(member.id))
+    except ApiError as e:
+        msg = (f"{member.display_name} hasn't used Cinema Club yet." if 'unknown_member' in (e.body or '')
+               else NO_ACCOUNT_MSG if no_account(e) else f'Compare failed ({e.status}).')
+        await interaction.followup.send(msg, ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/compare failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    await interaction.followup.send(embed=embeds.compare_embed(data), ephemeral=True)
 
 
 # ─── /quote ───────────────────────────────────────────────────────────────────

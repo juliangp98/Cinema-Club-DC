@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import GroupMembers from "../components/GroupMembers";
 import ProfileMenu from "../components/ProfileMenu";
 import UserProfileDrawer from "../components/UserProfileDrawer";
@@ -10,7 +10,16 @@ export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
-  const [profileUserId, setProfileUserId] = useState(null);
+  const [params, setParams] = useSearchParams();
+  // ?profile=me (the "My lists" menu item) or ?profile=<id> opens that profile.
+  const [profileUserId, setProfileUserId] = useState(() => {
+    const p = params.get("profile");
+    return p === "me" ? user.id : (parseInt(p, 10) || null);
+  });
+
+  useEffect(() => {
+    if (params.has("profile")) setParams({}, { replace: true });
+  }, [params, setParams]);
 
   // Fetch active group info
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -31,7 +40,7 @@ export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
   }
 
   function logout() {
-    fetch(`${apiBase}/api/logout`, { method: "POST", credentials: "include" })
+    fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" })
       .then(() => window.location.reload());
   }
 
@@ -46,7 +55,7 @@ export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
       <div className="group-discovery-container">
         <header className="group-discovery-header">
           <button className="group-back-btn" onClick={() => navigate("/")}>
-            &larr; Groups
+            &larr; Calendar
           </button>
           <h1 className="group-discovery-title">Members</h1>
           <div style={{ marginLeft: "auto", position: "relative" }}>
@@ -82,6 +91,7 @@ export default function MembersPage({ user, setUser, apiBase, activeGroupId }) {
       {profileUserId && (
         <UserProfileDrawer
           userId={profileUserId}
+          viewerId={user.id}
           apiBase={apiBase}
           onClose={() => setProfileUserId(null)}
         />

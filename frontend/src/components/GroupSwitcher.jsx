@@ -61,6 +61,12 @@ export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId }) {
               <>
                 <button
                   className="group-dropdown-action"
+                  onClick={() => { setOpen(false); navigate("/members?profile=me"); }}
+                >
+                  My lists
+                </button>
+                <button
+                  className="group-dropdown-action"
                   onClick={() => { setOpen(false); navigate("/members"); }}
                 >
                   Members
