@@ -326,7 +326,7 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
   return (
     <div className="page discover">
       <PageHeader title="Discover" subtitle={`What's playing across ${groupId ? "the club's theatres" : "every DC-area theatre we track"} in the next two weeks.`} />
-      <SearchBox onSearch={q => navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
+      <SearchBox apiBase={apiBase} groupId={groupId} onSearch={q => q && navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
 
       {groupId && shell.canParticipate && user && (
         <BringPlans apiBase={apiBase} groupId={groupId} user={user} clubName={shell.group?.name} onShared={refresh} />

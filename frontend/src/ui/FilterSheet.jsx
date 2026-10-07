@@ -23,9 +23,10 @@ export const listOf = v => (v ? v.split(",").filter(Boolean) : []);
  * onToggle(key, value): add/remove (lists) or set/clear (single)
  * children: extra sections (e.g. the Calendar's "Who's going")
  * note: a line above the buttons (e.g. a link to Browse)
+ * search: a search box at the top (the Calendar's, R6c)
  * club: show "The club" filters (only in club mode)
  */
-export default function FilterSheet({ query, multi, meta, theatreNames, total, onToggle, onClear, onClose, children, note, club = true }) {
+export default function FilterSheet({ query, multi, meta, theatreNames, total, onToggle, onClear, onClose, children, note, search, club = true }) {
   const Choice = ({ k, v, children: label, count }) => {
     const on = multi.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
     return (
@@ -48,6 +49,7 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
     <Sheet label="Filters" onClose={onClose}>
       <div className="filters">
         <h2 className="ui-section-title"><span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Filters</span></h2>
+        {search}
         {Object.keys(byRegion).length > 0 && (
           <fieldset><legend>Where</legend>
             {Object.entries(byRegion).map(([region, slugs]) => (

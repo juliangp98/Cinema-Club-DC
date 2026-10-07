@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
@@ -21,6 +21,7 @@ const SORTS = [["soonest", "Soonest"], ["rarest", "Rarest"], ["wanted", "Most wa
 
 export default function BrowsePage({ apiBase, groupId }) {
   const [params, setParams] = useSearchParams();
+  const searchNote = useLocation().state?.searchNote;     // what ✨ AI search read the request as
   const [films, setFilms] = useState([]);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +77,17 @@ export default function BrowsePage({ apiBase, groupId }) {
     }
     setParams(next, { replace: true });
   }
+  // A picked suggestion adds to the filters; ✨ AI search replaces them.
+  function applySearch(picked, { replace = false, note } = {}) {
+    const next = new URLSearchParams(replace ? {} : params);
+    for (const [k, v] of Object.entries(picked)) {
+      if (MULTI.has(k) && !replace) {
+        const cur = listOf(next.get(k));
+        if (!cur.includes(v)) next.set(k, [...cur, v].join(","));
+      } else next.set(k, v);
+    }
+    setParams(next, { replace: true, state: note ? { searchNote: note } : undefined });
+  }
   const clearAll = () => setParams(new URLSearchParams(query.when ? { when: query.when } : {}), { replace: true });
 
   // Active filters as removable chips (not when / q / sort, which have their own controls).
@@ -105,7 +117,9 @@ export default function BrowsePage({ apiBase, groupId }) {
   return (
     <div className="page browse">
       <PageHeader title={title} back={{ to: "/", label: "Discover" }} />
-      <SearchBox initial={query.q || ""} onSearch={q => set("q", q || null)} />
+      <SearchBox initial={query.q || ""} apiBase={apiBase} groupId={groupId} showNote={false}
+                 onSearch={q => set("q", q || null)} onApply={applySearch} />
+      {searchNote && <p className="searchbox-note browse-search-note" role="status">{searchNote}</p>}
 
       <div className="browse-when" role="group" aria-label="When">
         {WHEN.map(([k, label]) => <Choice key={k} k="when" v={k}>{label}</Choice>)}

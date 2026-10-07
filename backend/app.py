@@ -2479,6 +2479,64 @@ BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade'
                  'club', 'runtime', 'mood', 'shelf', 'q', 'sort')
 
 
+# ─── Search (R6c) ─────────────────────────────────────────────────────────────
+# Suggestions as you type (everyone), and ✨ AI search (kept accounts only: it
+# spends the club's shared AI allowance, which the chatbot and poll drafts use too).
+
+AI_SEARCHES_PER_HOUR = 15
+_ai_searches = {}            # user id -> recent search times (per server process)
+
+
+@app.route('/api/search/suggest')
+def search_suggest():
+    import discover
+    user, group, err = view_scope()
+    if err:
+        return err
+    q = (request.args.get('q') or '').strip()[:80]
+    build = lambda: discover.suggest(group, user, q)
+    if group or user:
+        return jsonify(build())
+    return jsonify(public_cached(('suggest', discover.normalize(q)), build))
+
+
+@app.route('/api/search/ai', methods=['POST'])
+@require_auth
+def search_ai_route():
+    """{q, group_id?} → {params, path, explain, ai, note}: Browse filters for a
+    plain-English request."""
+    import discover
+    import search_ai
+    user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
+    data = request.json or {}
+    q = re.sub(r'\s+', ' ', str(data.get('q') or '')).strip()[:300]
+    if len(q) < 3:
+        return jsonify({'error': 'Say a bit more about what you want to see.'}), 400
+    group = None
+    group_id = _as_int(data.get('group_id'))
+    if group_id:
+        if not _active_membership(user, group_id):
+            return jsonify({'error': 'Not a member of this group'}), 403
+        group = db.session.get(Group, group_id)
+    now = time.monotonic()
+    recent = [t for t in _ai_searches.get(user.id, []) if now - t < 3600]
+    if len(recent) >= AI_SEARCHES_PER_HOUR:
+        return jsonify({'error': "That's a lot of AI searches — try the regular search, or again in a while."}), 429
+    _ai()                                     # the shared AI, with its model-switch notices
+    result = search_ai.interpret(group, user, q)
+    if result['ai']:
+        _ai_searches[user.id] = recent + [now]
+    params = result['params']
+    names = {t.slug: t.short_name or t.name for t in Theatre.query.filter(Theatre.slug.in_(
+        (params.get('theatres') or '').split(',')))} if params.get('theatres') else {}
+    label = ', '.join(names.get(s, s) for s in (params.get('theatres') or '').split(',') if s) or None
+    return jsonify({**result, 'path': discover.browse_path(params),
+                    'explain': discover.describe({**params, '_theatre_label': label})})
+
+
 @app.route('/api/discover/calendar')
 def discover_calendar():
     """The Calendar's screenings: every showing of the films matching Browse's

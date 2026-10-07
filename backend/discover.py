@@ -582,6 +582,8 @@ def browse_path(params):
 def describe(params, title=None):
     """Short human label: 'Rare gems · Horror · This weekend · Virginia'."""
     bits = [title or SHELF_TITLES.get(params.get('shelf')) or MOODS.get(params.get('mood'), {}).get('label')]
+    if params.get('shelf') and params.get('mood') and not title:          # both named: say both
+        bits.append(MOODS.get(params['mood'], {}).get('label'))
     if params.get('genres') and not params.get('mood'):
         bits.append(', '.join(g.title() for g in params['genres'].split(',')))
     if params.get('decade'):
@@ -848,3 +850,182 @@ def _mix(films, group, viewer, now, add):
         add(f, r)
     for f in sorted(films.values(), key=lambda f: f.next.start_time):
         add(f)
+
+
+# ─── Search suggestions (R6c) ─────────────────────────────────────────────────
+# As you type in a search box: films (playing first, then the rest of the
+# database), directors and actors in what's playing, and every Browse filter
+# whose name (or a common word for it) matches — so "spooky" offers "Scare me",
+# "70" offers "On film", "afi" offers AFI Silver.
+
+SUGGEST_TTL = 120                 # seconds a club's index is reused (per server process)
+_suggest_index = {}
+
+_MOOD_TERMS = {
+    'scare-me': ['scary', 'spooky', 'horror', 'creepy', 'halloween', 'frightening'],
+    'laugh': ['funny', 'comedy', 'hilarious'],
+    'mind-bender': ['trippy', 'sci-fi', 'science fiction', 'cerebral'],
+    'date-night': ['romantic', 'romance', 'date', 'rom-com'],
+    'tissues': ['sad', 'cry', 'tearjerker', 'emotional'],
+    'feel-good': ['uplifting', 'cozy', 'wholesome', 'family'],
+    'thrills': ['action', 'exciting', 'adrenaline', 'intense'],
+}
+_OTHER_FILTERS = [
+    # (params, label, hint, extra terms)
+    ({'format': 'film'}, 'On film (35/16/70mm)', 'Format', ['35mm', '16mm', '70mm', 'film print', 'celluloid']),
+    ({'format': 'big'}, 'Big screen (IMAX, 70mm, Dolby)', 'Format', ['imax', 'dolby', '70mm', 'big screen']),
+    ({'time': 'matinee'}, 'Matinee (before 5pm)', 'Time of day', ['afternoon', 'daytime']),
+    ({'time': 'evening'}, 'Evening (5–9pm)', 'Time of day', ['night']),
+    ({'time': 'late'}, 'Late night (9:30pm+)', 'Time of day', ['midnight', 'late show']),
+    ({'runtime': 'short'}, 'Under 95 minutes', 'Length', ['short', 'quick']),
+    ({'runtime': 'long'}, 'Over 2½ hours', 'Length', ['long', 'epic']),
+    ({'rarity': 'repertory'}, 'Repertory (5+ years old)', 'Rarity', ['old', 'revival', 'retro']),
+    ({'rarity': 'wide'}, 'Wide release', 'Rarity', ['mainstream', 'everywhere']),
+]
+_CLUB_FILTERS = [
+    ({'club': 'going'}, 'Friends going', 'Club', ['friends', 'club going']),
+    ({'club': 'wanted'}, 'The club wants it', 'Club', ['wanted', 'club wants']),
+]
+_DECADE_TYPED = re.compile(r"^'?(?:(19|20)?(\d)0)'?s?$")
+
+
+def _score(n, terms, words_only=False):
+    """How well typed text `n` matches any of `terms` (lower is better), or
+    None. words_only: only at the start of a word (names and titles)."""
+    best = None
+    for term in terms:
+        t = normalize(term)
+        if not t:
+            continue
+        if t.startswith(n):
+            s = 0
+        elif any(w.startswith(n) for w in re.split(r"[\s\-/&,.:']+", t)) or (' ' in n and n in t):
+            s = 1
+        elif words_only:
+            continue
+        elif re.search(rf"(?<!\w){re.escape(t)}(?!\w)", n) or n in t:      # "horror movies", "rama" in "drama"
+            s = 2
+        else:
+            continue
+        best = s if best is None else min(best, s)
+    return best
+
+
+def _suggest_films_index(group, now):
+    """What's playing in the next month, boiled down to what suggestions need
+    (plain data: safe to reuse across requests)."""
+    import json
+    key = group.id if group else None
+    hit = _suggest_index.get(key)
+    clock = __import__('time').monotonic()
+    if hit and clock - hit[0] < SUGGEST_TTL:
+        return hit[1]
+    films, people, genres = [], {}, {}
+    for f in catalog(group, *window('month', now)).values():
+        m, s = f.movie, f.next
+        films.append({'id': m.id, 'title': m.title, 'year': f.year, 'poster_url': m.poster_url,
+                      'next': s.start_time.isoformat(), 'theatre': s.theatre.short_name or s.theatre.name,
+                      'showings': len(f.shows)})
+        for d in (m.director or '').split(','):
+            if d.strip():
+                people.setdefault((d.strip(), 'director'), set()).add(m.id)
+        try:
+            cast = json.loads(m.cast_json or '[]')[:8]
+        except ValueError:
+            cast = []
+        for c in cast:
+            if isinstance(c, dict) and c.get('name'):
+                people.setdefault((c['name'], 'actor'), set()).add(m.id)
+        for g in f.genres:
+            genres[g] = genres.get(g, 0) + 1
+    index = {'films': films, 'people': {k: len(v) for k, v in people.items()}, 'genres': genres}
+    if len(_suggest_index) > 50:
+        _suggest_index.clear()
+    _suggest_index[key] = (clock, index)
+    return index
+
+
+def suggest(group, viewer, text, now=None, limit_films=6, limit_people=4, limit_filters=6):
+    """{films, people, filters} matching what's been typed so far. Films are
+    {id, title, year, poster_url, playing, next?, theatre?}; people and filters
+    carry the Browse `params` that picking them applies."""
+    from app import Movie, Theatre
+    now = now or datetime.now()
+    n = normalize(text).strip()
+    empty = {'films': [], 'people': [], 'filters': [], 'order': ['films', 'people', 'filters']}
+    if len(n) < 2:
+        return empty
+    index = _suggest_films_index(group, now)
+
+    scored = []
+    for f in index['films']:
+        s = _score(n, [f['title']], words_only=True)
+        if s is not None:
+            scored.append((s, -f['showings'], f['title'], f))
+    films = [{**f, 'playing': True} for *_, f in sorted(scored, key=lambda x: x[:3])[:limit_films]]
+    if len(films) < limit_films:
+        playing = {f['id'] for f in index['films']}
+        like = f"%{n.replace('%', '').replace('_', '')}%"
+        from app import db
+        more = (Movie.query.filter(db.or_(Movie.title_normalized.like(like), db.func.lower(Movie.title).like(like)),
+                                   Movie.tmdb_id.isnot(None))
+                .order_by(Movie.vote_average.desc().nullslast()).limit(30).all())
+        lib = []
+        for m in more:
+            s = _score(n, [m.title], words_only=True)
+            if m.id not in playing and s is not None:
+                y = (m.release_year or '')[:4]
+                lib.append((s, m.title, {'id': m.id, 'title': m.title, 'year': int(y) if y.isdigit() else None,
+                                         'poster_url': m.poster_url, 'playing': False}))
+        films += [x for *_, x in sorted(lib, key=lambda x: x[:2])[:limit_films - len(films)]]
+
+    people = []
+    for (name, role), count in index['people'].items():
+        s = _score(n, [name], words_only=True)
+        if s is not None:
+            people.append((s, -count, name, role, count))
+    people.sort()
+    people_best = people[0][0] if people else 9
+    people = [{'name': name, 'role': role, 'count': count, 'params': {'q': name}}
+              for _, _, name, role, count in people[:limit_people]]
+
+    options = []        # (params, label, hint, terms)
+    for k, title, blurb in SHELVES:
+        if (k in ('friends', 'most-wanted') and not group) or (k == 'for-you' and not viewer):
+            continue
+        options.append(({'shelf': k}, title, blurb, [title, k.replace('-', ' ')]))
+    for k, v in MOODS.items():
+        options.append(({'mood': k}, v['label'], 'Mood', [v['label'], *_MOOD_TERMS.get(k, [])]))
+    for g, count in sorted(index['genres'].items(), key=lambda x: -x[1]):
+        options.append(({'genres': g}, g.title(), f"Genre · {count} film{'s' if count != 1 else ''}", [g]))
+    for k, label in WHEN.items():
+        options.append(({'when': k}, label, 'When', [label, *(['today', 'this evening'] if k == 'tonight' else [])]))
+    for k, label in REGION_KEYS.items():
+        options.append(({'regions': k}, label, 'Area', [label, k]))
+    slugs = {t.strip() for t in ((group.theatres or '') if group else '').split(',') if t.strip()}
+    for t in Theatre.query.filter(Theatre.is_active.isnot(False)).all():
+        if not slugs or t.slug in slugs:
+            options.append(({'theatres': t.slug}, t.name, 'Theatre', [t.name, t.short_name or '', t.slug]))
+    options += _OTHER_FILTERS
+    if group:
+        options += _CLUB_FILTERS
+    if viewer:
+        options.append(({'club': 'mine'}, 'My plans & watchlist', 'Yours', ['mine', 'my list', 'watchlist']))
+
+    filters, seen = [], set()
+    m = _DECADE_TYPED.match(n)
+    if m:
+        decade = f"{m.group(1) or ('20' if m.group(2) in '012' else '19')}{m.group(2)}0"
+        filters.append((0, {'params': {'decade': decade}, 'label': f'{decade}s', 'hint': 'Decade'}))
+    for params, label, hint, terms in options:
+        s = _score(n, terms)
+        key = tuple(sorted(params.items()))
+        if s is not None and key not in seen:
+            seen.add(key)
+            filters.append((s, {'params': params, 'label': label, 'hint': hint}))
+    filters.sort(key=lambda x: x[0])
+    # Groups in order of how well they match: typing "dra" leads with Drama.
+    best = {'films': min((s for s, *_ in scored), default=9), 'people': people_best,
+            'filters': filters[0][0] if filters else 9}
+    order = sorted(('films', 'people', 'filters'), key=lambda k: best[k])
+    return {'films': films, 'people': people, 'filters': [f for _, f in filters[:limit_filters]], 'order': order}

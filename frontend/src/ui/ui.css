@@ -351,16 +351,43 @@ a.feed-poster { display: block; }
 .poster-card-reasons { font-size: var(--fs-xs); color: var(--amber); }
 
 /* ── Search box ────────────────────────────────────────────────────────── */
+.searchbox-wrap { position: relative; margin-bottom: 1.25rem; }
 .searchbox {
-  display: flex; align-items: center; gap: 0.5rem; padding: 0 0.9rem; height: 44px;
+  display: flex; align-items: center; gap: 0.5rem; padding: 0 0.45rem 0 0.9rem; height: 44px;
   background: var(--bg3); border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
-  color: var(--muted); margin-bottom: 1.25rem;
+  color: var(--muted);
 }
 .searchbox:focus-within { border-color: var(--amber); }
 .searchbox input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--cream);
                    font: 400 var(--fs-md) var(--font-body); }
 .searchbox input::-webkit-search-cancel-button { display: none; }
-.searchbox-clear { color: var(--muted); font-size: 1.3rem; line-height: 1; }
+.searchbox-clear { color: var(--muted); font-size: 1.3rem; line-height: 1; padding: 0 0.3rem; }
+.searchbox-ai {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; line-height: 1;
+  background: rgba(220, 177, 92, 0.14); border: 1px solid var(--gold-line); cursor: pointer;
+}
+.searchbox-ai:hover:not(:disabled) { background: rgba(220, 177, 92, 0.28); }
+.searchbox-ai:disabled { opacity: 0.45; cursor: default; }
+.searchbox-ai.busy { animation: searchbox-pulse 1s ease-in-out infinite; opacity: 1; }
+@keyframes searchbox-pulse { 50% { box-shadow: 0 0 0 4px rgba(220, 177, 92, 0.25); } }
+.searchbox-list {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(70vh, 460px); overflow-y: auto;
+  background: var(--bg2); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  padding: 0.35rem 0;
+}
+.searchbox-group { padding: 0.45rem 0.9rem 0.2rem; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.searchbox-option { display: flex; align-items: center; gap: 0.65rem; padding: 0.4rem 0.9rem; cursor: pointer; }
+.searchbox-option.active { background: rgba(220, 177, 92, 0.12); }
+.searchbox-poster { width: 28px; height: 42px; border-radius: 3px; flex-shrink: 0; }
+.searchbox-option-text { display: flex; flex-direction: column; min-width: 0; }
+.searchbox-option-label { color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.searchbox-option-hint { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.searchbox-ai-row {
+  display: block; width: 100%; text-align: left; margin-top: 0.25rem; padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--border); color: var(--amber); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+}
+.searchbox-ai-row:hover { background: rgba(220, 177, 92, 0.12); }
+.searchbox-note { margin: 0.45rem 0.25rem 0; font-size: var(--fs-sm); color: var(--amber); }
 
 /* ── Sharing to Discord (R3d) ──────────────────────────────────────────── */
 .ticket-discord { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.15rem; font-size: var(--fs-xs); }
@@ -489,3 +516,4 @@ a.share-state { color: #6fbf98; }
   .poster-ph-title { display: none; }
   .poster-ph-initials { display: block; }
 }
+.browse-search-note { margin: -0.75rem 0.25rem 1rem; }

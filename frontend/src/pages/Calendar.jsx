@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import PosterImage from "../ui/Poster";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import FilterSheet, { listOf } from "../ui/FilterSheet";
+import SearchBox from "../ui/SearchBox";
 import Avatar from "../ui/Avatar";
 import { Segmented } from "../ui/TicketRow";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
@@ -228,6 +229,16 @@ export default function Calendar({ user, apiBase, groupId }) {
     } else update({ [key]: query[key] === value ? null : value });
   }
   const clearFilters = () => update(Object.fromEntries(FILTER_KEYS.map(k => [k, null])));
+  // Search picks add filters; ✨ AI search replaces them. The calendar pages by
+  // date itself, so "when" and sorting don't apply here.
+  function applySearch(picked, { replace = false } = {}) {
+    const changes = replace ? Object.fromEntries(FILTER_KEYS.filter(k => k !== "members").map(k => [k, null])) : {};
+    for (const [k, v] of Object.entries(picked)) {
+      if (!FILTER_KEYS.includes(k)) continue;
+      changes[k] = MULTI.has(k) && !replace ? [...new Set([...listOf(query[k]), v])].join(",") : v;
+    }
+    update(changes);
+  }
   function setView(v) {
     try { localStorage.setItem("cinemaclub_cal_view", v); } catch { /* private mode */ }
     update({ view: v, only: null });
@@ -468,7 +479,9 @@ export default function Calendar({ user, apiBase, groupId }) {
       {filtersOpen && (
         <FilterSheet query={query} multi={MULTI} meta={data} theatreNames={theatreNames} total={filmCount} club={!!groupId}
                      onToggle={toggle} onClear={clearFilters} onClose={() => setFiltersOpen(false)}
-                     note={<>Sort, search and more in <Link to={browseLink} onClick={() => setFiltersOpen(false)}>Browse →</Link></>}>
+                     search={<SearchBox initial={query.q || ""} apiBase={apiBase} groupId={groupId}
+                                        onSearch={q => update({ q: q || null })} onApply={applySearch} />}
+                     note={<>Sorting and more in <Link to={browseLink} onClick={() => setFiltersOpen(false)}>Browse →</Link></>}>
           {members.length > 0 && (
             <fieldset><legend>Who's going</legend>
               <div className="filter-chips">
