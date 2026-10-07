@@ -3425,3 +3425,156 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   .auth-logo { font-size: 2.2rem; }
   .auth-box { padding: 1.25rem; }
 }
+
+/* ── Main nav: Feed / Calendar ──────────────────────────────────────────── */
+.main-nav { display: flex; gap: 0.25rem; }
+.main-nav-link {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.3rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.main-nav-link:hover { color: var(--cream); }
+.main-nav-link.active { color: var(--amber); border-color: var(--amber-dim); }
+
+/* ── Feed ───────────────────────────────────────────────────────────────── */
+.feed-page { min-height: 100vh; background: var(--bg); }
+.feed-header { position: sticky; top: 0; }
+.feed-main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.feed-main .attendance-prompt { margin: 0; }
+.feed-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.feed-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
+.feed-kicker { font-size: 0.72rem; color: var(--cream); line-height: 1.4; min-width: 0; }
+.feed-time { font-size: 0.6rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.feed-card-main { display: flex; gap: 0.85rem; align-items: flex-start; }
+.feed-poster { flex-shrink: 0; padding: 0; border: none; background: none; cursor: pointer; }
+span.feed-poster { cursor: default; }
+.feed-poster img {
+  display: block;
+  width: 56px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.feed-card-body { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.feed-title {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--cream);
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+button.feed-title:hover { color: var(--amber); }
+.feed-title.static { cursor: default; }
+.feed-meta, .feed-activity { font-size: 0.65rem; color: var(--muted); }
+.feed-activity.nudge { color: var(--amber); }
+.feed-avatars { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.1rem; }
+.feed-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5rem;
+  font-weight: 500;
+  color: #0d0c09;
+  cursor: pointer;
+}
+.feed-comment {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-align: left;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--cream);
+  background: var(--bg3);
+  border: none;
+  border-left: 2px solid var(--amber-dim);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+}
+.feed-comment-author { color: var(--amber); }
+.feed-reactions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.feed-reaction {
+  font-size: 0.7rem;
+  color: var(--cream);
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.feed-reaction.mine { border-color: var(--amber-dim); }
+.feed-discussion { border-top: 1px solid var(--border); padding-top: 0.6rem; min-width: 0; }
+/* The drawer separates reactions and chat with rules; a card only needs one. */
+.feed-discussion .reaction-bar { margin: 0 0 0.5rem; padding-bottom: 0; border-bottom: none; }
+.feed-discussion .chat-section { margin-top: 0; padding-top: 0; border-top: none; }
+.feed-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.feed-action, .feed-more {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.35rem 0.7rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: all 0.15s;
+}
+.feed-action:hover, .feed-more:hover { border-color: var(--amber); color: var(--amber); }
+.feed-more { align-self: center; padding: 0.5rem 1.25rem; }
+.feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.feed-end { text-align: center; font-size: 0.65rem; color: var(--muted); padding: 0.5rem 0; }
+
+@media (max-width: 768px) {
+  /* The Feed / Calendar switch gets its own row under the logo row. */
+  .header { flex-wrap: wrap; }
+  .main-nav { order: 10; flex-basis: 100%; border-top: 1px solid var(--border); padding-top: 0.35rem; }
+  .main-nav-link { flex: 1; text-align: center; }
+  .feed-main { padding: 0.75rem 0.75rem 2.5rem; }
+  .feed-card { padding: 0.75rem; }
+}

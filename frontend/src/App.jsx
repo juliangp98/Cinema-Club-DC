@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
 import Calendar from "./pages/Calendar";
+import Feed from "./pages/Feed";
 import Login from "./pages/Login";
 import GroupDiscovery from "./pages/GroupDiscovery";
 import MembersPage from "./pages/MembersPage";
@@ -55,8 +56,8 @@ function AuthGuard({ user, loading, children, apiBase, onLogin }) {
   return children;
 }
 
-// Wrapper that redirects to /groups if user has no groups
-function CalendarOrRedirect({ user, setUser, apiBase, groupId, setGroupId, hasGroups }) {
+// Group pages (Feed, Calendar): redirect to /groups if the user has no groups.
+function GroupGate({ user, groupId, hasGroups, children }) {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,15 +84,7 @@ function CalendarOrRedirect({ user, setUser, apiBase, groupId, setGroupId, hasGr
     );
   }
 
-  return (
-    <Calendar
-      user={user}
-      setUser={setUser}
-      apiBase={apiBase}
-      groupId={groupId}
-      setGroupId={setGroupId}
-    />
-  );
+  return children;
 }
 
 export default function App() {
@@ -178,14 +171,31 @@ export default function App() {
           path="/"
           element={
             <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <CalendarOrRedirect
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-                groupId={activeGroupId}
-                setGroupId={handleSetGroupId}
-                hasGroups={hasGroups}
-              />
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <Feed
+                  user={user}
+                  setUser={setUser}
+                  apiBase={API_BASE}
+                  groupId={activeGroupId}
+                  setGroupId={handleSetGroupId}
+                />
+              </GroupGate>
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/calendar"
+          element={
+            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <Calendar
+                  user={user}
+                  setUser={setUser}
+                  apiBase={API_BASE}
+                  groupId={activeGroupId}
+                  setGroupId={handleSetGroupId}
+                />
+              </GroupGate>
             </AuthGuard>
           }
         />

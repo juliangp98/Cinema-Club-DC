@@ -6,6 +6,7 @@ A private calendar app for tracking DC arthouse film showtimes at **Suns Cinema*
 
 ## Features
 
+- **Feed (home page)** — the group's recent activity: who's going where, check-ins, discussion, watchlist adds, polls and new members
 - **Monthly calendar view** with color-coded theatre pills (orange = Suns, red = AFI)
 - **Merged showtimes** — multiple screenings of the same movie on the same day appear as one calendar entry with comma-separated times
 - **Showtime drawer** — click any entry to see movie poster, description, director, runtime, cast, trailer link, and per-screening RSVP/tickets/calendar export
@@ -42,10 +43,12 @@ Cinema Club/
 │   │   ├── main.jsx              # Entry point
 │   │   ├── index.css             # Full dark theme (~1780 lines)
 │   │   ├── pages/
-│   │   │   ├── Calendar.jsx      # Monthly calendar with filter bar
+│   │   │   ├── Feed.jsx          # Home page: group activity cards
+│   │   │   ├── Calendar.jsx      # Monthly calendar with filter bar (/calendar)
 │   │   │   ├── Login.jsx         # Login / Signup / Invite acceptance
 │   │   │   └── GroupDiscovery.jsx # Browse, search, join, create groups
 │   │   └── components/
+│   │       ├── MainNav.jsx       # Feed / Calendar switch in the header
 │   │       ├── ShowtimeDrawer.jsx # Multi-screening detail drawer
 │   │       ├── GroupAdmin.jsx     # Invite, approve/deny, manage members
 │   │       ├── GroupSwitcher.jsx  # Header group dropdown
@@ -169,6 +172,31 @@ To send real emails, create a Gmail App Password:
 
 ---
 
+## Feed
+
+The home page (`/`) shows what the group has been up to over the last 90 days,
+newest activity first, 20 cards at a time:
+
+- **Screenings**: one card per screening, gathering going/maybe RSVPs, "went"
+  check-ins, comments and reactions ("You and Bo are going · Cy maybe"). It
+  shows the latest comment and reaction counts. **Discuss** opens the full
+  reactions and chat inline (one card at a time); posting goes to that
+  screening's own discussion. **Open screening** opens the usual drawer.
+- **Watchlist adds**: one card per film ("Ana and Cy added this to their
+  watchlists"), with its next showing and how many members want it.
+- **Polls**: opened, closed, and results scored, with a nudge if you haven't voted.
+- **New members**: joins grouped by day, including people whose account was
+  created by using the bot.
+
+It's built from the source tables, not a copied log: un-RSVPing or removing a
+watchlist film drops it from the feed, and activity from Discord appears like
+anything else. Any new activity (a comment, a reaction, Maybe → Going) moves a
+card back to the top. Only group members can see it, and RSVPs and check-ins
+only show in the group they were made in. The calendar lives at `/calendar`;
+old `/?showtime=` and `/?theatre=` links are redirected there.
+
+---
+
 ## Calendar Features
 
 - **Showtime merging**: Multiple screenings of the same movie at the same theatre on the same day are grouped into a single calendar pill showing all times
@@ -220,6 +248,7 @@ To send real emails, create a Gmail App Password:
 - `DELETE /api/groups/:slug/members/:uid` — remove member
 
 ### Showtimes & RSVPs
+- `GET /api/feed?group_id=&offset=` — the group's activity cards (20 per page, last 90 days)
 - `GET /api/showtimes?start=&end=&group_id=` — showtimes for date range
 - `POST /api/rsvp` — create/update RSVP (going/maybe/not_going)
 - `GET /api/users/:id/watchlist` — a member's watchlist, each film with its next showing
@@ -377,8 +406,9 @@ Bot setup (one-time):
    `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` in `.env.production` and rebuild.
    Without them, the site simply doesn't show the Discord button.
 
-Deep links: `https://cinemaclubdc.com/?showtime=<id>` opens that screening's
-drawer; `/?theatre=<slug>` pre-filters the calendar.
+Deep links: `https://cinemaclubdc.com/calendar?showtime=<id>` opens that
+screening's drawer; `/calendar?theatre=<slug>` pre-filters the calendar. Older
+`/?showtime=` / `/?theatre=` links still work (redirected).
 
 ### Run scraper on a schedule
 

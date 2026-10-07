@@ -64,7 +64,7 @@ def drop_embed(event):
         title=title,
         description='\n'.join(desc_lines)[:4000],
         colour=AMBER,
-        url=f"{SITE_URL}/?theatre={p.get('theatre_slug', '')}",
+        url=f"{SITE_URL}/calendar?theatre={p.get('theatre_slug', '')}",
     )
     posters = [_image_url(m.get('poster_url')) for m in p.get('movie_summaries', [])]
     posters = [p for p in posters if p]
@@ -96,7 +96,7 @@ def activity_message(event):
     if p.get('start_time'):
         when = ' — ' + datetime.fromisoformat(p['start_time']).strftime('%a %-m/%-d %-I:%M %p')
     theatre = f" at {p['theatre_name']}" if p.get('theatre_name') else ''
-    link = f"\n{SITE_URL}/?showtime={p['showtime_id']}" if p.get('showtime_id') else ''
+    link = f"\n{SITE_URL}/calendar?showtime={p['showtime_id']}" if p.get('showtime_id') else ''
     who = actor_ref(p.get('user_name'), p.get('discord_user_id'))
     return f"🎟️ {who} {verb} **{p.get('movie_title')}**{when}{theatre}.{link}"
 
@@ -173,7 +173,7 @@ def movie_embed(showtimes, movie):
         title=movie['title'],
         description='\n\n'.join(desc_parts)[:4000],
         colour=AMBER,
-        url=f"{SITE_URL}/?showtime={first_id}" if first_id else SITE_URL,
+        url=f"{SITE_URL}/calendar?showtime={first_id}" if first_id else SITE_URL,
     )
     thumb = _image_url(movie.get('poster_url'))
     if thumb:
@@ -350,7 +350,7 @@ def digest_message(digest, tag_watchers=False):
 
     if not embed.fields:
         embed.description = 'A quiet week — nothing on the calendar yet.'
-    embed.set_footer(text=f'Full calendar → {SITE_URL}')
+    embed.set_footer(text=f'Full calendar → {SITE_URL}/calendar')
 
     content = None
     if pings:

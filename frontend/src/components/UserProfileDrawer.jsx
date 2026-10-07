@@ -13,7 +13,7 @@ function formatWhen(iso) {
 
 // Outside the calendar, opening a screening means going there (its deep link).
 function openOnCalendar(showtimeId) {
-  window.location.assign(`/?showtime=${showtimeId}`);
+  window.location.assign(`/calendar?showtime=${showtimeId}`);
 }
 
 function useList(url) {

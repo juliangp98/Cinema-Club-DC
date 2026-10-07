@@ -556,6 +556,7 @@ class RSVP(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'))
     status = db.Column(db.String(20), nullable=False)  # 'going', 'maybe', 'not_going'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))  # last status change
     __table_args__ = (db.UniqueConstraint('user_id', 'showtime_id', 'group_id'),)
 
 
@@ -608,6 +609,7 @@ class Poll(db.Model):
     status = db.Column(db.String(20), default='open')         # 'open' | 'closed' | 'scored'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     closed_at = db.Column(db.DateTime, nullable=True)
+    scored_at = db.Column(db.DateTime, nullable=True)
 
     group = db.relationship('Group', lazy=True)
     creator = db.relationship('User', lazy=True)
@@ -788,6 +790,23 @@ def _as_int(value):
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def utc_iso(dt):
+    """Activity timestamps are stored as naive UTC; mark them as UTC so browsers
+    don't read them as local time. (Showtimes are naive local and stay as-is.)"""
+    if dt is None:
+        return None
+    return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).isoformat()
+
+
+def parse_utc(value):
+    """Inverse of utc_iso for query params: naive UTC, comparable with columns."""
+    try:
+        dt = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
 
 
 def resolve_discord_user(data):
@@ -1679,6 +1698,8 @@ def apply_rsvp(user, showtime_id, status, group_id):
             db.session.commit()
     elif status in ('going', 'maybe', 'not_going'):
         if existing:
+            if existing.status != status:
+                existing.updated_at = datetime.now(timezone.utc)   # bumps it in the Feed
             existing.status = status
         else:
             new_rsvp = RSVP(user_id=user.id, showtime_id=showtime_id, group_id=group_id, status=status)
@@ -1955,6 +1976,164 @@ def user_compare(user_id):
     return jsonify(compare_members(me, target, groups))
 
 
+# ─── Feed ─────────────────────────────────────────────────────────────────────
+# Built straight from the source tables (RSVPs, check-ins, comments, reactions,
+# watchlists, polls, memberships), so undoing something — an un-RSVP, a removed
+# watchlist film — simply drops it, and Discord activity shows up like any other.
+# Activity is grouped into one card per screening / film / poll / day of joins,
+# ordered by its latest activity.
+
+FEED_DAYS = 90
+FEED_PAGE = 20
+
+
+def _feed_user(u):
+    return {'id': u.id, 'name': u.name, 'avatar_color': u.avatar_color, 'discord_only': u.email is None}
+
+
+def _went_visible_in(group_id, rows):
+    """Check-ins aren't per group, so a "went" shows in a group's feed only if the
+    RSVP was made there, or there was no RSVP anywhere (logged directly) — a
+    check-in never reveals plans made in another group."""
+    if not rows:
+        return []
+    pairs = {(r.user_id, r.showtime_id) for r in rows}
+    rsvp_groups = {}
+    for r in RSVP.query.filter(RSVP.user_id.in_({p[0] for p in pairs}),
+                               RSVP.showtime_id.in_({p[1] for p in pairs})):
+        rsvp_groups.setdefault((r.user_id, r.showtime_id), set()).add(r.group_id)
+    return [r for r in rows if (r.user_id, r.showtime_id) not in rsvp_groups
+            or group_id in rsvp_groups[(r.user_id, r.showtime_id)]]
+
+
+def feed_events(group_id, since):
+    """(kind, card_key, at, user_id, detail) for the group's activity since `since`."""
+    member_ids = {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
+    ev = []
+    for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.status.in_(('going', 'maybe')),
+                               RSVP.updated_at >= since):
+        ev.append(('rsvp', f's{r.showtime_id}', r.updated_at, r.user_id, r.status))
+    for m in Message.query.filter(Message.group_id == group_id, Message.created_at >= since):
+        ev.append(('comment', f's{m.showtime_id}', m.created_at, m.user_id, None))
+    for r in Reaction.query.filter(Reaction.group_id == group_id, Reaction.created_at >= since):
+        ev.append(('reaction', f's{r.showtime_id}', r.created_at, r.user_id, r.emoji))
+    if member_ids:
+        went = Attendance.query.filter(Attendance.user_id.in_(member_ids), Attendance.status == 'went',
+                                       Attendance.answered_at >= since).all()
+        for a in _went_visible_in(group_id, went):
+            ev.append(('went', f's{a.showtime_id}', a.answered_at, a.user_id, None))
+        for w in Watchlist.query.filter(Watchlist.user_id.in_(member_ids), Watchlist.created_at >= since):
+            ev.append(('watch', f'w{w.movie_id}', w.created_at, w.user_id, None))
+    for m in GroupMembership.query.filter(GroupMembership.group_id == group_id, GroupMembership.status == 'active',
+                                          GroupMembership.joined_at >= since):
+        ev.append(('joined', f'j{m.joined_at.date().isoformat()}', m.joined_at, m.user_id, None))
+    ev = [e for e in ev if e[3] in member_ids]   # people who've since left drop out
+    for p in Poll.query.filter_by(group_id=group_id):
+        for kind, at in (('poll_opened', p.created_at), ('poll_closed', p.closed_at), ('poll_scored', p.scored_at)):
+            if at and at >= since:
+                ev.append((kind, f'p{p.id}', at, p.created_by, None))
+    return ev, member_ids
+
+
+def feed_skeletons(group_id):
+    """Cards (key, latest activity time, their events), newest first."""
+    events, member_ids = feed_events(group_id, _utcnow_naive() - timedelta(days=FEED_DAYS))
+    cards = {}
+    for e in events:
+        cards.setdefault(e[1], {'key': e[1], 'events': []})['events'].append(e)
+    for c in cards.values():
+        c['events'].sort(key=lambda e: e[2], reverse=True)
+        c['at'] = c['events'][0][2]
+    return sorted(cards.values(), key=lambda c: (c['at'], c['key']), reverse=True), member_ids
+
+
+def _feed_screening(viewer, group_id, sid, events, users, member_ids):
+    s = db.session.get(Showtime, sid)
+    if not s or not s.movie:
+        return None
+    showtime = _with_attendance(viewer, [s], [
+        s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=viewer.favorite_genres)])[0]
+    went_rows = [a for a in Attendance.query.filter_by(showtime_id=sid, status='went') if a.user_id in member_ids]
+    went_ids = [a.user_id for a in _went_visible_in(group_id, went_rows)]
+    went = User.query.filter(User.id.in_(went_ids)).all() if went_ids else []
+    last = (Message.query.filter_by(showtime_id=sid, group_id=group_id)
+            .order_by(Message.created_at.desc()).first())
+    activity, seen = [], set()
+    for kind, _, at, uid, detail in events:
+        if (uid, kind) in seen or uid not in users:
+            continue
+        seen.add((uid, kind))
+        activity.append({'kind': kind, 'user': _feed_user(users[uid]), 'detail': detail, 'at': utc_iso(at)})
+    return {'type': 'screening', 'showtime': showtime, 'went': [_feed_user(u) for u in went],
+            'latest_comment': {'user': _feed_user(last.user), 'body': last.body[:280],
+                               'at': utc_iso(last.created_at)} if last else None,
+            'activity': activity[:4]}
+
+
+def _feed_watchlist(viewer, movie_id, events, users, member_ids):
+    movie = db.session.get(Movie, movie_id)
+    if not movie:
+        return None
+    adders = list(dict.fromkeys(e[3] for e in events if e[3] in users))
+    nxt = next_showings({movie_id}).get(movie_id)
+    return {'type': 'watchlist',
+            'movie': {'id': movie.id, 'title': movie.title, 'release_year': movie.release_year,
+                      'poster_url': movie.poster_url},
+            'users': [_feed_user(users[u]) for u in adders],
+            'wanters': Watchlist.query.filter(Watchlist.movie_id == movie_id,
+                                              Watchlist.user_id.in_(member_ids)).count() if member_ids else 0,
+            'viewer_wants': Watchlist.query.filter_by(user_id=viewer.id, movie_id=movie_id).first() is not None,
+            'next': _screening_item(nxt) if nxt else None}
+
+
+def _feed_poll(viewer, poll_id):
+    p = db.session.get(Poll, poll_id)
+    if not p:
+        return None
+    cat_ids = [c.id for c in p.categories]
+    voters = {v.user_id for v in PollVote.query.filter(PollVote.category_id.in_(cat_ids))} if cat_ids else set()
+    return {'type': 'poll',
+            'poll': {'id': p.id, 'title': p.title, 'status': p.status, 'poll_type': p.poll_type,
+                     'categories': len(cat_ids), 'creator': p.creator.name if p.creator else None},
+            'voters': len(voters), 'you_voted': viewer.id in voters}
+
+
+def hydrate_feed(viewer, group_id, skeletons, member_ids):
+    uids = {e[3] for c in skeletons for e in c['events']}
+    users = {u.id: u for u in User.query.filter(User.id.in_(uids))} if uids else {}
+    out = []
+    for c in skeletons:
+        kind, ref = c['key'][0], c['key'][1:]
+        if kind == 's':
+            card = _feed_screening(viewer, group_id, int(ref), c['events'], users, member_ids)
+        elif kind == 'w':
+            card = _feed_watchlist(viewer, int(ref), c['events'], users, member_ids)
+        elif kind == 'p':
+            card = _feed_poll(viewer, int(ref))
+        else:
+            joined = list(dict.fromkeys(e[3] for e in c['events'] if e[3] in users))
+            card = {'type': 'joined', 'users': [_feed_user(users[u]) for u in joined]}
+        if card:
+            out.append({'key': c['key'], 'at': utc_iso(c['at']), **card})
+    return out
+
+
+@app.route('/api/feed')
+@require_auth
+def feed():
+    """The group's recent activity as cards, FEED_PAGE at a time (?offset=)."""
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    offset = max(0, request.args.get('offset', 0, type=int))
+    skeletons, member_ids = feed_skeletons(group_id)
+    page = skeletons[offset:offset + FEED_PAGE]
+    more = len(skeletons) > offset + FEED_PAGE
+    return jsonify({'cards': hydrate_feed(current_user(), group_id, page, member_ids),
+                    'next_offset': offset + FEED_PAGE if more else None, 'days': FEED_DAYS})
+
+
 @app.route('/api/attendance/pending')
 @require_auth
 def attendance_pending():
@@ -2071,19 +2250,16 @@ def get_messages():
         return jsonify({'error': 'showtime_id required'}), 400
 
     query = Message.query.filter_by(showtime_id=showtime_id, group_id=group_id)
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since)
-            query = query.filter(Message.created_at > since_dt)
-        except ValueError:
-            pass
+    since_dt = parse_utc(since) if since else None
+    if since_dt:
+        query = query.filter(Message.created_at > since_dt)
 
     messages = query.order_by(Message.created_at.asc()).limit(100).all()
     return jsonify([{
         'id': m.id,
         'user': {'id': m.user.id, 'name': m.user.name, 'avatar_color': m.user.avatar_color},
         'body': m.body,
-        'created_at': m.created_at.isoformat(),
+        'created_at': utc_iso(m.created_at),
     } for m in messages])
 
 
@@ -2113,7 +2289,7 @@ def post_message():
         'id': msg.id,
         'user': {'id': user.id, 'name': user.name, 'avatar_color': user.avatar_color},
         'body': msg.body,
-        'created_at': msg.created_at.isoformat(),
+        'created_at': utc_iso(msg.created_at),
     }), 201
 
 
@@ -2467,6 +2643,7 @@ def score_poll(poll_id):
 
     poll.status = 'scored'
     poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
+    poll.scored_at = datetime.now(timezone.utc)
     db.session.commit()
 
     return jsonify(poll.to_dict(include_categories=True))
@@ -3518,12 +3695,17 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN announce_enabled_theatres VARCHAR(400) DEFAULT ''",
         # Discord-first accounts
         "ALTER TABLE user ADD COLUMN discord_username VARCHAR(40)",
+        # Feed: when an RSVP last changed, when a poll was scored
+        "ALTER TABLE rsvp ADD COLUMN updated_at DATETIME",
+        "ALTER TABLE poll ADD COLUMN scored_at DATETIME",
     ]
     for sql in stmts:
         try:
             db.session.execute(db.text(sql))
         except Exception:
             pass  # column already exists
+    db.session.commit()
+    db.session.execute(db.text("UPDATE rsvp SET updated_at = created_at WHERE updated_at IS NULL"))
     db.session.commit()
     # Every movie's current title is a venue label the scraper may see again.
     db.session.execute(db.text(

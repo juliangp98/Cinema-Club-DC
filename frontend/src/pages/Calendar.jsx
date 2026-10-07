@@ -4,6 +4,7 @@ import ProfileMenu from "../components/ProfileMenu";
 import GroupSwitcher from "../components/GroupSwitcher";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
+import MainNav from "../components/MainNav";
 import { accountLabel } from "../accountLabel";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -15,8 +16,9 @@ function normalize(str) {
   return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Deep links from Discord embeds: /?showtime=<id> opens the drawer,
-// /?theatre=<slug> pre-filters the calendar. Captured once at module load
+// Deep links from Discord embeds: /calendar?showtime=<id> opens the drawer,
+// ?theatre=<slug> pre-filters the calendar (old /?… links are rewritten by
+// legacyLinks.js). Captured once at module load
 // (a component-level capture would be consumed by StrictMode's double-mount).
 const DEEP_LINK = (() => {
   const params = new URLSearchParams(window.location.search);
@@ -409,6 +411,8 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
       {/* Header */}
       <header className="header">
         <span className="header-logo" onClick={goToday} style={{ cursor: "pointer" }}>CINEMA CLUB DC</span>
+        <div className="header-sep" />
+        <MainNav />
         <div className="header-sep" />
 
         <div className="nav-week">

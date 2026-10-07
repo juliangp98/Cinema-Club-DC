@@ -33,7 +33,7 @@ export default function LeaderboardPage({ user, setUser, apiBase, activeGroupId 
       <div className="group-discovery-container">
         <header className="group-discovery-header">
           <button className="group-back-btn" onClick={() => navigate("/")}>
-            &larr; Calendar
+            &larr; Feed
           </button>
           <h1 className="group-discovery-title">Leaderboard</h1>
           <div style={{ marginLeft: "auto", position: "relative" }}>

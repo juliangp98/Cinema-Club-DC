@@ -834,7 +834,7 @@ class AttendanceButton(discord.ui.DynamicItem[discord.ui.Button],
         if self.status == 'went':
             await interaction.followup.send(
                 f"🍿 Logged **{result['title']}** to your watch history. Got a take? Add it to the "
-                f"discussion → {SITE_URL}/?showtime={self.showtime_id}", ephemeral=True)
+                f"discussion → {SITE_URL}/calendar?showtime={self.showtime_id}", ephemeral=True)
 
 
 def _when_short(iso):
