@@ -1,5 +1,6 @@
 import Menu, { MenuItem } from "./Menu";
 import { CalendarIcon } from "./icons";
+import { TicketDiscord } from "./DiscordShare";
 
 const RSVP = [
   { status: "going", label: "Going" },
@@ -36,8 +37,8 @@ export function Segmented({ options, value, onChange, label }) {
 
 // One screening as a ticket stub: when on the stub; where, format and
 // billing in the body; RSVP (or, once it has started, Went / Didn't go),
-// tickets and add-to-calendar as actions.
-export default function TicketRow({ showtime: s, apiBase, onRsvp, onAttendance, showTheatre = true }) {
+// tickets and add-to-calendar as actions; then what to share in Discord.
+export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, showTheatre = true }) {
   const start = new Date(s.start_time);
   const started = start <= new Date();
   const theatre = s.theatre?.name;
@@ -88,6 +89,7 @@ export default function TicketRow({ showtime: s, apiBase, onRsvp, onAttendance, 
             </div>
           )}
         </div>
+        {!started && <TicketDiscord showtime={s} apiBase={apiBase} groupId={groupId} />}
         {started && s.user_attendance === "went" && (
           <div className="ticket-note">Logged to your watch history — share your take in the discussion.</div>
         )}

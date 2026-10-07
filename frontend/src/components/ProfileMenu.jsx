@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
+import { Segmented } from "../ui/TicketRow";
+import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
 
@@ -10,8 +12,52 @@ const GENRE_LIST = [
   'western', 'noir', 'biographical'
 ];
 
-// The profile editor (name, color, genres, bio, Letterboxd, Discord). Shown in
-// a Sheet from the account menu or the Me page.
+const SHARE_CHOICES = [
+  { status: "ask", label: "Ask me" },
+  { status: "always", label: "Always" },
+  { status: "never", label: "Never" },
+];
+const SHARE_KINDS = [
+  ["rsvp", "My RSVPs", "Never still leaves a Share button on each screening."],
+  ["poll", "Polls I create", "Announcements and results (group admins)."],
+  ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
+];
+
+// What goes to the club's Discord from the site: per kind, ask / always / never.
+// Saved as soon as you pick.
+function SharingPrefs({ user, apiBase, onUpdate }) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    getSharePrefs(apiBase).then(setState).catch(() => setState(null));
+  }, [apiBase]);
+  if (!state?.available) return null;
+  async function choose(kind, value) {
+    if (!value) return;                     // picking the current choice again keeps it
+    const next = await setSharePrefs(apiBase, { [kind]: value }).catch(() => null);
+    if (next) {
+      setState(next);
+      onUpdate?.({ ...user, share_prefs: next.prefs });
+    }
+  }
+  return (
+    <div className="profile-sharing">
+      <div className="profile-section-label">Sharing to Discord</div>
+      <p className="profile-sharing-hint">Nothing you do here posts to #movies unless you choose to. Shared posts never ping anyone.</p>
+      {SHARE_KINDS.map(([kind, label, hint]) => (
+        <div key={kind} className="profile-sharing-row">
+          <div>
+            <div className="profile-sharing-kind">{label}</div>
+            <div className="profile-sharing-hint">{hint}</div>
+          </div>
+          <Segmented label={label} options={SHARE_CHOICES} value={state.prefs[kind]} onChange={v => choose(kind, v)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The profile editor (name, color, genres, bio, Letterboxd, Discord and what
+// to share there). Shown in a Sheet from the account menu or the Me page.
 export default function ProfileEditor({ user, apiBase, onUpdate }) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
@@ -190,6 +236,8 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
           </button>
         )}
       </div>
+
+      <SharingPrefs user={user} apiBase={apiBase} onUpdate={onUpdate} />
     </div>
   );
 }

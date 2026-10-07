@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
+import { PollDiscord } from "../ui/DiscordShare";
 
 const SCORING_LABELS = {
   none: "No scoring",
@@ -352,6 +353,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     <div className="group-discovery-page">
       <div className="group-discovery-container">
         <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }} />
+
+        {isAdmin && poll.discord && <PollDiscord poll={poll} apiBase={apiBase} onChange={fetchPollQuiet} />}
 
         {/* Poll info bar */}
         <div className="poll-info-bar">

@@ -6,8 +6,9 @@ members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /find, /surprise,
 /rsvp, /whosgoing, /polls, /vote, /discuss, /watch, /history, /compare, /profile,
 /quote, /alerts, /digest, /llm, /link), and DMs members "did you go?" after screenings they RSVP'd to.
-New polls and their results are posted in #movies, and each screening's
-discussion can have a thread there, mirrored with the site.
+Members choose what they share from the site (RSVPs, "who's in?" invites,
+polls and results); those posts stay in step with the site. Each screening's
+discussion can have a thread in #movies, mirrored with the site.
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
@@ -104,6 +105,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(DiscussButton, ThreadRsvpButton)   # screening threads
         self.add_dynamic_items(FindPickSelect, SpinButton)       # /find and /surprise
         announce_loop.start()
+        share_loop.start()
         digest_loop.start()
         attendance_loop.start()
         discussion_loop.start()
@@ -2341,6 +2343,100 @@ async def vote(interaction: discord.Interaction, poll: str = None):
         await interaction.response.send_message('Pick a poll from the list.', ephemeral=True)
         return
     await handle_vote(interaction, 'open', int(poll), 0, 0, 0, [])
+
+
+# ─── Shared from the site (R3d) ───────────────────────────────────────────────
+# Members choose what reaches #movies (their RSVPs, "who's in?" invites, poll
+# announcements and results, or starting a screening's thread). The backend
+# keeps the queue; this posts what's due, edits posts whose content changed
+# (an RSVP cancelled, more people going, a poll closed) and deletes ones with
+# nothing left to show. Shared posts never @-ping anyone.
+
+NO_PINGS = discord.AllowedMentions.none()
+
+
+def share_content(kind, data):
+    """(content, embed, view) for a shared post."""
+    if kind == 'rsvp':
+        view = discord.ui.View(timeout=None)
+        items = data['items'][:4]
+        for i in items:
+            label = "🎟️ I'm in too" if len(items) == 1 else f"🎟️ {i['title']}"
+            view.add_item(ThreadRsvpButton('going', i['showtime_id'], label=label))
+        if len(items) == 1:
+            view.add_item(DiscussButton(items[0]['showtime_id']))
+        return embeds.rsvp_share_message(data), None, view
+    if kind == 'invite':
+        card = data['card']
+        view = discord.ui.View(timeout=None)
+        if not data.get('started'):
+            view.add_item(ThreadRsvpButton('going', card['showtime_id']))
+            view.add_item(ThreadRsvpButton('maybe', card['showtime_id']))
+            view.add_item(DiscussButton(card['showtime_id']))
+        view.add_item(discord.ui.Button(label='On the site', url=f"{SITE_URL}{card['site_path']}"))
+        return embeds.invite_message(data), embeds.invite_embed(data), view
+    if kind == 'poll':
+        view = (vote_open_view([{'id': data['poll_id'], 'title': data['title']}])
+                if data.get('status', 'open') == 'open' else None)
+        return None, embeds.poll_post_embed(data), view
+    if kind == 'poll_results':
+        return None, embeds.poll_results_embed(data), None
+    raise ValueError(f'unknown share kind {kind}')
+
+
+async def handle_share(channel, item):
+    pid, kind, action, data = item['id'], item['kind'], item['action'], item.get('data')
+    done = lambda **body: api.post(f'/api/internal/discord/posts/{pid}/done', body)
+    if action == 'delete':
+        if item.get('message_id'):
+            try:
+                await channel.get_partial_message(int(item['message_id'])).delete()
+            except discord.NotFound:
+                pass
+        await done(action='deleted')
+        return
+    if kind == 'thread':                      # "Start a Discord thread" from the site
+        thread, _, _ = await ensure_thread(data['showtime_id'])
+        await done(action='posted', message_id=str(thread.id), jump_url=thread.jump_url)
+        return
+    content, embed, view = share_content(kind, data)
+    if action == 'post':
+        msg = await channel.send(content=content, embed=embed, view=view or discord.utils.MISSING,
+                                 allowed_mentions=NO_PINGS)
+        await done(action='posted', message_id=str(msg.id), jump_url=msg.jump_url)
+        return
+    try:
+        await channel.get_partial_message(int(item['message_id'])).edit(
+            content=content, embed=embed, view=view, allowed_mentions=NO_PINGS)
+    except discord.NotFound:                  # deleted in Discord: stop tracking it
+        await done(action='deleted')
+        return
+    await done(action='edited')
+
+
+@tasks.loop(seconds=10)
+async def share_loop():
+    channel = movies_channel()
+    if channel is None:
+        return
+    try:
+        due = await api.get('/api/internal/discord/posts/due', group_id=DEFAULT_GROUP_ID)
+    except Exception as e:
+        print(f'share_loop: fetch failed: {e}')
+        return
+    for item in due:
+        try:
+            await handle_share(channel, item)
+        except discord.Forbidden as e:        # tell the owner once; retried next round
+            await warn_permissions(e)
+            return
+        except Exception as e:                # tried again next round
+            print(f"share_loop: {item.get('action')} {item.get('kind')} {item.get('id')} failed: {e}")
+
+
+@share_loop.before_loop
+async def before_share():
+    await client.wait_until_ready()
 
 
 # ─── /find and /surprise ──────────────────────────────────────────────────────

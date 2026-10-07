@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ShareWhen } from "../ui/DiscordShare";
 import PageHeader from "../ui/PageHeader";
 
 const SCORING_LABELS = {
@@ -27,6 +28,9 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
   const [newScoring, setNewScoring] = useState("none");
   const [categories, setCategories] = useState([{ title: "", options: ["", ""] }]);
   const [creating, setCreating] = useState(false);
+  // Announce in #movies (Discord server's group only): now / later / not yet,
+  // starting from your poll preference ("never" → not yet).
+  const [announce, setAnnounce] = useState(() => ({ when: user?.share_prefs?.poll === "never" ? "none" : "now" }));
 
   useEffect(() => {
     if (!activeGroupId) { setLoading(false); return; }
@@ -58,6 +62,7 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
           title: c.title.trim(),
           options: c.options.filter(o => o.trim()).map(o => ({ text: o.trim() })),
         })),
+      ...(group?.discord ? { announce: announce.when, announce_at: announce.when === "later" ? announce.at : undefined } : {}),
     };
 
     try {
@@ -264,8 +269,15 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
               )}
             </div>
 
+            {group?.discord && (
+              <div className="poll-form-row">
+                <label className="poll-form-label">Announce in #movies</label>
+                <ShareWhen value={announce} onChange={setAnnounce} allowNone />
+              </div>
+            )}
+
             <div className="poll-form-actions">
-              <button className="poll-submit-btn" type="submit" disabled={creating}>
+              <button className="poll-submit-btn" type="submit" disabled={creating || (announce.when === "later" && !announce.at)}>
                 {creating ? "Creating..." : "Create Poll"}
               </button>
               <button type="button" className="poll-cancel-btn" onClick={() => setShowCreate(false)}>

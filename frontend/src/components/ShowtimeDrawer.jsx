@@ -125,7 +125,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
         <div className="drawer-tickets">
           {showtimes.map(s => (
-            <TicketRow key={s.id} showtime={{ ...s, theatre }} apiBase={apiBase}
+            <TicketRow key={s.id} showtime={{ ...s, theatre }} apiBase={apiBase} groupId={groupId}
                        onRsvp={onRsvp} onAttendance={onAttendance} showTheatre={false} />
           ))}
           <Link className="drawer-film-link" to={`/films/${movie.id}`} onClick={onClose}>
@@ -155,7 +155,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         <Collapsible title="Reactions & discussion" defaultOpen>
           <ReactionBar reactions={reactions} showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onUpdate={setReactions} />
           <ChatSection showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
-                       discordThreadUrl={primary.discord_thread_url} />
+                       discordThreadUrl={primary.discord_thread_url} discord={primary.discord} />
         </Collapsible>
 
         {(movie.description || (!movie.cast?.length && movie.starring)) && (

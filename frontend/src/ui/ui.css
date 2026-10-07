@@ -347,3 +347,60 @@ a.feed-poster { display: block; }
                    font: 400 var(--fs-md) var(--font-body); }
 .searchbox input::-webkit-search-cancel-button { display: none; }
 .searchbox-clear { color: var(--muted); font-size: 1.3rem; line-height: 1; }
+
+/* ── Sharing to Discord (R3d) ──────────────────────────────────────────── */
+.ticket-discord { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.15rem; font-size: var(--fs-xs); }
+.share-prompt {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem;
+  padding: 0.45rem 0.6rem; border-radius: var(--radius);
+  background: rgba(220, 177, 92, 0.1); border: 1px solid rgba(220, 177, 92, 0.35); color: var(--cream);
+}
+.share-remember { color: var(--muted); }
+.share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; color: var(--muted); }
+.share-link {
+  background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  color: var(--amber); text-decoration: underline; text-decoration-color: rgba(220, 177, 92, 0.35); text-underline-offset: 2px;
+}
+.share-link:hover { text-decoration-color: currentColor; }
+.share-link:disabled { opacity: 0.5; cursor: default; }
+.share-state { color: var(--muted); }
+a.share-state { color: #6fbf98; }
+.share-error { color: #d98a78; font-size: var(--fs-xs); margin: 0.25rem 0 0; }
+.share-when { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.share-when-at, .share-input {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--cream);
+  border-radius: var(--radius); padding: 0.4rem 0.6rem; font: inherit; font-size: var(--fs-sm);
+  color-scheme: dark;
+}
+.share-input { width: 100%; }
+.share-when-at:focus, .share-input:focus { outline: none; border-color: var(--amber); }
+.ui-sheet.share-sheet { width: 420px; }
+.share-sheet-body { padding: 1.2rem 1.2rem 1.5rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.share-sheet-title { font-size: 1.35rem; color: var(--amber); }
+.share-sheet-lead { color: var(--muted); font-size: var(--fs-sm); line-height: 1.5; }
+.share-sheet-lead strong { color: var(--cream); }
+.share-label { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-top: 0.35rem; }
+.share-sheet-foot { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+@media (max-width: 767px) { .ui-sheet.share-sheet { width: 100%; } }
+
+.chat-discord-start {
+  display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: center;
+  font-size: var(--fs-xs); color: var(--muted); margin-bottom: 0.5rem;
+}
+.chat-to-discord { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; font-size: var(--fs-xs); color: var(--muted); cursor: pointer; }
+.chat-to-discord input { accent-color: var(--amber); }
+
+.profile-sharing { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.profile-sharing-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.profile-sharing-kind { font-size: var(--fs-sm); color: var(--cream); font-weight: 500; }
+.profile-sharing-hint { font-size: var(--fs-xs); color: var(--muted); max-width: 30ch; }
+.profile-sharing > .profile-sharing-hint { max-width: none; }
+
+.poll-discord {
+  display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem; border-radius: var(--radius-lg);
+  background: var(--bg3); border: 1px solid var(--border);
+}
+.poll-discord-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; font-size: var(--fs-sm); }
+.poll-discord-row.nudge .share-state { color: var(--amber); }
+.poll-discord-label { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); min-width: 7.5rem; }

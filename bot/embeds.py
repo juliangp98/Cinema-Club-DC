@@ -634,3 +634,69 @@ def surprise_embed(pick, asked_when=None, spun_by=None):
         embed.set_thumbnail(url=poster)
     embed.set_footer(text=(f"Spun by {spun_by} · " if spun_by else '') + 'Spin again for another pick')
     return embed
+
+
+# ─── Shared from the site (R3d) ───────────────────────────────────────────────
+# Members choose what goes to #movies; these never @-ping (plain names).
+
+def _show_when(item):
+    dt = datetime.fromisoformat(item['start_time'])
+    fmt = f" · {item['format_label']}" if item.get('format_label') else ''
+    return f"{dt.strftime('%a %-m/%-d %-I:%M %p')} · {item['theatre']}{fmt}"
+
+
+def rsvp_share_message(d):
+    """'🎟️ **Ana** is going to **Psycho** — Fri 10/9 9:30 PM · SUNS', or one
+    post for several RSVPs made in a row."""
+    items = d['items']
+    statuses = {i['status'] for i in items}
+    verb = 'is going to' if statuses == {'going'} else 'might go to' if statuses == {'maybe'} else 'has plans for'
+    if len(items) == 1:
+        i = items[0]
+        return f"🎟️ **{d['user']}** {verb} **{i['title']}** — {_show_when(i)}"
+    lines = [f"🎟️ **{d['user']}** {verb} {len(items)} screenings:"]
+    for i in items:
+        maybe = ' *(maybe)*' if i['status'] == 'maybe' and statuses != {'maybe'} else ''
+        lines.append(f"• **{i['title']}** — {_show_when(i)}{maybe}")
+    return '\n'.join(lines)[:2000]
+
+
+def invite_message(d):
+    return f"🍿 **{d['by']}** is asking: who's in?"
+
+
+def invite_embed(d):
+    """A 'who's in?' card for one screening; its going / maybe lists stay current."""
+    c = d['card']
+    lines = []
+    if d.get('note'):
+        lines.append(f"> {d['note']}")
+    lines.append(_show_when({**c, 'theatre': c['theatre']}))
+    who = []
+    if c.get('going'):
+        who.append(f"**Going:** {', '.join(p['name'] for p in c['going'][:12])}"
+                   + (f" +{len(c['going']) - 12}" if len(c['going']) > 12 else ''))
+    if c.get('maybe'):
+        who.append(f"**Maybe:** {', '.join(p['name'] for p in c['maybe'][:12])}")
+    lines.append(' · '.join(who) if who else '*Nobody has said yet.*')
+    if d.get('started'):
+        lines.append('-# This screening has started.')
+    else:
+        lines.append('-# Tap Going or Maybe — it updates here and on the site.')
+    embed = discord.Embed(title=c['title'][:256], url=f"{SITE_URL}{c['site_path']}",
+                          description='\n'.join(lines)[:4000], colour=AMBER)
+    thumb = _image_url(c.get('poster_url'))
+    if thumb:
+        embed.set_thumbnail(url=thumb)
+    return embed
+
+
+def poll_post_embed(p):
+    """A poll announcement as it stands: open (vote) or closed."""
+    if p.get('status', 'open') == 'open':
+        return poll_opened_embed(p)
+    embed = discord.Embed(title=f"🔒 Voting closed: {p['title']}"[:256], colour=AMBER,
+                          url=f"{SITE_URL}/polls/{p['poll_id']}")
+    embed.description = ('Results are in — see them on the site.' if p.get('status') == 'scored'
+                         else 'Results coming soon.')
+    return embed

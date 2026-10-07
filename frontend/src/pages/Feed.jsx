@@ -113,7 +113,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
         <div className="feed-discussion">
           <ReactionBar reactions={s.reactions || {}} showtimeId={s.id} groupId={groupId} apiBase={apiBase} onUpdate={onReactions} />
           <ChatSection showtimeId={s.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
-                       discordThreadUrl={s.discord_thread_url} />
+                       discordThreadUrl={s.discord_thread_url} discord={s.discord} />
         </div>
       ) : (
         <>

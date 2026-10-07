@@ -189,6 +189,9 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     discord_user_id = db.Column(db.String(30), unique=True)
     discord_username = db.Column(db.String(40))   # @handle, for display
+    # R3d: what to do with your site actions in Discord, per kind:
+    # {"rsvp"|"poll"|"comment": "ask"|"always"|"never"} (missing = ask)
+    share_prefs = db.Column(db.Text)
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
@@ -207,6 +210,7 @@ class User(db.Model):
             'discord_username': self.discord_username or '',
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
+            'share_prefs': share_prefs(self),
         }
 
 
@@ -252,6 +256,7 @@ class Group(db.Model):
             'theatres': [t.strip() for t in (self.theatres or '').split(',') if t.strip()],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'member_count': sum(1 for m in self.memberships if m.status == 'active'),
+            'discord': discord_group(self.id),        # the club's Discord server's group
         }
         if include_members:
             d['members'] = [m.to_dict() for m in self.memberships if m.status == 'active']
@@ -604,6 +609,9 @@ class Message(db.Model):
     # button). None = from before threads existed.
     source = db.Column(db.String(12))
     discord_message_id = db.Column(db.String(30), index=True)   # its copy/original in the thread
+    # R3d: site comments go to the screening's Discord thread only when the
+    # writer leaves "also post in Discord" on (None = from before the choice).
+    to_discord = db.Column(db.Boolean)
     user = db.relationship('User', lazy=True)
 
     @property
@@ -631,6 +639,37 @@ class ShowtimeThread(db.Model):
     @property
     def url(self):
         return f'https://discord.com/channels/{self.guild_id}/{self.thread_id}'
+
+
+class DiscordPost(db.Model):
+    """Something a member chose to post in the club's #movies channel from the
+    site (R3d): their RSVPs (batched), a "who's in?" invite for a screening, a
+    poll announcement or its results, or a request to start a screening's
+    thread. The bot posts it once `post_at` passes, keeps it up to date while
+    `dirty`, and deletes it when what it shows is gone."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    kind = db.Column(db.String(16), nullable=False)        # rsvp | invite | poll | poll_results | thread
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    ref_id = db.Column(db.Integer)                          # showtime (invite, thread) or poll id
+    note = db.Column(db.String(200))
+    status = db.Column(db.String(12), default='pending')    # pending | posted | removed | cancelled
+    post_at = db.Column(db.DateTime, nullable=False)        # local time, like showtimes
+    dirty = db.Column(db.Boolean, default=False)
+    message_id = db.Column(db.String(30))
+    jump_url = db.Column(db.String(200))
+    posted_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    user = db.relationship('User', lazy=True)
+    rsvps = db.relationship('SharedRsvp', backref='post', lazy=True, cascade='all, delete-orphan')
+
+
+class SharedRsvp(db.Model):
+    """One screening in an RSVP post (several quick RSVPs share one post)."""
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('discord_post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), nullable=False)
 
 
 class DiscordDeletion(db.Model):
@@ -1696,9 +1735,11 @@ def _with_attendance(user, showtimes, dicts, group_id=None):
         Attendance.user_id == user.id, Attendance.showtime_id.in_(ids))} if ids else {}
     threads = {t.showtime_id: t.url for t in ShowtimeThread.query.filter(
         ShowtimeThread.group_id == group_id, ShowtimeThread.showtime_id.in_(ids))} if ids and group_id else {}
+    shares = discord_states(user, ids, group_id)
     for d in dicts:
         d['user_attendance'] = answers.get(d['id'])
         d['discord_thread_url'] = threads.get(d['id'])
+        d['discord'] = shares.get(d['id'])       # None outside the Discord server's group
     return dicts
 
 
@@ -1957,28 +1998,248 @@ def apply_rsvp(user, showtime_id, status, group_id):
     else:
         return None, (jsonify({'error': 'Invalid status'}), 400)
 
-    # The screening's thread card in Discord lists who's going: refresh it.
+    # The screening's thread card in Discord lists who's going: refresh it,
+    # and any shared RSVP post or "who's in?" invite showing this screening.
     thread = ShowtimeThread.query.filter_by(showtime_id=showtime_id, group_id=group_id).first()
     if thread and not thread.card_dirty:
         thread.card_dirty = True
-        db.session.commit()
+    rsvp_changed(user.id, showtime_id, group_id, status)
+    db.session.commit()
     return db.session.get(Showtime, showtime_id), None
 
 
-def emit_rsvp_activity(user, showtime, status):
-    """Queue a Discord announcement for a site RSVP (bot polls activity-events)."""
-    import json as _json
-    payload = {
-        'user_name': user.name,
-        'discord_user_id': user.discord_user_id,
-        'status': status,
-        'movie_title': showtime.movie.title if showtime.movie else '',
-        'theatre_name': showtime.theatre.name if showtime.theatre else '',
-        'start_time': showtime.start_time.isoformat() if showtime.start_time else None,
-        'showtime_id': showtime.id,
-    }
-    db.session.add(ActivityEvent(kind='rsvp', payload_json=_json.dumps(payload)))
+# ─── Choose what goes to Discord (R3d) ────────────────────────────────────────
+# Nothing done on the site posts to #movies unless the member chooses to: per
+# kind, "ask" (a prompt after acting), "always" or "never" (a Share button is
+# still there). Each post is a DiscordPost the bot works through; it stays in
+# step with the site (edited when an RSVP or poll changes, deleted when what it
+# shows is gone) and never @-pings anyone. Only the group tied to the club's
+# Discord server (DEFAULT_GROUP_ID, shared with the bot) has any of this.
+
+DISCORD_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
+SHARE_KINDS = ('rsvp', 'poll', 'comment')
+SHARE_CHOICES = ('ask', 'always', 'never')
+RSVP_BATCH_WAIT = timedelta(seconds=60)    # quick RSVPs in a row become one post...
+RSVP_BATCH_MAX = timedelta(minutes=5)      # ...but none waits longer than this
+LIVE_POSTS = ('pending', 'posted')
+MAX_SCHEDULE = timedelta(days=60)
+
+
+def share_prefs(user):
+    import json
+    try:
+        raw = json.loads(user.share_prefs or '{}')
+    except ValueError:
+        raw = {}
+    return {k: raw[k] if raw.get(k) in SHARE_CHOICES else 'ask' for k in SHARE_KINDS}
+
+
+def set_share_pref(user, kind, value):
+    import json
+    if kind in SHARE_KINDS and value in SHARE_CHOICES:
+        prefs = share_prefs(user)
+        prefs[kind] = value
+        user.share_prefs = json.dumps(prefs)
+
+
+def discord_group(group_id):
+    return bool(group_id) and group_id == DISCORD_GROUP_ID
+
+
+def post_dict(p):
+    return {'id': p.id, 'kind': p.kind, 'status': p.status, 'post_at': p.post_at.isoformat(),
+            'posted_at': p.posted_at.isoformat() if p.posted_at else None, 'jump_url': p.jump_url,
+            'note': p.note, 'by': {'id': p.user.id, 'name': p.user.name}}
+
+
+def queue_rsvp_share(user, showtime_id, group_id, now=None):
+    """Share an RSVP. Several in quick succession go out as one post."""
+    now = now or datetime.now()
+    item = (SharedRsvp.query.join(DiscordPost)
+            .filter(SharedRsvp.user_id == user.id, SharedRsvp.showtime_id == showtime_id,
+                    DiscordPost.group_id == group_id, DiscordPost.status.in_(LIVE_POSTS)).first())
+    if item:
+        return item.post
+    post = (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.kind == 'rsvp',
+                                     DiscordPost.user_id == user.id, DiscordPost.status == 'pending',
+                                     DiscordPost.created_at >= now - RSVP_BATCH_MAX)
+            .order_by(DiscordPost.id.desc()).first())
+    if post:
+        post.post_at = min(now + RSVP_BATCH_WAIT, post.created_at + RSVP_BATCH_MAX)
+    else:
+        post = DiscordPost(group_id=group_id, kind='rsvp', user_id=user.id, post_at=now + RSVP_BATCH_WAIT,
+                           created_at=now)
+        db.session.add(post)
+    post.rsvps.append(SharedRsvp(user_id=user.id, showtime_id=showtime_id))
     db.session.commit()
+    return post
+
+
+def unshare_rsvp(user_id, showtime_id, group_id):
+    """Take one screening out of someone's RSVP posts: dropped before it goes
+    out, or edited out of the Discord post (deleted if it was the last)."""
+    items = (SharedRsvp.query.join(DiscordPost)
+             .filter(SharedRsvp.user_id == user_id, SharedRsvp.showtime_id == showtime_id,
+                     DiscordPost.group_id == group_id, DiscordPost.status.in_(LIVE_POSTS)).all())
+    for it in items:
+        post = it.post
+        post.rsvps.remove(it)
+        if post.status == 'pending':
+            if not post.rsvps:
+                post.status = 'cancelled'
+        else:
+            post.dirty = True
+    return bool(items)
+
+
+def rsvp_changed(user_id, showtime_id, group_id, status):
+    """Keep posts in step with an RSVP change (from the site or Discord)."""
+    if status not in ('going', 'maybe'):
+        unshare_rsvp(user_id, showtime_id, group_id)
+    else:
+        for it in (SharedRsvp.query.join(DiscordPost)
+                   .filter(SharedRsvp.user_id == user_id, SharedRsvp.showtime_id == showtime_id,
+                           DiscordPost.group_id == group_id, DiscordPost.status == 'posted')):
+            it.post.dirty = True
+    DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.kind == 'invite',
+                             DiscordPost.ref_id == showtime_id, DiscordPost.status == 'posted') \
+        .update({'dirty': True}, synchronize_session=False)
+
+
+def poll_posts_changed(poll_id):
+    """A poll was edited, closed, scored, un-scored or deleted: refresh (or
+    remove) its announcement and results posts."""
+    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll_id,
+                             DiscordPost.status == 'posted').update({'dirty': True}, synchronize_session=False)
+
+
+def poll_payload(poll, results=False):
+    """What a poll announcement / results post shows (plain names: no pings)."""
+    payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title, 'status': poll.status,
+               'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
+               'categories': len(poll.categories), 'creator': poll.creator.name if poll.creator else None}
+    if results:
+        board = poll_scores(poll)
+        payload['voters'] = len(board)
+        payload['top'] = [{'name': s['user'].name, 'kernels': s['kernels'], 'correct': s['correct']}
+                          for s in board[:3]]
+    return payload
+
+
+def _brief_screening(s):
+    return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
+            'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
+
+
+def render_post(p, now=None):
+    """What a post shows right now, or None when there's nothing left to show
+    (the bot then deletes it, or never posts it)."""
+    now = now or datetime.now()
+    if p.status == 'removing':
+        return None
+    if p.kind == 'rsvp':
+        items = []
+        for it in p.rsvps:
+            r = RSVP.query.filter_by(user_id=it.user_id, showtime_id=it.showtime_id, group_id=p.group_id).first()
+            s = db.session.get(Showtime, it.showtime_id)
+            if r and s and r.status in ('going', 'maybe') and not s.is_cancelled:
+                items.append({**_brief_screening(s), 'status': r.status})
+        items.sort(key=lambda x: x['start_time'])
+        return {'user': p.user.name, 'items': items} if items else None
+    if p.kind in ('invite', 'thread'):
+        s = db.session.get(Showtime, p.ref_id or 0)
+        if not s or s.is_cancelled:
+            return None
+        if p.kind == 'thread':
+            return {'showtime_id': s.id}
+        card = screening_card(s, p.group_id)
+        for who in ('going', 'maybe'):
+            card[who] = [{'name': x['name']} for x in card[who]]      # names only: no pings
+        return {'by': p.user.name, 'note': p.note, 'card': card, 'started': s.start_time <= now}
+    poll = db.session.get(Poll, p.ref_id or 0)
+    if not poll:
+        return None
+    if p.kind == 'poll':
+        return poll_payload(poll)
+    if p.kind == 'poll_results':
+        return poll_payload(poll, results=True) if poll.status == 'scored' else None
+    return None
+
+
+def _parse_post_at(value, now):
+    """'Now' (None) or a local date-time from the site's picker."""
+    if not value:
+        return now
+    try:
+        at = datetime.fromisoformat(str(value).replace('Z', ''))
+    except ValueError:
+        return None
+    if at.tzinfo:
+        at = at.astimezone().replace(tzinfo=None)
+    if at < now - timedelta(minutes=5) or at > now + MAX_SCHEDULE:
+        return None
+    return max(at, now)
+
+
+def _can_manage_post(user, p):
+    if p.user_id == user.id:
+        return True
+    m = GroupMembership.query.filter_by(user_id=user.id, group_id=p.group_id, status='active').first()
+    return bool(m and m.role == 'admin')
+
+
+def _live_post(kind, ref_id, group_id):
+    return (DiscordPost.query.filter(DiscordPost.kind == kind, DiscordPost.ref_id == ref_id,
+                                     DiscordPost.group_id == group_id, DiscordPost.status.in_(LIVE_POSTS))
+            .order_by(DiscordPost.id.desc()).first())
+
+
+def queue_poll_post(poll, user, kind, post_at):
+    existing = _live_post(kind, poll.id, poll.group_id)
+    if existing:
+        return existing
+    post = DiscordPost(group_id=poll.group_id, kind=kind, user_id=user.id, ref_id=poll.id, post_at=post_at)
+    db.session.add(post)
+    db.session.commit()
+    return post
+
+
+def announce_new_poll(poll, user, data):
+    """A new poll's announcement: now, later, or not yet, as the creator chose
+    on the form ("announce": now | later | none, "announce_at"). Without a
+    choice, their poll preference decides ("ask" means not yet)."""
+    if not discord_group(poll.group_id):
+        return
+    choice = data.get('announce')
+    if choice not in ('now', 'later', 'none'):
+        choice = 'now' if share_prefs(user)['poll'] == 'always' else 'none'
+    if choice == 'none':
+        return
+    now = datetime.now()
+    at = _parse_post_at(data.get('announce_at'), now) if choice == 'later' else now
+    queue_poll_post(poll, user, 'poll', at or now)
+
+
+def discord_states(user, showtime_ids, group_id):
+    """{showtime_id: discord block} for the viewer: their shared RSVP post, any
+    "who's in?" invite, and whether a thread is being started."""
+    if not discord_group(group_id) or not showtime_ids:
+        return {}
+    mine = {it.showtime_id: it.post for it in SharedRsvp.query.join(DiscordPost).filter(
+        SharedRsvp.user_id == user.id, SharedRsvp.showtime_id.in_(showtime_ids),
+        DiscordPost.group_id == group_id, DiscordPost.status.in_(LIVE_POSTS))}
+    invites, threads = {}, set()
+    for p in DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.kind.in_(('invite', 'thread')),
+                                      DiscordPost.ref_id.in_(showtime_ids), DiscordPost.status.in_(LIVE_POSTS)) \
+            .order_by(DiscordPost.id):
+        if p.kind == 'invite':
+            invites[p.ref_id] = p
+        elif p.status == 'pending':
+            threads.add(p.ref_id)
+    return {sid: {'my_share': post_dict(mine[sid]) if sid in mine else None,
+                  'invite': post_dict(invites[sid]) if sid in invites else None,
+                  'thread_pending': sid in threads}
+            for sid in showtime_ids}
 
 
 @app.route('/api/rsvp', methods=['POST'])
@@ -2000,14 +2261,194 @@ def rsvp():
     if err:
         return err
 
-    # Announce positive RSVPs from the site, but only on an actual change so
-    # re-submitting the same status doesn't repost. (RSVPs made via the Discord
-    # /rsvp command are announced by the command itself, not here.)
-    if status in ('going', 'maybe') and status != prev_status and showtime:
-        emit_rsvp_activity(user, showtime, status)
+    # Going / maybe (a real change) in the Discord server's group: share it if
+    # they always do, or ask. (Discord's own /rsvp posts for itself.)
+    prompt = False
+    if status in ('going', 'maybe') and status != prev_status and showtime and discord_group(group_id):
+        pref = share_prefs(user)['rsvp']
+        if pref == 'always':
+            queue_rsvp_share(user, showtime.id, group_id)
+        elif pref == 'ask':
+            prompt = True
 
-    return jsonify(_with_attendance(user, [showtime], [
-        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
+    d = _with_attendance(user, [showtime], [
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0]
+    if prompt and d.get('discord') and not d['discord']['my_share']:
+        d['discord']['prompt'] = True
+    return jsonify(d)
+
+
+@app.route('/api/discord/prefs', methods=['GET', 'PUT'])
+@require_auth
+def discord_prefs():
+    """Your "Ask / Always / Never" choice per kind, and whether you're in the
+    group tied to the club's Discord server (otherwise there's nothing to share)."""
+    user = current_user()
+    if request.method == 'PUT':
+        for kind, value in (request.json or {}).items():
+            set_share_pref(user, kind, value)
+        db.session.commit()
+    return jsonify({'prefs': share_prefs(user),
+                    'available': _active_membership(user, DISCORD_GROUP_ID) is not None})
+
+
+@app.route('/api/discord/shares', methods=['POST'])
+@require_auth
+def create_share():
+    """Share to #movies: kind rsvp (your going/maybe), invite ("who's in?"),
+    poll / poll_results (group admins), or thread (start a screening's
+    thread). Optional post_at (local time) schedules invites and polls;
+    remember=true makes "always" your choice for that kind."""
+    user = current_user()
+    data = request.json or {}
+    kind, group_id = data.get('kind'), _as_int(data.get('group_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    if not discord_group(group_id):
+        return jsonify({'error': 'This group has no Discord server'}), 400
+    now = datetime.now()
+    post_at = _parse_post_at(data.get('post_at'), now)
+    if post_at is None:
+        return jsonify({'error': 'Pick a time in the next 60 days'}), 400
+
+    if kind in ('rsvp', 'invite', 'thread'):
+        showtime = db.session.get(Showtime, _as_int(data.get('showtime_id')) or 0)
+        if not showtime:
+            return jsonify({'error': 'Showtime not found'}), 404
+        if kind == 'rsvp':
+            r = RSVP.query.filter_by(user_id=user.id, showtime_id=showtime.id, group_id=group_id).first()
+            if not r or r.status not in ('going', 'maybe'):
+                return jsonify({'error': 'RSVP going or maybe first'}), 400
+            if data.get('remember'):
+                set_share_pref(user, 'rsvp', 'always')
+            return jsonify(post_dict(queue_rsvp_share(user, showtime.id, group_id, now))), 201
+        if kind == 'thread':
+            t = ShowtimeThread.query.filter_by(showtime_id=showtime.id, group_id=group_id).first()
+            if t:
+                return jsonify({'thread_url': t.url}), 200
+            post_at = now
+        existing = _live_post(kind, showtime.id, group_id)
+        # A finished thread request doesn't count: the thread itself (checked
+        # above) does, and it may have been deleted in Discord since.
+        if existing and (kind == 'invite' or existing.status == 'pending'):
+            return jsonify(post_dict(existing)), 200
+        post = DiscordPost(group_id=group_id, kind=kind, user_id=user.id, ref_id=showtime.id, post_at=post_at,
+                           note=(data.get('note') or '').strip()[:200] or None)
+    elif kind in ('poll', 'poll_results'):
+        poll = db.session.get(Poll, _as_int(data.get('poll_id')) or 0)
+        if not poll or poll.group_id != group_id:
+            return jsonify({'error': 'Poll not found'}), 404
+        if _active_membership(user, group_id).role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        if kind == 'poll_results' and poll.status != 'scored':
+            return jsonify({'error': 'Score the poll first'}), 400
+        if data.get('remember'):
+            set_share_pref(user, 'poll', 'always')
+            db.session.commit()
+        return jsonify(post_dict(queue_poll_post(poll, user, kind, post_at))), 201
+    else:
+        return jsonify({'error': 'Unknown kind'}), 400
+    db.session.add(post)
+    db.session.commit()
+    return jsonify(post_dict(post)), 201
+
+
+def _manageable_post(post_id):
+    user = current_user()
+    p = db.session.get(DiscordPost, post_id)
+    if not p or not _active_membership(user, p.group_id):
+        return None, (jsonify({'error': 'Not found'}), 404)
+    if not _can_manage_post(user, p):
+        return None, (jsonify({'error': 'Only whoever shared it (or a group admin) can change it'}), 403)
+    return p, None
+
+
+@app.route('/api/discord/shares/<int:post_id>/now', methods=['POST'])
+@require_auth
+def share_now(post_id):
+    """Post a scheduled share right away."""
+    p, err = _manageable_post(post_id)
+    if err:
+        return err
+    if p.status == 'pending':
+        p.post_at = datetime.now()
+        db.session.commit()
+    return jsonify(post_dict(p))
+
+
+@app.route('/api/discord/shares/<int:post_id>', methods=['DELETE'])
+@require_auth
+def unshare(post_id):
+    """Cancel a share that hasn't gone out, or take a posted one down. For an
+    RSVP post, ?showtime_id= takes out just that screening."""
+    p, err = _manageable_post(post_id)
+    if err:
+        return err
+    showtime_id = request.args.get('showtime_id', type=int)
+    if p.kind == 'rsvp' and showtime_id:
+        unshare_rsvp(p.user_id, showtime_id, p.group_id)
+    elif p.status == 'pending':
+        p.status = 'cancelled'
+    elif p.status == 'posted':
+        p.status, p.dirty = 'removing', True
+    db.session.commit()
+    return jsonify(post_dict(p))
+
+
+# ─── Discord posts: the bot's queue ───────────────────────────────────────────
+
+@app.route('/api/internal/discord/posts/due')
+@require_internal
+def internal_posts_due():
+    """What the bot should do now: post shares whose time has come, update
+    posted ones whose content changed, delete ones with nothing left to show.
+    Each item: {id, kind, action: post|edit|delete, message_id, data}."""
+    group_id = request.args.get('group_id', type=int)
+    now = datetime.now()
+    out = []
+    for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.status == 'pending',
+                                       DiscordPost.post_at <= now)
+              .order_by(DiscordPost.post_at, DiscordPost.id).limit(10)):
+        data = render_post(p, now)
+        if data is None:
+            p.status = 'cancelled'            # nothing left to say by the time it was due
+            continue
+        out.append({'id': p.id, 'kind': p.kind, 'action': 'post', 'message_id': None, 'data': data})
+    for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.dirty.is_(True),
+                                       DiscordPost.status.in_(('posted', 'removing')))
+              .order_by(DiscordPost.id).limit(10)):
+        data = render_post(p, now)
+        if p.kind == 'thread':                 # a thread lives on its own once started
+            p.dirty = False
+            continue
+        out.append({'id': p.id, 'kind': p.kind, 'action': 'edit' if data else 'delete',
+                    'message_id': p.message_id, 'data': data})
+    db.session.commit()
+    return jsonify(out)
+
+
+@app.route('/api/internal/discord/posts/<int:post_id>/done', methods=['POST'])
+@require_internal
+def internal_post_done(post_id):
+    """{action: posted (+message_id, jump_url) | edited | deleted}."""
+    p = db.session.get(DiscordPost, post_id)
+    if not p:
+        return jsonify({'error': 'Not found'}), 404
+    data = request.json or {}
+    action = data.get('action')
+    if action == 'posted':
+        p.status, p.posted_at = 'posted', datetime.now()
+        p.message_id = str(data.get('message_id') or '') or None
+        p.jump_url = (data.get('jump_url') or '')[:200] or None
+    elif action == 'edited':
+        p.dirty = False
+    elif action == 'deleted':
+        p.status, p.dirty = 'removed', False
+    else:
+        return jsonify({'error': 'Unknown action'}), 400
+    db.session.commit()
+    return jsonify(post_dict(p))
 
 
 # ─── Attendance ("did you go?") + watch history ──────────────────────────────
@@ -2589,9 +3030,13 @@ def post_message():
 
     if not db.session.get(Showtime, _as_int(showtime_id)):
         return jsonify({'error': 'Showtime not found'}), 404
-    # source='site' queues it for the screening's Discord thread (the bot
-    # creates the thread on the first comment).
-    msg = Message(user_id=user.id, showtime_id=showtime_id, group_id=group_id, body=body, source='site')
+    # source='site' queues it for the screening's Discord thread — only if it
+    # has one and the writer left "also post in Discord" on (R3d).
+    to_discord = data.get('to_discord')
+    if not isinstance(to_discord, bool):
+        to_discord = share_prefs(user)['comment'] != 'never'
+    msg = Message(user_id=user.id, showtime_id=showtime_id, group_id=group_id, body=body, source='site',
+                  to_discord=to_discord)
     db.session.add(msg)
     db.session.commit()
     return jsonify(_message_dict(msg, user)), 201
@@ -2758,7 +3203,7 @@ def create_poll(group_id):
             db.session.add(opt)
 
     db.session.commit()
-    emit_poll_activity(poll, 'poll_opened')
+    announce_new_poll(poll, user, data)
     return jsonify(poll.to_dict(include_categories=True)), 201
 
 
@@ -2810,7 +3255,7 @@ def create_oscars_poll(group_id):
             db.session.add(opt)
 
     db.session.commit()
-    emit_poll_activity(poll, 'poll_opened')
+    announce_new_poll(poll, user, data)
     return jsonify(poll.to_dict(include_categories=True)), 201
 
 
@@ -2823,7 +3268,12 @@ def get_poll(poll_id):
     user, membership = _require_group_member(poll.group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
-    return jsonify(poll.to_dict(include_categories=True, user_id=user.id))
+    d = poll.to_dict(include_categories=True, user_id=user.id)
+    if discord_group(poll.group_id):
+        live = {k: _live_post(k, poll.id, poll.group_id) for k in ('poll', 'poll_results')}
+        d['discord'] = {'announce': post_dict(live['poll']) if live['poll'] else None,
+                        'results': post_dict(live['poll_results']) if live['poll_results'] else None}
+    return jsonify(d)
 
 
 @app.route('/api/polls/<int:poll_id>', methods=['PUT'])
@@ -2849,6 +3299,7 @@ def update_poll(poll_id):
         poll.status = data['status']
         if data['status'] == 'closed':
             poll.closed_at = datetime.now(timezone.utc)
+    poll_posts_changed(poll.id)
     db.session.commit()
     return jsonify(poll.to_dict())
 
@@ -2863,6 +3314,9 @@ def delete_poll(poll_id):
     if not membership or membership.role != 'admin':
         return jsonify({'error': 'Admin access required'}), 403
 
+    poll_posts_changed(poll.id)            # its Discord posts come down
+    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll.id,
+                             DiscordPost.status == 'pending').update({'status': 'cancelled'}, synchronize_session=False)
     db.session.delete(poll)
     db.session.commit()
     return jsonify({'message': 'Poll deleted'})
@@ -2981,21 +3435,6 @@ def poll_ballot(user, poll):
     return out
 
 
-def emit_poll_activity(poll, kind):
-    """Queue a #movies post: 'poll_opened' (with a Vote button) or 'poll_scored'
-    (top 3). The bot only posts for its own server's group."""
-    payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title,
-               'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
-               'categories': len(poll.categories), 'creator': poll.creator.name if poll.creator else None}
-    if kind == 'poll_scored':
-        board = poll_scores(poll)
-        payload['voters'] = len(board)
-        payload['top'] = [{'name': s['user'].name, 'discord_user_id': s['user'].discord_user_id,
-                           'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
-    db.session.add(ActivityEvent(kind=kind, payload_json=_json.dumps(payload)))
-    db.session.commit()
-
-
 @app.route('/api/polls/<int:poll_id>/vote', methods=['POST'])
 @require_auth
 def submit_votes(poll_id):
@@ -3039,6 +3478,7 @@ def set_category_winner(poll_id, cat_id):
     else:
         cat.correct_option_id = None
 
+    poll_posts_changed(poll.id)            # posted results follow corrections
     db.session.commit()
     return jsonify({'category_id': cat_id, 'correct_option_id': cat.correct_option_id})
 
@@ -3066,9 +3506,12 @@ def score_poll(poll_id):
     poll.status = 'scored'
     poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
     poll.scored_at = datetime.now(timezone.utc)
+    poll_posts_changed(poll.id)            # a correction updates results already posted
     db.session.commit()
-    if first_scoring:            # re-scoring a correction doesn't re-announce
-        emit_poll_activity(poll, 'poll_scored')
+    # Results go to Discord when asked for, or right away for "always" sharers.
+    if discord_group(poll.group_id) and (data.get('post_results') is True or (
+            first_scoring and data.get('post_results') is None and share_prefs(user)['poll'] == 'always')):
+        queue_poll_post(poll, user, 'poll_results', datetime.now())
 
     return jsonify(poll.to_dict(include_categories=True))
 
@@ -3861,8 +4304,10 @@ CARD_REFRESH_EVERY = timedelta(minutes=3)
 
 
 def _pending_post(q):
-    """Site comments the bot still has to copy into Discord."""
+    """Site comments the bot still has to copy into Discord (never ones their
+    writer kept off Discord)."""
     return q.filter(Message.source == 'site', Message.discord_message_id.is_(None),
+                    Message.to_discord.isnot(False),
                     Message.created_at >= _utcnow_naive() - OUTBOX_WINDOW)
 
 
@@ -3900,7 +4345,8 @@ def thread_info(showtime, group_id):
     if not t:
         q = Message.query.filter_by(showtime_id=showtime.id, group_id=group_id)
         pending = {m.id for m in _pending_post(q)}
-        earlier = [m for m in q.order_by(Message.created_at.desc(), Message.id.desc()) if m.id not in pending]
+        earlier = [m for m in q.order_by(Message.created_at.desc(), Message.id.desc())
+                   if m.id not in pending and m.to_discord is not False]
         out['earlier_total'] = len(earlier)
         out['backfill'] = [_outbound(m) for m in reversed(earlier[:DISCUSSION_BACKFILL])]
     return out
@@ -3961,7 +4407,10 @@ def internal_unlink_thread(thread_id):
 @require_internal
 def internal_discussion_outbox():
     group_id = request.args.get('group_id', type=int)
-    posts = _pending_post(Message.query.filter_by(group_id=group_id)) \
+    # Comments wait until their screening has a thread (Discord's Discuss, or
+    # "Start a Discord thread" on the site); new comments never start one.
+    threaded = db.session.query(ShowtimeThread.showtime_id).filter(ShowtimeThread.group_id == group_id)
+    posts = _pending_post(Message.query.filter(Message.group_id == group_id, Message.showtime_id.in_(threaded))) \
         .order_by(Message.created_at, Message.id).limit(20).all()
     stale = _utcnow_naive() - CARD_REFRESH_EVERY
     cards = ShowtimeThread.query.filter(
@@ -4555,6 +5004,9 @@ def migrate():
         "ALTER TABLE message ADD COLUMN source VARCHAR(12)",
         "ALTER TABLE message ADD COLUMN discord_message_id VARCHAR(30)",
         "CREATE INDEX IF NOT EXISTS ix_message_discord_message_id ON message (discord_message_id)",
+        # R3d: choose what goes to Discord
+        "ALTER TABLE user ADD COLUMN share_prefs TEXT",
+        "ALTER TABLE message ADD COLUMN to_discord BOOLEAN",
     ]
     for sql in stmts:
         try:
