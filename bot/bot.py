@@ -4,12 +4,13 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /rsvp,
-/whosgoing, /polls, /watch, /alerts, /digest, /llm, /link).
+/whosgoing, /polls, /watch, /profile, /quote, /alerts, /digest, /llm, /link).
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
 
 import asyncio
+import json
 import os
 import random
 import re
@@ -93,6 +94,7 @@ class CinemaClubBot(discord.Client):
             print(f'Command sync FAILED: {e!r}')
         # In the background so a slow Groq never delays the bot coming online.
         asyncio.create_task(setup_llm())
+        asyncio.create_task(seed_quotes())
         announce_loop.start()
         digest_loop.start()
 
@@ -152,6 +154,45 @@ async def setup_llm():
         await llm.refresh('startup')
     except Exception as e:
         print(f'llm: startup model selection failed: {e}')
+
+
+# ─── Quotes ───────────────────────────────────────────────────────────────────
+# The live list is in the backend (managed with /quote); quotes.py is the
+# original list, used to seed an empty database and as a fallback.
+
+QUOTE_REFRESH_SEC = 600
+_quote_cache = {'texts': [], 'fetched': -1e9}
+
+
+async def seed_quotes():
+    """Send the built-in list to the backend; it's only imported while the
+    quote table is completely empty, so this is a no-op after the first boot."""
+    try:
+        result = await api.post('/api/internal/quotes/seed', {'quotes': quotes.seed_entries()})
+        if result.get('seeded'):
+            print(f"quotes: seeded {result['seeded']} quotes into the database")
+        for text in result.get('skipped') or []:
+            print(f'quotes: not seeded (duplicate or invalid): {text!r}')
+    except Exception as e:
+        print(f'quotes: seeding failed: {e}')
+
+
+def invalidate_quotes():
+    _quote_cache['fetched'] = -1e9
+
+
+async def random_quote():
+    """A random line from the database list (cached for 10 minutes, refreshed
+    right after any /quote change), or the built-in list if the backend can't be
+    reached. Only the line itself is ever shown."""
+    if time.monotonic() - _quote_cache['fetched'] > QUOTE_REFRESH_SEC:
+        try:
+            _quote_cache['texts'] = [q['text'] for q in await api.get('/api/internal/quotes')]
+            _quote_cache['fetched'] = time.monotonic()
+        except Exception as e:
+            print(f'quotes: refresh failed: {e}')
+            _quote_cache['fetched'] = time.monotonic() - QUOTE_REFRESH_SEC + 60   # retry in a minute
+    return random.choice(_quote_cache['texts'] or quotes.QUOTES)
 
 
 # ─── @-mention chatbot ────────────────────────────────────────────────────────
@@ -531,7 +572,7 @@ async def on_message(message: discord.Message):
 
     # 1) "What is thy wisdom" in any form (ping / typed @CinemaBot / plain name).
     if wisdom_requested(message):
-        await message.reply(random.choice(quotes.QUOTES), mention_author=False)
+        await message.reply(await random_quote(), mention_author=False)
         return
 
     # 2) Ambient triggers: a movie-ish word in a message that does NOT @-call the
@@ -542,7 +583,7 @@ async def on_message(message: discord.Message):
             if (random.random() < TRIGGER_CHANCE
                     and now - _trigger_cooldown.get(message.channel.id, 0) >= TRIGGER_COOLDOWN_SEC):
                 _trigger_cooldown[message.channel.id] = now
-                await message.reply(random.choice(quotes.QUOTES), mention_author=False)
+                await message.reply(await random_quote(), mention_author=False)
         return
 
     # 3) CinemaBot @-called (real ping OR typed @CinemaBot) -> LLM chat.
@@ -985,7 +1026,7 @@ async def link(interaction: discord.Interaction, code: str):
 @client.tree.command(name='wisdom', description='Receive a random piece of cinematic wisdom 🎬')
 async def wisdom(interaction: discord.Interaction):
     # No account or backend needed — works for anyone, linked or not.
-    await interaction.response.send_message(random.choice(quotes.QUOTES))
+    await interaction.response.send_message(await random_quote())
 
 
 @client.tree.command(name='showtimes', description="What's playing across the club's theatres")
@@ -1394,6 +1435,154 @@ async def profile(interaction: discord.Interaction, member: discord.User = None)
         return
     await interaction.followup.send(embed=embeds.profile_embed(data, own=True),
                                     view=ProfileView(ident, data), ephemeral=True)
+
+
+# ─── /quote ───────────────────────────────────────────────────────────────────
+# Anyone in the server can add or fix quotes; removal is limited to whoever
+# added one, or a server admin. Replies are private so managing the list never
+# clutters the channel, and the movie/character only ever show up here.
+
+quote_cmds = app_commands.Group(
+    name='quote', description="The bot's movie-quote list: add, fix, remove, or find lines")
+
+
+def _api_error_json(err):
+    try:
+        return json.loads(err.body)
+    except Exception:
+        return {}
+
+
+def _quote_summary(q):
+    source = q.get('movie') or 'unknown film'
+    if q.get('character'):
+        source += f" ({q['character']})"
+    text = q['text'] if len(q['text']) <= 300 else q['text'][:297] + '…'
+    return f"**#{q['id']}** {text}\n— *{source}*"
+
+
+class QuoteModal(discord.ui.Modal):
+    """The add/edit form: the line, plus its silent source for accuracy."""
+
+    def __init__(self, ident, existing=None):
+        super().__init__(title='Edit quote' if existing else 'Add a quote')
+        self.ident, self.existing = ident, existing
+        existing = existing or {}
+        self.text = discord.ui.TextInput(label='Quote (the only part anyone sees)', max_length=2000,
+                                         style=discord.TextStyle.paragraph, default=existing.get('text'))
+        self.movie = discord.ui.TextInput(label='Movie', max_length=200, default=existing.get('movie') or None)
+        self.character = discord.ui.TextInput(label='Character (optional)', max_length=200, required=False,
+                                              default=existing.get('character') or None)
+        for item in (self.text, self.movie, self.character):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        payload = {**self.ident, 'text': self.text.value, 'movie': self.movie.value,
+                   'character': self.character.value}
+        try:
+            if self.existing:
+                quote = await api.put(f"/api/internal/quotes/{self.existing['id']}", payload)
+            else:
+                quote = await api.post('/api/internal/quotes', payload)
+        except ApiError as e:
+            body = _api_error_json(e)
+            msg = (f"That line is already in the list (#{body.get('id')})." if body.get('error') == 'duplicate'
+                   else NO_ACCOUNT_MSG if no_account(e) else body.get('error') or f"Couldn't save that ({e.status}).")
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
+        except Exception as e:
+            print(f'/quote save failed: {e}')
+            await interaction.response.send_message("Couldn't reach the server — try again in a bit.",
+                                                    ephemeral=True)
+            return
+        invalidate_quotes()
+        verb = 'Updated' if self.existing else 'Added'
+        await interaction.response.send_message(f"{verb} ✓\n{_quote_summary(quote)}", ephemeral=True)
+
+
+@quote_cmds.command(name='add', description='Add a movie quote (only the line is ever shown)')
+async def quote_add(interaction: discord.Interaction):
+    await interaction.response.send_modal(QuoteModal(discord_identity(interaction)))
+
+
+@quote_cmds.command(name='edit', description='Fix a quote, or its movie or character')
+@app_commands.describe(quote='Search by words from the line, the movie, or the character')
+async def quote_edit(interaction: discord.Interaction, quote: str):
+    try:
+        existing = await api.get(f'/api/internal/quotes/{int(quote)}')
+    except (ValueError, ApiError):
+        await interaction.response.send_message('Pick a quote from the list.', ephemeral=True)
+        return
+    await interaction.response.send_modal(QuoteModal(discord_identity(interaction), existing))
+
+
+@quote_cmds.command(name='remove', description='Remove a quote you added (server admins: any quote)')
+@app_commands.describe(quote='Search by words from the line, the movie, or the character')
+async def quote_remove(interaction: discord.Interaction, quote: str):
+    await interaction.response.defer(ephemeral=True)
+    perms = getattr(interaction.user, 'guild_permissions', None)
+    try:
+        result = await api.delete(f'/api/internal/quotes/{int(quote)}', {
+            **discord_identity(interaction), 'is_admin': bool(perms and perms.manage_guild)})
+    except ValueError:
+        await interaction.followup.send('Pick a quote from the list.', ephemeral=True)
+        return
+    except ApiError as e:
+        body = _api_error_json(e)
+        msg = (f"Only {body.get('added_by')} or a server admin can remove that one." if e.status == 403
+               else NO_ACCOUNT_MSG if no_account(e)
+               else "That quote isn't in the list anymore." if e.status == 404
+               else f"Couldn't remove it ({e.status}).")
+        await interaction.followup.send(msg, ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/quote remove failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    invalidate_quotes()
+    await interaction.followup.send(f"Removed quote #{result['removed']}.", ephemeral=True)
+
+
+@quote_cmds.command(name='find', description='Search the quote list (only you see the results)')
+@app_commands.describe(search='Words from the line, the movie, or the character')
+async def quote_find(interaction: discord.Interaction, search: str):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        rows = await api.get('/api/internal/quotes', q=search, limit=11)
+    except Exception as e:
+        print(f'/quote find failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    if not rows:
+        await interaction.followup.send(f'No quotes match **{search}**.', ephemeral=True)
+        return
+    lines = []
+    for q in rows[:10]:
+        added = f" · added by {q['added_by']['name']}" if q.get('added_by') else ''
+        lines.append(_quote_summary(q) + added)
+    embed = discord.Embed(title=f'Quotes matching "{search[:80]}"', colour=embeds.AMBER,
+                          description='\n\n'.join(lines)[:4096])
+    if len(rows) > 10:
+        embed.set_footer(text='Showing the first 10 — narrow the search to see more.')
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+async def quote_autocomplete(interaction: discord.Interaction, current: str):
+    try:
+        rows = await api.get('/api/internal/quotes', q=current or None, limit=25, newest=1)
+    except Exception:
+        return []
+    choices = []
+    for q in rows:
+        source = f" — {q['movie']}" if q.get('movie') else ''
+        text = q['text'] if len(q['text']) + len(source) <= 100 else q['text'][:97 - len(source)] + '…'
+        choices.append(app_commands.Choice(name=(text + source)[:100], value=str(q['id'])))
+    return choices
+
+
+quote_edit.autocomplete('quote')(quote_autocomplete)
+quote_remove.autocomplete('quote')(quote_autocomplete)
+client.tree.add_command(quote_cmds)
 
 
 async def fetch_alerts():

@@ -505,6 +505,31 @@ class ActivityEvent(db.Model):
         }
 
 
+class Quote(db.Model):
+    """A line the bot drops for "what is thy wisdom", /wisdom and ambient
+    triggers. Only `text` is ever shown in the channel; movie and character are
+    the silent source, kept for accuracy and visible only when managing quotes.
+    Removal is soft (deleted_at) so a mistaken delete can be undone."""
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    movie = db.Column(db.String(200))
+    character = db.Column(db.String(200))
+    added_by = db.Column(db.Integer, db.ForeignKey('user.id'))     # None for the original list
+    updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    deleted_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = db.Column(db.DateTime)
+    deleted_at = db.Column(db.DateTime)
+    author = db.relationship('User', foreign_keys=[added_by], lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'text': self.text, 'movie': self.movie or '', 'character': self.character or '',
+            'added_by': {'id': self.author.id, 'name': self.author.name,
+                         'discord_user_id': self.author.discord_user_id} if self.author else None,
+        }
+
+
 class BotSetting(db.Model):
     """Small settings the Discord bot persists here (it has no storage of its
     own), e.g. the /llm model overrides."""
@@ -830,6 +855,8 @@ def merge_users(keep, gone):
         db.session.delete(m)
     Group.query.filter_by(created_by=gone.id).update({'created_by': keep.id})
     Poll.query.filter_by(created_by=gone.id).update({'created_by': keep.id})
+    for col in ('added_by', 'updated_by', 'deleted_by'):
+        Quote.query.filter(getattr(Quote, col) == gone.id).update({col: keep.id})
 
     for col in ('favorite_genres', 'bio', 'letterboxd_username', 'avatar_url'):
         if not getattr(keep, col) and getattr(gone, col):
@@ -2929,6 +2956,137 @@ def internal_alerts_update():
     db.session.commit()
     return jsonify({'theatre_slug': slug, 'theatre_name': theatre.short_name or theatre.name,
                     'enabled': action == 'enable', 'changed': changed, 'slugs': current})
+
+
+# ─── Quotes (/quote, /wisdom) ─────────────────────────────────────────────────
+
+def _quote_fields(data):
+    """Validated text/movie/character from a request. Returns (fields, error)."""
+    text = (data.get('text') or '').strip()
+    if not text:
+        return None, (jsonify({'error': 'The quote is empty'}), 400)
+    if len(text) > 2000:   # Discord's message limit — the bot posts the line as-is
+        return None, (jsonify({'error': "Quotes can't be longer than a Discord message (2,000 characters)"}), 400)
+    return {'text': text,
+            'movie': (data.get('movie') or '').strip()[:200] or None,
+            'character': (data.get('character') or '').strip()[:200] or None}, None
+
+
+def _duplicate_quote(text, exclude_id=None):
+    q = Quote.query.filter(Quote.deleted_at.is_(None), db.func.lower(Quote.text) == text.lower())
+    if exclude_id:
+        q = q.filter(Quote.id != exclude_id)
+    return q.first()
+
+
+@app.route('/api/internal/quotes')
+@require_internal
+def internal_quotes():
+    """Active quotes. With `q`: a search over text, movie and character (for
+    /quote find and autocomplete). Without: the whole list, which the bot caches.
+    `newest=1` puts recent additions first."""
+    q = (request.args.get('q') or '').strip()
+    limit = min(request.args.get('limit', 5000, type=int), 5000)
+    query = Quote.query.filter(Quote.deleted_at.is_(None))
+    if q:
+        like = f'%{q}%'
+        query = query.filter(db.or_(Quote.text.ilike(like), Quote.movie.ilike(like),
+                                    Quote.character.ilike(like)))
+    order = Quote.id.desc() if request.args.get('newest') else Quote.id
+    return jsonify([row.to_dict() for row in query.order_by(order).limit(limit)])
+
+
+@app.route('/api/internal/quotes/<int:quote_id>')
+@require_internal
+def internal_quote(quote_id):
+    quote = db.session.get(Quote, quote_id)
+    if not quote or quote.deleted_at:
+        return jsonify({'error': 'Quote not found'}), 404
+    return jsonify(quote.to_dict())
+
+
+@app.route('/api/internal/quotes', methods=['POST'])
+@require_internal
+def internal_quote_add():
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    fields, err = _quote_fields(data)
+    if err:
+        return err
+    dupe = _duplicate_quote(fields['text'])
+    if dupe:
+        return jsonify({'error': 'duplicate', 'id': dupe.id}), 409
+    quote = Quote(**fields, added_by=user.id)
+    db.session.add(quote)
+    db.session.commit()
+    return jsonify(quote.to_dict()), 201
+
+
+@app.route('/api/internal/quotes/<int:quote_id>', methods=['PUT'])
+@require_internal
+def internal_quote_edit(quote_id):
+    """Any member can correct a quote or its source; the last editor is kept."""
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    quote = db.session.get(Quote, quote_id)
+    if not quote or quote.deleted_at:
+        return jsonify({'error': 'Quote not found'}), 404
+    fields, err = _quote_fields(data)
+    if err:
+        return err
+    dupe = _duplicate_quote(fields['text'], exclude_id=quote.id)
+    if dupe:
+        return jsonify({'error': 'duplicate', 'id': dupe.id}), 409
+    for key, value in fields.items():
+        setattr(quote, key, value)
+    quote.updated_by, quote.updated_at = user.id, _utcnow_naive()
+    db.session.commit()
+    return jsonify(quote.to_dict())
+
+
+@app.route('/api/internal/quotes/<int:quote_id>', methods=['DELETE'])
+@require_internal
+def internal_quote_remove(quote_id):
+    """Removable by whoever added it, or a server admin (the bot sends is_admin
+    for members with Manage Server) — so nobody can wipe the list on a whim.
+    Soft delete: the row stays, recoverable."""
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    quote = db.session.get(Quote, quote_id)
+    if not quote or quote.deleted_at:
+        return jsonify({'error': 'Quote not found'}), 404
+    if quote.added_by != user.id and not data.get('is_admin'):
+        owner = quote.author.name if quote.author else 'the original list'
+        return jsonify({'error': 'not_yours', 'added_by': owner}), 403
+    quote.deleted_at, quote.deleted_by = _utcnow_naive(), user.id
+    db.session.commit()
+    return jsonify({'removed': quote.id})
+
+
+@app.route('/api/internal/quotes/seed', methods=['POST'])
+@require_internal
+def internal_quotes_seed():
+    """One-time import of the bot's built-in list (bot/quotes.py), sent by the
+    bot at startup. It only runs while the table is completely empty, so it can
+    never resurrect removed quotes or duplicate edited ones."""
+    if Quote.query.first():
+        return jsonify({'seeded': 0, 'skipped': []})
+    seen, skipped = set(), []
+    for item in (request.json or {}).get('quotes') or []:
+        fields, err = _quote_fields(item)
+        if not fields or fields['text'].lower() in seen:
+            skipped.append((item.get('text') or '')[:60])
+            continue
+        seen.add(fields['text'].lower())
+        db.session.add(Quote(**fields))
+    db.session.commit()
+    return jsonify({'seeded': len(seen), 'skipped': skipped})
 
 
 # Keys the bot may store; anything else is rejected.

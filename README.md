@@ -279,7 +279,7 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
   DMs, not the channel.
 - **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
   `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
-  `/profile`, `/link`, `/llm`. Everything works with no site account. Personal
+  `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
   commands set one up automatically on first use in the club's server (see
   Discord-only accounts above). Date/theatre filters are dependent:
   pick a movie and the date/theatre options narrow to where it's actually
@@ -303,7 +303,18 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
   disables the fallback), then the automatic ranking in `bot/llm.py`.
 - **Cinematic wisdom**: `/wisdom`, or `what is thy wisdom CinemaBot` (any form —
   a real @mention, a typed `@CinemaBot`, or just the name, any casing) — a random
-  movie quote. Works for anyone; needs no backend or account.
+  movie quote. Works for anyone, with no account needed. Only the line is
+  ever shown, never its source.
+- **`/quote add | edit | remove | find`**: manage that quote list from Discord.
+  Adding or editing opens a short form: the quote, the movie (required) and the
+  character (optional). The movie and character are the line's *silent
+  source*: stored for accuracy and visible only here, in private replies.
+  Anyone in the server can add or correct quotes. Only whoever added a quote,
+  or a server admin (Manage Server), can remove it, and removals are soft
+  (recoverable in the database). The list lives in the backend (`quote`
+  table); `bot/quotes.py` is the original 302-line list, imported once into an
+  empty database with each `# Movie (Character)` comment parsed into fields,
+  and used as a fallback if the backend is unreachable.
 - **Ambient quotes**: any message with movie-ish words (movie, theatre, IMAX,
   70mm, Dolby, cinema, film…) has a ~1-in-5 chance (rate-limited per channel) of
   making the bot drop a random quote. Requires the Message Content intent below.

@@ -36,12 +36,21 @@ class InternalApi:
                 raise ApiError(r.status, await r.text())
             return await r.json()
 
-    async def post(self, path, payload=None):
+    async def _send(self, method, path, payload=None):
         session = await self._ensure()
-        async with session.post(path, json=payload or {}) as r:
+        async with session.request(method, path, json=payload or {}) as r:
             if r.status >= 400:
                 raise ApiError(r.status, await r.text())
             return await r.json()
+
+    async def post(self, path, payload=None):
+        return await self._send('POST', path, payload)
+
+    async def put(self, path, payload=None):
+        return await self._send('PUT', path, payload)
+
+    async def delete(self, path, payload=None):
+        return await self._send('DELETE', path, payload)
 
     async def close(self):
         if self._session and not self._session.closed:

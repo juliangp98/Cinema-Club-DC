@@ -8,8 +8,18 @@ lean recognizable and context-rich rather than vague one-liners, and no single
 film is over-represented. Each carries a comment attributing the film (and
 character, where known). No attribution text is shown to users; the line stands
 alone. A few well-known poster *taglines* are included and marked "(tagline)".
-If any line reads wrong, fix the string and its comment together. Add freely.
+
+Since Oct 2026 the live list is in the backend database, managed from Discord
+with /quote add|edit|remove|find. This file is the original list: the bot sends
+it (with each comment parsed into movie + character) to an empty database once
+at startup, and falls back to it if the backend can't be reached. Edit quotes
+with /quote now; changes here no longer reach a seeded database.
 """
+
+import ast
+import io
+import re
+import tokenize
 
 QUOTES = [
     # ── Iconic / pop-culture ──────────────────────────────────────────────────
@@ -335,3 +345,28 @@ QUOTES = [
     "Are you gonna bark all day, little doggy, or are you gonna bite?",  # Reservoir Dogs (Mr. Blonde)
     "I'm the guy who does his job. You must be the other guy.",  # The Departed (Billy Costigan)
 ]
+
+
+_ATTRIBUTION_RE = re.compile(r'^#\s*(?P<movie>.+?)(?:\s*\((?P<character>[^()]*)\))?\s*$')
+
+
+def seed_entries():
+    """QUOTES as [{text, movie, character}], reading each line's
+    `# Movie (Character)` comment so the silent source survives the move to the
+    database. Comments are invisible at runtime, so this re-reads the source."""
+    with open(__file__, encoding='utf-8') as f:
+        source = f.read()
+    comments = {tok.start[0]: tok.string
+                for tok in tokenize.generate_tokens(io.StringIO(source).readline)
+                if tok.type == tokenize.COMMENT}
+    node = next(n for n in ast.parse(source).body
+                if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', None) == 'QUOTES')
+    entries = []
+    for element in node.value.elts:
+        match = _ATTRIBUTION_RE.match(comments.get(element.end_lineno, ''))
+        entries.append({
+            'text': element.value,
+            'movie': match.group('movie').strip() if match else '',
+            'character': (match.group('character') or '').strip() if match else '',
+        })
+    return entries
