@@ -46,7 +46,7 @@
   background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-lg);
 }
 .double-film { display: flex; flex-direction: column; gap: 0.25rem; color: var(--cream); }
-.double-film img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); }
+.double-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); }
 .double-film:hover .double-title { color: var(--amber); }
 .double-time { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--amber); }
 .double-title { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-sm); line-height: 1.2; }
@@ -62,8 +62,7 @@
 .spotlight-name { font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; }
 .spotlight-count { font-size: var(--fs-xs); color: var(--muted); text-transform: capitalize; }
 .spotlight-posters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
-.spotlight-posters img, .spotlight-ph { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg2); }
-.spotlight-ph { font-size: 0.65rem; padding: 0.25rem; overflow: hidden; }
+.spotlight-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg2); }
 
 /* Browse */
 .browse-when, .browse-active { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.85rem; }

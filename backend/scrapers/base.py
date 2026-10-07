@@ -224,6 +224,12 @@ _YEAR_PAREN_RE = re.compile(r'\((\d{4})\)')
 _PARENS_RE = re.compile(r'\([^)]*\)')
 _DASH_SPLIT_RE = re.compile(r'\s[-–—]\s')
 _PRESENTS_RE = re.compile(r'^.+?\bpresents?\b:?\s+(.+)$', re.I)
+# A program *code* in front of the film: "SOS26: THE THING", "NOIR 24: LAURA",
+# "SOS'26 – HALLOWEEN". Letters then a 2–4 digit number as one short token
+# (or letters, a space and two digits) — never a real title: "2001: A Space
+# Odyssey" has no letters, "M3GAN" isn't letters-then-digits, "THX 1138" has
+# four digits after its space. Removed outright; the billing keeps it.
+_CODE_PREFIX_RE = re.compile(r"^\s*[A-Za-z]{2,6}(?:['’]?\d{2,4}|\s['’]?\d{2})\s*[:–—|-]\s*(?=\S)")
 _TRIM_CHARS = ' -–—:·|.'
 
 
@@ -241,7 +247,8 @@ def parse_movie_title(raw):
       "HIS GIRL FRIDAY (1940)"                      -> ("HIS GIRL FRIDAY", "1940")
       "Planes (2013) - NASM 50th Film Series"       -> ("Planes", "2013")
 
-    Program *prefixes* ("EPIC SUNDAY: BATMAN BEGINS") are deliberately kept: a
+    Program *codes* ("SOS26: THE THING" -> "THE THING") are removed. Program
+    *names* ("EPIC SUNDAY: BATMAN BEGINS") are deliberately kept: a
     prefix can't be told apart from a real colon title ("Friday the 13th Part
     VII: The New Blood") without a lookup, so title_search_variants() offers the
     stripped form as an extra search instead. The year is returned separately so
@@ -251,7 +258,7 @@ def parse_movie_title(raw):
     """
     if not raw:
         return '', None
-    t = raw.strip()
+    t = _CODE_PREFIX_RE.sub('', raw.strip(), count=1)
 
     year = None
     m = _YEAR_PAREN_RE.search(t)

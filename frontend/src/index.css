@@ -358,16 +358,6 @@ input { font-family: inherit; }
   flex-shrink: 0;
   background: var(--bg3);
 }
-.drawer-poster-thumb-ph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  object-fit: initial;
-}
 .drawer-header-text {
   flex: 1;
   min-width: 0;
@@ -2898,7 +2888,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 .feed-card-main { display: flex; gap: 0.85rem; align-items: flex-start; }
 .feed-poster { flex-shrink: 0; padding: 0; border: none; background: none; cursor: pointer; }
 span.feed-poster { cursor: default; }
-.feed-poster img {
+.feed-poster-img {
   display: block;
   width: 56px;
   height: 84px;

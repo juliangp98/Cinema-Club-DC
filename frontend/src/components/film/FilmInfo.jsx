@@ -7,11 +7,7 @@ const RATING_LABELS = {
 };
 
 // Initials shown when a poster image is missing or fails to load.
-export function posterInitials(title) {
-  const words = (title || "").replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
-  if (!words.length) return "🎬";
-  return words.slice(0, 2).map(w => w[0]).join("").toUpperCase();
-}
+export { posterInitials } from "../../ui/Poster";
 
 // OMDb only gives a summary string (e.g. "Won 3 Oscars. 44 wins & 27
 // nominations total"). Pull out the marquee award + totals for a clean display.

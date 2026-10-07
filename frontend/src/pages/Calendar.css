@@ -18,7 +18,6 @@
 .cal-poster { display: block; object-fit: cover; border-radius: 4px; background: var(--bg3); flex-shrink: 0; }
 .cal-poster.sm { width: 26px; height: 39px; }
 .cal-poster.md { width: 52px; height: 78px; border-radius: 6px; }
-.cal-poster.ph { display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: var(--muted); text-transform: uppercase; }
 
 /* Time chips, grouped by theatre */
 .cal-times { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -55,8 +54,6 @@
 .cal-tile.mine .cal-tile-poster { border-color: rgba(111, 191, 152, 0.8); box-shadow: 0 0 0 1px rgba(111, 191, 152, 0.5); }
 .cal-tile-poster img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.2s; }
 .cal-tile-poster:hover img { transform: scale(1.03); }
-.cal-tile-ph { display: flex; align-items: center; justify-content: center; height: 100%; padding: 0.5rem;
-  font-family: var(--font-serif); font-size: var(--fs-sm); color: var(--muted); text-align: center; }
 .cal-pill {
   position: absolute; font-size: 0.66rem; font-weight: 600; line-height: 1; padding: 0.22rem 0.42rem;
   border-radius: var(--radius-pill); backdrop-filter: blur(4px);

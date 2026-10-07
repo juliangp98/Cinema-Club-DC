@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import Poster from "./Poster";
 
 const when = iso => {
   const d = new Date(iso);
@@ -17,11 +18,7 @@ export default function PosterCard({ card, size = "md" }) {
   return (
     <Link to={`/films/${movie.id}`} className={`poster-card ${size}`}>
       <div className="poster-card-img">
-        {movie.poster_url ? (
-          <img src={movie.poster_url} alt="" loading="lazy" />
-        ) : (
-          <span className="poster-card-ph">{movie.title}</span>
-        )}
+        <Poster movie={movie} fill />
         {badge && <span className={`poster-card-badge${club ? "" : " public"}`}>{badge}</span>}
       </div>
       <div className="poster-card-title">

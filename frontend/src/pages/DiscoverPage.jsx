@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
+import Poster from "../ui/Poster";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
@@ -55,7 +56,7 @@ function Surprise({ apiBase, groupId }) {
       {pick ? (
         <div className="surprise-pick">
           <Link to={`/films/${pick.movie.id}`} className="surprise-poster">
-            {pick.movie.poster_url ? <img src={pick.movie.poster_url} alt="" /> : <span>{pick.movie.title}</span>}
+            <Poster movie={pick.movie} fill loading="eager" />
           </Link>
           <div className="surprise-text">
             <Link to={`/films/${pick.movie.id}`} className="surprise-film">
@@ -124,9 +125,7 @@ export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtim
           {plans.map(p => (
             <button key={p.showtime_id} type="button" className={`club-week-item${p.you_going ? " mine" : ""}`}
                     onClick={() => onOpenShowtime(p.showtime_id)}>
-              {p.movie.poster_url
-                ? <img className="club-week-poster" src={p.movie.poster_url} alt="" loading="lazy" />
-                : <span className="club-week-icon">🎟️</span>}
+              <Poster movie={p.movie} className="club-week-poster" />
               <span className="club-week-text">
                 <span className="club-week-name">{p.movie.title}</span>
                 <span className="club-week-meta">{dayLabel(p.start_time)} · {timeLabel(p.start_time)} · {p.theatre}</span>
@@ -184,7 +183,7 @@ function DoubleFeatures({ items }) {
           <div key={i} className="double">
             {[d.first, d.second].map((c, j) => (
               <Link key={j} to={`/films/${c.movie.id}`} className="double-film">
-                {c.movie.poster_url && <img src={c.movie.poster_url} alt="" loading="lazy" />}
+                <Poster movie={c.movie} className="double-poster" />
                 <span className="double-time">{timeLabel(c.next.start_time)}</span>
                 <span className="double-title">{c.movie.title}</span>
               </Link>
@@ -210,9 +209,7 @@ function Spotlights({ items }) {
               <span className="spotlight-count">{sp.count} films · {sp.role}</span>
             </div>
             <div className="spotlight-posters">
-              {sp.films.slice(0, 4).map(f => f.movie.poster_url
-                ? <img key={f.movie.id} src={f.movie.poster_url} alt={f.movie.title} loading="lazy" />
-                : <span key={f.movie.id} className="spotlight-ph">{f.movie.title}</span>)}
+              {sp.films.slice(0, 4).map(f => <Poster key={f.movie.id} movie={f.movie} className="spotlight-poster" alt={f.movie.title} />)}
             </div>
           </Link>
         ))}

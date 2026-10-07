@@ -5,7 +5,8 @@ import Avatar from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
-import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
+import Poster from "../ui/Poster";
+import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
 import { groupParam } from "../scope";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
@@ -39,7 +40,6 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [watching, setWatching] = useState(false);
   const [watchPrompt, setWatchPrompt] = useState(false);     // "mention you in the Discord digest?"
   const [copied, setCopied] = useState(false);
-  const [posterOk, setPosterOk] = useState(true);
   const [profileUserId, setProfileUserId] = useState(null);
   const shell = useShell();
 
@@ -53,7 +53,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
       .catch(e => setError(e.message));
   }, [apiBase, id, groupId]);
 
-  useEffect(() => { setData(null); setTheatre("all"); setPosterOk(true); load(); }, [load]);
+  useEffect(() => { setData(null); setTheatre("all"); load(); }, [load]);
 
   const { openShowtime, sheet } = useShowtimeSheet({
     user, apiBase, groupId, onViewProfile: setProfileUserId, onChange: load,
@@ -126,11 +126,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
         <div className="film-hero-inner">
           <button className="ui-page-back" onClick={() => navigate(-1)}>‹ Back</button>
           <div className="film-hero-row">
-            {movie.poster_url && posterOk ? (
-              <img className="film-poster" src={movie.poster_url} alt="" onError={() => setPosterOk(false)} />
-            ) : (
-              <div className="film-poster film-poster-ph">{posterInitials(movie.title)}</div>
-            )}
+            <Poster movie={movie} className="film-poster" loading="eager" />
             <div className="film-hero-text">
               <h1 className="film-title">{movie.title}</h1>
               {movie.tagline && <p className="film-tagline">{movie.tagline}</p>}

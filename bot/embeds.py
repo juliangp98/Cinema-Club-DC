@@ -712,3 +712,51 @@ def poll_post_embed(p):
     embed.description = ('Results are in — see them on the site.' if p.get('status') == 'scored'
                          else 'Results coming soon.')
     return embed
+
+
+# ─── /help ────────────────────────────────────────────────────────────────────
+
+HELP_SECTIONS = [
+    ('🎬 Find something to see', [
+        ('/showtimes', "what's playing (pick days, a date or a theatre)"),
+        ('/movie', 'a film\'s details and showtimes'),
+        ('/find', 'a kind of film: rare, arthouse, a mood, a genre…'),
+        ('/surprise', 'one random pick (spin again for another)'),
+        ('@CinemaBot', 'ask for a rec, or just talk movies'),
+    ]),
+    ('🎟️ Make plans', [
+        ('/rsvp', 'Going / Maybe / Can\'t go to a screening'),
+        ('/whosgoing', 'who\'s RSVP\'d this week'),
+        ('/discuss', 'open a screening\'s thread (and comment)'),
+        ('/watch', 'add to, remove from, or show a watchlist'),
+    ]),
+    ('🗳️ Polls', [
+        ('/polls', 'what\'s open right now'),
+        ('/vote', 'your private ballot'),
+        ('/leaderboard', 'season kernel standings 🍿'),
+        ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
+    ]),
+    ('👤 You and the club', [
+        ('/profile', 'your profile (genres, bio, Letterboxd) or someone\'s'),
+        ('/history', 'screenings you (or someone) saw with the club'),
+        ('/compare', 'what you and @someone both want to see, and are going to'),
+        ('/link', 'optional: connect an existing site account'),
+    ]),
+    ('📰 Extras', [
+        ('/digest', 'this week\'s digest (preview it just for you)'),
+        ('/alerts', 'which theatres\' new showtimes post here'),
+        ('/quote', 'add, fix or find the bot\'s movie quotes'),
+        ('/wisdom', 'a random line of cinematic wisdom'),
+    ]),
+]
+
+
+def help_embed():
+    """/help: the main commands, grouped, one line each."""
+    embed = discord.Embed(title='🍿 CinemaBot — quick guide', colour=AMBER, url=SITE_URL,
+                          description='No setup needed: commands work as soon as you use them here.')
+    for name, rows in HELP_SECTIONS:
+        embed.add_field(name=name, inline=False, value='\n'.join(f'`{cmd}` — {what}' for cmd, what in rows))
+    embed.set_footer(text=f'Everything else (calendar, Discover, your lists) → {SITE_URL}')
+    return embed
+

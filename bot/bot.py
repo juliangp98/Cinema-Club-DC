@@ -3086,6 +3086,11 @@ async def llm_model_autocomplete(interaction: discord.Interaction, current: str)
 client.tree.add_command(llm_admin)
 
 
+@client.tree.command(name='help', description='A quick guide to the club bot’s commands')
+async def help_cmd(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=embeds.help_embed(), ephemeral=True)
+
+
 @client.tree.command(name='leaderboard', description='Season kernel standings 🍿')
 async def leaderboard(interaction: discord.Interaction):
     await interaction.response.defer()

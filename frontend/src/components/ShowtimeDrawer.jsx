@@ -7,7 +7,8 @@ import ReactionBar from "./ReactionBar";
 import ChatSection from "./ChatSection";
 import { useShell } from "../shell/AppShell";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
-import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
+import Poster from "../ui/Poster";
+import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
 
 // Collapsible accordion section used for the sheet's informational blocks.
 function Collapsible({ title, count, defaultOpen = false, children }) {
@@ -45,7 +46,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const shell = useShell();
   const [watching, setWatching] = useState(user ? null : false); // null until your watchlist loads
   const [watchPrompt, setWatchPrompt] = useState(false);          // "mention you in the Discord digest?"
-  const [posterOk, setPosterOk] = useState(true);
   const [heroOk, setHeroOk] = useState(true);
 
   useEffect(() => {
@@ -58,7 +58,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
   useEffect(() => {
     setReactions(primary.reactions || {});
-    setPosterOk(true);
     setHeroOk(true);
   }, [primary]);
 
@@ -114,11 +113,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
       <div className="drawer-content">
         <div className="drawer-header">
-          {movie.poster_url && posterOk ? (
-            <img className="drawer-poster-thumb" src={movie.poster_url} alt={movie.title} onError={() => setPosterOk(false)} />
-          ) : (
-            <div className="drawer-poster-thumb drawer-poster-thumb-ph">{posterInitials(movie.title)}</div>
-          )}
+          <Poster movie={movie} className="drawer-poster-thumb" alt={movie.title} loading="eager" />
           <div className="drawer-header-text">
             <div className="drawer-badge-row">
               <span className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}>

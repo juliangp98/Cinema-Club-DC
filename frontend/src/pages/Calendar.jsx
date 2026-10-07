@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import PosterImage from "../ui/Poster";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import FilterSheet, { listOf } from "../ui/FilterSheet";
 import Avatar from "../ui/Avatar";
@@ -108,9 +109,7 @@ function groupByDay(showtimes, userId) {
 }
 
 function Poster({ movie, size = "sm" }) {
-  return movie.poster_url
-    ? <img className={`cal-poster ${size}`} src={movie.poster_url} alt="" loading="lazy" />
-    : <span className={`cal-poster ${size} ph`}>{movie.title.slice(0, 2)}</span>;
+  return <PosterImage movie={movie} className={`cal-poster ${size}`} />;
 }
 
 // Times grouped by theatre; each opens that theatre's screenings of the film that day.
@@ -137,16 +136,13 @@ function TimeChips({ entry, onOpen, compact = false }) {
 // (+ how many more), theatres, who's going, rare. Tap for the screening.
 function AgendaTile({ entry, onOpen }) {
   const m = entry.movie;
-  const [broken, setBroken] = useState(false);      // a poster URL that doesn't load
   const first = entry.byTheatre[0];
   const times = entry.shows.length;
   const theatres = entry.byTheatre.map(t => t.theatre.short_name || t.theatre.name);
   return (
     <article className={`cal-tile${entry.youGoing ? " mine" : ""}`}>
       <button type="button" className="cal-tile-poster" onClick={() => onOpen(first.shows, first.shows[0])} aria-label={`${m.title} — showtimes`}>
-        {m.poster_url && !broken
-          ? <img src={m.poster_url} alt="" loading="lazy" onError={() => setBroken(true)} />
-          : <span className="cal-tile-ph">{m.title}</span>}
+        <PosterImage movie={m} fill />
         {entry.rare && <span className="cal-pill rare" title={entry.rare.join(" · ")}>Rare</span>}
         {entry.going.length > 0 && <span className="cal-pill going" title={entry.going.map(u => u.name).join(", ")}>🎟️ {entry.going.length}</span>}
         {entry.youGoing && <span className="cal-pill you">You</span>}

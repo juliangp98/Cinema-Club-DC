@@ -5,6 +5,7 @@ import UserProfileDrawer from "../components/UserProfileDrawer";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
 import { AvatarFace } from "../ui/Avatar";
+import Poster from "../ui/Poster";
 
 function timeAgo(iso) {
   const diff = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
@@ -90,11 +91,9 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
     <article className="feed-card">
       <CardHead at={card.at}>{headline}</CardHead>
       <div className="feed-card-main">
-        {s.movie.poster_url && (
-          <button type="button" className="feed-poster" onClick={onOpen} aria-label={`Open ${s.movie.title}`}>
-            <img src={s.movie.poster_url} alt="" loading="lazy" />
-          </button>
-        )}
+        <button type="button" className="feed-poster" onClick={onOpen} aria-label={`Open ${s.movie.title}`}>
+          <Poster movie={s.movie} className="feed-poster-img" />
+        </button>
         <div className="feed-card-body">
           <button type="button" className="feed-title" onClick={onOpen}>{s.movie.title}</button>
           <div className="feed-meta">
@@ -158,11 +157,9 @@ function WatchlistCard({ card, viewerId, onOpenShowtime, onViewProfile }) {
     <article className="feed-card">
       <CardHead at={card.at}>🎯 {names(users, viewerId)} added this to {whose}</CardHead>
       <div className="feed-card-main">
-        {movie.poster_url && (
-          <Link className="feed-poster" to={`/films/${movie.id}`} aria-label={movie.title}>
-            <img src={movie.poster_url} alt="" loading="lazy" />
-          </Link>
-        )}
+        <Link className="feed-poster" to={`/films/${movie.id}`} aria-label={movie.title}>
+          <Poster movie={movie} className="feed-poster-img" />
+        </Link>
         <div className="feed-card-body">
           <Link className="feed-title" to={`/films/${movie.id}`}>
             {movie.title}{movie.release_year ? ` (${movie.release_year})` : ""}
