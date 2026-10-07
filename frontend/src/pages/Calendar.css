@@ -4,8 +4,12 @@
 .cal-nav { display: flex; align-items: center; gap: 0.35rem; }
 .cal-range { margin-left: 0.4rem; font-size: var(--fs-sm); color: var(--cream); font-weight: 500; }
 .cal-filters-btn { margin-left: auto; }
-.cal-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.cal-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-bottom: 1rem; }
+.cal-quick-group { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .cal-quick .chip { cursor: pointer; background: none; font-family: var(--font-body); }
+.cal-quick-sep { width: 1px; align-self: stretch; min-height: 1.4rem; background: var(--border-strong); }
+.cal-quick .cal-quick-more { display: none; }     /* phones only (below) */
+.cal-quick .cal-quick-more, .cal-quick .cal-quick-clear { color: var(--amber); border-style: dashed; }
 .cal-empty { color: var(--muted); padding: 2rem 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
 .calendar .attendance-prompt { margin: 0 0 1rem; }
 .cal-theatre-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.35rem; }
@@ -37,15 +41,10 @@
 .cal-times.compact .cal-theatre { min-width: 0; font-size: 0.68rem; padding-left: 0.35rem; border-left-width: 2px; }
 .cal-times.compact .cal-time { padding: 0.1rem 0.4rem; font-size: 0.68rem; }
 
-/* Agenda */
-.cal-day { margin-bottom: 1.25rem; }
-.cal-day-head {
-  position: sticky; top: 0; z-index: 2; background: var(--bg);
-  font-size: var(--fs-sm); font-weight: 600; color: var(--amber); padding: 0.5rem 0; margin-bottom: 0.4rem;
-  border-bottom: 1px solid var(--gold-line);
-  display: flex; justify-content: space-between; align-items: baseline;
-}
-.cal-day-head span { color: var(--muted); font-weight: 400; font-size: var(--fs-xs); }
+/* Agenda: each day under the site's section title (sticky while you scroll it) */
+.cal-agenda-day { margin-bottom: 1.5rem; }
+.cal-agenda-head { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 0.4rem 0 0.1rem; }
+.cal-count { font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
 /* Agenda tiles: posters with the essentials, many per row on any screen */
 .cal-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 0.9rem 0.7rem; }
 .cal-tile { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
@@ -85,10 +84,12 @@
 .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.6rem; align-items: start; }
 .cal-col { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
 .cal-col-head {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--cream); padding: 0.45rem 0.5rem;
-  border-bottom: 2px solid var(--gold-line); position: sticky; top: 0; background: var(--bg); z-index: 2;
+  display: flex; flex-direction: column; gap: 0.1rem; padding: 0.35rem 0.15rem 0.45rem;
+  border-bottom: 3px double var(--gold-line); position: sticky; top: 0; background: var(--bg); z-index: 2;
 }
-.cal-col.today .cal-col-head { color: var(--amber); }
+.cal-col-head .deco { font-size: 1.05rem; color: var(--cream); font-weight: 400; line-height: 1.15; }
+.cal-col.today .cal-col-head .deco { color: var(--amber); }
+.cal-col-sub { font-size: var(--fs-xs); color: var(--muted); font-weight: 400; }
 .cal-col-empty { font-size: var(--fs-xs); color: var(--muted); padding: 0 0.5rem; }
 .cal-card {
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
@@ -138,9 +139,11 @@
   .cal-month-dow { padding: 0.2rem; font-size: 0.6rem; }
   .cal-filters-btn { margin-left: 0; }
   .cal-tiles { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem 0.55rem; }
-  .cal-quick { flex-wrap: nowrap; overflow-x: auto; margin: 0 -0.85rem 0.75rem; padding: 0 0.85rem 0.25rem; scrollbar-width: none; }
-  .cal-quick::-webkit-scrollbar { display: none; }
-  .cal-quick .chip { flex-shrink: 0; }
+  /* The club pills, a line, then a few smart pills + "+N more" */
+  .cal-quick { flex-direction: column; align-items: stretch; gap: 0.45rem; }
+  .cal-quick-sep { width: 100%; height: 1px; min-height: 0; }
+  .cal-quick:not(.open) .chip.extra { display: none; }
+  .cal-quick .cal-quick-more { display: inline-flex; }
   .cal-theatre { min-width: 0; }
   .cal-times-theatre { gap: 0.25rem; }
 }

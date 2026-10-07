@@ -212,16 +212,6 @@ input { font-family: inherit; }
 }
 .auth-toggle-btn:hover { color: var(--amber-dim); }
 
-/* ── App Shell ──────────────────────────────────────────────────────────── */
-.app-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .header {
   display: flex;
@@ -246,293 +236,7 @@ input { font-family: inherit; }
   height: 24px;
   background: var(--border);
 }
-.nav-week {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.nav-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--muted);
-  font-size: 0.9375rem;
-  transition: all 0.15s;
-}
-.nav-btn:hover { border-color: var(--amber); color: var(--amber); }
-.nav-today {
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: all 0.15s;
-}
-.nav-today:hover { border-color: var(--amber); color: var(--amber); }
-.nav-range {
-  font-size: 0.875rem;
-  letter-spacing: 0.06em;
-  color: var(--cream);
-  white-space: nowrap;
-}
 .header-spacer { flex: 1; }
-
-/* ── Filter Bar ────────────────────────────────────────────────────────── */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 1.5rem;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  z-index: 9;
-  position: relative;
-}
-
-/* Dropdown wrapper (shared by theatre & movie) */
-.filter-dd {
-  position: relative;
-}
-.filter-dd-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--cream);
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  white-space: nowrap;
-}
-.filter-dd-btn:hover { border-color: var(--amber); }
-.filter-dd-dots {
-  display: flex;
-  gap: 3px;
-  align-items: center;
-}
-.filter-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-  background: var(--tcolor, var(--amber));
-}
-.filter-dd-more {
-  font-size: 0.75rem;
-  color: var(--muted);
-  letter-spacing: 0.03em;
-  margin-left: 1px;
-}
-.filter-dd-count {
-  font-size: 0.75rem;
-  color: var(--amber);
-  margin-left: 4px;
-  letter-spacing: 0.05em;
-}
-.filter-dd-arrow {
-  font-size: 0.75rem;
-  color: var(--muted);
-  margin-left: 0.15rem;
-}
-.filter-dd-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 150px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.3rem 0;
-  z-index: 60;
-  box-shadow: var(--shadow);
-}
-.filter-dd-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  color: var(--cream);
-  cursor: pointer;
-  transition: background 0.1s;
-  white-space: nowrap;
-}
-.filter-dd-item:hover { background: rgba(220, 177, 92,0.08); }
-.filter-dd-item input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid var(--muted);
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
-  position: relative;
-}
-.filter-dd-item input[type="checkbox"]:checked {
-  background: var(--amber);
-  border-color: var(--amber);
-}
-.filter-dd-item input[type="checkbox"]:checked::after {
-  content: "✓";
-  position: absolute;
-  top: -1px;
-  left: 1.5px;
-  font-size: 0.75rem;
-  color: var(--bg);
-  font-weight: 700;
-}
-.filter-select-all {
-  display: block;
-  width: 100%;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--amber);
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  text-align: left;
-  font-family: var(--font-mono);
-}
-.filter-select-all:hover {
-  background: rgba(220, 177, 92,0.08);
-}
-.filter-dd-empty {
-  padding: 0.5rem 0.65rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-style: italic;
-}
-
-/* Movie search input */
-.filter-search-wrap {
-  flex: 1;
-  max-width: 260px;
-}
-.filter-search-box {
-  display: flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0 0.5rem;
-  gap: 0.3rem;
-  transition: border-color 0.15s;
-}
-.filter-search-box:focus-within { border-color: var(--amber); }
-.filter-search-icon {
-  font-size: 0.8125rem;
-  opacity: 0.5;
-}
-.filter-search-input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--cream);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  padding: 0.3rem 0;
-  width: 100%;
-  font-family: var(--font-mono);
-}
-.filter-search-input::placeholder { color: var(--muted); }
-.filter-badge {
-  font-size: 0.75rem;
-  background: var(--amber);
-  color: var(--bg);
-  border-radius: 8px;
-  padding: 0.1rem 0.35rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-}
-.filter-movie-menu {
-  max-height: 240px;
-  overflow-y: auto;
-  min-width: 220px;
-}
-.filter-movie-menu::-webkit-scrollbar { width: 4px; }
-.filter-movie-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-/* Members filter dropdown */
-.filter-member-menu {
-  max-height: 240px;
-  overflow-y: auto;
-  min-width: 180px;
-}
-.filter-member-menu::-webkit-scrollbar { width: 4px; }
-.filter-member-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.filter-member-item {
-  gap: 0.4rem;
-}
-.filter-member-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-/* Nav controls duplicated in filter bar — hidden on desktop */
-.filter-nav-week { display: flex; }
-
-/* Time-of-day pills */
-.filter-time-pills {
-  display: flex;
-  gap: 0.3rem;
-}
-.filter-time-pill {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.filter-time-pill:hover { border-color: var(--amber-dim); color: var(--cream); }
-.filter-time-pill.active {
-  border-color: var(--amber);
-  color: var(--amber);
-  background: rgba(220, 177, 92,0.1);
-}
-.filter-time-icon { font-size: 0.8125rem; }
-
-/* Clear filters button */
-.filter-clear {
-  font-size: 0.75rem;
-  color: var(--muted);
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
-}
-.filter-clear:hover { border-color: var(--red); color: var(--red); }
 
 /* User avatar */
 .user-avatar {
@@ -550,127 +254,6 @@ input { font-family: inherit; }
   flex-shrink: 0;
 }
 .user-avatar:hover { opacity: 0.7; }
-
-/* ── Calendar Grid ───────────────────────────────────────────────────────── */
-.calendar-body {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-.calendar-grid {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-  scrollbar-gutter: stable;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(140px, auto);
-  gap: 1px;
-  background: var(--border);
-  align-content: start;
-}
-.calendar-grid::-webkit-scrollbar { width: 10px; }
-.calendar-grid::-webkit-scrollbar-track { background: transparent; border-right: 4px solid var(--bg); }
-.calendar-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; border-right: 4px solid var(--bg); }
-
-/* Day column headers */
-.day-headers {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.day-header {
-  background: var(--bg2);
-  padding: 0.4rem 0.75rem;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* Calendar day cell */
-.cal-day {
-  background: var(--bg2);
-  min-height: 140px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 0.5rem;
-  position: relative;
-}
-.cal-day::-webkit-scrollbar { width: 3px; }
-.cal-day::-webkit-scrollbar-track { background: transparent; }
-.cal-day::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.cal-day.today { background: var(--bg3); }
-.cal-day.outside-month { opacity: 0.35; }
-.cal-day-number {
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  color: var(--muted);
-  margin-bottom: 0.4rem;
-  display: block;
-}
-.cal-day-weekday {
-  display: none;
-}
-.cal-day.today .cal-day-number {
-  color: var(--amber);
-  font-weight: 500;
-}
-
-/* Showtime pill on calendar */
-.cal-event {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.3rem 0.4rem;
-  margin-bottom: 0.25rem;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: opacity 0.15s;
-  background: var(--bg3);
-  border-left: 2px solid;
-  border-color: var(--tcolor, var(--amber));
-  position: relative;
-}
-.cal-event:hover { opacity: 0.75; }
-.cal-event-time {
-  font-size: 0.75rem;
-  color: var(--muted);
-  line-height: 1.3;
-}
-.cal-format {
-  margin-left: 0.35rem;
-  color: var(--amber);
-  letter-spacing: 0.06em;
-}
-.cal-event-title {
-  font-family: var(--font-serif);
-  font-size: 0.8125rem;
-  line-height: 1.2;
-  color: var(--cream);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-}
-.cal-event-sold-out .cal-event-title { text-decoration: line-through; color: var(--muted); }
-
-/* Attendee dots on event */
-.event-dots {
-  display: flex;
-  gap: 2px;
-  margin-top: 3px;
-  flex-wrap: wrap;
-}
-.event-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 
 /* ── Detail Drawer ───────────────────────────────────────────────────────── */
 .drawer-overlay {
@@ -1273,7 +856,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .drawer-section-count { color: var(--border-strong, var(--muted)); opacity: 0.7; }
 .drawer-section-caret { font-size: 0.8125rem; letter-spacing: 0; }
 .drawer-section-body { padding-bottom: 1.1rem; }
-/* The screening block sits directly above the first section — give it a divider too */
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
 .drawer::-webkit-scrollbar { width: 4px; }
@@ -1281,13 +863,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .drawer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ── Recommended Star ──────────────────────────────────────────────────── */
-.rec-star {
-  color: var(--amber);
-  font-size: 0.8125rem;
-}
-.cal-event.recommended {
-  box-shadow: inset 0 0 0 1px rgba(220, 177, 92,0.25);
-}
+
 .drawer-rec-badge {
   font-size: 0.75rem;
   letter-spacing: 0.06em;
@@ -1298,7 +874,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   margin-left: 0.5rem;
 }
 
-/* ── Calendar Export ───────────────────────────────────────────────────── */
 /* Screening items in drawer (when multiple showtimes grouped) */
 .drawer-screening-item {
   padding-bottom: 0.75rem;
@@ -1308,48 +883,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .drawer-screening-item:last-child {
   border-bottom: none;
   margin-bottom: 0;
-}
-
-.cal-export-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-.cal-export-btn {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  padding: 0.3rem 0.6rem;
-  border-radius: var(--radius);
-  transition: all 0.15s;
-  cursor: pointer;
-  background: none;
-  font-family: inherit;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-.cal-export-btn:hover { border-color: var(--amber); color: var(--amber); }
-/* Give the two export buttons their service colors: Google blue, Apple silver. */
-.cal-export-btn.google {
-  border-color: rgba(66,133,244,0.5);
-  color: #6fa1f5;
-}
-.cal-export-btn.google:hover {
-  border-color: #4285f4;
-  color: #8ab4f8;
-  background: rgba(66,133,244,0.12);
-}
-.cal-export-btn.apple {
-  border-color: rgba(210,214,220,0.4);
-  color: #d2d6dc;
-}
-.cal-export-btn.apple:hover {
-  border-color: #d2d6dc;
-  color: #f2f4f7;
-  background: rgba(210,214,220,0.1);
 }
 
 /* ── Profile Menu ──────────────────────────────────────────────────────── */
@@ -3222,7 +2755,6 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
     flex-shrink: 0;
   }
   .header-sep { display: none; }
-  .header .nav-week { display: none; }
   .header .header-spacer { flex: 1; min-width: 0; }
   .group-switcher { flex-shrink: 1; min-width: 0; overflow: visible; }
   .group-switcher-btn { max-width: 100%; }
@@ -3232,49 +2764,6 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
     max-width: calc(100vw - 1.5rem);
   }
 
-  /* ── Filter bar (mobile: Row 2 = dropdowns + search, Row 3 = nav + time) ── */
-  .filter-bar {
-    flex-wrap: wrap;
-    padding: 0.35rem 0.75rem;
-    gap: 0.4rem;
-  }
-  /* Row 2: Theatre, Members, Search — all order: 1, stay on one line */
-  .filter-bar > .filter-dd { order: 1; flex-shrink: 0; }
-  .filter-search-wrap {
-    flex: 1 1 0;
-    max-width: none;
-    min-width: 40px;
-    order: 1;
-  }
-  .filter-search-wrap {
-    position: static;
-  }
-  .filter-search-wrap .filter-dd-menu {
-    min-width: 0;
-    left: 0.75rem;
-    right: 0.75rem;
-    width: auto;
-  }
-  /* Keep member dropdown on-screen */
-  .filter-dd:nth-child(3) .filter-dd-menu {
-    left: auto;
-    right: 0;
-  }
-  .filter-search-input::placeholder { font-size: 0.75rem; }
-  .filter-clear { order: 1; }
-  /* Row 3: Nav + time pills (full-width row) */
-  .filter-nav-week {
-    display: flex !important;
-    order: 10;
-    flex-shrink: 0;
-  }
-  .filter-bar .filter-time-pills {
-    order: 10;
-    margin-left: auto;
-  }
-  .filter-time-label { display: none; }
-  .filter-time-pill { padding: 0.25rem 0.45rem; }
-  .nav-range { font-size: 0.8125rem; }
   .group-members-close {
     font-size: 1.6rem;
     min-width: 36px;
@@ -3288,56 +2777,6 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
-  }
-
-  /* ── Calendar Grid → single-column day list ── */
-  .day-headers { display: none; }
-  .calendar-grid {
-    grid-template-columns: 1fr;
-    grid-auto-rows: auto;
-    padding: 0.5rem;
-    gap: 0.5rem;
-    background: var(--bg);
-  }
-  .cal-day {
-    min-height: auto;
-    max-height: none;
-    overflow: visible;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    padding: 0.6rem 0.75rem;
-  }
-  .cal-day.outside-month { display: none; }
-  .cal-day-number {
-    font-size: 0.9375rem;
-    color: var(--cream);
-    margin-bottom: 0.3rem;
-    font-weight: 500;
-  }
-  .cal-day-weekday {
-    display: inline;
-    color: var(--muted);
-    font-weight: 400;
-  }
-  .cal-day.today .cal-day-number {
-    color: var(--amber);
-  }
-  .cal-event {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .cal-event > div { min-width: 0; flex: 1; }
-  .cal-event-time {
-    font-size: 0.8125rem;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    flex-shrink: 0;
-  }
-  .cal-event-title {
-    font-size: 0.875rem;
-    overflow-wrap: anywhere;
   }
 
   /* ── Drawers → full-width ───────────────────── */
@@ -3419,18 +2858,8 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
    ══════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .header-logo { font-size: 0.9375rem; }
-  .nav-btn { width: 22px; height: 22px; font-size: 0.875rem; }
-  .nav-today { font-size: 0.75rem; padding: 0.15rem 0.35rem; }
-  .nav-range { font-size: 0.75rem; }
-  .nav-week { gap: 0.3rem; }
   .user-avatar { width: 26px; height: 26px; font-size: 0.75rem; }
   .group-switcher-btn { font-size: 0.75rem; }
-  .filter-dd-btn { font-size: 0.75rem; padding: 0.2rem 0.4rem; }
-  .filter-time-pill { font-size: 0.75rem; }
-  .filter-search-input { font-size: 0.75rem; }
-
-  .cal-event-title { font-size: 0.8125rem; }
-  .cal-event-time { font-size: 0.75rem; }
 
   .drawer-title { font-size: 1.25rem; }
   .drawer-hero { height: 130px; }

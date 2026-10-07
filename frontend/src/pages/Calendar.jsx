@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import PageHeader from "../ui/PageHeader";
+import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import FilterSheet, { listOf } from "../ui/FilterSheet";
 import Avatar from "../ui/Avatar";
 import { Segmented } from "../ui/TicketRow";
@@ -34,11 +34,14 @@ const DEEP_LINK = (() => {
 const VIEWS = [{ status: "agenda", label: "Agenda" }, { status: "week", label: "Week" }, { status: "month", label: "Month" }];
 const MULTI = new Set(["theatres", "regions", "genres", "format", "members"]);
 const FILTER_KEYS = ["theatres", "regions", "genres", "decade", "format", "time", "rarity", "club", "runtime", "mood", "shelf", "q", "members"];
-// Smart pills, after Discover's main sections. Shelf pills replace each other.
-const QUICK = [["club", "going", "Friends going"], ["rarity", "rare", "Rare"], ["shelf", "one-night", "One night only"],
-               ["format", "film", "On film"], ["shelf", "classics", "Classics"], ["shelf", "arthouse", "Arthouse"],
-               ["shelf", "awards", "Award winners"], ["shelf", "events", "Special events"], ["time", "late", "Late night"],
-               ["club", "mine", "My plans"]];
+// Quick pills: the club's own two, then smart ones after Discover's main
+// sections (shelf pills replace each other). Phones show the first few smart
+// pills and a "+N more" chip.
+const CLUB_PILLS = [["club", "going", "Friends going"], ["club", "mine", "My plans"]];
+const SMART_PILLS = [["rarity", "rare", "Rare"], ["shelf", "one-night", "One night only"], ["format", "film", "On film"],
+                     ["shelf", "classics", "Classics"], ["shelf", "arthouse", "Arthouse"], ["shelf", "awards", "Award winners"],
+                     ["shelf", "events", "Special events"], ["time", "late", "Late night"]];
+const PHONE_PILLS = 3;
 const AGENDA_SPAN = 14;
 const WEEK_TOP = 8;               // films shown per day in Week before "+N more"
 
@@ -204,6 +207,7 @@ export default function Calendar({ user, apiBase, groupId }) {
   const [attendanceKey, setAttendanceKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expanded, setExpanded] = useState(new Set());   // Week days showing every film
+  const [allPills, setAllPills] = useState(false);       // phones: every smart pill
   const deepLink = useRef(DEEP_LINK);
 
   const { start, end } = viewRange(view, anchor, dayOnly ? 1 : span);
@@ -342,12 +346,29 @@ export default function Calendar({ user, apiBase, groupId }) {
         </button>
       </div>
 
-      <div className="cal-quick" role="group" aria-label="Quick filters">
-        {QUICK.map(([k, v, label]) => {
-          const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
-          return <button key={`${k}:${v}`} type="button" className={`chip${on ? " gold" : ""}`} aria-pressed={on} onClick={() => toggle(k, v)}>{label}</button>;
-        })}
-        {nFilters > 0 && <button type="button" className="chip" onClick={clearFilters}>Clear all</button>}
+      <div className={`cal-quick${allPills ? " open" : ""}`} role="group" aria-label="Quick filters">
+        {(() => {
+          const pill = ([k, v, label], i, extra = false) => {
+            const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
+            return (
+              <button key={`${k}:${v}`} type="button" className={`chip${on ? " gold" : ""}${extra && !on ? " extra" : ""}`}
+                      aria-pressed={on} onClick={() => toggle(k, v)}>{label}</button>
+            );
+          };
+          return (
+            <>
+              <div className="cal-quick-group">{CLUB_PILLS.map((p, i) => pill(p, i))}</div>
+              <span className="cal-quick-sep" aria-hidden="true" />
+              <div className="cal-quick-group">
+                {SMART_PILLS.map((p, i) => pill(p, i, i >= PHONE_PILLS))}
+                <button type="button" className="chip cal-quick-more" aria-expanded={allPills} onClick={() => setAllPills(o => !o)}>
+                  {allPills ? "Fewer" : `+${SMART_PILLS.length - PHONE_PILLS} more`}
+                </button>
+                {nFilters > 0 && <button type="button" className="chip cal-quick-clear" onClick={clearFilters}>Clear all</button>}
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       <AttendancePrompt apiBase={apiBase} refreshKey={attendanceKey} onAnswer={handleAttendance} onOpenShowtime={openShowtime} />
@@ -384,7 +405,13 @@ export default function Calendar({ user, apiBase, groupId }) {
             const all = expanded.has(key);
             return (
               <section key={key} className={`cal-col${key === ymd(today) ? " today" : ""}`} aria-label={dayTitle(d, today)}>
-                <h2 className="cal-col-head">{dayTitle(d, today)}</h2>
+                <h2 className="cal-col-head">
+                  <span className="deco">{d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                  <span className="cal-col-sub">
+                    {[key === ymd(today) ? "Today" : key === ymd(addDays(today, 1)) ? "Tomorrow" : null,
+                      !loading && `${entries.length} film${entries.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
+                  </span>
+                </h2>
                 {!loading && !entries.length && <p className="cal-col-empty">Nothing matches.</p>}
                 {(all ? entries : entries.slice(0, WEEK_TOP)).map(e => <WeekCard key={e.movie.id} entry={e} onOpen={open} />)}
                 {entries.length > WEEK_TOP && (
@@ -411,8 +438,12 @@ export default function Calendar({ user, apiBase, groupId }) {
             const entries = days[key] || [];
             if (!entries.length) return null;
             return (
-              <section key={key} className="cal-day">
-                <h2 className="cal-day-head">{dayTitle(d, today)} <span>{entries.length} film{entries.length === 1 ? "" : "s"}</span></h2>
+              <section key={key} className="cal-agenda-day">
+                <div className="cal-agenda-head">
+                  <SectionTitle action={<span className="cal-count">{entries.length} film{entries.length === 1 ? "" : "s"}</span>}>
+                    {dayTitle(d, today)}
+                  </SectionTitle>
+                </div>
                 <div className="cal-tiles">
                   {entries.map(e => <AgendaTile key={e.movie.id} entry={e} onOpen={open} />)}
                 </div>
