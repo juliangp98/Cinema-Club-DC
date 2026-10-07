@@ -801,8 +801,8 @@ async def post_digest(channel, tag_watchers=False):
         return False
     try:
         digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
-        content, embed, tagged = embeds.digest_message(digest, tag_watchers=tag_watchers)
-        await channel.send(content, embed=embed,
+        content, embed, tagged, plans = embeds.digest_message(digest, tag_watchers=tag_watchers)
+        await channel.send(content, embed=embed, view=plans_view(plans),
                            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
     except Exception as e:
         print(f'digest failed: {e}')
@@ -1706,6 +1706,17 @@ async def refresh_thread_ids(force=False):
         _thread_ids_loaded = time.monotonic()
 
 
+def plans_view(plans):
+    """Going buttons for the digest's "make plans" picks (private RSVPs)."""
+    if not plans:
+        return discord.utils.MISSING
+    view = discord.ui.View(timeout=None)
+    for p in plans[:5]:
+        when = datetime.fromisoformat(p['start_time']).strftime('%a %-I:%M %p').replace(':00 ', ' ')
+        view.add_item(ThreadRsvpButton('going', p['showtime_id'], label=f"Going · {p['title']} {when}"))
+    return view
+
+
 def thread_card_view(card):
     view = discord.ui.View(timeout=None)
     view.add_item(ThreadRsvpButton('going', card['showtime_id']))
@@ -1982,9 +1993,9 @@ class ThreadRsvpButton(discord.ui.DynamicItem[discord.ui.Button],
                        template=r'disc:rsvp:(?P<status>going|maybe):(?P<sid>[0-9]+)'):
     """Going / Maybe on a thread's card: RSVPs privately (the card's list
     refreshes within a few minutes)."""
-    def __init__(self, status, showtime_id):
+    def __init__(self, status, showtime_id, label=None):
         super().__init__(discord.ui.Button(
-            label='Going' if status == 'going' else 'Maybe',
+            label=(label or ('Going' if status == 'going' else 'Maybe'))[:80],
             style=discord.ButtonStyle.success if status == 'going' else discord.ButtonStyle.secondary,
             custom_id=f'disc:rsvp:{status}:{showtime_id}'))
         self.status, self.showtime_id = status, showtime_id
@@ -2638,8 +2649,8 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
             print(f'/digest preview failed: {e}')
             await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
             return
-        _, embed, _ = embeds.digest_message(digest)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        _, embed, _, plans = embeds.digest_message(digest)
+        await interaction.followup.send(embed=embed, view=plans_view(plans), ephemeral=True)
         return
 
     # Anyone can post it, so keep the channel from getting spammed.

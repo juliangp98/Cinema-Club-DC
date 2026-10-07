@@ -3157,8 +3157,15 @@ def internal_showtime_facets():
 
 
 DIGEST_RETAG_AFTER = timedelta(days=14)  # tag someone about a watchlisted film at most fortnightly
-REPERTORY_AGE_YEARS = 5                  # "rare screening" = a film at least this old...
-FILM_FORMATS = ('70mm', '35mm', '16mm')  # ...or projected on film
+RARE_MIN_SCORE = 4                       # a screening needs this rarity score to be called rare
+PLAN_MIN_WATCHERS = 2                    # "make plans": members wanting a film nobody's going to yet
+LAST_CHANCE_MARGIN = timedelta(days=3)   # the theatre's schedule must run this far past the last showing
+DIGEST_CAPS = {'plans': 2, 'rare': 5, 'last_chance': 3, 'opening': 4}   # keep it short enough to read
+EVENT_WORDS = [                          # special-event billing -> (pattern, how the digest says it)
+    (r'q\s*&\s*a', 'Q&A'), (r'in[- ]person', 'in person'), (r'\bintro', 'intro'), (r'premiere', 'premiere'),
+    (r'anniversary', 'anniversary'), (r'double[- ]feature', 'double feature'), (r'marathon', 'marathon'),
+    (r'\bguest', 'guest'), (r'conversation with', 'conversation'),
+]
 
 
 def _showtime_brief(s):
@@ -3166,77 +3173,203 @@ def _showtime_brief(s):
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
 
 
+def rarity(s, showings, venues, this_year):
+    """(score, reasons) for one screening of a film shown `showings` times at
+    `venues` theatres in the digest window. Rewards what makes a screening hard
+    to catch again: few showings, film prints, age, one venue, special events —
+    and marks down wide releases, so an anniversary re-release in 30
+    multiplex slots doesn't count."""
+    score, why = 0, []
+    if showings == 1:
+        score += 3; why.append('one night only')
+    elif showings <= 3:
+        score += 2; why.append(f'{showings} showings')
+    elif showings <= 6:
+        score += 1
+    else:
+        score -= 2
+    fmt = (s.format_label or '').lower()
+    if '70mm' in fmt:
+        score += 4; why.append('70mm')
+    elif '35mm' in fmt or '16mm' in fmt:
+        score += 3; why.append('35mm' if '35mm' in fmt else '16mm')
+    year = _as_int((s.movie.release_year or '')[:4])
+    if year:
+        age = this_year - year
+        score += 3 if age >= 40 else 2 if age >= 20 else 1 if age >= 5 else 0
+        if age >= 5:
+            why.append(str(year))
+    if venues == 1:
+        score += 1
+    billing = s.event_label or ''
+    for pattern, label in EVENT_WORDS:
+        if re.search(pattern, billing, re.I):
+            score += 2; why.append(label)
+            break
+    return score, why
+
+
+def schedule_horizons(group, now):
+    """{theatre_id: the date through which it has published its full schedule}.
+    Theatres list regular films only a week or so out but special events months
+    ahead, so a theatre's latest showtime says nothing about whether a film's
+    run continues. Instead: the last day that still has at least half the
+    theatre's typical daily showtimes (median of the coming week)."""
+    rows = (_group_showtime_query(group)
+            .with_entities(Showtime.theatre_id, db.func.date(Showtime.start_time), db.func.count(Showtime.id))
+            .filter(Showtime.start_time >= now, Showtime.start_time < now + timedelta(days=90))
+            .group_by(Showtime.theatre_id, db.func.date(Showtime.start_time)).all())
+    per_day = {}
+    for tid, day, n in rows:
+        per_day.setdefault(tid, {})[(datetime.fromisoformat(str(day)).date() - now.date()).days] = n
+    horizons = {}
+    for tid, days in per_day.items():
+        week = sorted(days.get(d, 0) for d in range(7))
+        threshold = max(1, week[3] / 2)
+        full = [d for d, n in days.items() if n >= threshold]
+        horizons[tid] = datetime.combine(now.date() + timedelta(days=max(full) if full else 0), datetime.max.time())
+    return horizons
+
+
+def digest_recap(group, members, now):
+    """Last week in a line or two: check-ins, the most-discussed screening,
+    and any poll that was scored."""
+    week_ago = now - timedelta(days=7)
+    recent = {s.id: s for s in _group_showtime_query(group)
+              .filter(Showtime.start_time >= week_ago, Showtime.start_time < now)}
+    per_film, checkins = {}, 0
+    for uid in members or []:
+        for sid in attended_showtime_ids(uid, {group.id}) & recent.keys():
+            checkins += 1
+            title = recent[sid].movie.title
+            per_film[title] = per_film.get(title, 0) + 1
+    top = max(per_film.items(), key=lambda kv: kv[1]) if per_film else None
+    talk = (db.session.query(Message.showtime_id, db.func.count(Message.id))
+            .filter(Message.group_id == group.id, Message.created_at >= _utcnow_naive() - timedelta(days=7))
+            .group_by(Message.showtime_id).order_by(db.func.count(Message.id).desc()).first())
+    discussed = None
+    if talk and talk[1] >= 3:
+        st = db.session.get(Showtime, talk[0])
+        thread = ShowtimeThread.query.filter_by(showtime_id=talk[0], group_id=group.id).first()
+        discussed = {'title': st.movie.title, 'comments': talk[1], 'url': thread.url if thread else None}
+    poll = (Poll.query.filter(Poll.group_id == group.id, Poll.status == 'scored',
+                              Poll.scored_at >= _utcnow_naive() - timedelta(days=7))
+            .order_by(Poll.scored_at.desc()).first())
+    board = poll_scores(poll) if poll else []
+    return {'checkins': checkins, 'films': len(per_film),
+            'top_film': {'title': top[0], 'count': top[1]} if top and top[1] > 1 else None,
+            'discussed': discussed,
+            'poll': {'title': poll.title, 'winner': board[0]['user'].name, 'kernels': board[0]['kernels']}
+            if board else None}
+
+
 @app.route('/api/internal/digest')
 @require_internal
 def internal_digest():
-    """The weekly digest's sections, computed here so the bot gets a small payload:
-      whos_going — screenings in the window with group RSVPs,
-      rare       — repertory (older) films and screenings on film, one per film,
-      new_titles — films added by each theatre's schedule drops this past week,
-      watchlist  — watchlisted films playing in the window with their watchers
-                   (`fresh`: not tagged about that film in the last two weeks),
-      open_polls."""
+    """The weekly digest's sections, computed here so the bot gets a small,
+    already-trimmed payload. Each film appears in at most one of plans / rare /
+    last_chance / opening (in that priority):
+      whos_going      — screenings in the window with group RSVPs
+      plans           — films PLAN_MIN_WATCHERS+ members want, nobody's going to yet
+      rare            — top screenings by rarity() score (>= RARE_MIN_SCORE), with reasons
+      last_chance     — a film's final showing, when its theatre's schedule clearly runs on
+      opening         — recent releases appearing on the club's theatres for the first time
+      watchlist       — watchlisted films playing, with their watchers (`fresh`: taggable)
+      open_polls, recap (last week), new_on_calendar (schedule-drop counts per theatre)."""
     import json as _json
     group_id = request.args.get('group_id', type=int)
     days = request.args.get('days', 7, type=int)
     group = db.session.get(Group, group_id) if group_id else None
     now = datetime.now()
+    window_end = now + timedelta(days=days)
 
     showtimes = (_group_showtime_query(group)
-                 .filter(Showtime.start_time >= now,
-                         Showtime.start_time <= now + timedelta(days=days))
+                 .filter(Showtime.start_time >= now, Showtime.start_time <= window_end)
                  .order_by(Showtime.start_time).all())
+    by_movie = {}
+    for s in showtimes:
+        by_movie.setdefault(s.movie_id, []).append(s)
+    members = ({m.user_id for m in group.memberships if m.status == 'active'} if group else None)
 
-    whos_going = []
+    whos_going, going_movies = [], set()
     for s in showtimes:
         going = [r.user.name for r in s.rsvps
                  if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
         if going:
             whos_going.append({**_showtime_brief(s), 'going': going})
+            going_movies.add(s.movie_id)
 
-    showings = {}
-    for s in showtimes:
-        showings[s.movie_id] = showings.get(s.movie_id, 0) + 1
-    rare, listed = [], set()
-    for s in showtimes:
-        year = _as_int((s.movie.release_year or '')[:4])
-        repertory = year is not None and year <= now.year - REPERTORY_AGE_YEARS
-        on_film = any(f in (s.format_label or '') for f in FILM_FORMATS)
-        if (repertory or on_film) and s.movie_id not in listed:
-            listed.add(s.movie_id)
-            rare.append({**_showtime_brief(s), 'year': s.movie.release_year,
-                         'showings': showings[s.movie_id]})
-
-    new_titles = {}
-    for e in (ScrapeEvent.query
-              .filter(ScrapeEvent.event_type.in_(('new_drop', 'new_showtimes')),
-                      ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days))
-              .order_by(ScrapeEvent.created_at)):
-        p = _json.loads(e.payload_json or '{}')
-        theatre = p.get('theatre_name') or (e.theatre.name if e.theatre else '')
-        entry = new_titles.setdefault(theatre, {'theatre': theatre, 'showtimes': 0, 'titles': []})
-        entry['showtimes'] += p.get('new_showtime_count') or 0
-        for movie in Movie.query.filter(Movie.id.in_(p.get('movie_ids') or [])):
-            if movie.title not in entry['titles']:
-                entry['titles'].append(movie.title)
-
-    first_showing = {}
-    for s in showtimes:
-        first_showing.setdefault(s.movie_id, s)
-    members = ({m.user_id for m in group.memberships if m.status == 'active'} if group else None)
     retag_before = _utcnow_naive() - DIGEST_RETAG_AFTER
     watchers_by_movie = {}
-    for w in (Watchlist.query.filter(Watchlist.movie_id.in_(first_showing)).all()
-              if first_showing else []):
+    for w in (Watchlist.query.filter(Watchlist.movie_id.in_(by_movie)).all() if by_movie else []):
         if w.user and w.user.is_active and (members is None or w.user_id in members):
             watchers_by_movie.setdefault(w.movie_id, []).append({
                 'watchlist_id': w.id, 'name': w.user.name,
                 'discord_user_id': w.user.discord_user_id,
                 'fresh': not w.last_notified_at or w.last_notified_at < retag_before,
             })
-    watchlist = sorted(({**_showtime_brief(first_showing[mid]), 'watchers': ws}
+
+    used = set()
+    plans = []
+    for mid, ws in sorted(watchers_by_movie.items(), key=lambda kv: (-len(kv[1]), by_movie[kv[0]][0].start_time)):
+        if len(ws) >= PLAN_MIN_WATCHERS and mid not in going_movies and len(plans) < DIGEST_CAPS['plans']:
+            plans.append({**_showtime_brief(by_movie[mid][0]), 'wanters': [w['name'] for w in ws]})
+            used.add(mid)
+
+    candidates = []
+    for mid, shows in by_movie.items():
+        if mid in used:
+            continue
+        venues = len({s.theatre_id for s in shows})
+        best = max(((rarity(s, len(shows), venues, now.year), s) for s in shows),
+                   key=lambda x: (x[0][0], -x[1].start_time.timestamp()))
+        (score, why), s = best
+        if score >= RARE_MIN_SCORE:
+            candidates.append((mid, {**_showtime_brief(s), 'score': score, 'reasons': why}))
+    candidates.sort(key=lambda c: (-c[1]['score'], c[1]['start_time']))
+    rare = [entry for _, entry in candidates[:DIGEST_CAPS['rare']]]
+    used.update(mid for mid, _ in candidates[:DIGEST_CAPS['rare']])
+
+    base = _group_showtime_query(group)
+    horizon = schedule_horizons(group, now)
+    span = {mid: (first, last, n) for mid, first, last, n in base.with_entities(
+        Showtime.movie_id, db.func.min(Showtime.start_time), db.func.max(Showtime.start_time),
+        db.func.count(Showtime.id)).filter(Showtime.movie_id.in_(by_movie)).group_by(Showtime.movie_id)} \
+        if by_movie else {}
+
+    last_chance = []
+    for mid, shows in sorted(by_movie.items(), key=lambda kv: kv[1][-1].start_time):
+        first, last, total = span.get(mid, (None, None, 0))
+        final = shows[-1]
+        if mid in used or total < 3 or last != final.start_time or len(last_chance) >= DIGEST_CAPS['last_chance']:
+            continue
+        if horizon.get(final.theatre_id, final.start_time) >= final.start_time + LAST_CHANCE_MARGIN:
+            last_chance.append(_showtime_brief(final))
+            used.add(mid)
+
+    opening = []
+    for mid, shows in by_movie.items():
+        first, last, total = span.get(mid, (None, None, 0))
+        year = _as_int((shows[0].movie.release_year or '')[:4])
+        if mid in used or not year or year < now.year - 1 or not first or first < now - timedelta(hours=12):
+            continue
+        opening.append({**_showtime_brief(shows[0]), 'theatres': len({s.theatre_id for s in shows})})
+    # Widest openings first: a film opening at five theatres beats a one-off.
+    opening = sorted(opening, key=lambda x: (-x['theatres'], x['start_time']))[:DIGEST_CAPS['opening']]
+
+    planned = {p['showtime_id'] for p in plans}
+    watchlist = sorted(({**_showtime_brief(by_movie[mid][0]), 'watchers': ws,
+                         'planned': by_movie[mid][0].id in planned}
                         for mid, ws in watchers_by_movie.items()),
                        key=lambda item: item['start_time'])
+
+    new_on_calendar = {}
+    for e in (ScrapeEvent.query
+              .filter(ScrapeEvent.event_type.in_(('new_drop', 'new_showtimes')),
+                      ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days))):
+        p = _json.loads(e.payload_json or '{}')
+        name = (e.theatre.short_name or e.theatre.name) if e.theatre else p.get('theatre_name', '')
+        new_on_calendar[name] = new_on_calendar.get(name, 0) + (p.get('new_showtime_count') or 0)
 
     open_polls = ([p.to_dict() for p in Poll.query.filter_by(group_id=group.id, status='open')]
                   if group else [])
@@ -3245,10 +3378,15 @@ def internal_digest():
         'group_name': group.name if group else None,
         'days': days,
         'whos_going': whos_going,
+        'plans': plans,
         'rare': rare,
-        'new_titles': sorted(new_titles.values(), key=lambda t: -t['showtimes']),
+        'last_chance': last_chance,
+        'opening': opening,
         'watchlist': watchlist,
         'open_polls': open_polls,
+        'recap': digest_recap(group, members, now) if group else None,
+        'new_on_calendar': [{'theatre': t, 'showtimes': n}
+                            for t, n in sorted(new_on_calendar.items(), key=lambda kv: -kv[1]) if n],
     })
 
 

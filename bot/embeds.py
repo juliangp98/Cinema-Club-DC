@@ -305,21 +305,52 @@ def _add_field(embed, name, lines, limit=10):
         embed.add_field(name=name, value='\n'.join(out)[:1024], inline=False)
 
 
-def digest_message(digest, tag_watchers=False):
-    """The weekly digest as (content, embed, tagged_watchlist_ids).
+def _short_when(iso):
+    return datetime.fromisoformat(iso).strftime('%a %-m/%-d %-I:%M %p').replace(':00 ', ' ')
 
-    @mentions inside an embed don't notify anyone, so when tag_watchers is set
-    (the scheduled Monday post) the people to ping go in `content`, one line per
-    person — only for films they haven't been tagged about in two weeks
-    (`fresh`). The returned watchlist ids are reported to the backend after a
-    successful post, which also emails members who aren't on Discord."""
+
+def _names(names, limit=3):
+    return ', '.join(names[:limit]) + (f" +{len(names) - limit}" if len(names) > limit else '')
+
+
+def digest_message(digest, tag_watchers=False):
+    """The weekly digest as (content, embed, tagged_watchlist_ids, plan_picks).
+
+    Short by design: each section is capped (the backend already trims and
+    de-duplicates films across sections), empty ones are skipped, and schedule
+    drops are one footer line. @mentions inside an embed don't notify anyone,
+    so when tag_watchers is set (the scheduled Monday post) the people to ping
+    go in `content` — only for films they haven't been tagged about in two
+    weeks. plan_picks are the "make plans" screenings, for Going buttons."""
     group_name = digest.get('group_name') or 'Cinema Club DC'
     embed = discord.Embed(title=f"🍿 This week at the movies — {group_name}",
-                          colour=AMBER, url=SITE_URL)
+                          colour=AMBER, url=f'{SITE_URL}/calendar')
 
-    _add_field(embed, "🎟️ Who's going",
-               [f"{_screening(s)} — {', '.join(s['going'][:6])}"
-                for s in digest.get('whos_going', [])])
+    def line(item, extra=''):
+        fmt = f" · {item['format_label']}" if item.get('format_label') else ''
+        return f"**{item['title']}** — {_short_when(item['start_time'])} @ {item['theatre']}{fmt}{extra}"
+
+    going = digest.get('whos_going', [])
+    if going:
+        lines = [line(s, f" — {_names(s['going'])}") for s in going[:5]]
+        if len(going) > 5:
+            lines.append(f"+{len(going) - 5} more → `/whosgoing`")
+        embed.add_field(name="🎟️ Who's going", value='\n'.join(lines)[:1024], inline=False)
+
+    plans = digest.get('plans', [])
+    if plans:
+        _add_field(embed, '🤝 Make plans — nobody’s going yet',
+                   [f"**{p['title']}** — {_names(p['wanters'], 2)} want to see it · next "
+                    f"{_short_when(p['start_time'])} @ {p['theatre']}" for p in plans])
+    _add_field(embed, '💎 Rare this week',      # the reasons already name the print format
+               [f"**{r['title']}** — {_short_when(r['start_time'])} @ {r['theatre']}"
+                + (f" · {' · '.join(r['reasons'])}" if r.get('reasons') else '')
+                for r in digest.get('rare', [])])
+    _add_field(embed, '🆕 Opening this week',
+               [f"**{o['title']}** — from {_short_when(o['start_time'])} @ {o['theatre']}"
+                + (f" (+{o['theatres'] - 1} more)" if o.get('theatres', 1) > 1 else '')
+                for o in digest.get('opening', [])])
+    _add_field(embed, '⏳ Last chance', [line(x, ' · last showing') for x in digest.get('last_chance', [])])
 
     tagged, pings, lines = [], {}, []
     for item in digest.get('watchlist', []):
@@ -330,37 +361,45 @@ def digest_message(digest, tag_watchers=False):
                 if w.get('discord_user_id'):
                     pings.setdefault(w['discord_user_id'], []).append(item['title'])
             names.append(f"<@{w['discord_user_id']}>" if w.get('discord_user_id') else w['name'])
-        lines.append(f"{_screening(item)} — {', '.join(names)}")
-    _add_field(embed, '👀 On your watchlists', lines)
+        if not item.get('planned'):              # already under "Make plans"
+            lines.append(f"**{item['title']}** — {', '.join(names)}")
+    _add_field(embed, '👀 On your watchlists', lines, limit=5)
 
-    rare = []
-    for r in digest.get('rare', []):
-        year = f" ({r['year']})" if r.get('year') else ''
-        more = f" · {r['showings']} showings" if r.get('showings', 1) > 1 else ''
-        rare.append(_screening(r, year) + more)
-    _add_field(embed, '🎞️ Rare screenings', rare)
+    polls = digest.get('open_polls', [])
+    if polls:
+        embed.add_field(name='🗳️ Polls', inline=False,
+                        value=(' · '.join(f"**{p['title']}**" for p in polls[:3]) + ' — vote with `/vote`')[:1024])
 
-    new = []
-    for t in digest.get('new_titles', []):
-        titles = t.get('titles') or []
-        shown = ', '.join(titles[:6]) + (f" +{len(titles) - 6} more" if len(titles) > 6 else '')
-        new.append(f"📅 **{t['theatre']}** added {t['showtimes']} showtimes" + (f": {shown}" if shown else ''))
-    _add_field(embed, '🆕 New this week', new)
-
-    polls = [f"**{p['title']}** — `/vote` here or [on the site]({SITE_URL}/polls/{p['id']})"
-             for p in digest.get('open_polls', [])]
-    _add_field(embed, '🗳️ Open polls', polls, limit=5)
+    recap = digest.get('recap') or {}
+    bits = []
+    if recap.get('checkins'):
+        top = recap.get('top_film')
+        bits.append(f"{recap['checkins']} check-in{'s' if recap['checkins'] != 1 else ''} across "
+                    f"{recap['films']} film{'s' if recap['films'] != 1 else ''}"
+                    + (f" (most: {top['title']} ×{top['count']})" if top else ''))
+    if recap.get('discussed'):
+        d = recap['discussed']
+        title = f"[{d['title']}]({d['url']})" if d.get('url') else d['title']
+        bits.append(f"most talked about: {title} ({d['comments']} comments)")
+    if recap.get('poll'):
+        p = recap['poll']
+        bits.append(f"🏆 {p['title']}: {p['winner']} ({p['kernels']} 🍿)")
+    if bits:
+        embed.add_field(name='📊 Last week', value=' · '.join(bits)[:1024], inline=False)
 
     if not embed.fields:
         embed.description = 'A quiet week — nothing on the calendar yet.'
-    embed.set_footer(text=f'Full calendar → {SITE_URL}/calendar')
+    drops = digest.get('new_on_calendar') or []
+    new_line = ('New on the calendar: ' + ' · '.join(f"{d['theatre']} +{d['showtimes']}" for d in drops[:5]) + '\n') \
+        if drops else ''
+    embed.set_footer(text=f"{new_line}Full calendar → {SITE_URL}/calendar")
 
     content = None
     if pings:
         content = '👀 **On your watchlists this week:**\n' + '\n'.join(
             f"<@{uid}> — {', '.join(titles)}" for uid, titles in pings.items())
         content = content[:2000]
-    return content, embed, tagged
+    return content, embed, tagged, plans
 
 
 # ─── Polls (/vote ballots and #movies posts) ──────────────────────────────────
