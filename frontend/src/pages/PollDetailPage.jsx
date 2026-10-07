@@ -151,15 +151,9 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     } else if (voteData.option_id) {
       voteList.push({ category_id: catId, option_id: voteData.option_id, confidence: voteData.confidence || 1 });
     }
-    // If nothing to save (e.g. all ranked picks removed), still send to clear existing votes
-    if (voteList.length === 0 && poll.scoring_mode === 'ranked') {
-      // Send empty vote to trigger delete of existing votes for this category
-      // The backend only deletes for "seen_cats", so we need at least a mention
-      // Just skip - removing all ranked picks is fine, nothing to save
-      setSaveStatus(prev => ({ ...prev, [catId]: 'saved' }));
-      return;
-    }
-    if (voteList.length === 0) {
+    // Removing every ranked pick clears the category.
+    const clear = voteList.length === 0 && poll.scoring_mode === 'ranked' ? [catId] : [];
+    if (voteList.length === 0 && !clear.length) {
       setSaveStatus(prev => ({ ...prev, [catId]: undefined }));
       return;
     }
@@ -168,9 +162,10 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ votes: voteList }),
+        body: JSON.stringify({ votes: voteList, clear }),
       });
       setSaveStatus(prev => ({ ...prev, [catId]: r.ok ? 'saved' : 'error' }));
+      if (r.ok) fetchPollQuiet();   // your pick unlocks this category's vote split
     } catch {
       setSaveStatus(prev => ({ ...prev, [catId]: 'error' }));
     }
@@ -603,6 +598,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
         {tab === "results" && (
           <div className="poll-results-view">
             {poll.categories.map((cat, i) => {
+              // The split stays hidden until you've picked (or voting closes).
+              const splitHidden = !cat.vote_distribution;
               const dist = cat.vote_distribution || {};
               const totalVotes = Object.values(dist).reduce((a, b) => a + b, 0);
               const userVote = cat.user_vote;
@@ -616,6 +613,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
                     <span className="poll-category-num">{i + 1}.</span>
                     {cat.title}
                   </div>
+                  {splitHidden && <p className="poll-ranked-hint">Pick yours to see how everyone voted.</p>}
                   <div className="poll-results-list">
                     {cat.options.map(opt => {
                       const count = dist[opt.id] || 0;
@@ -638,9 +636,11 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
                             {isUserPick && !correctId && isRanked && ` ← your #${userRankedPick.rank} pick`}
                             {isUserPick && !correctId && !isRanked && " ← your pick"}
                           </span>
-                          <span className="poll-result-count">
-                            {count} ({pct}%)
-                          </span>
+                          {!splitHidden && (
+                            <span className="poll-result-count">
+                              {count} ({pct}%)
+                            </span>
+                          )}
                         </div>
                       );
                     })}

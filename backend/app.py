@@ -656,8 +656,8 @@ class PollCategory(db.Model):
             'correct_option_id': self.correct_option_id if show_winner else None,
             'vote_count': len(self.votes),
         }
+        user_votes = [v for v in self.votes if v.user_id == user_id] if user_id else []
         if user_id:
-            user_votes = [v for v in self.votes if v.user_id == user_id]
             if user_votes:
                 if self.poll.scoring_mode == 'ranked':
                     d['user_votes'] = sorted(
@@ -671,8 +671,9 @@ class PollCategory(db.Model):
                         'confidence': uv.confidence,
                         'rank': uv.rank,
                     }
-        # Vote distribution (visible after user has voted or poll closed)
-        if user_id or show_winner:
+        # How everyone voted: only once you've picked here, or voting has closed,
+        # so nobody is swayed before choosing.
+        if user_votes or show_winner or self.poll.status != 'open':
             dist = {}
             for v in self.votes:
                 dist[v.option_id] = dist.get(v.option_id, 0) + 1
@@ -2434,6 +2435,7 @@ def create_poll(group_id):
             db.session.add(opt)
 
     db.session.commit()
+    emit_poll_activity(poll, 'poll_opened')
     return jsonify(poll.to_dict(include_categories=True)), 201
 
 
@@ -2485,6 +2487,7 @@ def create_oscars_poll(group_id):
             db.session.add(opt)
 
     db.session.commit()
+    emit_poll_activity(poll, 'poll_opened')
     return jsonify(poll.to_dict(include_categories=True)), 201
 
 
@@ -2542,6 +2545,134 @@ def delete_poll(poll_id):
     return jsonify({'message': 'Poll deleted'})
 
 
+# ─── Poll voting + scoring rules (shared by the site and Discord's /vote) ─────
+
+RANKED_PICKS = 3
+
+
+def apply_votes(user, poll, votes_data, clear=()):
+    """Save a member's picks for an open poll. Each category mentioned (in
+    votes, or in clear) is replaced wholesale, so an empty ranked list or a
+    clear wipes it. Invalid entries are skipped. Returns how many were saved.
+    - single/none: one pick per category (the last one sent wins)
+    - confidence: one pick, confidence clamped to 1–10
+    - ranked: up to RANKED_PICKS distinct nominees, distinct ranks 1..RANKED_PICKS"""
+    cats = {c.id: c for c in poll.categories}
+    picks = {}
+    for v in votes_data or []:
+        if not isinstance(v, dict):
+            continue
+        cat = cats.get(_as_int(v.get('category_id')))
+        opt_id = _as_int(v.get('option_id'))
+        if cat and opt_id in {o.id for o in cat.options}:
+            picks.setdefault(cat.id, []).append((opt_id, v))
+
+    rows = []
+    for cat_id, entries in picks.items():
+        if poll.scoring_mode == 'ranked':
+            used_opts, used_ranks = set(), set()
+            for opt_id, v in entries:
+                rank = _as_int(v.get('rank'))
+                if not rank or not 1 <= rank <= RANKED_PICKS or rank in used_ranks or opt_id in used_opts:
+                    continue
+                used_opts.add(opt_id)
+                used_ranks.add(rank)
+                rows.append(PollVote(category_id=cat_id, user_id=user.id, option_id=opt_id, rank=rank))
+        else:
+            opt_id, v = entries[-1]
+            confidence = 1
+            if poll.scoring_mode == 'confidence':
+                confidence = max(1, min(10, _as_int(v.get('confidence')) or 1))
+            rows.append(PollVote(category_id=cat_id, user_id=user.id, option_id=opt_id, confidence=confidence))
+
+    touched = set(picks) | {c for c in (_as_int(x) for x in (clear or [])) if c in cats}
+    if touched:
+        PollVote.query.filter(PollVote.user_id == user.id, PollVote.category_id.in_(touched)) \
+            .delete(synchronize_session=False)
+    db.session.add_all(rows)
+    db.session.commit()
+    return len(rows)
+
+
+def vote_kernels(scoring_mode, vote, correct_option_id):
+    """Kernels one pick earned in a scored category (None if it has no winner yet)."""
+    if not correct_option_id:
+        return None
+    if vote.option_id == correct_option_id:
+        return {'confidence': vote.confidence, 'single': 1,
+                'ranked': max(1, 4 - (vote.rank or 1))}.get(scoring_mode, 0)
+    return -vote.confidence if scoring_mode == 'confidence' else 0
+
+
+def poll_scores(poll):
+    """One poll's standings: [{user, correct, kernels, total}], best first."""
+    scores = {}
+    for cat in poll.categories:
+        for vote in cat.votes:
+            s = scores.setdefault(vote.user_id, {'correct': 0, 'kernels': 0, 'total': 0})
+            s['total'] += 1
+            k = vote_kernels(poll.scoring_mode, vote, cat.correct_option_id)
+            if k is not None:
+                s['kernels'] += k
+                s['correct'] += vote.option_id == cat.correct_option_id
+    users = {u.id: u for u in User.query.filter(User.id.in_(scores))} if scores else {}
+    board = [{'user': users[uid], **s} for uid, s in scores.items() if uid in users]
+    board.sort(key=lambda x: (-x['kernels'], -x['correct']))
+    return board
+
+
+def poll_ballot(user, poll):
+    """Everything a Discord ballot shows, for one member: each category's
+    nominees, their picks, the vote split (once they've picked, or voting has
+    closed), and — once scored — the winners, their kernels and their place."""
+    mine = {}
+    for v in PollVote.query.join(PollCategory).filter(PollCategory.poll_id == poll.id,
+                                                       PollVote.user_id == user.id):
+        mine.setdefault(v.category_id, []).append(v)
+    scored = poll.status == 'scored'
+    cats = []
+    for c in poll.categories:
+        votes = sorted(mine.get(c.id, []), key=lambda v: v.rank or 0)
+        d = {'id': c.id, 'title': c.title,
+             'options': [{'id': o.id, 'text': o.text} for o in c.options],
+             'picks': [{'option_id': v.option_id, 'confidence': v.confidence, 'rank': v.rank} for v in votes],
+             'correct_option_id': c.correct_option_id if scored else None}
+        if votes or poll.status != 'open':
+            # Picks per nominee (ranked: any rank), out of the members who voted here.
+            d['voters'] = len({v.user_id for v in c.votes})
+            d['split'] = {}
+            for v in c.votes:
+                d['split'][str(v.option_id)] = d['split'].get(str(v.option_id), 0) + 1
+        if scored and c.correct_option_id and votes:
+            d['kernels'] = sum(vote_kernels(poll.scoring_mode, v, c.correct_option_id) for v in votes)
+        cats.append(d)
+    out = {'poll': {'id': poll.id, 'title': poll.title, 'status': poll.status,
+                    'scoring_mode': poll.scoring_mode, 'poll_type': poll.poll_type,
+                    'ranked_picks': RANKED_PICKS},
+           'categories': cats, 'answered': sum(1 for c in cats if c['picks'])}
+    if scored:
+        board = poll_scores(poll)
+        place = next((i for i, s in enumerate(board) if s['user'].id == user.id), None)
+        out['score'] = ({'kernels': board[place]['kernels'], 'correct': board[place]['correct'],
+                         'place': place + 1, 'of': len(board)} if place is not None else None)
+    return out
+
+
+def emit_poll_activity(poll, kind):
+    """Queue a #movies post: 'poll_opened' (with a Vote button) or 'poll_scored'
+    (top 3). The bot only posts for its own server's group."""
+    payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title,
+               'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
+               'categories': len(poll.categories), 'creator': poll.creator.name if poll.creator else None}
+    if kind == 'poll_scored':
+        board = poll_scores(poll)
+        payload['voters'] = len(board)
+        payload['top'] = [{'name': s['user'].name, 'discord_user_id': s['user'].discord_user_id,
+                           'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
+    db.session.add(ActivityEvent(kind=kind, payload_json=_json.dumps(payload)))
+    db.session.commit()
+
+
 @app.route('/api/polls/<int:poll_id>/vote', methods=['POST'])
 @require_auth
 def submit_votes(poll_id):
@@ -2554,43 +2685,10 @@ def submit_votes(poll_id):
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
 
-    data = request.json  # { votes: [{ category_id, option_id, confidence?, rank? }] }
-    votes_data = data.get('votes', [])
-
-    # Validate all votes first, then delete-and-insert per category
-    valid_votes = []
-    seen_cats = set()
-    for v in votes_data:
-        cat_id = v.get('category_id')
-        opt_id = v.get('option_id')
-        confidence = max(1, min(10, int(v.get('confidence', 1))))
-        rank = v.get('rank')
-
-        cat = db.session.get(PollCategory, cat_id)
-        if not cat or cat.poll_id != poll.id:
-            continue
-        opt = db.session.get(PollOption, opt_id)
-        if not opt or opt.category_id != cat_id:
-            continue
-
-        valid_votes.append((cat_id, opt_id, confidence, rank))
-        seen_cats.add(cat_id)
-
-    # Delete existing votes for each mentioned category (handles ranked re-submissions cleanly)
-    for cat_id in seen_cats:
-        PollVote.query.filter_by(category_id=cat_id, user_id=user.id).delete()
-
-    for cat_id, opt_id, confidence, rank in valid_votes:
-        db.session.add(PollVote(
-            category_id=cat_id,
-            user_id=user.id,
-            option_id=opt_id,
-            confidence=confidence,
-            rank=rank,
-        ))
-
-    db.session.commit()
-    return jsonify({'message': 'Votes submitted', 'count': len(valid_votes)})
+    # { votes: [{ category_id, option_id, confidence?, rank? }], clear: [category_id] }
+    data = request.json or {}
+    count = apply_votes(user, poll, data.get('votes'), data.get('clear'))
+    return jsonify({'message': 'Votes submitted', 'count': count})
 
 
 @app.route('/api/polls/<int:poll_id>/categories/<int:cat_id>/winner', methods=['PUT'])
@@ -2641,10 +2739,13 @@ def score_poll(poll_id):
         if cat and cat.poll_id == poll.id:
             cat.correct_option_id = opt_id
 
+    first_scoring = poll.status != 'scored'
     poll.status = 'scored'
     poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
     poll.scored_at = datetime.now(timezone.utc)
     db.session.commit()
+    if first_scoring:            # re-scoring a correction doesn't re-announce
+        emit_poll_activity(poll, 'poll_scored')
 
     return jsonify(poll.to_dict(include_categories=True))
 
@@ -2659,42 +2760,7 @@ def poll_leaderboard(poll_id):
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
 
-    # Calculate scores per user
-    scores = {}
-    for cat in poll.categories:
-        correct_id = cat.correct_option_id
-        for vote in cat.votes:
-            uid = vote.user_id
-            if uid not in scores:
-                scores[uid] = {'correct': 0, 'kernels': 0, 'total': 0}
-            scores[uid]['total'] += 1
-            if correct_id and vote.option_id == correct_id:
-                scores[uid]['correct'] += 1
-                if poll.scoring_mode == 'confidence':
-                    scores[uid]['kernels'] += vote.confidence
-                elif poll.scoring_mode == 'single':
-                    scores[uid]['kernels'] += 1
-                elif poll.scoring_mode == 'ranked':
-                    # For ranked: award points based on rank (lower rank = more points)
-                    scores[uid]['kernels'] += max(1, 4 - (vote.rank or 1))
-            elif correct_id and poll.scoring_mode == 'confidence':
-                # Wrong answer with confidence scoring: deduct the confidence value
-                scores[uid]['kernels'] -= vote.confidence
-
-    # Build leaderboard
-    leaderboard = []
-    for uid, s in scores.items():
-        u = db.session.get(User, uid)
-        if u:
-            leaderboard.append({
-                'user': u.to_dict(),
-                'correct': s['correct'],
-                'kernels': s['kernels'],
-                'total': s['total'],
-            })
-
-    leaderboard.sort(key=lambda x: (-x['kernels'], -x['correct']))
-    return jsonify(leaderboard)
+    return jsonify([{**s, 'user': s['user'].to_dict()} for s in poll_scores(poll)])
 
 
 def calc_user_kernels(user_id, group_id=None):
@@ -2710,17 +2776,8 @@ def calc_user_kernels(user_id, group_id=None):
             continue
         if group_id and poll.group_id != group_id:
             continue
-        if vote.option_id == cat.correct_option_id:
-            correct += 1
-            if poll.scoring_mode == 'confidence':
-                total += vote.confidence
-            elif poll.scoring_mode == 'single':
-                total += 1
-            elif poll.scoring_mode == 'ranked':
-                total += max(1, 4 - (vote.rank or 1))
-        elif poll.scoring_mode == 'confidence':
-            # Wrong answer with confidence scoring: deduct the confidence value
-            total -= vote.confidence
+        total += vote_kernels(poll.scoring_mode, vote, cat.correct_option_id)
+        correct += vote.option_id == cat.correct_option_id
     return total, correct
 
 
@@ -3204,8 +3261,54 @@ def internal_polls():
     group_id = request.args.get('group_id', type=int)
     if not group_id:
         return jsonify({'error': 'group_id required'}), 400
-    polls = Poll.query.filter_by(group_id=group_id, status='open').all()
+    q = Poll.query.filter_by(group_id=group_id)
+    if request.args.get('include_closed'):
+        # /vote's picker: open polls, then ones that closed in the last 60 days
+        # (to check your picks and results).
+        recent = _utcnow_naive() - timedelta(days=60)
+        ended = db.func.coalesce(Poll.scored_at, Poll.closed_at, Poll.created_at)
+        polls = q.filter(db.or_(Poll.status == 'open', ended >= recent)).all()
+        polls.sort(key=lambda p: (p.status != 'open', -(p.scored_at or p.closed_at or p.created_at).timestamp()))
+    else:
+        polls = q.filter_by(status='open').all()
     return jsonify([p.to_dict() for p in polls])
+
+
+def _internal_poll_voter(poll_id, data):
+    """(user, poll, error) for a Discord member acting on a poll of a group
+    they belong to."""
+    poll = db.session.get(Poll, poll_id)
+    if not poll:
+        return None, None, (jsonify({'error': 'poll_not_found'}), 404)
+    user, err = resolve_discord_user(data)
+    if err:
+        return None, None, err
+    if not _active_membership(user, poll.group_id):
+        return None, None, (jsonify({'error': 'not_member'}), 403)
+    return user, poll, None
+
+
+@app.route('/api/internal/polls/<int:poll_id>/ballot')
+@require_internal
+def internal_poll_ballot(poll_id):
+    user, poll, err = _internal_poll_voter(poll_id, request.args)
+    if err:
+        return err
+    return jsonify(poll_ballot(user, poll))
+
+
+@app.route('/api/internal/polls/<int:poll_id>/vote', methods=['POST'])
+@require_internal
+def internal_poll_vote(poll_id):
+    """Save picks from a Discord ballot; returns the refreshed ballot."""
+    data = request.json or {}
+    user, poll, err = _internal_poll_voter(poll_id, data)
+    if err:
+        return err
+    if poll.status != 'open':
+        return jsonify({'error': 'poll_closed', **poll_ballot(user, poll)}), 409
+    apply_votes(user, poll, data.get('votes'), data.get('clear'))
+    return jsonify(poll_ballot(user, poll))
 
 
 @app.route('/api/internal/leaderboard')

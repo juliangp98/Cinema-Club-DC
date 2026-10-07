@@ -4,8 +4,9 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /rsvp,
-/whosgoing, /polls, /watch, /history, /compare, /profile, /quote, /alerts, /digest,
-/llm, /link), and DMs members "did you go?" after screenings they RSVP'd to.
+/whosgoing, /polls, /vote, /watch, /history, /compare, /profile, /quote, /alerts,
+/digest, /llm, /link), and DMs members "did you go?" after screenings they RSVP'd to.
+New polls and their results are posted in #movies.
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
@@ -97,6 +98,7 @@ class CinemaClubBot(discord.Client):
         asyncio.create_task(setup_llm())
         asyncio.create_task(seed_quotes())
         self.add_dynamic_items(AttendanceButton)   # "did you go?" buttons work across restarts
+        self.add_dynamic_items(VoteButton, VoteSelect)   # /vote ballots too
         announce_loop.start()
         digest_loop.start()
         attendance_loop.start()
@@ -743,8 +745,15 @@ async def announce_loop():
 
     for ev in activity:
         try:
-            msg = embeds.activity_message(ev)
-            if msg:
+            p = ev.get('payload') or {}
+            if ev['kind'] in ('poll_opened', 'poll_scored'):
+                if p.get('group_id') == DEFAULT_GROUP_ID:      # only this server's group's polls
+                    if ev['kind'] == 'poll_opened':
+                        await channel.send(embed=embeds.poll_opened_embed(p),
+                                           view=vote_open_view([{'id': p['poll_id'], 'title': p['title']}]))
+                    else:
+                        await channel.send(embed=embeds.poll_results_embed(p))
+            elif msg := embeds.activity_message(ev):
                 await channel.send(msg)
             await api.post(f"/api/internal/activity-events/{ev['id']}/announced")
         except Exception as e:
@@ -1365,8 +1374,10 @@ async def polls(interaction: discord.Interaction):
     if not open_polls:
         await interaction.followup.send(f'No open polls right now. Start one: {SITE_URL}/polls')
         return
-    lines = [f"🗳️ **{p['title']}** — vote at {SITE_URL}/polls/{p['id']}" for p in open_polls[:10]]
-    await interaction.followup.send('\n'.join(lines))
+    lines = [f"🗳️ **{p['title']}** — {p.get('category_count', 0)} categories · {SITE_URL}/polls/{p['id']}"
+             for p in open_polls[:10]]
+    lines.append('Tap **Vote** for a private ballot (or use `/vote`).')
+    await interaction.followup.send('\n'.join(lines), view=vote_open_view(open_polls))
 
 
 async def fetch_my_watchlist(interaction, member_id=None, start=None, end=None):
@@ -1615,6 +1626,269 @@ async def compare(interaction: discord.Interaction, member: discord.User):
         await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
         return
     await interaction.followup.send(embed=embeds.compare_embed(data), ephemeral=True)
+
+
+# ─── /vote ────────────────────────────────────────────────────────────────────
+# A private, paged ballot: one category per page. Every pick saves straight to
+# the backend (the same vote rules as the site), so members can stop and finish
+# later, here or on the web. All state lives in the component ids and the
+# database, so ballots keep working across bot restarts.
+# Component ids: vote:<b|s>:<action>:<poll>:<category index>:<arg>:<page>
+
+VOTE_ID = r'vote:(?P<kind>[bs]):(?P<act>[a-z]+):(?P<poll>[0-9]+):(?P<idx>[0-9]+):(?P<arg>[0-9]+):(?P<page>[0-9]+)'
+ORDINALS = {1: '1st', 2: '2nd', 3: '3rd'}
+
+
+def _vote_id(kind, act, poll, idx=0, arg=0, page=0):
+    return f'vote:{kind}:{act}:{poll}:{idx}:{arg}:{page}'
+
+
+class VoteButton(discord.ui.DynamicItem[discord.ui.Button], template=VOTE_ID.replace('[bs]', 'b')):
+    def __init__(self, act, poll, idx=0, arg=0, page=0, label='Vote', row=None,
+                 style=discord.ButtonStyle.secondary):
+        super().__init__(discord.ui.Button(label=label[:80], style=style, row=row,
+                                           custom_id=_vote_id('b', act, poll, idx, arg, page)))
+        self.act, self.poll, self.idx, self.arg, self.page = act, poll, idx, arg, page
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['act'], int(match['poll']), int(match['idx']), int(match['arg']), int(match['page']))
+
+    async def callback(self, interaction: discord.Interaction):
+        await handle_vote(interaction, self.act, self.poll, self.idx, self.arg, self.page, [])
+
+
+class VoteSelect(discord.ui.DynamicItem[discord.ui.Select], template=VOTE_ID.replace('[bs]', 's')):
+    def __init__(self, act, poll, idx=0, arg=0, page=0, options=None, placeholder=None, row=None, disabled=False):
+        super().__init__(discord.ui.Select(custom_id=_vote_id('s', act, poll, idx, arg, page),
+                                           options=options or [], placeholder=(placeholder or '')[:150] or None,
+                                           row=row, disabled=disabled))
+        self.act, self.poll, self.idx, self.arg, self.page = act, poll, idx, arg, page
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['act'], int(match['poll']), int(match['idx']), int(match['arg']), int(match['page']))
+
+    async def callback(self, interaction: discord.Interaction):
+        values = (interaction.data or {}).get('values') or []
+        await handle_vote(interaction, self.act, self.poll, self.idx, self.arg, self.page, values)
+
+
+def vote_open_view(polls):
+    """Vote buttons for a list of open polls ({id, title}); each opens a private ballot."""
+    view = discord.ui.View(timeout=None)
+    for p in polls[:5]:
+        label = 'Vote' if len(polls) == 1 else f"Vote · {p['title']}"
+        view.add_item(VoteButton('open', p['id'], label=label, style=discord.ButtonStyle.primary))
+    return view
+
+
+def next_unanswered(ballot, after):
+    """Index of the next category without a pick after `after` (wrapping), or None."""
+    cats = ballot['categories']
+    for step in range(1, len(cats) + 1):
+        i = (after + step) % len(cats)
+        if not cats[i]['picks']:
+            return i
+    return None
+
+
+def ballot_view(ballot, idx, page=0):
+    poll, cats = ballot['poll'], ballot['categories']
+    pid, cat, mode, is_open = poll['id'], cats[idx], poll['scoring_mode'], poll['status'] == 'open'
+    size = 24 if mode == 'ranked' else 25            # ranked dropdowns also carry "— none —"
+    pages = max(1, -(-len(cat['options']) // size))
+    page = min(page, pages - 1)
+    chunk = cat['options'][page * size:(page + 1) * size]
+    of_pages = f' ({page + 1}/{pages})' if pages > 1 else ''
+    view, row = discord.ui.View(timeout=None), 0
+
+    if is_open and chunk:
+        if mode == 'ranked':
+            by_rank = {p['rank']: p['option_id'] for p in cat['picks']}
+            for r in range(1, poll.get('ranked_picks', 3) + 1):
+                opts = [discord.SelectOption(label='— none —', value='0')] + [
+                    discord.SelectOption(label=o['text'][:100], value=str(o['id']), default=by_rank.get(r) == o['id'])
+                    for o in chunk]
+                view.add_item(VoteSelect('rank', pid, idx, r, page, opts, f'{ORDINALS.get(r, r)} choice{of_pages}', row))
+                row += 1
+        else:
+            mine = cat['picks'][0] if cat['picks'] else None
+            opts = [discord.SelectOption(label=o['text'][:100], value=str(o['id']),
+                                         default=bool(mine) and mine['option_id'] == o['id']) for o in chunk]
+            view.add_item(VoteSelect('pick', pid, idx, 0, page, opts, f'Pick a nominee{of_pages}', row))
+            row += 1
+            if mode == 'confidence':
+                hints = {1: ' — total guess', 10: ' — sure thing'}
+                opts = [discord.SelectOption(label=f'{n} 🍿{hints.get(n, "")}', value=str(n),
+                                             default=bool(mine) and mine['confidence'] == n) for n in range(1, 11)]
+                view.add_item(VoteSelect('conf', pid, idx, 0, page, opts,
+                                         'How sure are you?' if mine else 'Pick a nominee first, then your stake',
+                                         row, disabled=not mine))
+                row += 1
+
+    if len(cats) > 1:
+        start = max(0, min(idx - 12, len(cats) - 25))      # a 25-category window around this one
+        opts = [discord.SelectOption(label=f"{i + 1}. {c['title']}"[:100], value=str(i), default=i == idx,
+                                     emoji='✅' if c['picks'] else None)
+                for i, c in enumerate(cats[start:start + 25], start)]
+        view.add_item(VoteSelect('jump', pid, idx, 0, 0, opts, 'Jump to a category', row))
+        row += 1
+        view.add_item(VoteButton('nav', pid, (idx - 1) % len(cats), 0, label='◀ Prev', row=row))
+        view.add_item(VoteButton('nav', pid, (idx + 1) % len(cats), 1, label='Next ▶', row=row))
+        nxt = next_unanswered(ballot, idx) if is_open else None
+        if nxt is not None and nxt != idx:
+            view.add_item(VoteButton('nav', pid, nxt, 2, label='⏭ Next unanswered', row=row,
+                                     style=discord.ButtonStyle.primary))
+    if is_open and cat['picks'] and mode != 'ranked':
+        view.add_item(VoteButton('clear', pid, idx, label='Clear pick', row=row))
+    if is_open and pages > 1:
+        nxt_page = (page + 1) % pages
+        view.add_item(VoteButton('page', pid, idx, 0, nxt_page, row=row,
+                                 label=f'More nominees ({nxt_page * size + 1}–{min((nxt_page + 1) * size, len(cat["options"]))})'))
+    return view
+
+
+def _vote_error(err):
+    body = err.body or ''
+    if 'not_member' in body:
+        return "That poll belongs to a group you're not in."
+    if 'poll_not_found' in body:
+        return 'That poll was deleted.'
+    if no_account(err):
+        return NO_ACCOUNT_MSG
+    return f"Couldn't load that poll ({err.status})."
+
+
+async def handle_vote(interaction, act, pid, idx, arg, page, values):
+    """Every ballot click: open, navigate, pick, stake, rank, clear."""
+    opening = act == 'open'
+    if opening:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+    else:
+        await interaction.response.defer()
+
+    async def show(ballot, i, pg=0, note=None):
+        kwargs = {'embed': embeds.ballot_embed(ballot, i, note), 'view': ballot_view(ballot, i, pg)}
+        if opening:
+            await interaction.followup.send(ephemeral=True, **kwargs)
+        else:
+            await interaction.edit_original_response(**kwargs)
+
+    ident = discord_identity(interaction)
+    path = f'/api/internal/polls/{pid}'
+    try:
+        ballot = await api.get(f'{path}/ballot', **ident)
+        cats = ballot['categories']
+        if not cats:
+            await interaction.followup.send('That poll has no categories yet.', ephemeral=True)
+            return
+        if opening:
+            first = next_unanswered(ballot, -1) if ballot['poll']['status'] == 'open' else None
+            note = ('Welcome back — picking up where you left off.'
+                    if first is not None and ballot['answered'] else None)
+            await show(ballot, first or 0, note=note)
+            return
+        idx = min(idx, len(cats) - 1)
+        if act == 'jump':
+            idx = int(values[0]) if values else idx
+        if act in ('nav', 'jump', 'page'):
+            await show(ballot, idx, page if act == 'page' else 0)
+            return
+
+        cat, mode = cats[idx], ballot['poll']['scoring_mode']
+        mine = cat['picks'][0] if cat['picks'] else None
+        votes, clear, note = [], [], None
+        if act == 'pick' and values:
+            stake = mine['confidence'] if mine else 1
+            votes = [{'category_id': cat['id'], 'option_id': int(values[0]), 'confidence': stake}]
+        elif act == 'conf' and values and mine:
+            votes = [{'category_id': cat['id'], 'option_id': mine['option_id'], 'confidence': int(values[0])}]
+        elif act == 'rank' and values:
+            by_rank = {p['rank']: p['option_id'] for p in cat['picks']}
+            choice = int(values[0])
+            by_rank.pop(arg, None)
+            if choice:
+                by_rank = {r: o for r, o in by_rank.items() if o != choice}   # moving it, not duplicating
+                by_rank[arg] = choice
+            votes = [{'category_id': cat['id'], 'option_id': o, 'rank': r} for r, o in sorted(by_rank.items())]
+            clear = [] if votes else [cat['id']]
+        elif act == 'clear':
+            clear = [cat['id']]
+        else:
+            await show(ballot, idx, page)
+            return
+        ballot = await api.post(f'{path}/vote', {**ident, 'votes': votes, 'clear': clear})
+    except ApiError as e:
+        if e.status == 409:              # voting closed mid-ballot: show it read-only
+            try:
+                await show(json.loads(e.body), min(idx, len(json.loads(e.body)['categories']) - 1),
+                           note='🔒 Voting just closed — your earlier picks stand.')
+                return
+            except Exception:
+                pass
+        await interaction.followup.send(_vote_error(e), ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/vote failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+
+    # Single-pick polls move on to the next unanswered category; confidence and
+    # ranked polls stay so the page can be finished (stake, other ranks).
+    if act == 'pick' and mode in ('single', 'none'):
+        nxt = next_unanswered(ballot, idx)
+        if nxt is None:
+            note = f"🎉 All {len(ballot['categories'])} categories answered! Jump back to change any pick."
+        else:
+            names = {o['id']: o['text'] for o in cat['options']}
+            note = f"✅ Saved **{names.get(int(values[0]), 'your pick')}** for {cat['title']}."
+            idx, page = nxt, 0
+    elif act == 'pick' and mode == 'confidence':
+        note = '✅ Saved — now set how sure you are.' if not mine else '✅ Pick changed (same stake).'
+    elif act == 'clear':
+        note = 'Pick cleared.'
+    elif ballot['answered'] == len(ballot['categories']) and act in ('conf', 'rank'):
+        note = f"🎉 All {len(ballot['categories'])} categories answered!"
+    await show(ballot, idx, page, note)
+
+
+async def vote_poll_autocomplete(interaction: discord.Interaction, current: str):
+    try:
+        polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID, include_closed=1)
+    except Exception:
+        return []
+    icon = {'open': '🗳️', 'closed': '🔒', 'scored': '🏆'}
+    state = {'open': 'open', 'closed': 'closed', 'scored': 'results'}
+    current = current.lower()
+    return [app_commands.Choice(name=f"{icon.get(p['status'], '')} {p['title']} ({state.get(p['status'], '')})"[:100],
+                                value=str(p['id']))
+            for p in polls if current in p['title'].lower()][:25]
+
+
+@client.tree.command(name='vote', description='Vote in a club poll — a private ballot, one category at a time')
+@app_commands.describe(poll='Which poll (open ones first; closed ones show your picks and results)')
+@app_commands.autocomplete(poll=vote_poll_autocomplete)
+async def vote(interaction: discord.Interaction, poll: str = None):
+    if poll is None:
+        try:
+            open_polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID)
+        except Exception as e:
+            print(f'/vote list failed: {e}')
+            await interaction.response.send_message("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            return
+        if not open_polls:
+            await interaction.response.send_message(
+                'No open polls right now. Use `/vote poll:` to look back at recent results.', ephemeral=True)
+            return
+        if len(open_polls) > 1:
+            await interaction.response.send_message('Which poll?', view=vote_open_view(open_polls), ephemeral=True)
+            return
+        poll = str(open_polls[0]['id'])
+    if not poll.isdigit():
+        await interaction.response.send_message('Pick a poll from the list.', ephemeral=True)
+        return
+    await handle_vote(interaction, 'open', int(poll), 0, 0, 0, [])
 
 
 # ─── /quote ───────────────────────────────────────────────────────────────────

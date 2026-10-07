@@ -257,6 +257,11 @@ old `/?showtime=` and `/?theatre=` links are redirected there.
 - `GET /api/showtimes/:id/ical` — iCal export
 - `GET /api/showtimes/:id/gcal-url` — Google Calendar URL
 
+### Polls
+- `POST /api/polls/:id/vote` — `{votes: [{category_id, option_id, confidence?, rank?}], clear: [category_id]}`;
+  each category mentioned is replaced (the same rules as Discord's `/vote`)
+- `GET /api/polls/:id` — a category's vote split is included once you've picked in it, or voting has closed
+
 ### Reactions & Chat
 - `POST /api/reactions` — toggle emoji reaction
 - `GET /api/messages?showtime_id=&group_id=` — get messages
@@ -325,9 +330,11 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Theatre announcements (opt-in)**: schedule drops ("AFI just dropped 23 new
   showtimes") post as they happen only for theatres someone turned on with
   `/alerts`. All theatres start off.
+- **Poll posts**: when an admin opens a poll on the site, #movies gets one post
+  with a **Vote** button; when it's scored, the top 3 with their kernels.
 - **Owner DMs**: scraper errors and chatbot model changes go to the bot owner's
   DMs, not the channel.
-- **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
+- **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`, `/vote`,
   `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
   `/history`, `/compare`, `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
   commands set one up automatically on first use in the club's server (see
@@ -338,6 +345,15 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
     turn one on or off; changes are noted publicly in the channel.
   - `/digest`: anyone can post this week's digest to the current channel (no
     tags; 30-minute cooldown per channel), or `preview:True` to see it privately.
+  - `/vote [poll]`: a private ballot, one category per page: a nominee
+    dropdown (plus a 1–10 stake for confidence polls, or 1st/2nd/3rd dropdowns
+    for ranked ones), Prev / Next / Next unanswered, and a jump list. Picks save
+    as you go, so you can finish later here or on the site; single-pick polls
+    move on to the next unanswered category automatically. How everyone voted
+    shows once you've picked. Closed polls are read-only; scored ones show the
+    winners, ✅/❌ on your picks, your kernels and your place. Ballots keep
+    working after bot restarts. `/polls` has Vote buttons too. Creating,
+    closing and scoring polls stays on the site (group admins).
   - `/llm` (server admins only, by default those with Manage Server; grant it
     to roles in Server Settings → Integrations): see the chatbot's models and
     pin or unpin them.

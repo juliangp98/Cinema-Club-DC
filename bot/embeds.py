@@ -345,8 +345,9 @@ def digest_message(digest, tag_watchers=False):
         new.append(f"📅 **{t['theatre']}** added {t['showtimes']} showtimes" + (f": {shown}" if shown else ''))
     _add_field(embed, '🆕 New this week', new)
 
-    _add_field(embed, '🗳️ Open polls', [f"**{p['title']}** — [vote]({SITE_URL}/polls/{p['id']})"
-                                        for p in digest.get('open_polls', [])], limit=5)
+    polls = [f"**{p['title']}** — `/vote` here or [on the site]({SITE_URL}/polls/{p['id']})"
+             for p in digest.get('open_polls', [])]
+    _add_field(embed, '🗳️ Open polls', polls, limit=5)
 
     if not embed.fields:
         embed.description = 'A quiet week — nothing on the calendar yet.'
@@ -358,3 +359,99 @@ def digest_message(digest, tag_watchers=False):
             f"<@{uid}> — {', '.join(titles)}" for uid, titles in pings.items())
         content = content[:2000]
     return content, embed, tagged
+
+
+# ─── Polls (/vote ballots and #movies posts) ──────────────────────────────────
+
+POLL_MODES = {
+    'confidence': 'Confidence: stake 1–10 🍿 on each pick (lose them if wrong)',
+    'ranked': 'Ranked: your top 3 in each category',
+    'single': '1 🍿 per correct pick',
+    'none': 'Just for fun',
+}
+MEDALS = ['🥇', '🥈', '🥉']
+
+
+def _pct(count, total):
+    return f"{round(100 * count / total)}%" if total else '0%'
+
+
+def _pick_line(cat, mode):
+    """The member's current pick(s) for a category, as one line."""
+    names = {o['id']: o['text'] for o in cat['options']}
+    picks = cat['picks']
+    if not picks:
+        return '*No pick yet*'
+    if mode == 'ranked':
+        return '  '.join(f"**{p['rank']}.** {names.get(p['option_id'], '?')}" for p in picks)
+    p = picks[0]
+    stake = f" · {p['confidence']} 🍿" if mode == 'confidence' else ''
+    return f"**{names.get(p['option_id'], '?')}**{stake}"
+
+
+def ballot_embed(ballot, idx, note=None):
+    """One category of a /vote ballot. Open polls show your pick and (once
+    you've picked) the split; closed ones show the split; scored ones mark the
+    winner, ✅/❌ on your picks, and the kernels they earned."""
+    poll, cats = ballot['poll'], ballot['categories']
+    cat = cats[idx]
+    mode, status = poll['scoring_mode'], poll['status']
+    picked = {p['option_id'] for p in cat['picks']}
+    lines = [f"### {cat['title']}", f"Category {idx + 1} of {len(cats)}"]
+    if status == 'open':
+        lines[-1] += f" · **{ballot['answered']}/{len(cats)} answered**"
+        lines.append(f"Your pick: {_pick_line(cat, mode)}")
+    if 'split' in cat:
+        win = cat.get('correct_option_id')
+        rows = []
+        for o in sorted(cat['options'], key=lambda o: -cat['split'].get(str(o['id']), 0)):
+            n = cat['split'].get(str(o['id']), 0)
+            mark = '🏆 ' if o['id'] == win else ''
+            if o['id'] in picked:
+                mark += '✅ ' if win and o['id'] == win else '❌ ' if win else '👉 '
+            rows.append(f"{mark}{o['text']} — {_pct(n, cat['voters'])}")
+        header = f"**How everyone voted** ({cat['voters']} {'vote' if cat['voters'] == 1 else 'votes'})"
+        lines += ['', header] + rows[:15]
+    elif status == 'open':
+        lines += ['', '*Pick yours to see how everyone voted.*']
+    if cat.get('kernels') is not None:
+        lines.append(f"\nYou earned **{cat['kernels']:+d} 🍿** here")
+    if note:
+        lines += ['', note]
+
+    state = {'open': '🗳️', 'closed': '🔒', 'scored': '🏆'}.get(status, '🗳️')
+    embed = discord.Embed(title=f"{state} {poll['title']}"[:256], colour=AMBER,
+                          description='\n'.join(lines)[:4000], url=f"{SITE_URL}/polls/{poll['id']}")
+    score = ballot.get('score')
+    if status == 'scored' and score:
+        embed.add_field(name='Your result', inline=False,
+                        value=f"**{score['kernels']} 🍿** · {score['correct']} correct · "
+                              f"#{score['place']} of {score['of']}")
+    footer = {'open': 'Picks save as you go — finish any time, here or on the site.',
+              'closed': 'Voting has closed — results come once it’s scored.',
+              'scored': 'Final results.'}.get(status, '')
+    embed.set_footer(text=f"{POLL_MODES.get(mode, '')} · {footer}" if status == 'open' else footer)
+    return embed
+
+
+def poll_opened_embed(p):
+    embed = discord.Embed(title=f"🗳️ New poll: {p['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
+    by = f" · from {p['creator']}" if p.get('creator') else ''
+    n = p.get('categories', 0)
+    embed.description = (f"{n} {'category' if n == 1 else 'categories'}{by}\n{POLL_MODES.get(p.get('scoring_mode'), '')}\n\n"
+                         "Tap **Vote** — your ballot is private and picks save as you go.")
+    return embed
+
+
+def poll_results_embed(p):
+    embed = discord.Embed(title=f"🏆 Results: {p['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
+    top = p.get('top') or []
+    if not top:
+        embed.description = 'Scored — nobody voted this time.'
+        return embed
+    lines = [f"{MEDALS[i]} {actor_ref(t['name'], t.get('discord_user_id'))} — **{t['kernels']} 🍿** "
+             f"({t['correct']} correct)" for i, t in enumerate(top)]
+    voters = p.get('voters', len(top))
+    embed.description = '\n'.join(lines) + f"\n\n{voters} {'member' if voters == 1 else 'members'} voted · " \
+                                           f"see your own picks with `/vote`"
+    return embed
