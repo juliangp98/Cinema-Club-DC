@@ -215,6 +215,7 @@ class User(db.Model):
             'bio': self.bio or '',
             'favorite_genres': self.favorite_genres or '',
             'discord_linked': bool(self.discord_user_id),
+            'on_discord': on_discord(self),     # linked and in the club's server
             'discord_username': self.discord_username or '',
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
@@ -558,6 +559,13 @@ class BotSetting(db.Model):
     value = db.Column(db.Text, default='')
 
 
+class DiscordServerMember(db.Model):
+    """Who's in the club's Discord server right now; the bot keeps this current.
+    Only members who've linked Discord and are in here ever appear there."""
+    discord_user_id = db.Column(db.String(30), primary_key=True)
+    seen_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
 class Watchlist(db.Model):
     """'I want to see this' — drives Discord pings when new showtimes appear."""
     id = db.Column(db.Integer, primary_key=True)
@@ -565,6 +573,9 @@ class Watchlist(db.Model):
     movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     last_notified_at = db.Column(db.DateTime)
+    # May the digest name or ping you about this one? None = not chosen yet
+    # (your "watchlist" sharing choice decides; see watch_shared).
+    share_discord = db.Column(db.Boolean)
     user = db.relationship('User', lazy=True)
     movie = db.relationship('Movie', lazy=True)
     __table_args__ = (db.UniqueConstraint('user_id', 'movie_id'),)
@@ -1076,6 +1087,9 @@ def resolve_discord_user(data):
             db.session.add(GroupMembership(user_id=user.id, group_id=group.id, role='member', status='active'))
         elif membership.status != 'active':
             membership.status = 'active'
+    if create and not db.session.get(DiscordServerMember, discord_id):
+        db.session.add(DiscordServerMember(discord_user_id=discord_id))   # they're using it in the server
+        _present_changed()
     db.session.commit()
     return user, None
 
@@ -2465,9 +2479,13 @@ def apply_rsvp(user, showtime_id, status, group_id):
 # step with the site (edited when an RSVP or poll changes, deleted when what it
 # shows is gone) and never @-pings anyone. Only the group tied to the club's
 # Discord server (DEFAULT_GROUP_ID, shared with the bot) has any of this.
+#
+# And only members who've linked Discord AND are in that server (on_discord)
+# ever appear there: their own shares, comments, names in lists, pings. Anyone
+# else is at most a count ("+2 on the site"), whatever their settings say.
 
 DISCORD_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
-SHARE_KINDS = ('rsvp', 'poll', 'comment')
+SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist')
 SHARE_CHOICES = ('ask', 'always', 'never')
 RSVP_BATCH_WAIT = timedelta(seconds=60)    # quick RSVPs in a row become one post...
 RSVP_BATCH_MAX = timedelta(minutes=5)      # ...but none waits longer than this
@@ -2494,6 +2512,60 @@ def set_share_pref(user, kind, value):
 
 def discord_group(group_id):
     return bool(group_id) and group_id == DISCORD_GROUP_ID
+
+
+def _present():
+    """(discord ids in the server, site user ids among them), once per request."""
+    from flask import g, has_request_context
+    if has_request_context() and getattr(g, 'discord_present', None) is not None:
+        return g.discord_present
+    ids = {r[0] for r in db.session.query(DiscordServerMember.discord_user_id)}
+    users = {r[0] for r in db.session.query(User.id).filter(User.discord_user_id.in_(ids))} if ids else set()
+    if has_request_context():
+        g.discord_present = (ids, users)
+    return ids, users
+
+
+def _present_changed():
+    from flask import g, has_request_context
+    if has_request_context():
+        g.discord_present = None
+
+
+def on_discord(user):
+    """Linked to Discord and in the club's server: the only people Discord sees."""
+    return bool(user and user.discord_user_id and user.discord_user_id in _present()[0])
+
+
+def present_user_ids():
+    return _present()[1]
+
+
+def can_share(user, group_id):
+    """May this member's own actions go to the server at all?"""
+    return discord_group(group_id) and on_discord(user)
+
+
+def members_synced():
+    """Has the bot reported the server's members yet? Until it has, nothing is posted."""
+    return db.session.get(BotSetting, 'discord_members_synced_at') is not None
+
+
+def split_present(users):
+    """(people Discord may see, how many others) — for name lists."""
+    shown = [u for u in users if u and u.id in present_user_ids()]
+    return shown, len(users) - len(shown)
+
+
+def watch_shared(w):
+    """May the digest name or ping this watchlist entry's owner? Only if they're
+    on Discord, and their "watchlist" choice (or their answer for this film) says so."""
+    if not on_discord(w.user):
+        return False
+    pref = share_prefs(w.user)['watchlist']
+    if pref == 'never':
+        return False
+    return w.share_discord if w.share_discord is not None else pref == 'always'
 
 
 def post_dict(p):
@@ -2564,15 +2636,16 @@ def poll_posts_changed(poll_id):
 
 
 def poll_payload(poll, results=False):
-    """What a poll announcement / results post shows (plain names: no pings)."""
+    """What a poll announcement / results post shows (plain names: no pings;
+    members who aren't on Discord stay unnamed)."""
     payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title, 'status': poll.status,
                'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
-               'categories': len(poll.categories), 'creator': poll.creator.name if poll.creator else None}
+               'categories': len(poll.categories), 'creator': poll.creator.name if on_discord(poll.creator) else None}
     if results:
         board = poll_scores(poll)
         payload['voters'] = len(board)
-        payload['top'] = [{'name': s['user'].name, 'kernels': s['kernels'], 'correct': s['correct']}
-                          for s in board[:3]]
+        payload['top'] = [{'name': s['user'].name if on_discord(s['user']) else None,
+                           'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
     return payload
 
 
@@ -2595,7 +2668,7 @@ def render_post(p, now=None):
             if r and s and r.status in ('going', 'maybe') and not s.is_cancelled:
                 items.append({**_brief_screening(s), 'status': r.status})
         items.sort(key=lambda x: x['start_time'])
-        return {'user': p.user.name, 'items': items} if items else None
+        return {'user': p.user.name, 'items': items} if items and on_discord(p.user) else None
     if p.kind in ('invite', 'thread'):
         s = db.session.get(Showtime, p.ref_id or 0)
         if not s or s.is_cancelled:
@@ -2605,7 +2678,8 @@ def render_post(p, now=None):
         card = screening_card(s, p.group_id)
         for who in ('going', 'maybe'):
             card[who] = [{'name': x['name']} for x in card[who]]      # names only: no pings
-        return {'by': p.user.name, 'note': p.note, 'card': card, 'started': s.start_time <= now}
+        return {'by': p.user.name if on_discord(p.user) else None, 'note': p.note, 'card': card,
+                'started': s.start_time <= now}
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
         return None
@@ -2659,7 +2733,7 @@ def announce_new_poll(poll, user, data):
     """A new poll's announcement: now, later, or not yet, as the creator chose
     on the form ("announce": now | later | none, "announce_at"). Without a
     choice, their poll preference decides ("ask" means not yet)."""
-    if not discord_group(poll.group_id):
+    if not can_share(user, poll.group_id):
         return
     choice = data.get('announce')
     if choice not in ('now', 'later', 'none'):
@@ -2673,8 +2747,9 @@ def announce_new_poll(poll, user, data):
 
 def discord_states(user, showtime_ids, group_id):
     """{showtime_id: discord block} for the viewer: their shared RSVP post, any
-    "who's in?" invite, and whether a thread is being started."""
-    if not discord_group(group_id) or not showtime_ids:
+    "who's in?" invite, and whether a thread is being started. Nothing for
+    members who aren't in the club's Discord server: they can't share there."""
+    if not can_share(user, group_id) or not showtime_ids:
         return {}
     mine = {it.showtime_id: it.post for it in SharedRsvp.query.join(DiscordPost).filter(
         SharedRsvp.user_id == user.id, SharedRsvp.showtime_id.in_(showtime_ids),
@@ -2717,7 +2792,7 @@ def rsvp():
     # Going / maybe (a real change) in the Discord server's group: share it if
     # they always do, or ask. (Discord's own /rsvp posts for itself.)
     prompt = False
-    if status in ('going', 'maybe') and status != prev_status and showtime and discord_group(group_id):
+    if status in ('going', 'maybe') and status != prev_status and showtime and can_share(user, group_id):
         pref = share_prefs(user)['rsvp']
         if pref == 'always':
             queue_rsvp_share(user, showtime.id, group_id)
@@ -2736,15 +2811,18 @@ def rsvp():
 @app.route('/api/discord/prefs', methods=['GET', 'PUT'])
 @require_auth
 def discord_prefs():
-    """Your "Ask / Always / Never" choice per kind, and whether you're in the
-    group tied to the club's Discord server (otherwise there's nothing to share)."""
+    """Your "Ask / Always / Never" choice per kind, and whether sharing is
+    available to you: in the club tied to the Discord server, with Discord
+    linked, and in that server. `reason` says what's missing."""
     user = current_user()
     if request.method == 'PUT':
         for kind, value in (request.json or {}).items():
             set_share_pref(user, kind, value)
         db.session.commit()
-    return jsonify({'prefs': share_prefs(user),
-                    'available': _active_membership(user, DISCORD_GROUP_ID) is not None})
+    reason = ('no_club' if _active_membership(user, DISCORD_GROUP_ID) is None
+              else 'not_linked' if not user.discord_user_id
+              else 'not_in_server' if not on_discord(user) else None)
+    return jsonify({'prefs': share_prefs(user), 'available': reason is None, 'reason': reason})
 
 
 @app.route('/api/discord/shares', methods=['POST'])
@@ -2762,6 +2840,9 @@ def create_share():
         return err
     if not discord_group(group_id):
         return jsonify({'error': 'This group has no Discord server'}), 400
+    if not on_discord(user):
+        return jsonify({'error': "Only members in the club's Discord server (with Discord linked) can share there",
+                        'code': 'not_on_discord'}), 403
     now = datetime.now()
     post_at = _parse_post_at(data.get('post_at'), now)
     if post_at is None:
@@ -2858,16 +2939,19 @@ def unshare(post_id):
 def internal_posts_due():
     """What the bot should do now: post shares whose time has come, update
     posted ones whose content changed, delete ones with nothing left to show.
-    Each item: {id, kind, action: post|edit|delete, message_id, data}."""
+    Each item: {id, kind, action: post|edit|delete, message_id, data}.
+    Nothing until the bot has reported who's in the server."""
     group_id = request.args.get('group_id', type=int)
     now = datetime.now()
     out = []
+    if not members_synced():
+        return jsonify(out)
     for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.status == 'pending',
                                        DiscordPost.post_at <= now)
               .order_by(DiscordPost.post_at, DiscordPost.id).limit(10)):
-        data = render_post(p, now)
+        data = render_post(p, now) if on_discord(p.user) else None
         if data is None:
-            p.status = 'cancelled'            # nothing left to say by the time it was due
+            p.status = 'cancelled'            # nothing left to say (or they've left the server)
             continue
         out.append({'id': p.id, 'kind': p.kind, 'action': 'post', 'message_id': None, 'data': data})
     for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.dirty.is_(True),
@@ -2881,6 +2965,47 @@ def internal_posts_due():
                     'message_id': p.message_id, 'data': data})
     db.session.commit()
     return jsonify(out)
+
+
+@app.route('/api/internal/discord/members', methods=['POST'])
+@require_internal
+def internal_discord_members():
+    """Who's in the club's server, from the bot: {ids: [...], full: true} is
+    the whole list (on start, and every half hour); {joined: [...]} /
+    {left: [...]} are changes as they happen. Screenings whose Discord cards
+    list someone who joined or left are refreshed."""
+    data = request.json or {}
+    clean = lambda key: {str(i) for i in data.get(key) or [] if str(i).isdigit()}
+    current = {r[0] for r in db.session.query(DiscordServerMember.discord_user_id)}
+    if data.get('full'):
+        ids = clean('ids')
+        joined, left = ids - current, current - ids
+    else:
+        joined, left = clean('joined') - current, clean('left') & current
+    if left:
+        DiscordServerMember.query.filter(DiscordServerMember.discord_user_id.in_(left)).delete(synchronize_session=False)
+    for i in joined:
+        db.session.add(DiscordServerMember(discord_user_id=i))
+    changed = joined | left
+    if changed:
+        users = [u.id for u in User.query.filter(User.discord_user_id.in_(changed))]
+        upcoming = {r.showtime_id for r in RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
+            RSVP.user_id.in_(users), RSVP.group_id == DISCORD_GROUP_ID, Showtime.start_time >= datetime.now())} \
+            if users else set()
+        if upcoming:
+            ShowtimeThread.query.filter(ShowtimeThread.group_id == DISCORD_GROUP_ID,
+                                        ShowtimeThread.showtime_id.in_(upcoming)) \
+                .update({'card_dirty': True}, synchronize_session=False)
+            DiscordPost.query.filter(DiscordPost.group_id == DISCORD_GROUP_ID, DiscordPost.kind == 'invite',
+                                     DiscordPost.ref_id.in_(upcoming), DiscordPost.status == 'posted') \
+                .update({'dirty': True}, synchronize_session=False)
+    if data.get('full'):
+        row = db.session.get(BotSetting, 'discord_members_synced_at') or BotSetting(key='discord_members_synced_at')
+        row.value = _utcnow_naive().isoformat(timespec='seconds')
+        db.session.add(row)
+    db.session.commit()
+    _present_changed()
+    return jsonify({'members': len(current - left) + len(joined), 'joined': len(joined), 'left': len(left)})
 
 
 @app.route('/api/internal/discord/posts/<int:post_id>/done', methods=['POST'])
@@ -3496,10 +3621,12 @@ def post_message():
     if not db.session.get(Showtime, _as_int(showtime_id)):
         return jsonify({'error': 'Showtime not found'}), 404
     # source='site' queues it for the screening's Discord thread — only if it
-    # has one and the writer left "also post in Discord" on (R3d).
+    # has one, the writer is in the club's server, and they left "also post in
+    # Discord" on (R3d).
     to_discord = data.get('to_discord')
     if not isinstance(to_discord, bool):
         to_discord = share_prefs(user)['comment'] != 'never'
+    to_discord = to_discord and can_share(user, _as_int(group_id))
     msg = Message(user_id=user.id, showtime_id=showtime_id, group_id=group_id, body=body, source='site',
                   to_discord=to_discord)
     db.session.add(msg)
@@ -3851,7 +3978,7 @@ def get_poll(poll_id):
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
     d = poll.to_dict(include_categories=True, user_id=user.id)
-    if discord_group(poll.group_id):
+    if can_share(user, poll.group_id):
         live = {k: _live_post(k, poll.id, poll.group_id) for k in ('poll', 'poll_results')}
         d['discord'] = {'announce': post_dict(live['poll']) if live['poll'] else None,
                         'results': post_dict(live['poll_results']) if live['poll_results'] else None}
@@ -4094,7 +4221,7 @@ def score_poll(poll_id):
     poll_posts_changed(poll.id)            # a correction updates results already posted
     db.session.commit()
     # Results go to Discord when asked for, or right away for "always" sharers.
-    if discord_group(poll.group_id) and (data.get('post_results') is True or (
+    if can_share(user, poll.group_id) and (data.get('post_results') is True or (
             first_scoring and data.get('post_results') is None and share_prefs(user)['poll'] == 'always')):
         queue_poll_post(poll, user, 'poll_results', datetime.now())
 
@@ -4182,14 +4309,38 @@ def toggle_watchlist():
         return jsonify({'error': 'Movie not found'}), 404
 
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
+    prompt = False
     if existing:
         db.session.delete(existing)
         watching = False
     else:
-        db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+        # The digest may mention it in Discord only if you say so: "always" /
+        # "never" decide now; "ask" asks (members in the club's server only).
+        pref = share_prefs(user)['watchlist']
+        db.session.add(Watchlist(user_id=user.id, movie_id=movie.id,
+                                 share_discord={'always': True, 'never': False}.get(pref)))
+        prompt = pref == 'ask' and can_share(user, DISCORD_GROUP_ID) \
+            and _active_membership(user, DISCORD_GROUP_ID) is not None
         watching = True
     db.session.commit()
-    return jsonify({'movie_id': movie.id, 'watching': watching})
+    return jsonify({'movie_id': movie.id, 'watching': watching, 'discord_prompt': prompt})
+
+
+@app.route('/api/watchlist/<int:movie_id>/discord', methods=['PUT'])
+@require_auth
+def watchlist_discord(movie_id):
+    """Answer "mention you in the Discord digest when it's playing?" for one
+    film: {share: bool, remember: bool} (remember makes it your choice for all)."""
+    user = current_user()
+    w = Watchlist.query.filter_by(user_id=user.id, movie_id=movie_id).first()
+    if not w:
+        return jsonify({'error': 'Not on your watchlist'}), 404
+    data = request.json or {}
+    w.share_discord = bool(data.get('share'))
+    if data.get('remember'):
+        set_share_pref(user, 'watchlist', 'always' if w.share_discord else 'never')
+    db.session.commit()
+    return jsonify({'movie_id': movie_id, 'discord_share': watch_shared(w), 'prefs': share_prefs(user)})
 
 
 @app.route('/api/watchlist')
@@ -4207,6 +4358,7 @@ def get_watchlist():
         items.append({
             'movie': w.movie.to_dict() if w.movie else None,
             'added_at': w.created_at.isoformat() if w.created_at else None,
+            'discord_share': watch_shared(w),       # may the Discord digest mention you about it
             # Public serializer: the old one listed every club's attendees here.
             'next_showtime': public_showtimes([next_st], user)[0] if next_st else None,
         })
@@ -4306,7 +4458,21 @@ def internal_showtimes():
 
     limit = min(request.args.get('limit', 200, type=int), 500)
     showtimes = q.order_by(Showtime.start_time).limit(limit).all()
-    return jsonify([s.to_dict(group_id=group_id) for s in showtimes])
+    return jsonify([for_discord(s.to_dict(group_id=group_id)) for s in showtimes])
+
+
+def for_discord(d):
+    """A showtime dict as the bot may show it: attendees / maybes name only
+    members in the club's server (attendees_more / maybes_more count the rest),
+    and reactions are counts only."""
+    shown = present_user_ids()
+    for key in ('attendees', 'maybes'):
+        people = d.get(key) or []
+        d[key] = [p for p in people if p['id'] in shown]
+        d[f'{key}_more'] = len(people) - len(d[key])
+    for r in (d.get('reactions') or {}).values():
+        r['users'] = [u for u in r.get('users', []) if u['id'] in shown]
+    return d
 
 
 @app.route('/api/internal/chat-context')
@@ -4613,7 +4779,8 @@ def digest_recap(group, members, now):
     return {'checkins': checkins, 'films': len(per_film),
             'top_film': {'title': top[0], 'count': top[1]} if top and top[1] > 1 else None,
             'discussed': discussed,
-            'poll': {'title': poll.title, 'winner': board[0]['user'].name, 'kernels': board[0]['kernels']}
+            'poll': {'title': poll.title, 'kernels': board[0]['kernels'],
+                     'winner': board[0]['user'].name if on_discord(board[0]['user']) else None}
             if board else None}
 
 
@@ -4645,12 +4812,15 @@ def internal_digest():
         by_movie.setdefault(s.movie_id, []).append(s)
     members = ({m.user_id for m in group.memberships if m.status == 'active'} if group else None)
 
+    # Names are only members in the club's server (and, for watchlists, only
+    # if they let the digest mention them); everyone else is a *_more count.
     whos_going, going_movies = [], set()
     for s in showtimes:
-        going = [r.user.name for r in s.rsvps
+        going = [r.user for r in s.rsvps
                  if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
         if going:
-            whos_going.append({**_showtime_brief(s), 'going': going})
+            shown, more = split_present(going)
+            whos_going.append({**_showtime_brief(s), 'going': [u.name for u in shown], 'going_more': more})
             going_movies.add(s.movie_id)
 
     retag_before = _utcnow_naive() - DIGEST_RETAG_AFTER
@@ -4661,13 +4831,22 @@ def internal_digest():
                 'watchlist_id': w.id, 'name': w.user.name,
                 'discord_user_id': w.user.discord_user_id,
                 'fresh': not w.last_notified_at or w.last_notified_at < retag_before,
+                'shown': watch_shared(w),
             })
+
+    def watchers_out(ws):
+        """Watchers the digest may name; the rest are counted, and fresh ones
+        are still marked (and emailed) when the digest goes out."""
+        shown = [{k: w[k] for k in ('watchlist_id', 'name', 'discord_user_id', 'fresh')} for w in ws if w['shown']]
+        return shown, len(ws) - len(shown), [w['watchlist_id'] for w in ws if not w['shown'] and w['fresh']]
 
     used = set()
     plans = []
     for mid, ws in sorted(watchers_by_movie.items(), key=lambda kv: (-len(kv[1]), by_movie[kv[0]][0].start_time)):
         if len(ws) >= PLAN_MIN_WATCHERS and mid not in going_movies and len(plans) < DIGEST_CAPS['plans']:
-            plans.append({**_showtime_brief(by_movie[mid][0]), 'wanters': [w['name'] for w in ws]})
+            shown, more, _ = watchers_out(ws)
+            plans.append({**_showtime_brief(by_movie[mid][0]), 'wanters': [w['name'] for w in shown],
+                          'wanters_more': more})
             used.add(mid)
 
     candidates = []
@@ -4712,10 +4891,12 @@ def internal_digest():
     opening = sorted(opening, key=lambda x: (-x['theatres'], x['start_time']))[:DIGEST_CAPS['opening']]
 
     planned = {p['showtime_id'] for p in plans}
-    watchlist = sorted(({**_showtime_brief(by_movie[mid][0]), 'watchers': ws,
-                         'planned': by_movie[mid][0].id in planned}
-                        for mid, ws in watchers_by_movie.items()),
-                       key=lambda item: item['start_time'])
+    watchlist = []
+    for mid, ws in watchers_by_movie.items():
+        shown, more, quiet = watchers_out(ws)
+        watchlist.append({**_showtime_brief(by_movie[mid][0]), 'watchers': shown, 'more': more,
+                          'quiet_ids': quiet, 'planned': by_movie[mid][0].id in planned})
+    watchlist.sort(key=lambda item: item['start_time'])
 
     new_on_calendar = {}
     for e in (ScrapeEvent.query
@@ -4749,13 +4930,13 @@ def internal_digest():
 def internal_digest_delivered():
     """Called once the weekly digest has been posted with these watchlist
     entries tagged: marks them notified (no re-tag for two weeks) and emails
-    watchers who aren't on Discord the same news."""
+    watchers the digest didn't name (not on Discord, or not shared) the same news."""
     ids = [i for i in (request.json or {}).get('watchlist_ids') or [] if isinstance(i, int)]
     now = _utcnow_naive()
     by_user = {}
     for w in (Watchlist.query.filter(Watchlist.id.in_(ids)).all() if ids else []):
         w.last_notified_at = now
-        if w.user and w.user.email and not w.user.discord_user_id and w.movie:
+        if w.user and w.user.email and not watch_shared(w) and w.movie:
             by_user.setdefault(w.user.id, (w.user, []))[1].append(w.movie)
     db.session.commit()
 
@@ -4820,7 +5001,7 @@ def internal_rsvp():
     showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), group_id)
     if err:
         return err
-    result = showtime.to_dict(user_id=user.id, group_id=group_id)
+    result = for_discord(showtime.to_dict(user_id=user.id, group_id=group_id))
     result['user'] = user.to_dict()
     return jsonify(result)
 
@@ -4895,25 +5076,35 @@ OUTBOX_WINDOW = timedelta(hours=24)           # older unsent comments are backfi
 CARD_REFRESH_EVERY = timedelta(minutes=3)
 
 
+def _in_server():
+    """Site user ids of members in the club's Discord server (a subquery)."""
+    return (db.session.query(User.id)
+            .join(DiscordServerMember, DiscordServerMember.discord_user_id == User.discord_user_id))
+
+
 def _pending_post(q):
     """Site comments the bot still has to copy into Discord (never ones their
-    writer kept off Discord)."""
+    writer kept off Discord, or by anyone not in the club's server)."""
     return q.filter(Message.source == 'site', Message.discord_message_id.is_(None),
-                    Message.to_discord.isnot(False),
+                    Message.to_discord.isnot(False), Message.user_id.in_(_in_server()),
                     Message.created_at >= _utcnow_naive() - OUTBOX_WINDOW)
 
 
 def screening_card(showtime, group_id):
+    """A screening as Discord shows it: going / maybe name only members in the
+    server; going_more / maybe_more count everyone else."""
     rsvps = (RSVP.query.filter(RSVP.showtime_id == showtime.id, RSVP.group_id == group_id,
                                RSVP.status.in_(('going', 'maybe'))).order_by(RSVP.created_at).all())
-    def people(status):
-        return [{'name': r.user.name, 'discord_user_id': r.user.discord_user_id} for r in rsvps if r.status == status]
-    return {'showtime_id': showtime.id, 'title': showtime.movie.title,
+    card = {'showtime_id': showtime.id, 'title': showtime.movie.title,
             'start_time': showtime.start_time.isoformat(),
             'theatre': showtime.theatre.name, 'theatre_short': showtime.theatre.short_name or showtime.theatre.name,
             'format_label': showtime.format_label, 'poster_url': showtime.movie.poster_url,
-            'going': people('going'), 'maybe': people('maybe'),
             'site_path': f'/calendar?showtime={showtime.id}'}
+    for status in ('going', 'maybe'):
+        shown, more = split_present([r.user for r in rsvps if r.status == status])
+        card[status] = [{'name': u.name, 'discord_user_id': u.discord_user_id} for u in shown]
+        card[f'{status}_more'] = more
+    return card
 
 
 def _thread_dict(t):
@@ -4938,7 +5129,7 @@ def thread_info(showtime, group_id):
         q = Message.query.filter_by(showtime_id=showtime.id, group_id=group_id)
         pending = {m.id for m in _pending_post(q)}
         earlier = [m for m in q.order_by(Message.created_at.desc(), Message.id.desc())
-                   if m.id not in pending and m.to_discord is not False]
+                   if m.id not in pending and m.to_discord is not False and m.user_id in present_user_ids()]
         out['earlier_total'] = len(earlier)
         out['backfill'] = [_outbound(m) for m in reversed(earlier[:DISCUSSION_BACKFILL])]
     return out
@@ -5111,10 +5302,17 @@ def internal_discussion_delete():
 @app.route('/api/internal/leaderboard')
 @require_internal
 def internal_leaderboard():
+    """/leaderboard: members in the club's server, with their real place;
+    `hidden` counts the members on the site."""
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
-    return jsonify(build_leaderboard(group))
+    shown_ids = present_user_ids()
+    board = build_leaderboard(group)
+    rows = [{'place': i + 1, 'user': {'name': r['user']['name']},
+             **{k: r[k] for k in ('kernels', 'correct', 'attendance')}}
+            for i, r in enumerate(board) if r['user']['id'] in shown_ids]
+    return jsonify({'rows': rows, 'hidden': len(board) - len(rows)})
 
 
 @app.route('/api/internal/watch', methods=['POST'])
@@ -5133,10 +5331,11 @@ def internal_watch():
     if not movie:
         return jsonify({'error': 'Movie not found'}), 404
 
+    # Added in the server itself (and announced there): the digest may mention it.
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
     if action == 'add':
         if not existing:
-            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id, share_discord=True))
         watching = True
     elif action == 'remove':
         if existing:
@@ -5147,7 +5346,7 @@ def internal_watch():
             db.session.delete(existing)
             watching = False
         else:
-            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id, share_discord=True))
             watching = True
     db.session.commit()
     return jsonify({'movie_title': movie.title, 'watching': watching, 'user_name': user.name})
@@ -5156,13 +5355,14 @@ def internal_watch():
 @app.route('/api/internal/members')
 @require_internal
 def internal_members():
-    """Active members of a group, for the /watch member picker."""
+    """Active members of a group who are in the club's server, for the /watch
+    member picker."""
     group_id = request.args.get('group_id', type=int)
     group = db.session.get(Group, group_id) if group_id else None
     if not group:
         return jsonify([])
     members = [m.user for m in group.memberships
-               if m.status == 'active' and m.user and m.user.is_active]
+               if m.status == 'active' and m.user and m.user.is_active and on_discord(m.user)]
     members.sort(key=lambda u: (u.name or '').lower())
     return jsonify([{'id': u.id, 'name': u.name} for u in members])
 
@@ -5176,6 +5376,8 @@ def internal_watchlist():
     member_id = request.args.get('member_id', type=int)
     if member_id:
         target = db.session.get(User, member_id)
+        if not on_discord(target):            # someone else's: only members in the server
+            target = None
     else:
         target, err = resolve_discord_user(request.args)
         if err:
@@ -5234,7 +5436,7 @@ def internal_profile():
     other = request.args.get('member_discord_id')
     if other:
         user = User.query.filter_by(discord_user_id=str(other)).first()
-        if not user or not user.is_active:
+        if not user or not user.is_active or not on_discord(user):
             return jsonify({'error': 'no_account'}), 404
     else:
         user, err = resolve_discord_user(request.args)
@@ -5370,7 +5572,7 @@ def internal_history():
     other = request.args.get('member_discord_id')
     if other:
         user = User.query.filter_by(discord_user_id=str(other)).first()
-        if not user or not user.is_active:
+        if not user or not user.is_active or not on_discord(user):
             return jsonify({'error': 'no_account'}), 404
     else:
         user, err = resolve_discord_user(request.args)
@@ -5388,7 +5590,7 @@ def internal_compare():
     if err:
         return err
     other = User.query.filter_by(discord_user_id=str(request.args.get('member_discord_id') or '')).first()
-    if not other or not other.is_active:
+    if not other or not other.is_active or not on_discord(other):
         return jsonify({'error': 'unknown_member'}), 404
     if other.id == me.id:
         return jsonify({'error': 'same_person'}), 400
@@ -5686,6 +5888,16 @@ def migrate():
         except Exception:
             pass  # column already exists
     db.session.commit()
+    # R6a.1: the digest's watchlist mentions became a choice. Members already
+    # on Discord keep being mentioned for what's on their lists today.
+    try:
+        db.session.execute(db.text("ALTER TABLE watchlist ADD COLUMN share_discord BOOLEAN"))
+        db.session.execute(db.text(
+            "UPDATE watchlist SET share_discord = 1 WHERE user_id IN "
+            "(SELECT id FROM user WHERE discord_user_id IS NOT NULL)"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()   # already added
     db.session.execute(db.text("UPDATE rsvp SET updated_at = created_at WHERE updated_at IS NULL"))
     db.session.commit()
     # Every movie's current title is a venue label the scraper may see again.

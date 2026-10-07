@@ -6,6 +6,7 @@ import Avatar from "../ui/Avatar";
 import ReactionBar from "./ReactionBar";
 import ChatSection from "./ChatSection";
 import { useShell } from "../shell/AppShell";
+import { WatchDiscordPrompt } from "../ui/DiscordShare";
 import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
 
 // Collapsible accordion section used for the sheet's informational blocks.
@@ -43,6 +44,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const [reactions, setReactions] = useState(primary.reactions || {});
   const shell = useShell();
   const [watching, setWatching] = useState(user ? null : false); // null until your watchlist loads
+  const [watchPrompt, setWatchPrompt] = useState(false);          // "mention you in the Discord digest?"
   const [posterOk, setPosterOk] = useState(true);
   const [heroOk, setHeroOk] = useState(true);
 
@@ -69,8 +71,11 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ movie_id: movie.id }),
       });
-      if (r.ok) setWatching((await r.json()).watching);
-      else setWatching(!next);
+      if (r.ok) {
+        const d = await r.json();
+        setWatching(d.watching);
+        setWatchPrompt(!!d.discord_prompt);
+      } else setWatching(!next);
     } catch {
       setWatching(!next);
     }
@@ -141,6 +146,9 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             </button>
           )}
         </div>
+        {watching && watchPrompt && (
+          <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(false)} />
+        )}
 
         <div className="drawer-tickets">
           {showtimes.map(s => (

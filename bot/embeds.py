@@ -88,6 +88,16 @@ def actor_ref(name, discord_user_id):
     return f"<@{discord_user_id}>" if discord_user_id else f"**{name}**"
 
 
+def more_on_site(names, on_site=0, extra=0):
+    """'Ana, Bo +1 · +2 on the site': `extra` more names that didn't fit, and
+    members who aren't in this server, who are only ever counted (the backend
+    never sends their names)."""
+    text = ', '.join(names) + (f" +{extra}" if extra else '')
+    if on_site:
+        text += f" · +{on_site} on the site" if text else f"{on_site} on the site"
+    return text
+
+
 def activity_message(event):
     """Plain-text announcement for a site action (currently RSVPs)."""
     if event.get('kind') != 'rsvp':
@@ -118,9 +128,9 @@ def _showtime_line(s, include_counts=True):
         line += f" · {s['format_label']}"
     if s.get('is_sold_out'):
         line += ' *(sold out)*'
-    if include_counts and s.get('attendees'):
-        names = ', '.join(a['name'] for a in s['attendees'][:6])
-        line += f" — 🎟️ {names}"
+    if include_counts and (s.get('attendees') or s.get('attendees_more')):
+        shown = s.get('attendees') or []
+        line += f" — 🎟️ {more_on_site([a['name'] for a in shown[:6]], s.get('attendees_more'), max(0, len(shown) - 6))}"
     return line
 
 
@@ -310,8 +320,9 @@ def _short_when(iso):
     return datetime.fromisoformat(iso).strftime('%a %-m/%-d %-I:%M %p').replace(':00 ', ' ')
 
 
-def _names(names, limit=3):
-    return ', '.join(names[:limit]) + (f" +{len(names) - limit}" if len(names) > limit else '')
+def _names(names, limit=3, more=0):
+    """A few names, then '+N', then members on the site (counted only)."""
+    return more_on_site(names[:limit], more, max(0, len(names) - limit))
 
 
 def digest_message(digest, tag_watchers=False):
@@ -333,7 +344,7 @@ def digest_message(digest, tag_watchers=False):
 
     going = digest.get('whos_going', [])
     if going:
-        lines = [line(s, f" — {_names(s['going'])}") for s in going[:5]]
+        lines = [line(s, f" — {_names(s['going'], more=s.get('going_more', 0))}") for s in going[:5]]
         if len(going) > 5:
             lines.append(f"+{len(going) - 5} more → `/whosgoing`")
         embed.add_field(name="🎟️ Who's going", value='\n'.join(lines)[:1024], inline=False)
@@ -341,7 +352,7 @@ def digest_message(digest, tag_watchers=False):
     plans = digest.get('plans', [])
     if plans:
         _add_field(embed, '🤝 Make plans — nobody’s going yet',
-                   [f"**{p['title']}** — {_names(p['wanters'], 2)} want to see it · next "
+                   [f"**{p['title']}** — {_names(p['wanters'], 2, p.get('wanters_more', 0))} want to see it · next "
                     f"{_short_when(p['start_time'])} @ {p['theatre']}" for p in plans])
     _add_field(embed, '💎 Rare this week',      # the reasons already name the print format
                [f"**{r['title']}** — {_short_when(r['start_time'])} @ {r['theatre']}"
@@ -356,14 +367,16 @@ def digest_message(digest, tag_watchers=False):
     tagged, pings, lines = [], {}, []
     for item in digest.get('watchlist', []):
         names = []
+        if tag_watchers:                         # not named here, but marked (and emailed) all the same
+            tagged += item.get('quiet_ids') or []
         for w in item['watchers']:
             if tag_watchers and w['fresh']:
                 tagged.append(w['watchlist_id'])
                 if w.get('discord_user_id'):
                     pings.setdefault(w['discord_user_id'], []).append(item['title'])
             names.append(f"<@{w['discord_user_id']}>" if w.get('discord_user_id') else w['name'])
-        if not item.get('planned'):              # already under "Make plans"
-            lines.append(f"**{item['title']}** — {', '.join(names)}")
+        if not item.get('planned') and (names or item.get('more')):   # planned: already under "Make plans"
+            lines.append(f"**{item['title']}** — {more_on_site(names, item.get('more', 0))}")
     _add_field(embed, '👀 On your watchlists', lines, limit=5)
 
     polls = digest.get('open_polls', [])
@@ -384,7 +397,7 @@ def digest_message(digest, tag_watchers=False):
         bits.append(f"most talked about: {title} ({d['comments']} comments)")
     if recap.get('poll'):
         p = recap['poll']
-        bits.append(f"🏆 {p['title']}: {p['winner']} ({p['kernels']} 🍿)")
+        bits.append(f"🏆 {p['title']}: {p['winner'] or 'a member on the site'} ({p['kernels']} 🍿)")
     if bits:
         embed.add_field(name='📊 Last week', value=' · '.join(bits)[:1024], inline=False)
 
@@ -491,8 +504,8 @@ def poll_results_embed(p):
     if not top:
         embed.description = 'Scored — nobody voted this time.'
         return embed
-    lines = [f"{MEDALS[i]} {actor_ref(t['name'], t.get('discord_user_id'))} — **{t['kernels']} 🍿** "
-             f"({t['correct']} correct)" for i, t in enumerate(top)]
+    lines = [f"{MEDALS[i]} {actor_ref(t['name'], t.get('discord_user_id')) if t.get('name') else '*a member on the site*'}"
+             f" — **{t['kernels']} 🍿** ({t['correct']} correct)" for i, t in enumerate(top)]
     voters = p.get('voters', len(top))
     embed.description = '\n'.join(lines) + f"\n\n{voters} {'member' if voters == 1 else 'members'} voted · " \
                                            f"see your own picks with `/vote`"
@@ -507,10 +520,9 @@ def thread_name(card):
     return f"{card['title']} · {when} · {card['theatre_short']}"[:100]
 
 
-def _people(people, limit=10):
+def _people(people, limit=10, on_site=0):
     names = [f"<@{p['discord_user_id']}>" if p.get('discord_user_id') else p['name'] for p in people[:limit]]
-    more = f" +{len(people) - limit}" if len(people) > limit else ''
-    return ', '.join(names) + more
+    return more_on_site(names, on_site, max(0, len(people) - limit))
 
 
 def thread_card_embed(card):
@@ -520,10 +532,10 @@ def thread_card_embed(card):
     fmt = f" · {card['format_label']}" if card.get('format_label') else ''
     lines = [f"{when} · {card['theatre']}{fmt}"]
     who = []
-    if card.get('going'):
-        who.append(f"**Going:** {_people(card['going'])}")
-    if card.get('maybe'):
-        who.append(f"**Maybe:** {_people(card['maybe'])}")
+    if card.get('going') or card.get('going_more'):
+        who.append(f"**Going:** {_people(card.get('going') or [], on_site=card.get('going_more', 0))}")
+    if card.get('maybe') or card.get('maybe_more'):
+        who.append(f"**Maybe:** {_people(card.get('maybe') or [], on_site=card.get('maybe_more', 0))}")
     lines.append(' · '.join(who) if who else '*Nobody has RSVP’d yet.*')
     lines.append('-# Discuss in the thread below — comments here and on the site stay in sync.')
     embed = discord.Embed(title=card['title'][:256], url=f"{SITE_URL}{card['site_path']}",
@@ -662,7 +674,7 @@ def rsvp_share_message(d):
 
 
 def invite_message(d):
-    return f"🍿 **{d['by']}** is asking: who's in?"
+    return f"🍿 **{d['by']}** is asking: who's in?" if d.get('by') else "🍿 Who's in?"
 
 
 def invite_embed(d):
@@ -673,11 +685,11 @@ def invite_embed(d):
         lines.append(f"> {d['note']}")
     lines.append(_show_when({**c, 'theatre': c['theatre']}))
     who = []
-    if c.get('going'):
-        who.append(f"**Going:** {', '.join(p['name'] for p in c['going'][:12])}"
-                   + (f" +{len(c['going']) - 12}" if len(c['going']) > 12 else ''))
-    if c.get('maybe'):
-        who.append(f"**Maybe:** {', '.join(p['name'] for p in c['maybe'][:12])}")
+    for key, label in (('going', 'Going'), ('maybe', 'Maybe')):
+        people = c.get(key) or []
+        if people or c.get(f'{key}_more'):
+            who.append(f"**{label}:** "
+                       f"{more_on_site([p['name'] for p in people[:12]], c.get(f'{key}_more'), max(0, len(people) - 12))}")
     lines.append(' · '.join(who) if who else '*Nobody has said yet.*')
     if d.get('started'):
         lines.append('-# This screening has started.')

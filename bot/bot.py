@@ -62,6 +62,11 @@ intents = discord.Intents.default()
 # enable "Message Content Intent" in the Discord Developer Portal (Bot settings)
 # or the gateway connection will fail / message content will arrive empty.
 intents.message_content = True
+# Privileged intent — who's in the club's server. Only members who've linked
+# Discord and are in it ever appear there (names, pings, their shares); the
+# bot keeps the site's list current (member_sync). Enable "Server Members
+# Intent" in the Developer Portal too.
+intents.members = True
 
 
 class CinemaClubBot(discord.Client):
@@ -110,6 +115,7 @@ class CinemaClubBot(discord.Client):
         digest_loop.start()
         attendance_loop.start()
         discussion_loop.start()
+        member_sync_loop.start()
 
     async def close(self):
         await api.close()
@@ -1358,13 +1364,12 @@ async def rsvp(interaction: discord.Interaction, date: str = None, end: str = No
     verb = {'going': 'is going to', 'maybe': 'might go to', 'not_going': "can't make"}[status_value]
     lines = [f"🎟️ {interaction.user.mention} {verb} **{result['movie']['title']}** — "
              f"{dt.strftime('%A %-m/%-d %-I:%M %p')} at {theatre_name}"]
-    # List everyone else already going to this screening.
-    going = [a['name'] for a in result.get('attendees', [])]
-    if going:
-        who = ', '.join(going[:12])
-        if len(going) > 12:
-            who += f" +{len(going) - 12} more"
-        lines.append(f"🍿 Going ({len(going)}): {who}")
+    # List everyone else already going to this screening (members who aren't
+    # in this server are only counted).
+    going, on_site = [a['name'] for a in result.get('attendees', [])], result.get('attendees_more') or 0
+    if going or on_site:
+        who = embeds.more_on_site(going[:12], on_site, max(0, len(going) - 12))
+        lines.append(f"🍿 Going ({len(going) + on_site}): {who}")
     await interaction.followup.send('\n'.join(lines), view=discuss_view(int(showtime)))
 
 
@@ -1410,7 +1415,7 @@ async def rsvp_showtime_autocomplete(interaction: discord.Interaction, current: 
 async def whosgoing(interaction: discord.Interaction, days: app_commands.Range[int, 1, 30] = 7):
     await interaction.response.defer()
     sts = await fetch_window(days)
-    going = [s for s in sts if s.get('attendees') or s.get('maybes')]
+    going = [s for s in sts if s.get('attendees') or s.get('maybes') or s.get('attendees_more') or s.get('maybes_more')]
     embed = embeds.showtimes_embed(
         going, f"🎟️ Who's going — next {days} days",
         empty_text=f"No RSVPs yet for the next {days} days. Be the first: `/rsvp` or {SITE_URL}")
@@ -3085,20 +3090,24 @@ client.tree.add_command(llm_admin)
 async def leaderboard(interaction: discord.Interaction):
     await interaction.response.defer()
     try:
-        rows = await api.get('/api/internal/leaderboard', group_id=DEFAULT_GROUP_ID)
+        board = await api.get('/api/internal/leaderboard', group_id=DEFAULT_GROUP_ID)
     except ApiError:
-        rows = []
+        board = {}
+    rows = board.get('rows') or []
     if not rows:
         await interaction.followup.send('No standings yet — vote in a poll!')
         return
     medals = ['🥇', '🥈', '🥉']
     lines = []
-    for i, r in enumerate(rows[:10]):
-        badge = medals[i] if i < 3 else f'{i + 1}.'
+    for r in rows[:10]:                       # real places: members on the site keep theirs
+        badge = medals[r['place'] - 1] if r['place'] <= 3 else f"{r['place']}."
         lines.append(f"{badge} **{r['user']['name']}** — 🍿 {r['kernels']} "
                      f"({r['correct']} correct · {r['attendance']} movies attended)")
     embed = discord.Embed(title='🍿 Kernel Leaderboard', description='\n'.join(lines),
                           colour=embeds.AMBER, url=f'{SITE_URL}/leaderboard')
+    if board.get('hidden'):
+        n = board['hidden']
+        embed.set_footer(text=f"+{n} member{'s' if n != 1 else ''} on the site — full standings at {SITE_URL}/leaderboard")
     await interaction.followup.send(embed=embed)
 
 
@@ -3140,6 +3149,65 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} — announcing to channel {DISCORD_CHANNEL_ID}')
+
+
+# ─── Who's in the server ──────────────────────────────────────────────────────
+# The site only ever names (or posts for) members who've linked Discord and are
+# in the club's server, so it needs that list: the whole of it once the bot is
+# ready and every half hour after (member_sync_loop), and joins/leaves as they
+# happen. Until the first sync, the site posts nothing.
+
+def home_guild():
+    return getattr(movies_channel(), 'guild', None)
+
+
+async def sync_members():
+    guild = home_guild()
+    if guild is None:
+        return
+    if not guild.chunked:                     # never send a partial list as the whole one
+        try:
+            await guild.chunk()
+        except Exception as e:
+            print(f'member sync: fetching members failed: {e}')
+            return
+    try:
+        r = await api.post('/api/internal/discord/members',
+                           {'full': True, 'ids': [str(m.id) for m in guild.members if not m.bot]})
+        if r.get('joined') or r.get('left'):
+            print(f"member sync: {r['members']} in the server (+{r['joined']} / -{r['left']})")
+    except Exception as e:
+        print(f'member sync failed: {e}')
+
+
+@tasks.loop(minutes=30)
+async def member_sync_loop():
+    await sync_members()
+
+
+@member_sync_loop.before_loop
+async def before_member_sync():
+    await client.wait_until_ready()
+
+
+async def member_changed(member, key):
+    guild = home_guild()
+    if guild is None or member.guild.id != guild.id or member.bot:
+        return
+    try:
+        await api.post('/api/internal/discord/members', {key: [str(member.id)]})
+    except Exception as e:                    # the half-hourly sync catches up
+        print(f'member sync ({key}) failed: {e}')
+
+
+@client.event
+async def on_member_join(member):
+    await member_changed(member, 'joined')
+
+
+@client.event
+async def on_member_remove(member):
+    await member_changed(member, 'left')
 
 
 if __name__ == '__main__':

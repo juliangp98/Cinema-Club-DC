@@ -19,9 +19,16 @@ const SHARE_CHOICES = [
 ];
 const SHARE_KINDS = [
   ["rsvp", "My RSVPs", "Never still leaves a Share button on each screening."],
-  ["poll", "Polls I create", "Announcements and results (group admins)."],
+  ["poll", "Polls I create", "Announcements and results (organizers and admins)."],
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
+  ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
 ];
+// Why sharing isn't on offer: only members who've linked Discord and are in
+// the club's server ever appear there.
+const UNAVAILABLE = {
+  not_linked: "Link your Discord (above) to share to the club's server. Until then, nothing you do here appears there.",
+  not_in_server: "Your Discord is linked, but you're not in the club's server, so nothing you do here appears there. Join it to share.",
+};
 
 // What goes to the club's Discord from the site: per kind, ask / always / never.
 // Saved as soon as you pick.
@@ -29,7 +36,15 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
   const [state, setState] = useState(null);
   useEffect(() => {
     getSharePrefs(apiBase).then(setState).catch(() => setState(null));
-  }, [apiBase]);
+  }, [apiBase, user?.discord_linked]);
+  if (state && !state.available && UNAVAILABLE[state.reason]) {
+    return (
+      <div className="profile-sharing">
+        <div className="profile-section-label">Sharing to Discord</div>
+        <p className="profile-sharing-hint">{UNAVAILABLE[state.reason]}</p>
+      </div>
+    );
+  }
   if (!state?.available) return null;
   async function choose(kind, value) {
     if (!value) return;                     // picking the current choice again keeps it

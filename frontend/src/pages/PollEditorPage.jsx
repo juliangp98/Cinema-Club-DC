@@ -39,6 +39,8 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   const [announce, setAnnounce] = useState(() => ({ when: shell?.user?.share_prefs?.poll === "never" ? "none" : "now" }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Only members in the club's Discord server (with Discord linked) can announce there.
+  const canAnnounce = !!(shell?.group?.discord && shell?.user?.on_discord);
 
   function applyDraft(d) {
     setForm({ title: d.title, description: d.description || "", poll_type: d.poll_type, scoring_mode: d.scoring_mode,
@@ -93,7 +95,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
         .map(c => ({ title: c.title.trim(), options: c.options.filter(o => o.text.trim()).map(o => ({ text: o.text.trim(), extra: o.extra })) }))
         .filter(c => c.title && c.options.length >= 2),
       draft_id: draftId,
-      ...(shell?.group?.discord ? { announce: announce.when, announce_at: announce.when === "later" ? announce.at : undefined } : {}),
+      ...(canAnnounce ? { announce: announce.when, announce_at: announce.when === "later" ? announce.at : undefined } : {}),
     };
     const r = await fetch(`${apiBase}/api/groups/${activeGroupId}/polls`, {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
@@ -199,7 +201,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
           <button type="button" className="btn btn-sm" onClick={() => set({ categories: [...form.categories, blankCategory()] })}>＋ Category</button>
         )}
 
-        {shell?.group?.discord && (
+        {canAnnounce && (
           <div className="pv-announce">
             <span className="pv-label">Announce in #movies</span>
             <ShareWhen value={announce} onChange={setAnnounce} allowNone />

@@ -8,6 +8,7 @@ import { useShell } from "../shell/AppShell";
 import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
 import { groupParam } from "../scope";
+import { WatchDiscordPrompt } from "../ui/DiscordShare";
 
 const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -36,6 +37,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [error, setError] = useState("");
   const [theatre, setTheatre] = useState("all");
   const [watching, setWatching] = useState(false);
+  const [watchPrompt, setWatchPrompt] = useState(false);     // "mention you in the Discord digest?"
   const [copied, setCopied] = useState(false);
   const [posterOk, setPosterOk] = useState(true);
   const [profileUserId, setProfileUserId] = useState(null);
@@ -82,7 +84,12 @@ export default function FilmPage({ user, apiBase, groupId }) {
       method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
       body: JSON.stringify({ movie_id: Number(id) }),
     }).catch(() => null);
-    if (r?.ok) { setWatching((await r.json()).watching); load(); } else setWatching(!next);
+    if (r?.ok) {
+      const d = await r.json();
+      setWatching(d.watching);
+      setWatchPrompt(!!d.discord_prompt);
+      load();
+    } else setWatching(!next);
   }
 
   async function share() {
@@ -145,6 +152,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
                   <a className="btn btn-ghost" href="#trailer">▶ Trailer</a>
                 )}
               </div>
+              {watching && watchPrompt && (
+                <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(false)} />
+              )}
             </div>
           </div>
         </div>

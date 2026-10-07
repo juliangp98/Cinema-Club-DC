@@ -196,6 +196,34 @@ export function TicketDiscord({ showtime: s, apiBase, groupId }) {
   );
 }
 
+// After adding a film to your watchlist (when your watchlist choice is "Ask"):
+// may the weekly Discord digest mention you when it's playing? Only offered to
+// members in the club's server.
+export function WatchDiscordPrompt({ apiBase, movieId, onDone }) {
+  const [error, setError] = useState("");
+  const answer = async (share, remember = false) => {
+    setError("");
+    try {
+      onDone?.(await call(apiBase, `/api/watchlist/${movieId}/discord`, "PUT", { share, remember }));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  return (
+    <div className="share-prompt watch-discord-prompt" role="group" aria-label="Mention you in Discord">
+      <span>Mention you in the Discord digest when it's playing?</span>
+      <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes</button>
+      <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No</button>
+      <span className="share-remember">
+        <button type="button" className="share-link" onClick={() => answer(true, true)}>Always</button>
+        {" · "}
+        <button type="button" className="share-link" onClick={() => answer(false, true)}>Never ask</button>
+      </span>
+      {error && <p className="share-error">{error}</p>}
+    </div>
+  );
+}
+
 // A poll's Discord posts, for group admins: the announcement (now or later)
 // and, once scored, the results. Each can be posted, rescheduled or taken down.
 export function PollDiscord({ poll, apiBase, onChange }) {

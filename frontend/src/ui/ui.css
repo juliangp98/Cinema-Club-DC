@@ -356,6 +356,7 @@ a.feed-poster { display: block; }
   background: rgba(220, 177, 92, 0.1); border: 1px solid rgba(220, 177, 92, 0.35); color: var(--cream);
 }
 .share-remember { color: var(--muted); }
+.watch-discord-prompt { margin-top: 0.6rem; }
 .share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; color: var(--muted); }
 .share-link {
   background: none; border: none; padding: 0; cursor: pointer; font: inherit;
