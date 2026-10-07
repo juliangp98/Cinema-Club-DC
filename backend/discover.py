@@ -139,7 +139,17 @@ def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of
     this_year = datetime.now().year
     for f in films.values():
         f.finish(this_year, rarity, EVENT_WORDS)
-    if not films or not group:
+    if not films:
+        return films
+    if not group:
+        # Public mode: no club, only the viewer's own personal plans and watchlist (R5b).
+        if viewer:
+            show_ids = {s.id: s.movie_id for f in films.values() for s in f.shows}
+            for r in RSVP.query.filter(RSVP.user_id == viewer.id, RSVP.group_id.is_(None),
+                                       RSVP.status.in_(('going', 'maybe')), RSVP.showtime_id.in_(show_ids)):
+                films[show_ids[r.showtime_id]].you_going = True
+            for w in Watchlist.query.filter(Watchlist.user_id == viewer.id, Watchlist.movie_id.in_(films)):
+                films[w.movie_id].you_want = True
         return films
 
     members = {m.user_id for m in GroupMembership.query.filter_by(group_id=group.id, status='active')}

@@ -31,21 +31,34 @@ const linkClass = (base, also, pathname) => ({ isActive }) =>
 export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }) {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const NAV = !user ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
+  const NAV = !user || user.is_guest ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
   const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
   const [editing, setEditing] = useState(false);
 
+  // A visitor's first RSVP / watchlist add / reaction makes a private guest
+  // profile (R5b); returns the signed-in user either way, or null if refused.
+  const ensureProfile = useCallback(async () => {
+    if (user) return user;
+    const r = await fetch(`${apiBase}/api/auth/guest`, { method: "POST", credentials: "include" }).catch(() => null);
+    if (!r?.ok) return null;
+    const u = (await r.json()).user;
+    setUser(u);
+    return u;
+  }, [user, apiBase, setUser]);
+
   const logout = useCallback(async () => {
+    if (user?.is_guest && !window.confirm("Sign out of your guest profile? Your plans and watchlist can't be recovered "
+                                          + "unless you keep the profile first (add an email or Discord).")) return;
     try {
       await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
     } finally {
       setUser(null);
       navigate("/", { replace: true });
     }
-  }, [apiBase, setUser, navigate]);
+  }, [apiBase, setUser, navigate, user]);
 
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
-  const shell = { user, setUser, apiBase, groupId, setGroupId, logout, editProfile: () => setEditing(true),
+  const shell = { user, setUser, apiBase, groupId, setGroupId, logout, ensureProfile, editProfile: () => setEditing(true),
                   openActivity: activity.open };
 
   return (
@@ -70,7 +83,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, setGroupId }
             trigger={<Avatar user={user} size={32} />}
           >
             <MenuLabel>{user.name} · {accountLabel(user)}</MenuLabel>
-            <MenuItem onSelect={() => navigate("/me")}><UserIcon /> Your profile &amp; lists</MenuItem>
+            <MenuItem onSelect={() => navigate("/me")}><UserIcon /> {user.is_guest ? "Your plans & watchlist" : <>Your profile &amp; lists</>}</MenuItem>
+            {user.is_guest && <MenuItem onSelect={() => navigate("/signin?next=%2Fme")}><EditIcon /> Keep your profile</MenuItem>}
             <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
             <MenuDivider />
             <MenuItem danger onSelect={logout}><LogoutIcon /> Sign out</MenuItem>

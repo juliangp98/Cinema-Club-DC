@@ -3,6 +3,7 @@
 // Discord handle.
 export function accountLabel(user) {
   if (!user) return "";
+  if (user.is_guest) return "Guest profile · only in this browser";
   if (user.email) return user.email;
   return user.discord_username ? `@${user.discord_username} on Discord` : "Discord member";
 }

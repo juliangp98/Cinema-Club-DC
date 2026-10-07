@@ -4,6 +4,7 @@ import { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
+import { useShell } from "../shell/AppShell";
 import { posterInitials, metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
 import { groupParam } from "../scope";
@@ -38,6 +39,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [copied, setCopied] = useState(false);
   const [posterOk, setPosterOk] = useState(true);
   const [profileUserId, setProfileUserId] = useState(null);
+  const shell = useShell();
 
   const load = useCallback(() => {
     fetch(`${apiBase}/api/films/${id}?${groupParam(groupId)}`, { credentials: "include" })
@@ -73,6 +75,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   }, [data, theatre]);
 
   async function toggleWatch() {
+    if (!user && !(await shell.ensureProfile())) return;      // a visitor's first save makes a guest profile
     const next = !watching;
     setWatching(next);
     const r = await fetch(`${apiBase}/api/watchlist`, {
@@ -134,13 +137,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
               <div className="film-ratings"><RatingBadges movie={movie} /></div>
               {!club && interest?.want && <p className="film-interest">{interest.want} people want to see it</p>}
               <div className="film-actions">
-                {user ? (
-                  <button className={`btn${watching ? " btn-primary" : ""}`} onClick={toggleWatch}>
-                    {watching ? "✓ On your watchlist" : "＋ Watchlist"}
-                  </button>
-                ) : (
-                  <Link className="btn" to={`/signin?next=${encodeURIComponent(`/films/${id}`)}`}>＋ Sign in to save</Link>
-                )}
+                <button className={`btn${watching ? " btn-primary" : ""}`} onClick={toggleWatch}>
+                  {watching ? "✓ On your watchlist" : "＋ Watchlist"}
+                </button>
                 <button className="btn" onClick={share}>{copied ? "Link copied" : "Share"}</button>
                 {(movie.trailer_key || movie.trailer_link) && (
                   <a className="btn btn-ghost" href="#trailer">▶ Trailer</a>

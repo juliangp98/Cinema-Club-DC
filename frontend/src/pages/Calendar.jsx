@@ -359,8 +359,11 @@ export default function Calendar({ user, apiBase, groupId }) {
           };
           return (
             <>
-              {groupId && <div className="cal-quick-group">{CLUB_PILLS.map((p, i) => pill(p, i))}</div>}
-              {groupId && <span className="cal-quick-sep" aria-hidden="true" />}
+              {/* Club mode: both club pills; otherwise just your own plans (R5b). */}
+              {(groupId || user) && (
+                <div className="cal-quick-group">{(groupId ? CLUB_PILLS : CLUB_PILLS.filter(([, v]) => v === "mine")).map((p, i) => pill(p, i))}</div>
+              )}
+              {(groupId || user) && <span className="cal-quick-sep" aria-hidden="true" />}
               <div className="cal-quick-group">
                 {SMART_PILLS.map((p, i) => pill(p, i, i >= PHONE_PILLS))}
                 <button type="button" className="chip cal-quick-more" aria-expanded={allPills} onClick={() => setAllPills(o => !o)}>

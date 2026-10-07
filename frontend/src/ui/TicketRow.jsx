@@ -39,8 +39,8 @@ export function Segmented({ options, value, onChange, label }) {
 // One screening as a ticket stub: when on the stub; where, format and
 // billing in the body; RSVP (or, once it has started, Went / Didn't go),
 // tickets and add-to-calendar as actions; then what to share in Discord.
-// Without RSVP access (public mode), `rsvpCta` ({text, to, label}) says how to get it.
-export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, rsvpCta, showTheatre = true }) {
+// Outside a club, `rsvpNote` ({text, to?, label?}) says who sees your RSVP.
+export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, rsvpNote, showTheatre = true }) {
   const start = new Date(s.start_time);
   const started = start <= new Date();
   const theatre = s.theatre?.name;
@@ -72,10 +72,8 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
           {started ? (
             onAttendance && <Segmented label="Did you go?" options={ATTENDED} value={s.user_attendance}
                                        onChange={v => onAttendance(s.id, v)} />
-          ) : onRsvp ? (
+          ) : onRsvp && (
             <Segmented label="Your RSVP" options={RSVP} value={s.user_rsvp} onChange={v => onRsvp(s.id, v)} />
-          ) : rsvpCta && (
-            <span className="ticket-cta">{rsvpCta.text} <Link to={rsvpCta.to}>{rsvpCta.label} →</Link></span>
           )}
           {!started && (
             <div className="ticket-links">
@@ -93,6 +91,9 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
             </div>
           )}
         </div>
+        {!started && rsvpNote && (
+          <span className="ticket-cta">{rsvpNote.text}{rsvpNote.to && <> <Link to={rsvpNote.to}>{rsvpNote.label} →</Link></>}</span>
+        )}
         {!started && <TicketDiscord showtime={s} apiBase={apiBase} groupId={groupId} />}
         {started && s.user_attendance === "went" && (
           <div className="ticket-note">Logged to your watch history — share your take in the discussion.</div>

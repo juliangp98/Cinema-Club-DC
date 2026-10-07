@@ -50,9 +50,10 @@ function Loading() {
 function SignIn({ user, onLogin, apiBase }) {
   const [params] = useSearchParams();
   const target = safeNext(params.get("next")) || "/";
-  if (user) return <Navigate to={target} replace />;
+  if (user && !user.is_guest) return <Navigate to={target} replace />;
   rememberNext(target);
-  return <Login onLogin={onLogin} apiBase={apiBase} next={target} />;
+  // A guest here is keeping their profile: signing up or in brings it along.
+  return <Login onLogin={onLogin} apiBase={apiBase} next={target} keeping={!!user?.is_guest} />;
 }
 
 // Invite links: accept on sign-in, then home.
@@ -141,8 +142,9 @@ export default function App() {
     fetchGroups();
   }
 
-  // Public pages run in club mode only for a signed-in member of a club.
-  const scopeGroupId = user && hasGroups ? activeGroupId : null;
+  // Public pages run in club mode only for a signed-in member of a club —
+  // never for a guest (whatever club this browser last remembered).
+  const scopeGroupId = user && !user.is_guest && hasGroups ? activeGroupId : null;
 
   function handleSetGroupId(id) {
     setActiveGroupId(id);

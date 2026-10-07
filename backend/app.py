@@ -39,7 +39,9 @@ if not os.environ.get('SECRET_KEY'):
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///cinemaclub.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Sign-ins last 30 days (sessions are marked permanent at sign-in).
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+# The cookie lasts 90 days (guest profiles live in it); members' sessions
+# still end after MEMBER_IDLE_LIMIT without a visit (see _session_upkeep).
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FRONTEND_URL', '').startswith('https://')
 
@@ -193,6 +195,11 @@ class User(db.Model):
     # R3d: what to do with your site actions in Discord, per kind:
     # {"rsvp"|"poll"|"comment": "ask"|"always"|"never"} (missing = ask)
     share_prefs = db.Column(db.Text)
+    # R5b: a guest profile — made automatically on a visitor's first RSVP,
+    # watchlist add or reaction; private to them until they keep it.
+    is_guest = db.Column(db.Boolean, default=False)
+    last_seen_at = db.Column(db.DateTime)           # guests: for idle expiry
+    guest_ip_hash = db.Column(db.String(64), index=True)   # guests: creation cap (a hash, not the address)
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
@@ -212,6 +219,7 @@ class User(db.Model):
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
             'share_prefs': share_prefs(self),
+            'is_guest': bool(self.is_guest),
         }
 
 
@@ -227,6 +235,7 @@ class LoginToken(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     expires_at = db.Column(db.DateTime, nullable=False)
     used_at = db.Column(db.DateTime)
+    guest_user_id = db.Column(db.Integer)           # R5b: the guest who asked for it (kept on redeem)
 
 
 class Group(db.Model):
@@ -818,11 +827,123 @@ def current_user():
 
 
 def _start_session(user):
-    """Sign `user` in for PERMANENT_SESSION_LIFETIME. Clears any previous
-    session first so a pre-existing cookie can't carry over."""
+    """Sign `user` in. Clears any previous session first so a pre-existing
+    cookie can't carry over."""
     session.clear()
     session.permanent = True
     session['user_id'] = user.id
+    session['guest'] = bool(user.is_guest)
+    session['seen'] = int(time.time())
+
+
+MEMBER_IDLE_LIMIT = timedelta(days=30)   # members: signed out after this long away
+GUEST_IDLE_LIMIT = timedelta(days=90)    # guests: the profile is deleted after this long away
+
+
+@app.before_request
+def _session_upkeep():
+    """Members' sessions end after MEMBER_IDLE_LIMIT away (the cookie itself
+    lasts 90 days, for guests); guests' last visit is recorded, daily, for
+    expiry."""
+    if 'user_id' not in session:
+        return
+    now = int(time.time())
+    if not session.get('guest') and now - session.get('seen', now) > MEMBER_IDLE_LIMIT.total_seconds():
+        session.clear()
+        return
+    if now - session.get('seen', 0) > 3600:
+        session['seen'] = now
+    if session.get('guest') and now - session.get('touched', 0) > 86400:
+        session['touched'] = now
+        User.query.filter_by(id=session['user_id'], is_guest=True).update({'last_seen_at': datetime.now()})
+        db.session.commit()
+
+
+# ─── Guest profiles (R5b) ─────────────────────────────────────────────────────
+# A visitor's first RSVP, watchlist add or reaction makes a guest profile and
+# signs them into it in this browser. It's private to them (no name, never in
+# any club), lasts 90 days from their last visit, and becomes a full account
+# when they add an email or Discord — or folds into the account they have.
+
+GUEST_CAP_PER_HOUR = 5
+GUEST_CAP_PER_DAY = 20
+
+
+def _ip_hash():
+    """A keyed hash of the visitor's address: enough to cap guest creation,
+    useless for recovering the address."""
+    return hashlib.sha256(f"{app.secret_key}|{_client_ip()}".encode()).hexdigest()
+
+
+def _delete_guest(guest):
+    for model in (RSVP, Watchlist, Reaction, Attendance, Message, PollVote, GroupMembership, SharedRsvp):
+        model.query.filter_by(user_id=guest.id).delete(synchronize_session=False)
+    LoginToken.query.filter_by(guest_user_id=guest.id).update({'guest_user_id': None}, synchronize_session=False)
+    db.session.delete(guest)
+
+
+def expire_guests(now=None):
+    """Delete guest profiles nobody has used for GUEST_IDLE_LIMIT."""
+    now = now or datetime.now()
+    stale = User.query.filter(User.is_guest.is_(True), User.last_seen_at < now - GUEST_IDLE_LIMIT).limit(200).all()
+    for g in stale:
+        _delete_guest(g)
+    return len(stale)
+
+
+def absorb_guest(keep, guest):
+    """Fold a guest profile into an existing account (the account's own rows
+    win where both have one). Never touches the account's Discord link."""
+    def move(model, *unique):
+        for row in model.query.filter_by(user_id=guest.id).all():
+            if model.query.filter_by(user_id=keep.id, **{c: getattr(row, c) for c in unique}).first():
+                db.session.delete(row)
+            else:
+                row.user_id = keep.id
+    move(RSVP, 'showtime_id', 'group_id')
+    move(Watchlist, 'movie_id')
+    move(Reaction, 'showtime_id', 'group_id', 'emoji')
+    move(Attendance, 'showtime_id')
+    if not keep.favorite_genres and guest.favorite_genres:
+        keep.favorite_genres = guest.favorite_genres
+    LoginToken.query.filter_by(guest_user_id=guest.id).update({'guest_user_id': None}, synchronize_session=False)
+    db.session.flush()
+    db.session.delete(guest)
+
+
+def keep_guest(guest, **fields):
+    """The guest profile becomes a full account (nothing moves)."""
+    for k, v in fields.items():
+        setattr(guest, k, v)
+    guest.is_guest, guest.guest_ip_hash = False, None
+    return guest
+
+
+def guest_blocked(user):
+    """Clubs see names, so joining or starting one needs a kept profile."""
+    if user and user.is_guest:
+        return jsonify({'error': 'Keep your profile first (add an email or Discord) to join a club.', 'code': 'guest'}), 403
+    return None
+
+
+@app.route('/api/auth/guest', methods=['POST'])
+def create_guest():
+    """Make a guest profile and sign into it (or return whoever's signed in)."""
+    user = current_user()
+    if user:
+        return jsonify({'user': user.to_dict()})
+    h, now = _ip_hash(), _utcnow_naive()
+    mine = User.query.filter(User.is_guest.is_(True), User.guest_ip_hash == h)
+    if (mine.filter(User.created_at >= now - timedelta(hours=1)).count() >= GUEST_CAP_PER_HOUR
+            or mine.filter(User.created_at >= now - timedelta(days=1)).count() >= GUEST_CAP_PER_DAY):
+        return jsonify({'error': 'Too many new profiles from here — try again later.'}), 429
+    expire_guests()
+    guest = User(name='Guest', is_guest=True, is_active=True, avatar_color=random.choice(AVATAR_COLORS),
+                 last_seen_at=datetime.now(), guest_ip_hash=h, created_at=now)
+    db.session.add(guest)
+    db.session.commit()
+    _start_session(guest)
+    return jsonify({'user': guest.to_dict()}), 201
 
 
 # Emailed sign-in links: single-use, short-lived, rate-limited per address and
@@ -857,8 +978,10 @@ def _issue_signin_link(email, purpose, name=None):
         return jsonify({'error': 'Too many sign-in emails requested. Try again in 15 minutes.'}), 429
 
     token = secrets.token_urlsafe(32)
+    asker = current_user()
     db.session.add(LoginToken(token_hash=_hash_token(token), email=email, purpose=purpose,
-                              name=name, request_ip=ip, expires_at=now + SIGNIN_LINK_TTL))
+                              name=name, request_ip=ip, expires_at=now + SIGNIN_LINK_TTL,
+                              guest_user_id=asker.id if asker and asker.is_guest else None))
     # Old rows only matter for rate limiting; keep the table small.
     LoginToken.query.filter(LoginToken.created_at < now - timedelta(days=1)).delete()
     db.session.commit()
@@ -1096,9 +1219,17 @@ def verify_signin():
                                  'Request a new one.'}), 400
     rec.used_at = now
 
+    # A guest who asked for this link keeps their plans: the profile becomes the
+    # new account, or folds into the existing one (works on any device).
+    guest = db.session.get(User, rec.guest_user_id) if rec.guest_user_id else None
+    if guest and not guest.is_guest:
+        guest = None
     user = User.query.filter_by(email=rec.email).first()
     if rec.purpose == 'signup':
-        if not user:
+        if not user and guest:
+            user = keep_guest(guest, email=rec.email, name=rec.name or rec.email.split('@')[0])
+            guest = None
+        elif not user:
             user = User(email=rec.email, name=rec.name or rec.email.split('@')[0],
                         avatar_color=random.choice(AVATAR_COLORS), is_active=True)
             db.session.add(user)
@@ -1114,6 +1245,8 @@ def verify_signin():
         db.session.commit()
         return jsonify({'error': 'That account no longer exists.'}), 400
 
+    if guest and guest.id != user.id:
+        absorb_guest(user, guest)
     db.session.commit()
     _start_session(user)
     return jsonify({'user': user.to_dict()})
@@ -1169,6 +1302,9 @@ def _update_profile_fields(user, data):
 def discord_link_code():
     """Generate a short-lived code the user types into Discord's /link command."""
     user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
     code = ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
     user.discord_link_code = code
     user.discord_link_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
@@ -1197,7 +1333,8 @@ def discord_oauth_start():
     signed-in user (mode=connect). Only the `identify` scope is requested."""
     if not _discord_oauth_enabled():
         return redirect(f"{FRONTEND_URL}/?{urlencode({'discord_error': 'unavailable'})}")
-    mode = 'connect' if request.args.get('mode') == 'connect' and current_user() else 'login'
+    viewer = current_user()
+    mode = 'connect' if request.args.get('mode') == 'connect' and viewer and not viewer.is_guest else 'login'
     state = secrets.token_urlsafe(24)
     # Where to land afterwards: only a path on this site (never another host).
     nxt = request.args.get('next') or '/'
@@ -1265,13 +1402,20 @@ def discord_oauth_callback():
         db.session.commit()
         return back(discord='connected')
 
+    viewer = current_user()
+    guest = viewer if viewer and viewer.is_guest else None
     user = existing
     if user and not user.is_active:
         return back(discord_error='inactive')
-    if not user:
+    if not user and guest:                 # the guest profile becomes the account
+        user = keep_guest(guest, discord_user_id=discord_id, name=name, avatar_url=avatar)
+        guest = None
+    elif not user:
         user = User(discord_user_id=discord_id, name=name, avatar_color=random.choice(AVATAR_COLORS),
                     is_active=True)
         db.session.add(user)
+    if guest:                              # signing into an existing account: bring the guest's plans
+        absorb_guest(user, guest)
     if user.email is None:             # Discord-only accounts track Discord
         user.name, user.avatar_url = name, avatar or user.avatar_url
     user.discord_username = (me.get('username') or '')[:40] or None
@@ -1397,6 +1541,9 @@ def list_groups():
 @require_auth
 def create_group():
     user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
     data = request.json
     name = data.get('name', '').strip()
     if not name:
@@ -1566,6 +1713,9 @@ def delete_group(slug):
 @require_auth
 def join_group(slug):
     user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
     group = Group.query.filter_by(slug=slug).first()
     if not group:
         return jsonify({'error': 'Group not found'}), 404
@@ -1880,22 +2030,52 @@ def _public_count(n):
 
 def interest_counts(movie_ids=(), showtime_ids=()):
     """Anonymous interest: ({movie_id: want}, {showtime_id: going}), counted
-    across everyone (every club), small numbers withheld."""
+    across every account (all clubs and personal plans — not guests, so
+    throwaway profiles can't inflate them), small numbers withheld."""
     want, going = {}, {}
+    accounts = db.session.query(User.id).filter(User.is_guest.isnot(True))
     if movie_ids:
         want = {mid: _public_count(n) for mid, n in db.session.query(Watchlist.movie_id, db.func.count(db.distinct(Watchlist.user_id)))
-                .filter(Watchlist.movie_id.in_(set(movie_ids))).group_by(Watchlist.movie_id)}
+                .filter(Watchlist.movie_id.in_(set(movie_ids)), Watchlist.user_id.in_(accounts)).group_by(Watchlist.movie_id)}
     if showtime_ids:
         going = {sid: _public_count(n) for sid, n in db.session.query(RSVP.showtime_id, db.func.count(db.distinct(RSVP.user_id)))
-                 .filter(RSVP.showtime_id.in_(set(showtime_ids)), RSVP.status == 'going').group_by(RSVP.showtime_id)}
+                 .filter(RSVP.showtime_id.in_(set(showtime_ids)), RSVP.status == 'going', RSVP.user_id.in_(accounts))
+                 .group_by(RSVP.showtime_id)}
     return want, going
+
+
+def public_reactions(showtime_ids, viewer=None):
+    """{showtime_id: {emoji: {count, users: [], user_reacted}}}: anonymous
+    totals across every account (from PUBLIC_MIN_COUNT up), plus the viewer's
+    own personal reactions."""
+    out = {sid: {} for sid in showtime_ids}
+    if not showtime_ids:
+        return out
+    accounts = db.session.query(User.id).filter(User.is_guest.isnot(True))
+    for sid, emoji, n in (db.session.query(Reaction.showtime_id, Reaction.emoji, db.func.count(db.distinct(Reaction.user_id)))
+                          .filter(Reaction.showtime_id.in_(showtime_ids), Reaction.user_id.in_(accounts))
+                          .group_by(Reaction.showtime_id, Reaction.emoji)):
+        if _public_count(n):
+            out[sid][emoji] = {'count': n, 'users': [], 'user_reacted': False}
+    if viewer:
+        for r in Reaction.query.filter(Reaction.user_id == viewer.id, Reaction.group_id.is_(None),
+                                       Reaction.showtime_id.in_(showtime_ids)):
+            out[r.showtime_id].setdefault(r.emoji, {'count': None, 'users': [], 'user_reacted': False})['user_reacted'] = True
+    return out
 
 
 def public_showtimes(showtimes, viewer=None):
     """Screenings for public mode. Same shape as the club serializer (so the
     site renders either), with every member field empty."""
-    want, going = interest_counts({s.movie_id for s in showtimes}, [s.id for s in showtimes])
+    ids = [s.id for s in showtimes]
+    want, going = interest_counts({s.movie_id for s in showtimes}, ids)
     genres = {g.strip().lower() for g in ((viewer.favorite_genres if viewer else '') or '').split(',') if g.strip()}
+    # The viewer's own personal plans (R5b) — never anyone else's.
+    mine = {r.showtime_id: r.status for r in RSVP.query.filter(
+        RSVP.user_id == viewer.id, RSVP.group_id.is_(None), RSVP.showtime_id.in_(ids))} if viewer and ids else {}
+    went = {a.showtime_id: a.status for a in Attendance.query.filter(
+        Attendance.user_id == viewer.id, Attendance.showtime_id.in_(ids))} if viewer and ids else {}
+    reactions = public_reactions(ids, viewer)
     out = []
     for s in showtimes:
         movie_genres = {g.strip().lower() for g in (s.movie.genres or '').split(',') if g.strip()}
@@ -1904,8 +2084,8 @@ def public_showtimes(showtimes, viewer=None):
             'start_time': s.start_time.isoformat(), 'end_time': s.end_time.isoformat() if s.end_time else None,
             'purchase_link': s.purchase_link, 'is_sold_out': s.is_sold_out,
             'format_label': s.format_label, 'event_label': s.event_label,
-            'attendees': [], 'maybes': [], 'user_rsvp': None, 'reactions': {}, 'message_count': 0,
-            'user_attendance': None, 'discord_thread_url': None, 'discord': None,
+            'attendees': [], 'maybes': [], 'user_rsvp': mine.get(s.id), 'reactions': reactions.get(s.id, {}),
+            'message_count': 0, 'user_attendance': went.get(s.id), 'discord_thread_url': None, 'discord': None,
             'recommended': bool(genres & movie_genres),          # the viewer's own genres only
             'interest': {'going': going.get(s.id), 'want': want.get(s.movie_id)},
             'public': True,
@@ -1975,7 +2155,7 @@ def discover_browse():
         return err
     params = {k: request.args.get(k) for k in BROWSE_PARAMS}
     offset = max(0, request.args.get('offset', 0, type=int))
-    if not group and params.get('club'):          # club filters mean nothing in public mode
+    if not group and params.get('club') not in (None, 'mine'):   # public mode: only your own plans
         params['club'] = None
     try:
         if group:
@@ -2001,7 +2181,7 @@ def discover_calendar():
     if err:
         return err
     params = {k: request.args.get(k) for k in BROWSE_PARAMS}
-    if not group and params.get('club'):          # club filters mean nothing in public mode
+    if not group and params.get('club') not in (None, 'mine'):   # public mode: only your own plans
         params['club'] = None
 
     def build():
@@ -2411,9 +2591,11 @@ def rsvp():
     showtime_id = data.get('showtime_id')
     status = data.get('status')
     group_id = _as_int(data.get('group_id'))
-    err = require_group_member(group_id)
-    if err:
-        return err
+    # No club: a personal RSVP (R5b) — only you ever see it.
+    if group_id:
+        err = require_group_member(group_id)
+        if err:
+            return err
 
     prev = RSVP.query.filter_by(user_id=user.id, showtime_id=showtime_id, group_id=group_id).first()
     prev_status = prev.status if prev else None
@@ -2432,6 +2614,8 @@ def rsvp():
         elif pref == 'ask':
             prompt = True
 
+    if not group_id:
+        return jsonify(public_showtimes([showtime], user)[0])
     d = _with_attendance(user, [showtime], [
         showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0]
     if prompt and d.get('discord') and not d['discord']['my_share']:
@@ -2716,14 +2900,18 @@ def viewable_groups(viewer, target):
     return shared or None
 
 
-def upcoming_rsvps(user, group_ids):
-    """[(showtime, 'going'|'maybe')] for upcoming RSVPs in these groups, soonest
-    first; one per screening, 'going' winning if groups disagree."""
-    if not group_ids:
+def upcoming_rsvps(user, group_ids, personal=False):
+    """[(showtime, 'going'|'maybe')] for upcoming RSVPs in these groups (and,
+    for your own list, your personal ones), soonest first; one per screening,
+    'going' winning if they disagree."""
+    if not group_ids and not personal:
         return []
+    in_scope = RSVP.group_id.in_(list(group_ids or []))
+    if personal:
+        in_scope = db.or_(in_scope, RSVP.group_id.is_(None))
     rows = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
             .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')),
-                    RSVP.group_id.in_(list(group_ids)), Showtime.start_time > datetime.now(),
+                    in_scope, Showtime.start_time > datetime.now(),
                     Showtime.is_cancelled.isnot(True))
             .order_by(Showtime.start_time).all())
     best = {}
@@ -2817,8 +3005,9 @@ def user_rsvps(user_id):
     me, target, groups, err = _profile_target(user_id)
     if err:
         return err
-    return jsonify({'own': me.id == target.id,
-                    'items': [_screening_item(s, st) for s, st in upcoming_rsvps(target, groups)]})
+    own = me.id == target.id
+    return jsonify({'own': own,
+                    'items': [_screening_item(s, st) for s, st in upcoming_rsvps(target, groups, personal=own)]})
 
 
 @app.route('/api/users/<int:user_id>/compare')
@@ -3074,12 +3263,15 @@ def toggle_reaction():
     showtime_id = data.get('showtime_id')
     group_id = _as_int(data.get('group_id'))
     emoji = data.get('emoji')
-    err = require_group_member(group_id)
-    if err:
-        return err
+    if group_id:                       # no club: a personal reaction, public only as a count (R5b)
+        err = require_group_member(group_id)
+        if err:
+            return err
 
     if not showtime_id or not emoji:
         return jsonify({'error': 'showtime_id and emoji required'}), 400
+    if not db.session.get(Showtime, _as_int(showtime_id) or 0):
+        return jsonify({'error': 'Showtime not found'}), 404
 
     if emoji not in CINEMA_EMOJIS:
         return jsonify({'error': 'Invalid emoji'}), 400
@@ -3095,6 +3287,8 @@ def toggle_reaction():
         db.session.add(reaction)
     db.session.commit()
 
+    if not group_id:
+        return jsonify(public_reactions([_as_int(showtime_id)], user).get(_as_int(showtime_id), {}))
     # Return updated reactions for this showtime+group
     reactions = Reaction.query.filter_by(showtime_id=showtime_id, group_id=group_id).all()
     summary = {}
@@ -3781,7 +3975,8 @@ def get_watchlist():
         items.append({
             'movie': w.movie.to_dict() if w.movie else None,
             'added_at': w.created_at.isoformat() if w.created_at else None,
-            'next_showtime': next_st.to_dict() if next_st else None,
+            # Public serializer: the old one listed every club's attendees here.
+            'next_showtime': public_showtimes([next_st], user)[0] if next_st else None,
         })
     items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')
     return jsonify(items)
@@ -4766,7 +4961,7 @@ def internal_watchlist():
         items.append({
             'title': w.movie.title,
             'year': w.movie.release_year,
-            'next_showtime': next_st.to_dict() if next_st else None,
+            'next_showtime': public_showtimes([next_st])[0] if next_st else None,   # no names needed
         })
     items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')
     return jsonify({'owner': target.name, 'items': items})
@@ -5166,6 +5361,12 @@ def migrate():
         # R3d: choose what goes to Discord
         "ALTER TABLE user ADD COLUMN share_prefs TEXT",
         "ALTER TABLE message ADD COLUMN to_discord BOOLEAN",
+        # R5b: guest profiles
+        "ALTER TABLE user ADD COLUMN is_guest BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN last_seen_at DATETIME",
+        "ALTER TABLE user ADD COLUMN guest_ip_hash VARCHAR(64)",
+        "CREATE INDEX IF NOT EXISTS ix_user_guest_ip_hash ON user (guest_ip_hash)",
+        "ALTER TABLE login_token ADD COLUMN guest_user_id INTEGER",
     ]
     for sql in stmts:
         try:

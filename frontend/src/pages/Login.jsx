@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-export default function Login({ onLogin, apiBase, inviteToken, next }) {
+// `keeping`: a guest is keeping their profile (R5b) — signing up turns it into
+// the account; signing in (or Discord) brings their plans to the account they have.
+export default function Login({ onLogin, apiBase, inviteToken, next, keeping = false }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState(keeping ? "signup" : "login"); // "login" | "signup"
   const [sentTo, setSentTo] = useState("");  // address a sign-in link was emailed to
   const [discordEnabled, setDiscordEnabled] = useState(false);
 
@@ -120,8 +122,14 @@ export default function Login({ onLogin, apiBase, inviteToken, next }) {
       <div className="auth-box">
         <span className="auth-logo">CINEMA CLUB DC</span>
         <p className="auth-subtitle">
-          {isInvite ? "You've Been Invited" : mode === "signup" ? "Create Your Account" : "Private Cinema Schedule"}
+          {isInvite ? "You've Been Invited" : keeping ? "Keep Your Profile" : mode === "signup" ? "Create Your Account" : "Private Cinema Schedule"}
         </p>
+        {keeping && !isInvite && (
+          <p className="auth-note">
+            Your plans, watchlist and reactions come with you. New here? Sign up. Already have an account? Sign in and
+            they'll be added to it.
+          </p>
+        )}
 
         {isInvite ? (
           <form onSubmit={handleAcceptInvite}>
@@ -191,7 +199,7 @@ export default function Login({ onLogin, apiBase, inviteToken, next }) {
           </form>
         )}
         {/* What's playing is open to everyone (R5a). */}
-        {!inviteToken && <Link className="auth-browse" to="/">‹ Keep browsing without signing in</Link>}
+        {!inviteToken && <Link className="auth-browse" to="/">{keeping ? "‹ Not now" : "‹ Keep browsing without signing in"}</Link>}
       </div>
     </div>
   );

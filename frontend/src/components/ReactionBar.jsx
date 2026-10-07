@@ -10,10 +10,13 @@ const CINEMA_EMOJIS = [
   "\u{1FAC3}", "\u{1FAC4}", "\u{1F930}",
 ];
 
-export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, onUpdate }) {
+// Club mode: who reacted. Public mode (groupId null): anonymous totals (shown
+// from 3 up) plus your own; `beforeReact` makes a guest profile if needed.
+export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, onUpdate, beforeReact }) {
   const [showPicker, setShowPicker] = useState(false);
 
   async function toggleReaction(emoji) {
+    if (beforeReact && !(await beforeReact())) return;
     try {
       const r = await fetch(`${apiBase}/api/reactions`, {
         method: "POST",
@@ -34,8 +37,8 @@ export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, o
   // Convert reactions object to sorted array
   const reactionList = Object.entries(reactions || {})
     .map(([emoji, data]) => ({ emoji, ...data }))
-    .filter(r => r.count > 0)
-    .sort((a, b) => b.count - a.count);
+    .filter(r => r.count > 0 || r.user_reacted)
+    .sort((a, b) => (b.count || 0) - (a.count || 0));
 
   return (
     <div className="reaction-bar">
@@ -45,10 +48,10 @@ export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, o
             key={r.emoji}
             className={`reaction-pill${r.user_reacted ? " active" : ""}`}
             onClick={() => toggleReaction(r.emoji)}
-            title={r.users.map(u => u.name).join(", ")}
+            title={r.users.length ? r.users.map(u => u.name).join(", ") : r.count ? `${r.count} people` : "You"}
           >
             <span className="reaction-emoji">{r.emoji}</span>
-            <span className="reaction-count">{r.count}</span>
+            {r.count > 0 && <span className="reaction-count">{r.count}</span>}
           </button>
         ))}
         <button

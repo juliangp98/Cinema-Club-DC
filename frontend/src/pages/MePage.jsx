@@ -27,6 +27,17 @@ export default function MePage({ user, apiBase, groupId }) {
     <div className="page narrow">
       <PageHeader title="Me" />
 
+      {user.is_guest && (
+        <section className="join-club">
+          <div>
+            <span className="deco join-club-title">Keep your profile</span>
+            <p>This guest profile lives only in this browser and only you can see it. Add an email or Discord to keep your
+               plans and watchlist on every device — and to join a club.</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => navigate("/signin?next=%2Fme")}>Keep it</button>
+        </section>
+      )}
+
       <section className="me-card">
         <Avatar user={user} size={64} />
         <div className="me-card-text">
@@ -56,6 +67,7 @@ export default function MePage({ user, apiBase, groupId }) {
         )}
       </div>
 
+      {!user.is_guest && groupId && (<>
       <div style={{ marginTop: "2rem" }}>
         <SectionTitle>Your group</SectionTitle>
       </div>
@@ -70,6 +82,14 @@ export default function MePage({ user, apiBase, groupId }) {
           <CompassIcon /><span>Browse groups<small>Join or start another club</small></span>
         </button>
       </div>
+      </>)}
+      {!user.is_guest && !groupId && (
+        <div className="me-links" style={{ marginTop: "2rem" }}>
+          <button className="me-link" onClick={() => navigate("/groups")}>
+            <CompassIcon /><span>Find a club<small>See who's going, plan screenings, vote in polls</small></span>
+          </button>
+        </div>
+      )}
 
       {sheet}
       {profileUserId && (
