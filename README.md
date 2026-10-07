@@ -176,6 +176,16 @@ To send real emails, create a Gmail App Password:
 - **Theatre filters**: Toggle Suns / AFI visibility in the header
 - **Showtime drawer**: Shows movie info once, with each screening having independent RSVP, tickets, and calendar export
 - **Attendee dots**: Colored dots on calendar pills showing who's going (deduplicated across screenings)
+- **"Did you make it?"**: after a screening you RSVP'd *going* to has been over
+  2 hours (looking back up to a week), a card above the calendar asks Went /
+  Didn't go. "Went" offers a jump into that screening's discussion. Once a
+  screening has started, its drawer swaps Going/Maybe/Can't go for Went / Didn't
+  go, so you can also log one you never RSVP'd to.
+- **Watch history**: every profile lists the screenings that member saw, newest
+  first. On your own you can correct any entry; ones you marked "didn't go" stay
+  listed (struck through) so you can undo them. Attendance is its own record
+  (`attendance` table), separate from the RSVP. "Attended" (leaderboard, chatbot)
+  = confirmed went + unanswered going RSVPs − didn't go.
 
 ---
 
@@ -279,7 +289,7 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
   DMs, not the channel.
 - **Slash commands**: `/showtimes`, `/movie`, `/whosgoing`, `/polls`,
   `/leaderboard`, `/digest`, `/wisdom`, `/alerts`, `/rsvp`, `/watch`,
-  `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
+  `/history`, `/profile`, `/quote`, `/link`, `/llm`. Everything works with no site account. Personal
   commands set one up automatically on first use in the club's server (see
   Discord-only accounts above). Date/theatre filters are dependent:
   pick a movie and the date/theatre options narrow to where it's actually
@@ -318,6 +328,14 @@ talks to the backend's `/api/internal/*` endpoints over the Docker network
 - **Ambient quotes**: any message with movie-ish words (movie, theatre, IMAX,
   70mm, Dolby, cinema, film…) has a ~1-in-5 chance (rate-limited per channel) of
   making the bot drop a random quote. Requires the Message Content intent below.
+- **"Did you go?" DMs**: after a screening someone RSVP'd *going* to, the bot asks
+  privately by DM with Went / Didn't-go buttons. It only sends between 10 AM and
+  9 PM ET, at most once a day per person with up to 5 screenings, and never asks
+  about the same screening twice. Buttons keep working after bot restarts. If
+  someone's DMs are closed, the same prompt appears privately after their next
+  command.
+- **`/history [member]`**: screenings you (or a member) saw with the club. ✅ means
+  confirmed; 🎟️ means RSVP'd going and never answered.
 - **`/profile`**: your favorite genres (which the chatbot uses for recommendations), bio
   and Letterboxd, edited in place with a genre picker and a short form. Everything is
   private to you. `/profile member:@someone` shows another member's card.

@@ -951,6 +951,66 @@ input { font-family: inherit; }
 .rsvp-opt-maybe.selected     { border-color: var(--amber); color: var(--amber); background: rgba(232,168,56,0.14); }
 .rsvp-opt-not_going.selected { border-color: var(--red);   color: var(--red);   background: rgba(196,92,58,0.14); }
 
+/* After a screening: Went / Didn't go, same faint-until-selected treatment. */
+.att-opt-went   { border-color: rgba(76,175,135,0.4); color: rgba(76,175,135,0.78); }
+.att-opt-missed { border-color: rgba(196,92,58,0.4);  color: rgba(196,92,58,0.78); }
+.att-opt-went:hover   { border-color: #4caf87;   color: #4caf87; }
+.att-opt-missed:hover { border-color: var(--red); color: var(--red); }
+.att-opt-went.selected   { border-color: #4caf87;   color: #4caf87;   background: rgba(76,175,135,0.14); }
+.att-opt-missed.selected { border-color: var(--red); color: var(--red); background: rgba(196,92,58,0.14); }
+.drawer-attendance-note { margin-top: 0.4rem; font-size: 0.68rem; color: #4caf87; }
+
+/* "Did you make it?" card above the calendar */
+.attendance-prompt {
+  margin: 0.75rem 1rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 2px solid #4caf87;
+  border-radius: var(--radius);
+}
+.attendance-prompt-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.attendance-prompt-title { font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--cream); }
+.attendance-prompt-close { color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.attendance-prompt-close:hover { color: var(--cream); }
+.attendance-prompt-done { font-size: 0.78rem; color: var(--cream); margin-bottom: 0.5rem; }
+.attendance-link { color: var(--amber); font-size: 0.78rem; text-decoration: underline; }
+.attendance-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--border);
+}
+.attendance-item-text { font-size: 0.78rem; color: var(--muted); }
+.attendance-item-text strong { color: var(--cream); font-weight: 500; }
+.attendance-item-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.attendance-item-actions .rsvp-btn { flex: none; padding: 0.35rem 0.75rem; }
+@media (max-width: 600px) {
+  .attendance-item { flex-direction: column; align-items: stretch; gap: 0.4rem; }
+  .attendance-item-actions .rsvp-btn { flex: 1; }
+}
+
+/* Watch history in the profile drawer */
+.history-empty { color: var(--muted); font-size: 0.85rem; }
+.history-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.history-item.missed .history-title { color: var(--muted); text-decoration: line-through; }
+.history-text { display: flex; flex-direction: column; min-width: 0; }
+.history-title { font-family: var(--font-serif); font-size: 0.85rem; color: var(--cream); }
+.history-meta { font-size: 0.65rem; color: var(--muted); }
+.history-actions { display: flex; gap: 0.35rem; flex-shrink: 0; }
+.history-actions .rsvp-btn { flex: none; padding: 0.3rem 0.55rem; font-size: 0.58rem; }
+.history-mark { color: #4caf87; font-size: 0.85rem; flex-shrink: 0; }
+
 /* Attendee list in drawer */
 .attendee-list {
   display: flex;

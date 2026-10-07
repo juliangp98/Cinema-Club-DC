@@ -559,6 +559,21 @@ class RSVP(db.Model):
     __table_args__ = (db.UniqueConstraint('user_id', 'showtime_id', 'group_id'),)
 
 
+class Attendance(db.Model):
+    """Whether someone actually made it to a screening, answered afterwards (an
+    RSVP is only the plan). Personal, not per group. status None means the bot
+    asked by DM and there's no answer yet."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), nullable=False)
+    status = db.Column(db.String(10))          # 'went' | 'missed' | None
+    source = db.Column(db.String(10))          # 'site' | 'discord'
+    prompted_at = db.Column(db.DateTime)       # when the bot DMed about it
+    answered_at = db.Column(db.DateTime)
+    showtime = db.relationship('Showtime', lazy=True)
+    __table_args__ = (db.UniqueConstraint('user_id', 'showtime_id'),)
+
+
 class Reaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -839,6 +854,7 @@ def merge_users(keep, gone):
                 row.user_id = keep.id
 
     move(RSVP, 'showtime_id', 'group_id')
+    move(Attendance, 'showtime_id')
     move(Watchlist, 'movie_id')
     move(Reaction, 'showtime_id', 'group_id', 'emoji')
     move(Message)
@@ -1595,10 +1611,20 @@ def get_showtimes():
         query = query.filter(Showtime.movie_id == int(movie_id))
 
     showtimes = query.order_by(Showtime.start_time).all()
-    return jsonify([
+    return jsonify(_with_attendance(user, showtimes, [
         s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)
         for s in showtimes
-    ])
+    ]))
+
+
+def _with_attendance(user, showtimes, dicts):
+    """Add the viewer's own went/missed answer to each showtime dict (one query)."""
+    ids = [s.id for s in showtimes]
+    answers = {a.showtime_id: a.status for a in Attendance.query.filter(
+        Attendance.user_id == user.id, Attendance.showtime_id.in_(ids))} if ids else {}
+    for d in dicts:
+        d['user_attendance'] = answers.get(d['id'])
+    return dicts
 
 
 @app.route('/api/showtimes/<int:showtime_id>')
@@ -1613,7 +1639,8 @@ def get_showtime(showtime_id):
     showtime = db.session.get(Showtime, showtime_id)
     if not showtime:
         return jsonify({'error': 'Showtime not found'}), 404
-    return jsonify(showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres))
+    return jsonify(_with_attendance(user, [showtime], [
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)])[0])
 
 
 @app.route('/api/movies')
@@ -1704,7 +1731,135 @@ def rsvp():
     if status in ('going', 'maybe') and status != prev_status and showtime:
         emit_rsvp_activity(user, showtime, status)
 
-    return jsonify(showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres))
+    return jsonify(_with_attendance(user, [showtime], [
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)])[0])
+
+
+# ─── Attendance ("did you go?") + watch history ──────────────────────────────
+
+ATTENDANCE_ASK_AFTER = timedelta(hours=2)   # ask once a screening has been over this long
+ATTENDANCE_LOOKBACK = timedelta(days=7)     # ...but never about anything older
+
+
+def _screening_end(s):
+    return s.end_time or s.start_time + timedelta(minutes=(s.movie.runtime_minutes or 120) + 20)
+
+
+def pending_attendance(user, include_prompted=True):
+    """Screenings `user` RSVP'd going to that ended 2h+ ago, within the past
+    week, and they haven't said whether they made it — oldest first.
+    include_prompted=False leaves out ones the bot already asked about."""
+    now = datetime.now()
+    rsvps = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+             .filter(RSVP.user_id == user.id, RSVP.status == 'going',
+                     Showtime.is_cancelled.isnot(True),
+                     Showtime.start_time >= now - ATTENDANCE_LOOKBACK, Showtime.start_time <= now)
+             .order_by(Showtime.start_time).all())
+    known = {a.showtime_id: a for a in Attendance.query.filter(
+        Attendance.user_id == user.id, Attendance.showtime_id.in_([r.showtime_id for r in rsvps]))} if rsvps else {}
+    out, seen = [], set()
+    for r in rsvps:
+        s, a = r.showtime, known.get(r.showtime_id)
+        if s.id in seen or _screening_end(s) + ATTENDANCE_ASK_AFTER > now:
+            continue
+        seen.add(s.id)
+        if a and (a.status or not include_prompted):
+            continue
+        out.append(s)
+    return out
+
+
+def attended_showtime_ids(user_id, group_ids=None):
+    """Screenings someone saw: confirmed 'went', plus past 'going' RSVPs they
+    haven't answered about, minus any they said they missed. group_ids limits
+    which groups' RSVPs count (confirmed answers are personal and always do)."""
+    q = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+         .filter(RSVP.user_id == user_id, RSVP.status == 'going',
+                 Showtime.start_time < datetime.now(), Showtime.is_cancelled.isnot(True)))
+    if group_ids is not None:
+        q = q.filter(RSVP.group_id.in_(list(group_ids)))
+    ids = {r.showtime_id for r in q}
+    for a in Attendance.query.filter(Attendance.user_id == user_id, Attendance.status.isnot(None)):
+        if a.status == 'went':
+            ids.add(a.showtime_id)
+        else:
+            ids.discard(a.showtime_id)
+    return ids
+
+
+def _screening_item(s, status=None):
+    return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
+            'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label,
+            'poster_url': s.movie.poster_url, 'status': status}
+
+
+def set_attendance(user, showtime_id, status, source):
+    """Record 'went' / 'missed', or None to clear. Returns (showtime, error)."""
+    showtime = db.session.get(Showtime, _as_int(showtime_id))
+    if not showtime:
+        return None, (jsonify({'error': 'Screening not found'}), 404)
+    if showtime.start_time > datetime.now():
+        return None, (jsonify({'error': "That screening hasn't happened yet"}), 400)
+    if status not in ('went', 'missed', None):
+        return None, (jsonify({'error': 'status must be went, missed, or null'}), 400)
+    row = Attendance.query.filter_by(user_id=user.id, showtime_id=showtime.id).first()
+    if status is None:
+        if row and row.prompted_at:
+            row.status = row.answered_at = None   # keep the "already asked" marker
+        elif row:
+            db.session.delete(row)
+    else:
+        row = row or Attendance(user_id=user.id, showtime_id=showtime.id)
+        row.status, row.source, row.answered_at = status, source, _utcnow_naive()
+        db.session.add(row)
+    db.session.commit()
+    return showtime, None
+
+
+def history_items(target, viewer_is_target, group_ids=None):
+    """A member's watch history, newest first. Your own also lists screenings
+    you marked as missed, so you can correct them."""
+    seen = attended_showtime_ids(target.id, group_ids)
+    answers = {a.showtime_id: a.status for a in
+               Attendance.query.filter(Attendance.user_id == target.id, Attendance.status.isnot(None))}
+    ids = seen | ({sid for sid, st in answers.items() if st == 'missed'} if viewer_is_target else set())
+    showtimes = (Showtime.query.filter(Showtime.id.in_(ids)).order_by(Showtime.start_time.desc()).limit(200).all()
+                 if ids else [])
+    # 'went' = confirmed; 'going' = RSVP'd and never said otherwise
+    return [_screening_item(s, answers.get(s.id) or 'going') for s in showtimes]
+
+
+@app.route('/api/attendance/pending')
+@require_auth
+def attendance_pending():
+    """The signed-in member's "Did you make it?" list."""
+    return jsonify([_screening_item(s) for s in pending_attendance(current_user())])
+
+
+@app.route('/api/attendance', methods=['POST'])
+@require_auth
+def attendance_set():
+    data = request.json or {}
+    showtime, err = set_attendance(current_user(), data.get('showtime_id'), data.get('status'), 'site')
+    if err:
+        return err
+    return jsonify({'showtime_id': showtime.id, 'status': data.get('status')})
+
+
+@app.route('/api/users/<int:user_id>/history')
+@require_auth
+def user_history(user_id):
+    me, target = current_user(), db.session.get(User, user_id)
+    if not target or not target.is_active:
+        return jsonify({'error': 'User not found'}), 404
+    if me.id == target.id:
+        return jsonify({'own': True, 'items': history_items(target, True)})
+    shared = ({m.group_id for m in GroupMembership.query.filter_by(user_id=me.id, status='active')}
+              & {m.group_id for m in GroupMembership.query.filter_by(user_id=target.id, status='active')})
+    if not shared:
+        return jsonify({'error': 'You do not share a group with this user'}), 403
+    # Others see RSVP-based attendance only from groups you share.
+    return jsonify({'own': False, 'items': history_items(target, False, shared)})
 
 
 # ─── Routes: Reactions ────────────────────────────────────────────────────────
@@ -2279,18 +2434,12 @@ def user_kernels(user_id):
 
 
 def build_leaderboard(group):
-    now = datetime.now()
     rows = []
     for m in group.memberships:
         if m.status != 'active' or not m.user:
             continue
         kernels, correct = calc_user_kernels(m.user_id, group_id=group.id)
-        attendance = (RSVP.query.join(Showtime)
-                      .filter(RSVP.user_id == m.user_id,
-                              RSVP.group_id == group.id,
-                              RSVP.status == 'going',
-                              Showtime.start_time < now)
-                      .count())
+        attendance = len(attended_showtime_ids(m.user_id, {group.id}))
         rows.append({
             'user': m.user.to_dict(),
             'kernels': kernels,
@@ -2488,22 +2637,19 @@ def internal_chat_context():
         out['watchlist'] = [{'title': w.movie.title, 'year': w.movie.release_year}
                             for w in wl if w.movie]
 
-        attended_q = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
-                      .filter(RSVP.user_id == user.id, RSVP.status == 'going',
-                              Showtime.start_time < now))
-        if group:
-            attended_q = attended_q.filter(RSVP.group_id == group.id)
+        seen_ids = attended_showtime_ids(user.id, {group.id} if group else None)
         seen, attended = set(), []
-        for r in attended_q.order_by(Showtime.start_time.desc()).limit(60).all():
-            m = r.showtime.movie
+        for s in (Showtime.query.filter(Showtime.id.in_(seen_ids))
+                  .order_by(Showtime.start_time.desc()).limit(60).all() if seen_ids else []):
+            m = s.movie
             if not m or m.title in seen:
                 continue
             seen.add(m.title)
             attended.append({
                 'title': m.title,
                 'year': m.release_year,
-                'theatre': r.showtime.theatre.short_name or r.showtime.theatre.name,
-                'date': r.showtime.start_time.strftime('%Y-%m-%d'),
+                'theatre': s.theatre.short_name or s.theatre.name,
+                'date': s.start_time.strftime('%Y-%m-%d'),
             })
             if len(attended) >= 20:
                 break
@@ -2956,6 +3102,83 @@ def internal_alerts_update():
     db.session.commit()
     return jsonify({'theatre_slug': slug, 'theatre_name': theatre.short_name or theatre.name,
                     'enabled': action == 'enable', 'changed': changed, 'slugs': current})
+
+
+ATTENDANCE_DM_GAP = timedelta(hours=20)   # at most one "did you go?" DM per person per day
+
+
+@app.route('/api/internal/attendance/prompts')
+@require_internal
+def internal_attendance_prompts():
+    """Who the bot should DM "did you go?" now: members on Discord with
+    screenings nobody has asked them about, skipping anyone DMed in the last 20
+    hours (so it's at most a daily nudge). Up to 5 screenings each — one DM's
+    worth of buttons. Quiet hours are the bot's call."""
+    now = datetime.now()
+    candidates = {r.user_id for r in RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
+        RSVP.status == 'going', Showtime.start_time >= now - ATTENDANCE_LOOKBACK, Showtime.start_time <= now)}
+    recently_asked = {a.user_id for a in Attendance.query.filter(
+        Attendance.prompted_at > _utcnow_naive() - ATTENDANCE_DM_GAP)}
+    out = []
+    users = (User.query.filter(User.id.in_(candidates - recently_asked), User.discord_user_id.isnot(None),
+                               User.is_active.is_(True)).all() if candidates - recently_asked else [])
+    for user in users:
+        pending = pending_attendance(user, include_prompted=False)[:5]
+        if pending:
+            out.append({'discord_user_id': user.discord_user_id, 'name': user.name,
+                        'screenings': [_screening_item(s) for s in pending]})
+    return jsonify(out)
+
+
+@app.route('/api/internal/attendance/prompted', methods=['POST'])
+@require_internal
+def internal_attendance_prompted():
+    """The bot asked about these (DM sent, or DMs were closed): never re-ask."""
+    data = request.json or {}
+    user = User.query.filter_by(discord_user_id=str(data.get('discord_user_id') or '')).first()
+    if not user:
+        return jsonify({'error': 'no_account'}), 404
+    now = _utcnow_naive()
+    for sid in {i for i in data.get('showtime_ids') or [] if isinstance(i, int)}:
+        row = Attendance.query.filter_by(user_id=user.id, showtime_id=sid).first() \
+            or Attendance(user_id=user.id, showtime_id=sid)
+        row.prompted_at = now
+        db.session.add(row)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/internal/attendance', methods=['POST'])
+@require_internal
+def internal_attendance_set():
+    """A Went / Didn't-go button press from Discord."""
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    showtime, err = set_attendance(user, data.get('showtime_id'), data.get('status'), 'discord')
+    if err:
+        return err
+    return jsonify(_screening_item(showtime, data.get('status')))
+
+
+@app.route('/api/internal/history')
+@require_internal
+def internal_history():
+    """Watch history for /history: someone else's (member_discord_id) or the
+    caller's own. Only what they saw — RSVPs count from this group."""
+    group_id = request.args.get('group_id', type=int)
+    other = request.args.get('member_discord_id')
+    if other:
+        user = User.query.filter_by(discord_user_id=str(other)).first()
+        if not user or not user.is_active:
+            return jsonify({'error': 'no_account'}), 404
+    else:
+        user, err = resolve_discord_user(request.args)
+        if err:
+            return err
+    items = history_items(user, False, {group_id} if group_id else None)
+    return jsonify({'name': user.name, 'items': items})
 
 
 # ─── Quotes (/quote, /wisdom) ─────────────────────────────────────────────────

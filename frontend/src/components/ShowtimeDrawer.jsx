@@ -21,6 +21,11 @@ const RSVP_OPTIONS = [
   { status: "not_going", label: "Can't go" },
 ];
 
+const ATTENDANCE_OPTIONS = [
+  { status: "went",   label: "Went" },
+  { status: "missed", label: "Didn't go" },
+];
+
 // Rating source display helpers
 const RATING_LABELS = {
   "Internet Movie Database": "IMDb",
@@ -75,7 +80,7 @@ function Collapsible({ title, count, defaultOpen = false, children }) {
   );
 }
 
-export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onViewProfile }) {
+export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onAttendance, onViewProfile }) {
   const drawerRef = useRef(null);
   const primary = showtimes[0];
   const [reactions, setReactions] = useState(primary.reactions || {});
@@ -256,30 +261,52 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             count={showtimes.length > 1 ? showtimes.length : null}
             defaultOpen
           >
-            {showtimes.map(s => (
+            {showtimes.map(s => {
+              // Once it has started, the question is whether you went, not whether you're going.
+              const started = new Date(s.start_time) <= new Date();
+              return (
               <div key={s.id} className="drawer-screening-item">
                 <div className="drawer-showtime-row">
                   <div style={{ flex: 1 }}>
                     <div className={`drawer-showtime-time${s.is_sold_out ? " sold-out" : ""}`}>
                       {formatFullDate(s.start_time)} {DOT} {formatTime(s.start_time)}
                       {s.end_time && ` – ${formatTime(s.end_time)}`}
-                      {s.is_sold_out && `  ${DOT} SOLD OUT`}
+                      {s.is_sold_out && !started && `  ${DOT} SOLD OUT`}
                       {s.format_label && <span className="format-badge">{s.format_label}</span>}
                     </div>
                     {s.event_label && <div className="drawer-event-label">{s.event_label}</div>}
-                    <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
-                      {RSVP_OPTIONS.map(opt => (
-                        <button
-                          key={opt.status}
-                          className={`rsvp-btn rsvp-opt-${opt.status}${s.user_rsvp === opt.status ? " selected" : ""}`}
-                          onClick={() => handleRsvpClick(s.id, opt.status, s.user_rsvp)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                    {started ? (
+                      <>
+                        <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
+                          {ATTENDANCE_OPTIONS.map(opt => (
+                            <button
+                              key={opt.status}
+                              className={`rsvp-btn att-opt-${opt.status}${s.user_attendance === opt.status ? " selected" : ""}`}
+                              onClick={() => onAttendance?.(s.id, s.user_attendance === opt.status ? null : opt.status)}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        {s.user_attendance === "went" && (
+                          <div className="drawer-attendance-note">Logged to your watch history — share your take below ↓</div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="rsvp-buttons" style={{ marginTop: "0.6rem" }}>
+                        {RSVP_OPTIONS.map(opt => (
+                          <button
+                            key={opt.status}
+                            className={`rsvp-btn rsvp-opt-${opt.status}${s.user_rsvp === opt.status ? " selected" : ""}`}
+                            onClick={() => handleRsvpClick(s.id, opt.status, s.user_rsvp)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {s.purchase_link && !s.is_sold_out && (
+                  {!started && s.purchase_link && !s.is_sold_out && (
                     <a
                       href={s.purchase_link}
                       target="_blank"
@@ -290,20 +317,23 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                     </a>
                   )}
                 </div>
-                <div className="cal-export-row">
-                  <button className="cal-export-btn google" onClick={() => handleGoogleCal(s.id)}>
-                    Google Calendar
-                  </button>
-                  <a
-                    className="cal-export-btn apple"
-                    href={`${apiBase}/api/showtimes/${s.id}/ical`}
-                    download
-                  >
-                    Apple Calendar
-                  </a>
-                </div>
+                {!started && (
+                  <div className="cal-export-row">
+                    <button className="cal-export-btn google" onClick={() => handleGoogleCal(s.id)}>
+                      Google Calendar
+                    </button>
+                    <a
+                      className="cal-export-btn apple"
+                      href={`${apiBase}/api/showtimes/${s.id}/ical`}
+                      download
+                    >
+                      Apple Calendar
+                    </a>
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </Collapsible>
 
           {/* About */}

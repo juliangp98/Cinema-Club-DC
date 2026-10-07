@@ -4,7 +4,8 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /alerts, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands (/showtimes, /movie, /rsvp,
-/whosgoing, /polls, /watch, /profile, /quote, /alerts, /digest, /llm, /link).
+/whosgoing, /polls, /watch, /history, /profile, /quote, /alerts, /digest, /llm,
+/link), and DMs members "did you go?" after screenings they RSVP'd to.
 All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 """
@@ -95,8 +96,10 @@ class CinemaClubBot(discord.Client):
         # In the background so a slow Groq never delays the bot coming online.
         asyncio.create_task(setup_llm())
         asyncio.create_task(seed_quotes())
+        self.add_dynamic_items(AttendanceButton)   # "did you go?" buttons work across restarts
         announce_loop.start()
         digest_loop.start()
+        attendance_loop.start()
 
     async def close(self):
         await api.close()
@@ -789,6 +792,138 @@ async def post_digest(channel, tag_watchers=False):
     return True
 
 
+# ─── "Did you go?" (attendance) ───────────────────────────────────────────────
+# After a screening someone RSVP'd going to, the bot asks by DM — privately,
+# daytime only, at most once a day (the backend enforces the daily cap and never
+# re-asks about a screening). Buttons survive bot restarts: their custom ids
+# carry the answer + screening, and DynamicItem rebuilds them on any click.
+
+ATTENDANCE_ID_RE = re.compile(r'att:(?P<status>went|missed):(?P<sid>[0-9]+)')
+_dm_fallback = {}   # discord id -> screenings, for people whose DMs are closed
+
+
+class AttendanceButton(discord.ui.DynamicItem[discord.ui.Button],
+                       template=r'att:(?P<status>went|missed):(?P<sid>[0-9]+)'):
+    def __init__(self, status, showtime_id, label=None, row=None):
+        super().__init__(discord.ui.Button(
+            label=label or ('Went' if status == 'went' else "Didn't go"),
+            style=discord.ButtonStyle.success if status == 'went' else discord.ButtonStyle.secondary,
+            custom_id=f'att:{status}:{showtime_id}', row=row))
+        self.status, self.showtime_id = status, showtime_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['status'], int(match['sid']))
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            result = await api.post('/api/internal/attendance', {
+                **discord_identity(interaction), 'showtime_id': self.showtime_id, 'status': self.status})
+        except ApiError as e:
+            msg = (NO_ACCOUNT_MSG if no_account(e) else "That screening isn't on the calendar anymore."
+                   if e.status == 404 else f"Couldn't save that ({e.status}).")
+            await interaction.response.send_message(msg, ephemeral=True)
+            return
+        except Exception as e:
+            print(f'attendance answer failed: {e}')
+            await interaction.response.send_message("Couldn't reach the server — try again in a bit.",
+                                                    ephemeral=True)
+            return
+        await interaction.response.edit_message(
+            view=answered_view(interaction.message, self.showtime_id, self.status, result))
+        if self.status == 'went':
+            await interaction.followup.send(
+                f"🍿 Logged **{result['title']}** to your watch history. Got a take? Add it to the "
+                f"discussion → {SITE_URL}/?showtime={self.showtime_id}", ephemeral=True)
+
+
+def _when_short(iso):
+    return datetime.fromisoformat(iso).strftime('%a %-m/%-d')
+
+
+def attendance_text(screenings):
+    lines = []
+    for s in screenings:
+        fmt = f" · {s['format_label']}" if s.get('format_label') else ''
+        lines.append(f"• **{s['title']}** — {_when_short(s['start_time'])} @ {s['theatre']}{fmt}")
+    return ("🎬 **Did you make it?** You were going to:\n" + '\n'.join(lines) +
+            "\nTap below — it keeps your watch history (and the leaderboard) honest.")
+
+
+def attendance_view(screenings):
+    view = discord.ui.View(timeout=None)
+    for row, s in enumerate(screenings[:5]):   # one row per screening; Discord allows 5
+        suffix = f" ({_when_short(s['start_time'])})"
+        view.add_item(AttendanceButton('went', s['showtime_id'],
+                                       label=f"Went · {s['title']}"[:80 - len(suffix)] + suffix, row=row))
+        view.add_item(AttendanceButton('missed', s['showtime_id'], row=row))
+    return view
+
+
+def answered_view(message, showtime_id, status, result):
+    """The prompt's buttons with the answered screening replaced by its answer."""
+    view = discord.ui.View(timeout=None)
+    for row, action_row in enumerate(message.components if message else []):
+        for comp in getattr(action_row, 'children', []):
+            match = ATTENDANCE_ID_RE.fullmatch(comp.custom_id or '')
+            if match and int(match['sid']) == showtime_id:
+                if match['status'] == 'went':      # one result button where the pair was
+                    mark = '✅ Went' if status == 'went' else "❌ Didn't go"
+                    view.add_item(discord.ui.Button(label=f"{mark} · {result['title']}"[:80], disabled=True,
+                                                    style=comp.style, row=row))
+            elif match:
+                view.add_item(AttendanceButton(match['status'], int(match['sid']), label=comp.label, row=row))
+            else:                                  # an earlier answer — keep it as is
+                view.add_item(discord.ui.Button(label=comp.label, style=comp.style, disabled=True, row=row))
+    return view
+
+
+@tasks.loop(minutes=30)
+async def attendance_loop():
+    if not 10 <= datetime.now(ET).hour < 21:      # no DMs at night
+        return
+    try:
+        prompts = await api.get('/api/internal/attendance/prompts')
+    except Exception as e:
+        print(f'attendance_loop: fetch failed: {e}')
+        return
+    for p in prompts:
+        uid = p['discord_user_id']
+        try:
+            user = await client.fetch_user(int(uid))
+            await user.send(attendance_text(p['screenings']), view=attendance_view(p['screenings']))
+        except discord.Forbidden:
+            _dm_fallback[uid] = p['screenings']   # DMs closed: ask on their next command
+        except Exception as e:
+            print(f'attendance_loop: DM to {uid} failed: {e}')
+            continue                              # try again next run
+        try:
+            await api.post('/api/internal/attendance/prompted', {
+                'discord_user_id': uid, 'showtime_ids': [s['showtime_id'] for s in p['screenings']]})
+        except Exception as e:
+            print(f'attendance_loop: marking prompted failed: {e}')
+
+
+@attendance_loop.before_loop
+async def before_attendance():
+    await client.wait_until_ready()
+
+
+@client.event
+async def on_app_command_completion(interaction: discord.Interaction, command):
+    """Members with DMs closed get the "did you go?" prompt privately after
+    their next command instead."""
+    screenings = _dm_fallback.pop(str(interaction.user.id), None)
+    if not screenings:
+        return
+    try:
+        await interaction.followup.send(attendance_text(screenings), view=attendance_view(screenings),
+                                        ephemeral=True)
+    except Exception as e:                        # e.g. the command answered with a form
+        _dm_fallback[str(interaction.user.id)] = screenings
+        print(f'attendance fallback prompt failed: {e}')
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async def fetch_window(days, search=None):
@@ -1435,6 +1570,29 @@ async def profile(interaction: discord.Interaction, member: discord.User = None)
         return
     await interaction.followup.send(embed=embeds.profile_embed(data, own=True),
                                     view=ProfileView(ident, data), ephemeral=True)
+
+
+@client.tree.command(name='history', description="Screenings you (or a member) have seen with the club")
+@app_commands.describe(member='Whose history to show (default: yours)')
+async def history(interaction: discord.Interaction, member: discord.User = None):
+    await interaction.response.defer()
+    other = member and member.id != interaction.user.id
+    try:
+        if other:
+            data = await api.get('/api/internal/history', member_discord_id=str(member.id),
+                                 group_id=DEFAULT_GROUP_ID)
+        else:
+            data = await api.get('/api/internal/history', **discord_identity(interaction))
+    except ApiError as e:
+        msg = (f"{member.display_name} hasn't been to anything with the club yet." if other and e.status == 404
+               else NO_ACCOUNT_MSG if no_account(e) else f'History lookup failed ({e.status}).')
+        await interaction.followup.send(msg)
+        return
+    except Exception as e:
+        print(f'/history failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.")
+        return
+    await interaction.followup.send(embed=embeds.history_embed(data))
 
 
 # ─── /quote ───────────────────────────────────────────────────────────────────

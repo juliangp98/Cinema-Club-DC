@@ -232,6 +232,28 @@ def profile_embed(profile, own=False):
     return embed
 
 
+def history_embed(data, limit=15):
+    """/history: screenings someone saw with the club, newest first."""
+    items = data.get('items') or []
+    embed = discord.Embed(title=f"🎞️ {data.get('name', 'Someone')}'s watch history", colour=AMBER)
+    if not items:
+        embed.description = ("Nothing logged yet — RSVP to a screening, and tap **Went** when "
+                             "the bot asks afterwards.")
+        return embed
+    lines = []
+    for i in items[:limit]:
+        mark = '✅' if i['status'] == 'went' else '🎟️'
+        fmt = f" · {i['format_label']}" if i.get('format_label') else ''
+        day = datetime.fromisoformat(i['start_time']).strftime('%b %-d, %Y')
+        lines.append(f"{mark} **{i['title']}** — {day} @ {i['theatre']}{fmt}")
+    if len(items) > limit:
+        lines.append(f"…and {len(items) - limit} more on the site")
+    embed.description = '\n'.join(lines)[:4096]
+    embed.set_footer(text=f"{len(items)} screening{'' if len(items) == 1 else 's'} · "
+                          "✅ confirmed · 🎟️ RSVP'd going")
+    return embed
+
+
 def _when(iso):
     return f"{_fmt_day(iso)} {_fmt_time(iso)}"
 

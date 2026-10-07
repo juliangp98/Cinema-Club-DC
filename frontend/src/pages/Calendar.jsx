@@ -3,6 +3,7 @@ import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import ProfileMenu from "../components/ProfileMenu";
 import GroupSwitcher from "../components/GroupSwitcher";
 import UserProfileDrawer from "../components/UserProfileDrawer";
+import AttendancePrompt from "../components/AttendancePrompt";
 import { accountLabel } from "../accountLabel";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -91,6 +92,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
   const [month, setMonth]     = useState(today.getMonth());
   const [showtimes, setShowtimes] = useState([]);
   const [selected, setSelected]   = useState(null); // array of showtimes (grouped)
+  const [attendanceKey, setAttendanceKey] = useState(0); // refreshes "Did you make it?"
   const [allTheatres, setAllTheatres] = useState([]);   // all theatres from API
   const [groupTheatres, setGroupTheatres] = useState([]); // group's selected theatre slugs
   const [activeTheatres, setActiveTheatres] = useState(new Set());
@@ -191,11 +193,8 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
     setSelectedMembers(new Set());
   }, [apiBase, groupId]);
 
-  // Deep link: open a specific showtime's drawer
-  useEffect(() => {
-    const stId = deepLinkRef.current.showtime;
-    if (!stId || !user) return;
-    deepLinkRef.current.showtime = null;
+  // Open one screening's drawer (deep links, the "Did you make it?" card).
+  const openShowtime = useCallback((stId) => {
     fetch(`${apiBase}/api/showtimes/${stId}${groupId ? `?group_id=${groupId}` : ""}`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
@@ -206,7 +205,15 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
         setSelected([data]);
       })
       .catch(() => { /* ignore */ });
-  }, [apiBase, groupId, user]);
+  }, [apiBase, groupId]);
+
+  // Deep link: open a specific showtime's drawer
+  useEffect(() => {
+    const stId = deepLinkRef.current.showtime;
+    if (!stId || !user) return;
+    deepLinkRef.current.showtime = null;
+    openShowtime(stId);
+  }, [openShowtime, user]);
 
   const fetchShowtimes = useCallback(async () => {
     setLoading(true);
@@ -370,6 +377,22 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
         prev ? prev.map(s => s.id === updated.id ? updated : s) : prev
       );
     }
+  }
+
+  // Went / Didn't go (null clears). Shared by the drawer and the prompt card.
+  async function handleAttendance(showtimeId, status) {
+    const r = await fetch(`${apiBase}/api/attendance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ showtime_id: showtimeId, status }),
+    });
+    if (!r.ok) return false;
+    const mark = s => (s.id === showtimeId ? { ...s, user_attendance: status } : s);
+    setShowtimes(prev => prev.map(mark));
+    setSelected(prev => (prev ? prev.map(mark) : prev));
+    setAttendanceKey(k => k + 1);
+    return true;
   }
 
   async function logout() {
@@ -635,6 +658,13 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
         )}
       </div>
 
+      <AttendancePrompt
+        apiBase={apiBase}
+        refreshKey={attendanceKey}
+        onAnswer={handleAttendance}
+        onOpenShowtime={openShowtime}
+      />
+
       {/* Day-of-week headers */}
       <div className="day-headers">
         {DAYS.map(d => (
@@ -710,6 +740,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
           apiBase={apiBase}
           onClose={() => setSelected(null)}
           onRsvp={handleRsvp}
+          onAttendance={handleAttendance}
           onViewProfile={setProfileUserId}
         />
       )}
@@ -720,6 +751,7 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
           userId={profileUserId}
           apiBase={apiBase}
           onClose={() => setProfileUserId(null)}
+          onAttendanceChange={() => setAttendanceKey(k => k + 1)}
         />
       )}
     </div>

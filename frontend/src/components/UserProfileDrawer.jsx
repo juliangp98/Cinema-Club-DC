@@ -1,7 +1,82 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
 
-export default function UserProfileDrawer({ userId, apiBase, onClose }) {
+function formatHistoryDate(iso) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// Watch history: screenings this member saw (confirmed "went", or RSVP'd going
+// and never said otherwise). On your own profile every entry is editable, and
+// ones you marked "didn't go" stay listed so you can correct them.
+function WatchHistory({ userId, apiBase, onChange }) {
+  const [data, setData] = useState(null);   // { own, items }
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/users/${userId}/history`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(setData)
+      .catch(() => setData(null));
+  }, [userId, apiBase]);
+
+  async function setStatus(item, status) {
+    const r = await fetch(`${apiBase}/api/attendance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ showtime_id: item.showtime_id, status }),
+    });
+    if (!r.ok) return;
+    onChange?.();
+    setData(d => ({
+      ...d,
+      // Clearing a "didn't go" puts it back to an unconfirmed RSVP.
+      items: d.items.map(i => (i.showtime_id === item.showtime_id ? { ...i, status: status || "going" } : i)),
+    }));
+  }
+
+  if (!data) return null;
+  const seen = data.items.filter(i => i.status !== "missed").length;
+  return (
+    <div className="user-profile-section">
+      <div className="drawer-section-label">Watch history ({seen})</div>
+      {data.items.length === 0 ? (
+        <div className="history-empty">Nothing logged yet.</div>
+      ) : (
+        <ul className="history-list">
+          {data.items.map(i => (
+            <li key={i.showtime_id} className={`history-item${i.status === "missed" ? " missed" : ""}`}>
+              <div className="history-text">
+                <span className="history-title">{i.title}</span>
+                <span className="history-meta">
+                  {formatHistoryDate(i.start_time)} · {i.theatre}{i.format_label ? ` · ${i.format_label}` : ""}
+                </span>
+              </div>
+              {data.own ? (
+                <div className="history-actions">
+                  {[["went", "Went"], ["missed", "Didn't go"]].map(([status, label]) => (
+                    <button
+                      key={status}
+                      className={`rsvp-btn att-opt-${status}${i.status === status ? " selected" : ""}`}
+                      onClick={() => setStatus(i, i.status === status ? null : status)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="history-mark" title={i.status === "went" ? "Confirmed" : "RSVP'd going"}>
+                  {i.status === "went" ? "✓" : "🎟"}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function UserProfileDrawer({ userId, apiBase, onClose, onAttendanceChange }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -113,6 +188,8 @@ export default function UserProfileDrawer({ userId, apiBase, onClose }) {
                 </a>
               </div>
             )}
+
+            <WatchHistory userId={userId} apiBase={apiBase} onChange={onAttendanceChange} />
           </div>
         )}
       </div>
