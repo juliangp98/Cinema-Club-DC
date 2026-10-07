@@ -4819,7 +4819,10 @@ def internal_digest():
         going = [r.user for r in s.rsvps
                  if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
         if going:
+            # Members who never share their RSVPs are counted, not named.
             shown, more = split_present(going)
+            quiet = [u for u in shown if share_prefs(u)['rsvp'] == 'never']
+            shown, more = [u for u in shown if u not in quiet], more + len(quiet)
             whos_going.append({**_showtime_brief(s), 'going': [u.name for u in shown], 'going_more': more})
             going_movies.add(s.movie_id)
 
