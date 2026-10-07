@@ -85,7 +85,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                   >
                     <div
                       className="group-member-avatar"
-                      style={{ background: m.user.avatar_color, color: "#0d0c09" }}
+                      style={{ background: m.user.avatar_color, color: "var(--ink)" }}
                     >
                       {m.user.name.slice(0, 2).toUpperCase()}
                     </div>
@@ -110,7 +110,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                   <div key={m.id} className="group-member-row pending">
                     <div
                       className="group-member-avatar"
-                      style={{ background: m.user.avatar_color, color: "#0d0c09" }}
+                      style={{ background: m.user.avatar_color, color: "var(--ink)" }}
                     >
                       {m.user.name.slice(0, 2).toUpperCase()}
                     </div>
@@ -131,7 +131,7 @@ export default function GroupMembers({ group, apiBase, onClose, onViewProfile, e
                 <div className="profile-header">
                   <div
                     className="profile-avatar-large"
-                    style={{ background: selectedUser.avatar_color, color: "#0d0c09" }}
+                    style={{ background: selectedUser.avatar_color, color: "var(--ink)" }}
                   >
                     {selectedUser.name.slice(0, 2).toUpperCase()}
                   </div>

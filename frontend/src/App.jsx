@@ -9,6 +9,8 @@ import PollsPage from "./pages/PollsPage";
 import PollDetailPage from "./pages/PollDetailPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import VerifySignin from "./pages/VerifySignin";
+import MePage from "./pages/MePage";
+import AppShell from "./shell/AppShell";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -68,16 +70,12 @@ function GroupGate({ user, groupId, hasGroups, children }) {
 
   if (!groupId) {
     return (
-      <div className="app-shell">
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", gap: "1rem" }}>
-          <h2 style={{ color: "var(--gold)" }}>Welcome to Cinema Club DC!</h2>
+      <div className="page narrow">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", gap: "1rem", textAlign: "center" }}>
+          <h2 className="deco center" style={{ color: "var(--amber)", fontSize: "1.8rem", fontWeight: 400 }}>Welcome to Cinema Club DC</h2>
           <p style={{ color: "var(--muted)" }}>Join a group to see showtimes and RSVP with friends.</p>
-          <button
-            className="auth-btn"
-            style={{ width: "auto", padding: "0.75rem 2rem" }}
-            onClick={() => navigate("/groups")}
-          >
-            FIND A GROUP
+          <button className="btn btn-primary" onClick={() => navigate("/groups")}>
+            Find a group
           </button>
         </div>
       </div>
@@ -167,38 +165,6 @@ export default function App() {
         </div>
       )}
       <Routes>
-        <Route
-          path="/"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <Feed
-                  user={user}
-                  setUser={setUser}
-                  apiBase={API_BASE}
-                  groupId={activeGroupId}
-                  setGroupId={handleSetGroupId}
-                />
-              </GroupGate>
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/calendar"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
-                <Calendar
-                  user={user}
-                  setUser={setUser}
-                  apiBase={API_BASE}
-                  groupId={activeGroupId}
-                  setGroupId={handleSetGroupId}
-                />
-              </GroupGate>
-            </AuthGuard>
-          }
-        />
         {/* Emailed sign-in links land here; deliberately outside AuthGuard. */}
         <Route
           path="/auth/verify"
@@ -212,72 +178,57 @@ export default function App() {
             </AuthGuard>
           }
         />
+        {/* Every signed-in page shares the app shell (top bar, phone tab bar). */}
         <Route
-          path="/groups"
           element={
             <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <GroupDiscovery
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-                activeGroupId={activeGroupId}
-                setGroupId={handleSetGroupId}
-              />
+              <AppShell user={user} setUser={setUser} apiBase={API_BASE}
+                        groupId={activeGroupId} setGroupId={handleSetGroupId} />
             </AuthGuard>
           }
-        />
-        <Route
-          path="/members"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <MembersPage
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-                activeGroupId={activeGroupId}
-              />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/polls"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <PollsPage
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-                activeGroupId={activeGroupId}
-                setGroupId={handleSetGroupId}
-              />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/leaderboard"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <LeaderboardPage
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-                activeGroupId={activeGroupId}
-              />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/polls/:pollId"
-          element={
-            <AuthGuard user={user} loading={loading} apiBase={API_BASE} onLogin={handleLogin}>
-              <PollDetailPage
-                user={user}
-                setUser={setUser}
-                apiBase={API_BASE}
-              />
-            </AuthGuard>
-          }
-        />
+        >
+          <Route
+            path="/"
+            element={
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <Feed user={user} setUser={setUser} apiBase={API_BASE}
+                      groupId={activeGroupId} setGroupId={handleSetGroupId} />
+              </GroupGate>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <GroupGate user={user} groupId={activeGroupId} hasGroups={hasGroups}>
+                <Calendar user={user} setUser={setUser} apiBase={API_BASE}
+                          groupId={activeGroupId} setGroupId={handleSetGroupId} />
+              </GroupGate>
+            }
+          />
+          <Route path="/me" element={<MePage user={user} apiBase={API_BASE} groupId={activeGroupId} />} />
+          <Route
+            path="/groups"
+            element={<GroupDiscovery user={user} setUser={setUser} apiBase={API_BASE}
+                                     activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />}
+          />
+          <Route
+            path="/members"
+            element={<MembersPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} />}
+          />
+          <Route
+            path="/polls"
+            element={<PollsPage user={user} setUser={setUser} apiBase={API_BASE}
+                                activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />}
+          />
+          <Route
+            path="/leaderboard"
+            element={<LeaderboardPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} />}
+          />
+          <Route
+            path="/polls/:pollId"
+            element={<PollDetailPage user={user} setUser={setUser} apiBase={API_BASE} />}
+          />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

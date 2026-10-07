@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import Sheet from "../ui/Sheet";
 import ReactionBar from "./ReactionBar";
 import ChatSection from "./ChatSection";
 
@@ -81,7 +82,6 @@ function Collapsible({ title, count, defaultOpen = false, children }) {
 }
 
 export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onAttendance, onViewProfile }) {
-  const drawerRef = useRef(null);
   const primary = showtimes[0];
   const [reactions, setReactions] = useState(primary.reactions || {});
   const [watching, setWatching] = useState(null); // null until watchlist loads
@@ -113,16 +113,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
       setWatching(!next);
     }
   }
-
-  function handleOverlayClick(e) {
-    if (e.target === e.currentTarget) onClose();
-  }
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   useEffect(() => {
     setReactions(primary.reactions || {});
@@ -179,9 +169,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const DOT = "·";
 
   return (
-    <div className="drawer-overlay" onClick={handleOverlayClick}>
-      <div className="drawer" ref={drawerRef}>
-        <button className="drawer-close" onClick={onClose}>&times;</button>
+    <Sheet onClose={onClose} label={movie.title} className="drawer">
 
         {/* Hero banner: backdrop, or the poster blurred as a fallback. If the
             image is missing or fails to load, a plain gradient banner is shown
@@ -427,7 +415,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                         className="attendee-chip clickable"
                         onClick={() => onViewProfile?.(a.id)}
                       >
-                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "#0d0c09" }}>
+                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "var(--ink)" }}>
                           {a.name.slice(0, 2).toUpperCase()}
                         </div>
                         {a.name}
@@ -447,7 +435,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                         style={{ opacity: 0.65 }}
                         onClick={() => onViewProfile?.(a.id)}
                       >
-                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "#0d0c09" }}>
+                        <div className="attendee-avatar" style={{ background: a.avatar_color, color: "var(--ink)" }}>
                           {a.name.slice(0, 2).toUpperCase()}
                         </div>
                         {a.name}
@@ -477,7 +465,6 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             />
           </Collapsible>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

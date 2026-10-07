@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import ProfileMenu from "../components/ProfileMenu";
+import PageHeader from "../ui/PageHeader";
 
 const SCORING_LABELS = {
   none: "No scoring",
@@ -16,7 +16,6 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   const navigate = useNavigate();
   const [poll, setPoll] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showProfile, setShowProfile] = useState(false);
   const [tab, setTab] = useState("vote"); // 'vote' | 'results' | 'leaderboard'
   const [leaderboard, setLeaderboard] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -340,10 +339,6 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     };
   }, [showSettings]);
 
-  function logout() {
-    fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" })
-      .then(() => window.location.reload());
-  }
 
   const totalCategories = poll?.categories?.length || 0;
   const votedCategories = Object.values(votes).filter(v =>
@@ -356,30 +351,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   return (
     <div className="group-discovery-page">
       <div className="group-discovery-container">
-        <header className="group-discovery-header">
-          <button className="group-back-btn" onClick={() => navigate("/polls")}>
-            &larr; Polls
-          </button>
-          <h1 className="group-discovery-title poll-detail-title">{poll.title}</h1>
-          <div style={{ marginLeft: "auto", position: "relative" }}>
-            <div
-              className="user-avatar"
-              style={{ background: user.avatar_color, color: "#0d0c09" }}
-              onClick={() => setShowProfile(!showProfile)}
-            >
-              {user.name.slice(0, 2).toUpperCase()}
-            </div>
-            {showProfile && (
-              <ProfileMenu
-                user={user}
-                apiBase={apiBase}
-                onUpdate={u => setUser(u)}
-                onLogout={logout}
-                onClose={() => setShowProfile(false)}
-              />
-            )}
-          </div>
-        </header>
+        <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }} />
 
         {/* Poll info bar */}
         <div className="poll-info-bar">
@@ -729,7 +701,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
                 </span>
                 <div
                   className="poll-lb-avatar"
-                  style={{ background: entry.user.avatar_color, color: "#0d0c09" }}
+                  style={{ background: entry.user.avatar_color, color: "var(--ink)" }}
                 >
                   {entry.user.name.slice(0, 2).toUpperCase()}
                 </div>

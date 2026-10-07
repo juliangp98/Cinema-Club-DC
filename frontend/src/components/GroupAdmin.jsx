@@ -247,7 +247,7 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
             <div key={m.id} className="group-member-row pending">
               <div
                 className="group-member-avatar"
-                style={{ background: m.user.avatar_color, color: "#0d0c09", cursor: "pointer" }}
+                style={{ background: m.user.avatar_color, color: "var(--ink)", cursor: "pointer" }}
                 onClick={() => onViewProfile?.(m.user.id)}
               >
                 {m.user.name.slice(0, 2).toUpperCase()}
@@ -278,7 +278,7 @@ export default function GroupAdmin({ group, apiBase, onClose, onGroupUpdated, on
           <div key={m.id} className="group-member-row">
             <div
               className="group-member-avatar"
-              style={{ background: m.user.avatar_color, color: "#0d0c09", cursor: "pointer" }}
+              style={{ background: m.user.avatar_color, color: "var(--ink)", cursor: "pointer" }}
               onClick={() => onViewProfile?.(m.user.id)}
             >
               {m.user.name.slice(0, 2).toUpperCase()}

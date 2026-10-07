@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
@@ -10,8 +10,9 @@ const GENRE_LIST = [
   'western', 'noir', 'biographical'
 ];
 
-export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose }) {
-  const ref = useRef(null);
+// The profile editor (name, color, genres, bio, Letterboxd, Discord). Shown in
+// a Sheet from the account menu or the Me page.
+export default function ProfileEditor({ user, apiBase, onUpdate }) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
   const [avatarColor, setAvatarColor] = useState(user.avatar_color || AVATAR_COLORS[0]);
@@ -25,19 +26,6 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
   const [linkLoading, setLinkLoading] = useState(false);
   const [discordOAuth, setDiscordOAuth] = useState(false);
   const [letterboxd, setLetterboxd] = useState(user.letterboxd_username || "");
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === "Escape") onClose(); }
-    function onClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("mousedown", onClick);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("mousedown", onClick);
-    };
-  }, [onClose]);
 
   // "Connect Discord" uses Discord sign-in when the site has it configured;
   // otherwise fall back to the /link code.
@@ -91,11 +79,14 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
   }
 
   return (
-    <div className="profile-menu" ref={ref}>
+    <div className="profile-menu">
+      <h2 className="ui-section-title" style={{ marginBottom: "1rem" }}>
+        <span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Edit profile</span>
+      </h2>
       <div className="profile-menu-header">
         <div
           className="profile-avatar-large"
-          style={{ background: avatarColor, color: "#0d0c09" }}
+          style={{ background: avatarColor, color: "var(--ink)" }}
         >
           {(name || "?").slice(0, 2).toUpperCase()}
         </div>
@@ -199,12 +190,6 @@ export default function ProfileMenu({ user, apiBase, onUpdate, onLogout, onClose
           </button>
         )}
       </div>
-
-      <hr className="profile-divider" />
-
-      <button className="profile-logout-btn" onClick={onLogout}>
-        Log Out
-      </button>
     </div>
   );
 }

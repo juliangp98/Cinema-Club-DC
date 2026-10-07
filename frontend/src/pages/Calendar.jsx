@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
-import ProfileMenu from "../components/ProfileMenu";
-import GroupSwitcher from "../components/GroupSwitcher";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
-import MainNav from "../components/MainNav";
-import { accountLabel } from "../accountLabel";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTHS = ["January","February","March","April","May","June",
@@ -99,7 +95,6 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
   const [groupTheatres, setGroupTheatres] = useState([]); // group's selected theatre slugs
   const [activeTheatres, setActiveTheatres] = useState(new Set());
   const [loading, setLoading]     = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   const [profileUserId, setProfileUserId] = useState(null);
 
   // Filter bar state
@@ -238,6 +233,20 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
   }, [apiBase, year, month, groupId]);
 
   useEffect(() => { fetchShowtimes(); }, [fetchShowtimes]);
+
+  // Open on today, not the 1st of the month (on phones the month is one long
+  // list). Once, after the first load.
+  const scrolledToToday = useRef(false);
+  useEffect(() => {
+    if (loading || scrolledToToday.current || !showtimes.length) return;
+    scrolledToToday.current = true;
+    const el = document.querySelector(".cal-day.today");
+    const container = document.querySelector(".calendar-grid");
+    if (el && container) {
+      const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+      container.scrollTo({ top: Math.max(0, top - 8) });
+    }
+  }, [loading, showtimes]);
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -397,69 +406,12 @@ export default function Calendar({ user, setUser, apiBase, groupId, setGroupId }
     return true;
   }
 
-  async function logout() {
-    await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
-    setUser(null);
-  }
-
-  function handleProfileUpdate(updatedUser) {
-    setUser(updatedUser);
-  }
-
   return (
     <div className="app-shell">
-      {/* Header */}
-      <header className="header">
-        <span className="header-logo" onClick={goToday} style={{ cursor: "pointer" }}>CINEMA CLUB DC</span>
-        <div className="header-sep" />
-        <MainNav />
-        <div className="header-sep" />
-
-        <div className="nav-week">
-          <button className="nav-btn" onClick={prevMonth}>&lsaquo;</button>
-          <button className="nav-today" onClick={goToday}>Today</button>
-          <button className="nav-btn" onClick={nextMonth}>&rsaquo;</button>
-          <span className="nav-range">
-            {MONTHS[month]} {year}
-          </span>
-        </div>
-
-        <div className="header-spacer" />
-
-        {/* Group Switcher */}
-        <GroupSwitcher
-          apiBase={apiBase}
-          activeGroupId={groupId}
-          setGroupId={setGroupId}
-        />
-
-        <div className="header-sep" />
-
-        {/* User avatar */}
-        <div style={{ position: "relative" }}>
-          <div
-            className="user-avatar"
-            style={{ background: user.avatar_color, color: "#0d0c09" }}
-            title={`${user.name} — ${accountLabel(user)}`}
-            onClick={() => setShowProfile(!showProfile)}
-          >
-            {user.name.slice(0, 2).toUpperCase()}
-          </div>
-          {showProfile && (
-            <ProfileMenu
-              user={user}
-              apiBase={apiBase}
-              onUpdate={handleProfileUpdate}
-              onLogout={logout}
-              onClose={() => setShowProfile(false)}
-            />
-          )}
-        </div>
-      </header>
 
       {/* Filter bar */}
       <div className="filter-bar">
-        {/* Nav controls (shown on mobile only, hidden on desktop — desktop uses header's nav) */}
+        {/* Month controls (the app shell's top bar has the site nav) */}
         <div className="nav-week filter-nav-week">
           <button className="nav-btn" onClick={prevMonth}>&lsaquo;</button>
           <button className="nav-today" onClick={goToday}>Today</button>

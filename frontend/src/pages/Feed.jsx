@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
-import ProfileMenu from "../components/ProfileMenu";
-import GroupSwitcher from "../components/GroupSwitcher";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
-import MainNav from "../components/MainNav";
-import { accountLabel } from "../accountLabel";
 
 function timeAgo(iso) {
   const diff = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
@@ -248,7 +244,6 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
   const [expanded, setExpanded] = useState(null);     // one open discussion at a time
   const [selected, setSelected] = useState(null);     // showtimes for the drawer
   const [profileUserId, setProfileUserId] = useState(null);
-  const [showProfile, setShowProfile] = useState(false);
   const [attendanceKey, setAttendanceKey] = useState(0);
   const loadedRef = useRef(0);
   const groupRef = useRef(groupId);   // responses for a group we've left are dropped
@@ -359,11 +354,6 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
     return true;
   }
 
-  async function logout() {
-    await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
-    setUser(null);
-  }
-
   function renderCard(card) {
     const common = { card, viewerId: user.id, onViewProfile: setProfileUserId };
     switch (card.type) {
@@ -393,41 +383,8 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
 
   return (
     <div className="feed-page">
-      <header className="header feed-header">
-        <span
-          className="header-logo"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          style={{ cursor: "pointer" }}
-        >
-          CINEMA CLUB DC
-        </span>
-        <div className="header-sep" />
-        <MainNav />
-        <div className="header-spacer" />
-        <GroupSwitcher apiBase={apiBase} activeGroupId={groupId} setGroupId={setGroupId} />
-        <div className="header-sep" />
-        <div style={{ position: "relative" }}>
-          <div
-            className="user-avatar"
-            style={{ background: user.avatar_color, color: "#0d0c09" }}
-            title={`${user.name} — ${accountLabel(user)}`}
-            onClick={() => setShowProfile(!showProfile)}
-          >
-            {user.name.slice(0, 2).toUpperCase()}
-          </div>
-          {showProfile && (
-            <ProfileMenu
-              user={user}
-              apiBase={apiBase}
-              onUpdate={setUser}
-              onLogout={logout}
-              onClose={() => setShowProfile(false)}
-            />
-          )}
-        </div>
-      </header>
 
-      <main className="feed-main">
+      <div className="feed-main">
         <AttendancePrompt
           apiBase={apiBase}
           refreshKey={attendanceKey}
@@ -452,7 +409,7 @@ export default function Feed({ user, setUser, apiBase, groupId, setGroupId }) {
         {nextOffset == null && cards.length > 0 && (
           <div className="feed-end">That's everything from the last {days} days.</div>
         )}
-      </main>
+      </div>
 
       {selected && (
         <ShowtimeDrawer

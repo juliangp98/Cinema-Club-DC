@@ -134,7 +134,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
           <div key={m.id} className="chat-bubble">
             <div
               className="chat-avatar clickable"
-              style={{ background: m.user.avatar_color, color: "#0d0c09" }}
+              style={{ background: m.user.avatar_color, color: "var(--ink)" }}
               onClick={() => onViewProfile?.(m.user.id)}
             >
               {m.user.name.slice(0, 2).toUpperCase()}

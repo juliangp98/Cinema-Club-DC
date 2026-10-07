@@ -1,99 +1,45 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import Menu, { MenuItem, MenuLabel, MenuDivider } from "../ui/Menu";
+import { UsersIcon, TrophyIcon, CompassIcon } from "../ui/icons";
 
+// The group pill in the top bar: switch groups, and reach the group's pages.
 export default function GroupSwitcher({ apiBase, activeGroupId, setGroupId }) {
   const [groups, setGroups] = useState([]);
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchGroups();
-  }, [apiBase]);
+    fetch(`${apiBase}/api/groups`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(setGroups)
+      .catch(() => {});
+  }, [apiBase, activeGroupId]);
 
-  async function fetchGroups() {
-    try {
-      const r = await fetch(`${apiBase}/api/groups`, { credentials: "include" });
-      if (r.ok) setGroups(await r.json());
-    } catch {
-      // ignore
-    }
-  }
-
-  useEffect(() => {
-    function onClick(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    function onKey(e) { if (e.key === "Escape") setOpen(false); }
-    if (open) {
-      window.addEventListener("mousedown", onClick);
-      window.addEventListener("keydown", onKey);
-    }
-    return () => {
-      window.removeEventListener("mousedown", onClick);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const activeGroup = groups.find(g => g.id === activeGroupId);
+  const active = groups.find(g => g.id === activeGroupId);
 
   return (
-    <div className="group-switcher" ref={ref}>
-      <button className="group-switcher-btn" onClick={() => setOpen(!open)}>
-        {activeGroup ? activeGroup.name : "Select Group"}
-        <span className="group-switcher-caret">{open ? "\u25B4" : "\u25BE"}</span>
-      </button>
-
-      {open && (
-        <div className="group-dropdown">
-          {groups.map(g => (
-            <button
-              key={g.id}
-              className={`group-dropdown-item${g.id === activeGroupId ? " active" : ""}`}
-              onClick={() => { setGroupId(g.id); setOpen(false); }}
-            >
-              <span className="group-dropdown-name">{g.name}</span>
-              {g.role === "admin" && <span className="group-role-badge">admin</span>}
-            </button>
-          ))}
-          <div className="group-dropdown-actions">
-            {activeGroup && (
-              <>
-                <button
-                  className="group-dropdown-action"
-                  onClick={() => { setOpen(false); navigate("/members?profile=me"); }}
-                >
-                  My lists
-                </button>
-                <button
-                  className="group-dropdown-action"
-                  onClick={() => { setOpen(false); navigate("/members"); }}
-                >
-                  Members
-                </button>
-                <button
-                  className="group-dropdown-action"
-                  onClick={() => { setOpen(false); navigate("/polls"); }}
-                >
-                  Polls
-                </button>
-                <button
-                  className="group-dropdown-action"
-                  onClick={() => { setOpen(false); navigate("/leaderboard"); }}
-                >
-                  Leaderboard
-                </button>
-              </>
-            )}
-            <button
-              className="group-dropdown-action"
-              onClick={() => { setOpen(false); navigate("/groups"); }}
-            >
-              Browse
-            </button>
-          </div>
-        </div>
+    <Menu
+      label="Switch group"
+      className="topbar-groupmenu"
+      triggerClassName="topbar-group"
+      trigger={<><span className="topbar-group-name">{active ? active.name : "Choose a group"}</span>
+                 <span className="caret">▾</span></>}
+    >
+      {groups.length > 0 && <MenuLabel>Your groups</MenuLabel>}
+      {groups.map(g => (
+        <MenuItem key={g.id} active={g.id === activeGroupId} onSelect={() => setGroupId(g.id)}>
+          <span style={{ flex: 1 }}>{g.name}</span>
+          {g.role === "admin" && <span className="chip">admin</span>}
+        </MenuItem>
+      ))}
+      {active && (
+        <>
+          <MenuDivider />
+          <MenuItem onSelect={() => navigate("/members")}><UsersIcon /> Members</MenuItem>
+          <MenuItem onSelect={() => navigate("/leaderboard")}><TrophyIcon /> Leaderboard</MenuItem>
+        </>
       )}
-    </div>
+      <MenuItem onSelect={() => navigate("/groups")}><CompassIcon /> Browse groups</MenuItem>
+    </Menu>
   );
 }

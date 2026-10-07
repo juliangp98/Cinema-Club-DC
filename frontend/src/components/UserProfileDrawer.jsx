@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
+import Sheet from "../ui/Sheet";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -80,7 +81,7 @@ function ListState({ data, empty }) {
   return <div className="list-empty">{empty}</div>;
 }
 
-function WatchlistTab({ userId, apiBase, onOpen }) {
+export function WatchlistTab({ userId, apiBase, onOpen }) {
   const [data] = useList(`${apiBase}/api/users/${userId}/watchlist`);
   if (!data || data.error || !data.items.length) {
     return <ListState data={data} empty="No films on the watchlist yet." />;
@@ -92,7 +93,7 @@ function WatchlistTab({ userId, apiBase, onOpen }) {
   );
 }
 
-function GoingTab({ userId, apiBase, onOpen }) {
+export function GoingTab({ userId, apiBase, onOpen }) {
   const [data] = useList(`${apiBase}/api/users/${userId}/rsvps`);
   if (!data || data.error || !data.items.length) {
     return <ListState data={data} empty="No upcoming RSVPs." />;
@@ -107,7 +108,7 @@ function GoingTab({ userId, apiBase, onOpen }) {
 // Watch history: screenings this member saw (confirmed "went", or RSVP'd going
 // and never said otherwise). On your own profile every entry is editable, and
 // ones you marked "didn't go" stay listed so you can correct them.
-function HistoryTab({ userId, apiBase, onOpen, onChange }) {
+export function HistoryTab({ userId, apiBase, onOpen, onChange }) {
   const [data, setData] = useList(`${apiBase}/api/users/${userId}/history`);
 
   async function setStatus(item, status) {
@@ -235,32 +236,22 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
       .finally(() => setLoading(false));
   }, [userId, apiBase]);
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const genres = user && user.favorite_genres
     ? user.favorite_genres.split(",").filter(Boolean)
     : [];
 
   return (
-    <div className="user-profile-overlay" onClick={onClose}>
-      <div className="drawer" onClick={(e) => e.stopPropagation()}>
-        <button className="drawer-close" onClick={onClose}>&times;</button>
+    <Sheet onClose={onClose} label={user ? user.name : "Profile"} className="drawer">
 
         {loading && (
           <div className="drawer-content" style={{ textAlign: "center", paddingTop: "3rem" }}>
-            <span style={{ color: "#b5a77a" }}>Loading profile...</span>
+            <span style={{ color: "var(--muted)" }}>Loading profile…</span>
           </div>
         )}
 
         {error && (
           <div className="drawer-content" style={{ textAlign: "center", paddingTop: "3rem" }}>
-            <span style={{ color: "#c0392b" }}>{error}</span>
+            <span style={{ color: "var(--red)" }}>{error}</span>
           </div>
         )}
 
@@ -269,7 +260,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
             <div className="user-profile-header">
               <div
                 className="user-profile-avatar"
-                style={{ background: user.avatar_color, color: "#0d0c09" }}
+                style={{ background: user.avatar_color, color: "var(--ink)" }}
               >
                 {user.name.slice(0, 2).toUpperCase()}
               </div>
@@ -283,7 +274,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
             <div className="user-profile-section">
               <div className="drawer-section-label">Favorite Genres</div>
               {genres.length === 0 ? (
-                <div style={{ color: "#7a7560", fontSize: "0.92rem" }}>
+                <div style={{ color: "var(--muted)", fontSize: "0.92rem" }}>
                   No genres selected yet.
                 </div>
               ) : (
@@ -339,7 +330,6 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }

@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Cinema Club DC',
         short_name: 'Cinema Club',
         description: 'DC arthouse & repertory showtimes for the club',
-        theme_color: '#0d0c09',
-        background_color: '#0d0c09',
+        theme_color: '#1f070c',
+        background_color: '#1f070c',
         display: 'standalone',
         start_url: '/',
         icons: [

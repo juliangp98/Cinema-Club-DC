@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import ProfileMenu from "../components/ProfileMenu";
-import { accountLabel } from "../accountLabel";
+import PageHeader from "../ui/PageHeader";
 
 const SCORING_LABELS = {
   none: "No scoring",
@@ -18,7 +17,6 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
   const [polls, setPolls] = useState([]);
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showProfile, setShowProfile] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -126,10 +124,6 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
     setCategories(prev => prev.filter((_, i) => i !== idx));
   }
 
-  function logout() {
-    fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" })
-      .then(() => window.location.reload());
-  }
 
   if (loading) return null;
   if (!group) { navigate("/"); return null; }
@@ -140,31 +134,7 @@ export default function PollsPage({ user, setUser, apiBase, activeGroupId }) {
   return (
     <div className="group-discovery-page">
       <div className="group-discovery-container">
-        <header className="group-discovery-header">
-          <button className="group-back-btn" onClick={() => navigate("/")}>
-            &larr; Feed
-          </button>
-          <h1 className="group-discovery-title">Polls</h1>
-          <div style={{ marginLeft: "auto", position: "relative" }}>
-            <div
-              className="user-avatar"
-              style={{ background: user.avatar_color, color: "#0d0c09" }}
-              title={`${user.name} — ${accountLabel(user)}`}
-              onClick={() => setShowProfile(!showProfile)}
-            >
-              {user.name.slice(0, 2).toUpperCase()}
-            </div>
-            {showProfile && (
-              <ProfileMenu
-                user={user}
-                apiBase={apiBase}
-                onUpdate={u => setUser(u)}
-                onLogout={logout}
-                onClose={() => setShowProfile(false)}
-              />
-            )}
-          </div>
-        </header>
+        <PageHeader title="Polls" />
 
         {/* Admin actions */}
         {isAdmin && (

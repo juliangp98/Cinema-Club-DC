@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GroupAdmin from "../components/GroupAdmin";
 import UserProfileDrawer from "../components/UserProfileDrawer";
-import ProfileMenu from "../components/ProfileMenu";
-import { accountLabel } from "../accountLabel";
+import PageHeader from "../ui/PageHeader";
 
 export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
@@ -35,7 +34,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
   const [profileUserId, setProfileUserId] = useState(null);
 
   // User profile menu
-  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     fetchMyGroups();
@@ -129,14 +127,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     finally { setCreating(false); }
   }
 
-  async function logout() {
-    await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
-    setUser(null);
-  }
 
-  function handleProfileUpdate(updatedUser) {
-    setUser(updatedUser);
-  }
 
   function handleAdminGroupUpdated(updated) {
     setMyGroups(prev => prev.map(g => (g.id === updated.id ? { ...g, ...updated } : g)));
@@ -157,31 +148,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
   return (
     <div className="group-discovery-page">
       <div className="group-discovery-container">
-        <header className="group-discovery-header">
-          <button className="group-back-btn" onClick={() => navigate("/")}>
-            &larr; Feed
-          </button>
-          <h1 className="group-discovery-title">Groups</h1>
-          <div style={{ marginLeft: "auto", position: "relative" }}>
-            <div
-              className="user-avatar"
-              style={{ background: user.avatar_color, color: "#0d0c09" }}
-              title={`${user.name} — ${accountLabel(user)}`}
-              onClick={() => setShowProfile(!showProfile)}
-            >
-              {user.name.slice(0, 2).toUpperCase()}
-            </div>
-            {showProfile && (
-              <ProfileMenu
-                user={user}
-                apiBase={apiBase}
-                onUpdate={handleProfileUpdate}
-                onLogout={logout}
-                onClose={() => setShowProfile(false)}
-              />
-            )}
-          </div>
-        </header>
+        <PageHeader title="Groups" />
 
         {/* My Groups */}
         <section className="group-section">
