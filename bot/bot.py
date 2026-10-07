@@ -2700,7 +2700,7 @@ def draft_embed(d):
         embed.add_field(name='…', value=f"+{len(d['categories']) - 8} more categories", inline=False)
     mode = {'none': 'Plain vote', 'single': 'Predictions · 1 🍿 per correct', 'ranked': 'Ranked top 3',
             'confidence': 'Predictions · confidence-weighted'}.get(d.get('scoring_mode'), '')
-    foot = [mode, 'Draft — not posted yet']
+    foot = [mode, 'Based on all films' if d.get('scope') == 'all' else 'Based on local showings', 'Draft — not posted yet']
     if d.get('notes'):
         foot.insert(0, f"⚠️ {d['notes']}")
     embed.set_footer(text=' · '.join(f for f in foot if f)[:2048])
@@ -2737,11 +2737,16 @@ poll_group = app_commands.Group(name='poll', description='Make polls (organizers
 
 
 @poll_group.command(name='make', description='Describe a poll; the AI drafts it for you to create or edit')
-@app_commands.describe(request='e.g. "spookiest Halloween movies" or "the 99th Oscar winners"')
-async def poll_make(interaction: discord.Interaction, request: app_commands.Range[str, 3, 300]):
+@app_commands.describe(request='e.g. "spookiest Halloween movies" or "the 99th Oscar winners"',
+                       based_on="Local showings (films playing at the club's theatres) or all films (default: local)")
+@app_commands.choices(based_on=[app_commands.Choice(name='Local showings', value='playing'),
+                                app_commands.Choice(name='All films', value='all')])
+async def poll_make(interaction: discord.Interaction, request: app_commands.Range[str, 3, 300],
+                    based_on: app_commands.Choice[str] = None):
     await interaction.response.defer(ephemeral=True, thinking=True)
     try:
-        d = await api.post('/api/internal/polls/draft', {**discord_identity(interaction), 'prompt': request})
+        d = await api.post('/api/internal/polls/draft', {**discord_identity(interaction), 'prompt': request,
+                                                         'scope': based_on.value if based_on else 'playing'})
     except ApiError as e:
         try:
             msg = json.loads(e.body or '{}').get('error')

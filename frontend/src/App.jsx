@@ -6,6 +6,7 @@ import GroupDiscovery from "./pages/GroupDiscovery";
 import MembersPage from "./pages/MembersPage";
 import PollsPage from "./pages/PollsPage";
 import PollDetailPage from "./pages/PollDetailPage";
+import PollEditorPage from "./pages/PollEditorPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import VerifySignin from "./pages/VerifySignin";
 import MePage from "./pages/MePage";
@@ -188,10 +189,12 @@ export default function App() {
             <RequireSignIn user={user}><MembersPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
           <Route path="/polls" element={
             <RequireSignIn user={user}>
-              <PollsPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} setGroupId={handleSetGroupId} />
+              <PollsPage apiBase={API_BASE} activeGroupId={scopeGroupId} />
             </RequireSignIn>} />
           <Route path="/leaderboard" element={
             <RequireSignIn user={user}><LeaderboardPage user={user} setUser={setUser} apiBase={API_BASE} activeGroupId={activeGroupId} /></RequireSignIn>} />
+          <Route path="/polls/new" element={
+            <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/polls/:pollId" element={
             <RequireSignIn user={user}><PollDetailPage user={user} setUser={setUser} apiBase={API_BASE} /></RequireSignIn>} />
         </Route>

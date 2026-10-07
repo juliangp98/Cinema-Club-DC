@@ -2,11 +2,13 @@
 "the 99th Oscar winners". The shared AI (ai.py) drafts a title, categories and
 options; organizers edit the draft before it becomes a poll.
 
-Drafts are grounded in what's actually playing at the club's theatres (the
-Discover engine picks the films that fit the ask first), and options that
-name one of those films are linked to it (poster, year, film page). For
-awards that haven't been announced yet, the AI drafts likely contenders and
-says so in `notes`.
+The organizer says what it's based on (`scope`):
+  * "playing": local showings — options come from films playing at the club's
+    theatres (the Discover engine puts the ones that fit the ask first).
+  * "all": films in general — the AI's own knowledge, not tied to what's on.
+Either way, options that name a film in our database are linked to it
+(poster, year, film page). For awards that haven't been announced yet, the AI
+drafts likely contenders and says so in `notes`.
 """
 
 import json
@@ -18,6 +20,8 @@ MAX_OPTIONS = 15
 MAX_FILMS = 80          # playing films offered to the AI (keeps the prompt small)
 WINDOW_DAYS = 45
 
+SCOPES = ('playing', 'all')
+
 SYSTEM = """You draft polls for a film club's website (Washington, DC). Reply with ONE JSON object and nothing else:
 {"title": str, "description": str, "poll_type": "standard" | "prediction", "scoring_mode": "none" | "single" | "ranked" | "confidence",
  "categories": [{"title": str, "options": [str, ...]}], "notes": str}
@@ -26,7 +30,7 @@ Rules:
 - "standard" polls are opinions (favorites, what to watch): scoring_mode "none" for plain votes, "ranked" for top-3 style.
 - "prediction" polls have right answers decided later (awards, box office): scoring_mode "single" (or "confidence"/"ranked" if asked).
 - 1 to 25 categories; 2 to 12 options each (award categories: the nominees). Short titles; options are film titles or names.
-- When the poll is about what to see or the club's tastes, prefer films from the PLAYING list, written exactly as listed.
+- {scope_rule}
 - For awards: use the real nominees if they are known to you. If nominations aren't announced yet, use likely contenders
   and say in "notes" that they're predicted and should be updated when nominations come out.
 - Never invent showtimes. "notes" is one short sentence for the organizer (or "").
@@ -142,17 +146,62 @@ def clean(data, films=(), prompt=''):
     }
 
 
-def draft(group, prompt, now=None):
-    """Draft a poll for `prompt`. Raises ai.RateLimited, ai.Unavailable or DraftError."""
+SCOPE_RULES = {
+    'playing': ("This poll is about LOCAL SHOWINGS: film options must come from the PLAYING list, written exactly as "
+                "listed (categories about people, e.g. Best Actor, may name people in those films)."),
+    'all': ("This poll is about FILMS IN GENERAL: use any films (your own knowledge), not only what's playing. "
+            "Write titles as they're commonly known."),
+}
+
+
+class _Linked:
+    """A database film to link an option to (same shape playing_films gives)."""
+    def __init__(self, movie):
+        self.movie = movie
+        y = (movie.release_year or '')[:4]
+        self.year = int(y) if y.isdigit() else None
+
+
+def _library_films(texts):
+    """Films in our database whose titles match these option texts (for
+    "all films" drafts): posters and years for whatever we know."""
+    from app import db, Movie
+    variants = set()
+    for t in texts:
+        base = re.sub(r'\s*\((19|20)\d\d\)\s*$', '', (t or '').strip()).lower()
+        if base:
+            variants.update({base, f'the {base}', base[4:] if base.startswith('the ') else base})
+    if not variants:
+        return []
+    wanted = {_norm(t) for t in texts if t}
+    best = {}
+    for m in Movie.query.filter(db.func.lower(Movie.title).in_(variants)).limit(500):
+        key = _norm(m.title)
+        if key in wanted and (key not in best or (m.poster_url and not best[key].movie.poster_url)):
+            best[key] = _Linked(m)
+    return list(best.values())
+
+
+def draft(group, prompt, now=None, scope='playing'):
+    """Draft a poll for `prompt`, based on local showings ("playing") or films
+    in general ("all"). Raises ai.RateLimited, ai.Unavailable or DraftError."""
     import ai
     now = now or datetime.now()
-    playing = playing_films(group, prompt, now)
-    listing = '\n'.join(f'- {line}' for _, line in playing) or '(nothing listed right now)'
-    messages = [
-        {'role': 'system', 'content': SYSTEM},
-        {'role': 'user', 'content': f"Today is {now.strftime('%A, %B %-d, %Y')}. Club: {group.name}.\n"
-                                    f"PLAYING at the club's theatres in the next {WINDOW_DAYS} days:\n{listing}\n\n"
-                                    f"Request: {prompt}"},
-    ]
-    raw = ai.chat(messages, max_tokens=2000, json_mode=True)
-    return clean(_parse(raw), [f for f, _ in playing], prompt)
+    scope = scope if scope in SCOPES else 'playing'
+    today = f"Today is {now.strftime('%A, %B %-d, %Y')}. Club: {group.name}.\n"
+    if scope == 'playing':
+        playing = playing_films(group, prompt, now)
+        listing = '\n'.join(f'- {line}' for _, line in playing) or '(nothing listed right now)'
+        user = f"{today}PLAYING at the club's theatres in the next {WINDOW_DAYS} days:\n{listing}\n\nRequest: {prompt}"
+    else:
+        playing = []
+        user = f"{today}Request: {prompt}"
+    messages = [{'role': 'system', 'content': SYSTEM.replace('{scope_rule}', SCOPE_RULES[scope])},
+                {'role': 'user', 'content': user}]
+    data = _parse(ai.chat(messages, max_tokens=2000, json_mode=True))
+    if scope == 'all':
+        texts = [o.get('text') if isinstance(o, dict) else o
+                 for c in (data.get('categories') or []) if isinstance(c, dict) for o in (c.get('options') or [])]
+        playing = _library_films([str(t) for t in texts])
+        return {**clean(data, playing, prompt), 'scope': scope}
+    return {**clean(data, [f for f, _ in playing], prompt), 'scope': scope}

@@ -1,17 +1,56 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
+import Sheet from "../ui/Sheet";
+import Avatar from "../ui/Avatar";
+import { Segmented } from "../ui/TicketRow";
 import { PollDiscord } from "../ui/DiscordShare";
+import { SCORING_LABELS, TYPE_LABELS } from "./PollsPage";
+import "./Polls.css";
 
-const SCORING_LABELS = {
-  none: "No scoring",
-  single: "1 🍿 per correct",
-  ranked: "Ranked 🍿",
-  confidence: "Confidence × 🍿",
-};
+const STATUS = { open: "Open", closed: "Voting closed", scored: "Results in" };
+const LAYOUTS = [{ status: "one", label: "One at a time" }, { status: "all", label: "All" }];
+const LAYOUT_KEY = "cinemaclub_ballot_layout";
 
-const TYPE_LABELS = { standard: "Poll", prediction: "Prediction" };
+// One category's choices: single pick (± confidence) or ranked top 3. Options
+// linked to a film show its poster (AI drafts link them).
+function Choices({ cat, mode, vote, onPick, onRank, onConfidence, status }) {
+  const ranked = vote?.ranked || [];
+  return (
+    <div className="pv-choices">
+      {mode === "ranked" && <p className="pv-hint">Pick up to 3, in order. Tap again to remove.</p>}
+      {cat.options.map(opt => {
+        const rank = mode === "ranked" ? ranked.indexOf(opt.id) + 1 : 0;
+        const on = mode === "ranked" ? rank > 0 : vote?.option_id === opt.id;
+        let extra = {};
+        try { extra = opt.extra || (opt.extra_data ? JSON.parse(opt.extra_data) : {}); } catch { /* none */ }
+        return (
+          <button key={opt.id} type="button" className={`pv-choice${on ? " on" : ""}`} aria-pressed={on}
+                  onClick={() => (mode === "ranked" ? onRank(cat.id, opt.id) : onPick(cat.id, opt.id))}>
+            {extra.poster_url ? <img src={extra.poster_url} alt="" loading="lazy" /> : <span className="pv-choice-dot" aria-hidden="true" />}
+            <span className="pv-choice-text">{opt.text}{extra.year ? <span className="pv-choice-year"> ({extra.year})</span> : null}</span>
+            {mode === "ranked" && rank > 0 && <span className="pv-rank">#{rank}</span>}
+            {mode !== "ranked" && on && <span className="pv-check">✓</span>}
+          </button>
+        );
+      })}
+      {mode === "confidence" && vote?.option_id && (
+        <label className="pv-confidence">
+          <span>Confidence</span>
+          <input type="range" min="1" max="10" value={vote.confidence || 1} onChange={e => onConfidence(cat.id, e.target.value)} />
+          <strong>{vote.confidence || 1} 🍿</strong>
+        </label>
+      )}
+      <span className={`pv-saved ${status || ""}`} aria-live="polite">
+        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Couldn't save — tap again" : ""}
+      </span>
+    </div>
+  );
+}
 
+// The ballot (R6a): progress, one category at a time or all at once (your
+// choice, remembered), results with bars and winners, and the leaderboard.
+// Organizers and admins get one Manage panel: status, winners, settings, Discord.
 export default function PollDetailPage({ user, setUser, apiBase }) {
   const { pollId } = useParams();
   const navigate = useNavigate();
@@ -33,7 +72,6 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   const [winnerSaveStatus, setWinnerSaveStatus] = useState({});
   const [scoring, setScoring] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const settingsRef = useRef(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editType, setEditType] = useState("standard");
@@ -327,24 +365,6 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     finally { setSavingSettings(false); }
   }
 
-  // Close settings popup on Escape / outside click (similar to ProfileMenu)
-  useEffect(() => {
-    if (!showSettings) return;
-    function onKey(e) {
-      if (e.key === "Escape") setShowSettings(false);
-    }
-    function onClick(e) {
-      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
-        setShowSettings(false);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("mousedown", onClick);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("mousedown", onClick);
-    };
-  }, [showSettings]);
 
 
   const totalCategories = poll?.categories?.length || 0;
@@ -352,383 +372,207 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     poll?.scoring_mode === 'ranked' ? (v.ranked?.length > 0) : v.option_id
   ).length;
 
+
+  const [layout, setLayout] = useState(() => {
+    try { const v = localStorage.getItem(LAYOUT_KEY); if (v === "one" || v === "all") return v; } catch { /* private mode */ }
+    return window.innerWidth < 768 ? "one" : "all";
+  });
+  const [current, setCurrent] = useState(0);
+  const chooseLayout = v => { if (!v) return; setLayout(v); try { localStorage.setItem(LAYOUT_KEY, v); } catch { /* private mode */ } };
+
   if (loading) return null;
   if (!poll) { navigate("/polls"); return null; }
 
+  const cats = poll.categories || [];
+  const mode = poll.scoring_mode;
+  const isPicked = c => (mode === "ranked" ? votes[c.id]?.ranked?.length > 0 : !!votes[c.id]?.option_id);
+  const idx = Math.min(current, Math.max(0, cats.length - 1));
+  const nextOpen = () => {
+    const after = cats.findIndex((c, i) => i > idx && !isPicked(c));
+    const any = after === -1 ? cats.findIndex(c => !isPicked(c)) : after;
+    setCurrent(any === -1 ? Math.min(idx + 1, cats.length - 1) : any);
+  };
+  const canVote = poll.status === "open" && !readOnly;
+  const choicesFor = cat => (
+    <Choices cat={cat} mode={mode} vote={votes[cat.id]} status={saveStatus[cat.id]}
+             onPick={setVoteForCategory} onRank={toggleRankedVote} onConfidence={setConfidence} />
+  );
+  const tabs = [
+    ...(canVote ? [{ status: "vote", label: `Vote ${votedCategories}/${totalCategories}` }] : []),
+    { status: "results", label: "Results" },
+    ...(mode !== "none" ? [{ status: "leaderboard", label: "🍿 Leaderboard" }] : []),
+  ];
+
   return (
-    <div className="group-discovery-page">
-      <div className="group-discovery-container">
-        <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }} />
+    <div className="page narrow polls">
+      <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }}
+                  subtitle={`${STATUS[poll.status] || poll.status} · ${TYPE_LABELS[poll.poll_type] || "Poll"} · ${SCORING_LABELS[mode]} · ${totalCategories} ${totalCategories === 1 ? "category" : "categories"}`} />
+      {poll.description && <p className="pv-desc">{poll.description}</p>}
+      {readOnly && poll.status === "open" && <p className="pv-hint">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
 
-        {isAdmin && poll.discord && <PollDiscord poll={poll} apiBase={apiBase} onChange={fetchPollQuiet} />}
-
-        {/* Poll info bar */}
-        <div className="poll-info-bar">
-          <span className={`poll-status-badge ${poll.status}`}>
-            {poll.status === "open" ? "🟢 Open" : poll.status === "scored" ? "🏆 Scored" : "🔴 Closed"}
-          </span>
-          <div className="poll-info-right">
-            <span className={`poll-type-badge ${poll.poll_type}`}>{TYPE_LABELS[poll.poll_type]}</span>
-            <span className="poll-scoring-badge">{SCORING_LABELS[poll.scoring_mode]}</span>
-            {isAdmin && (
-              <div className="poll-settings-trigger">
-                <button
-                  className="poll-settings-pill"
-                  onClick={openSettings}
-                  title="Poll Settings"
-                >
-                  Poll Settings
-                </button>
-                {showSettings && (
-                  <div className="poll-settings-menu" ref={settingsRef}>
-                    <div className="poll-settings-header">
-                      <h3 className="poll-settings-title">Poll Settings</h3>
-                      <button className="poll-settings-close" onClick={() => setShowSettings(false)}>&times;</button>
-                    </div>
-
-                    <label className="poll-form-label">Title</label>
-                    <input
-                      className="poll-input"
-                      value={editTitle}
-                      onChange={e => setEditTitle(e.target.value)}
-                      maxLength={200}
-                    />
-
-                    <label className="poll-form-label">Description</label>
-                    <textarea
-                      className="poll-textarea"
-                      value={editDesc}
-                      onChange={e => setEditDesc(e.target.value)}
-                      placeholder="Optional"
-                      rows={3}
-                    />
-
-                    <label className="poll-form-label">Type</label>
-                    <div className="poll-radio-group">
-                      {[["standard", "Poll"], ["prediction", "Prediction"]].map(([val, label]) => (
-                        <label
-                          key={val}
-                          className={`poll-radio type-${val}${editType === val ? " active" : ""}`}
-                        >
-                          <input
-                            type="radio"
-                            name="settingsType"
-                            value={val}
-                            checked={editType === val}
-                            onChange={() => setEditType(val)}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-
-                    <label className="poll-form-label">Scoring</label>
-                    <div className="poll-radio-group">
-                      {Object.entries(SCORING_LABELS).map(([val, label]) => (
-                        <label
-                          key={val}
-                          className={`poll-radio scoring-${val}${editScoring === val ? " active" : ""}`}
-                        >
-                          <input
-                            type="radio"
-                            name="settingsScoring"
-                            value={val}
-                            checked={editScoring === val}
-                            onChange={() => setEditScoring(val)}
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-
-                    <div className="poll-settings-actions">
-                      <button
-                        className="poll-admin-action"
-                        onClick={() => setShowSettings(false)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="poll-submit-btn"
-                        onClick={handleSaveSettings}
-                        disabled={savingSettings || !editTitle.trim()}
-                      >
-                        {savingSettings ? "Saving..." : "Save Changes"}
-                      </button>
-                    </div>
-
-                    <hr className="poll-settings-divider" />
-
-                    <button className="poll-delete-btn" onClick={handleDeletePoll}>
-                      Delete Poll
-                    </button>
-                  </div>
-                )}
-              </div>
+      {isAdmin && (
+        <section className="pv-manage" aria-label="Manage this poll">
+          <div className="pv-manage-row">
+            <span className="pv-label">Manage</span>
+            {poll.status === "open" && <button className="btn btn-sm" onClick={handleClosePoll}>Close voting</button>}
+            {poll.status === "closed" && <button className="btn btn-sm" onClick={handleReopenVoting}>Reopen voting</button>}
+            {poll.status === "scored" && <button className="btn btn-sm" onClick={handleUndoScoring}>Edit winners</button>}
+            {poll.status !== "scored" && mode !== "none" && (
+              <button className="btn btn-sm btn-primary" onClick={handleScoreWinners} disabled={scoring || Object.keys(winners).length === 0}
+                      title="Mark winners on the Results tab first">
+                {scoring ? "Finalizing…" : "🏆 Finalize scores"}
+              </button>
             )}
+            <button className="btn btn-sm btn-ghost" onClick={openSettings}>Settings</button>
           </div>
-          {poll.description && <p className="poll-description">{poll.description}</p>}
-          {readOnly && poll.status === "open" && <p className="poll-readonly">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
-        </div>
-
-        {/* Tabs */}
-        <div className="poll-tabs">
-          <button
-            className={`poll-tab${tab === "vote" ? " active" : ""}`}
-            onClick={() => setTab("vote")}
-            disabled={poll.status !== "open" || readOnly}
-            title={readOnly ? "You're read-only in this club" : undefined}
-          >
-            Vote {poll.status === "open" && `(${votedCategories}/${totalCategories})`}
-          </button>
-          <button
-            className={`poll-tab${tab === "results" ? " active" : ""}`}
-            onClick={() => setTab("results")}
-          >
-            Results
-          </button>
-          {poll.scoring_mode !== "none" && (
-            <button
-              className={`poll-tab${tab === "leaderboard" ? " active" : ""}`}
-              onClick={() => setTab("leaderboard")}
-            >
-              🍿 Leaderboard
-            </button>
+          {poll.status !== "scored" && mode !== "none" && (
+            <p className="pv-hint">Mark each category's winner on the Results tab, then finalize to award 🍿.</p>
           )}
-        </div>
+          {poll.discord && <PollDiscord poll={poll} apiBase={apiBase} onChange={fetchPollQuiet} />}
+        </section>
+      )}
 
-        {/* Vote Tab */}
-        {tab === "vote" && poll.status === "open" && (
-          <div className="poll-vote-view">
-            {poll.categories.map((cat, i) => (
-              <div key={cat.id} className="poll-category-card">
-                <div className="poll-category-title">
-                  <span className="poll-category-num">{i + 1}.</span>
-                  {cat.title}
-                </div>
-                {poll.scoring_mode === "ranked" ? (
-                  <div className="poll-options-grid">
-                    <p className="poll-ranked-hint">Select up to 3 in ranked order (click to add, click again to remove)</p>
-                    {cat.options.map(opt => {
-                      const ranked = votes[cat.id]?.ranked || [];
-                      const rankIdx = ranked.indexOf(opt.id);
-                      const rank = rankIdx !== -1 ? rankIdx + 1 : null;
-                      return (
-                        <button
-                          key={opt.id}
-                          className={`poll-option-card${rank ? " selected" : ""}`}
-                          onClick={() => toggleRankedVote(cat.id, opt.id)}
-                        >
-                          {rank && <span className="poll-rank-badge">#{rank}</span>}
-                          {opt.text}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="poll-options-grid">
-                    {cat.options.map(opt => (
-                      <button
-                        key={opt.id}
-                        className={`poll-option-card${votes[cat.id]?.option_id === opt.id ? " selected" : ""}`}
-                        onClick={() => setVoteForCategory(cat.id, opt.id)}
-                      >
-                        {opt.text}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {poll.scoring_mode === "confidence" && votes[cat.id]?.option_id && (
-                  <div className="poll-confidence-row">
-                    <label className="poll-confidence-label">Confidence:</label>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={votes[cat.id]?.confidence || 1}
-                      onChange={e => setConfidence(cat.id, e.target.value)}
-                      className="poll-confidence-slider"
-                    />
-                    <span className="poll-confidence-val">
-                      {votes[cat.id]?.confidence || 1} 🍿
-                    </span>
-                  </div>
-                )}
-                {saveStatus[cat.id] && (
-                  <span className={`poll-save-indicator ${saveStatus[cat.id]}`}>
-                    {saveStatus[cat.id] === 'saving' && 'Saving...'}
-                    {saveStatus[cat.id] === 'saved' && 'Saved'}
-                    {saveStatus[cat.id] === 'error' && 'Error saving — tap again'}
-                  </span>
-                )}
-              </div>
-            ))}
-
-            <div className="poll-vote-actions">
-              <span className="poll-autosave-hint">
-                Votes save automatically as you pick
-              </span>
-              {isAdmin && (
-                <button className="poll-admin-action" onClick={handleClosePoll}>
-                  Close Voting
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Results Tab */}
-        {tab === "results" && (
-          <div className="poll-results-view">
-            {poll.categories.map((cat, i) => {
-              // The split stays hidden until you've picked (or voting closes).
-              const splitHidden = !cat.vote_distribution;
-              const dist = cat.vote_distribution || {};
-              const totalVotes = Object.values(dist).reduce((a, b) => a + b, 0);
-              const userVote = cat.user_vote;
-              const userVotes = cat.user_votes || [];
-              const correctId = cat.correct_option_id;
-              const isRanked = poll.scoring_mode === 'ranked';
-
-              return (
-                <div key={cat.id} className="poll-category-card">
-                  <div className="poll-category-title">
-                    <span className="poll-category-num">{i + 1}.</span>
-                    {cat.title}
-                  </div>
-                  {splitHidden && <p className="poll-ranked-hint">Pick yours to see how everyone voted.</p>}
-                  <div className="poll-results-list">
-                    {cat.options.map(opt => {
-                      const count = dist[opt.id] || 0;
-                      const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
-                      const isWinner = correctId === opt.id;
-                      const userRankedPick = isRanked ? userVotes.find(v => v.option_id === opt.id) : null;
-                      const isUserPick = isRanked ? !!userRankedPick : userVote?.option_id === opt.id;
-                      const isCorrect = isUserPick && isWinner;
-                      const isWrong = isUserPick && correctId && !isWinner;
-
-                      return (
-                        <div
-                          key={opt.id}
-                          className={`poll-result-row${isWinner ? " winner" : ""}${isUserPick ? " user-pick" : ""}${isCorrect ? " correct" : ""}${isWrong ? " wrong" : ""}`}
-                        >
-                          <div className="poll-result-bar" style={{ width: `${pct}%` }} />
-                          <span className="poll-result-label">
-                            {isWinner && "🏆 "}{isCorrect && "✅ "}{isWrong && "❌ "}
-                            {opt.text}
-                            {isUserPick && !correctId && isRanked && ` ← your #${userRankedPick.rank} pick`}
-                            {isUserPick && !correctId && !isRanked && " ← your pick"}
-                          </span>
-                          {!splitHidden && (
-                            <span className="poll-result-count">
-                              {count} ({pct}%)
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {isAdmin && poll.status !== "scored" && (
-                    <div className="poll-winner-select">
-                      <label className="poll-form-label">Select winner:</label>
-                      <select
-                        value={winners[cat.id] || ""}
-                        onChange={e => {
-                          const val = e.target.value ? parseInt(e.target.value) : null;
-                          setWinners(prev => {
-                            const next = { ...prev };
-                            if (val) next[cat.id] = val;
-                            else delete next[cat.id];
-                            return next;
-                          });
-                          saveWinnerForCategory(cat.id, val);
-                        }}
-                        className="poll-input tiny"
-                      >
-                        <option value="">—</option>
-                        {cat.options.map(opt => (
-                          <option key={opt.id} value={opt.id}>{opt.text}</option>
-                        ))}
-                      </select>
-                      {winnerSaveStatus[cat.id] && (
-                        <span className={`poll-save-indicator ${winnerSaveStatus[cat.id]}`}>
-                          {winnerSaveStatus[cat.id] === 'saving' && 'Saving...'}
-                          {winnerSaveStatus[cat.id] === 'saved' && 'Saved'}
-                          {winnerSaveStatus[cat.id] === 'error' && 'Error saving'}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Admin actions */}
-            {isAdmin && (
-              <div className="poll-results-actions">
-                <div className="poll-results-actions-left">
-                  {poll.status === "open" && (
-                    <button className="poll-admin-action" onClick={handleClosePoll}>
-                      Close Voting
-                    </button>
-                  )}
-                  {poll.status === "closed" && (
-                    <button className="poll-admin-action" onClick={handleReopenVoting}>
-                      🔓 Reopen Voting
-                    </button>
-                  )}
-                  {poll.status === "scored" && (
-                    <button className="poll-admin-action" onClick={handleUndoScoring}>
-                      ✏️ Edit Winners
-                    </button>
-                  )}
-                </div>
-                <div className="poll-results-actions-right">
-                  {poll.status !== "scored" && (
-                    <button
-                      className="poll-submit-btn"
-                      onClick={handleScoreWinners}
-                      disabled={scoring || Object.keys(winners).length === 0}
-                    >
-                      {scoring ? "Finalizing..." : "🏆 Finalize Scores & Award 🍿"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Leaderboard Tab */}
-        {tab === "leaderboard" && (
-          <div className="poll-leaderboard">
-            {leaderboard.length === 0 && (
-              <p className="poll-empty">No scores yet. Winners must be marked first.</p>
-            )}
-            {leaderboard.map((entry, i) => (
-              <div key={entry.user.id} className={`poll-lb-row${entry.user.id === user.id ? " current-user" : ""}`}>
-                <span className="poll-lb-rank">
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
-                </span>
-                <div
-                  className="poll-lb-avatar"
-                  style={{ background: entry.user.avatar_color, color: "var(--ink)" }}
-                >
-                  {entry.user.name.slice(0, 2).toUpperCase()}
-                </div>
-                <span className="poll-lb-name">{entry.user.name}</span>
-                <span className="poll-lb-stats">
-                  {entry.correct}/{entry.total} correct
-                </span>
-                <span className="poll-lb-kernels">
-                  {entry.kernels} 🍿
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="pv-tabs">
+        <Segmented label="View" options={tabs} value={tab} onChange={v => v && setTab(v)} />
+        {tab === "vote" && <Segmented label="Ballot layout" options={LAYOUTS} value={layout} onChange={chooseLayout} />}
       </div>
 
+      {tab === "vote" && canVote && (
+        <div className="pv-ballot">
+          <div className="pv-progress big" aria-label={`${votedCategories} of ${totalCategories} picked`}>
+            <span className="pv-progress-bar"><span style={{ width: `${totalCategories ? (votedCategories / totalCategories) * 100 : 0}%` }} /></span>
+            <span className="pv-progress-text">{votedCategories === totalCategories ? "All picked ✓ — change anything until voting closes" : `${votedCategories} of ${totalCategories} picked · saves as you go`}</span>
+          </div>
+
+          {layout === "one" ? (
+            <>
+              <div className="pv-jump" role="tablist" aria-label="Categories">
+                {cats.map((c, i) => (
+                  <button key={c.id} type="button" role="tab" aria-selected={i === idx} title={c.title}
+                          className={`pv-jump-dot${i === idx ? " current" : ""}${isPicked(c) ? " done" : ""}`} onClick={() => setCurrent(i)}>
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              {cats[idx] && (
+                <article className="pv-cat one">
+                  <h2 className="pv-cat-title"><span>{idx + 1} / {cats.length}</span>{cats[idx].title}</h2>
+                  {choicesFor(cats[idx])}
+                  <div className="pv-step">
+                    <button className="btn" disabled={idx === 0} onClick={() => setCurrent(idx - 1)}>‹ Back</button>
+                    <button className="btn btn-primary" disabled={cats.every(isPicked) && idx === cats.length - 1} onClick={nextOpen}>
+                      {cats.every(isPicked) ? "Next ›" : "Next unpicked ›"}
+                    </button>
+                  </div>
+                </article>
+              )}
+            </>
+          ) : (
+            cats.map((c, i) => (
+              <article key={c.id} className={`pv-cat${isPicked(c) ? " done" : ""}`}>
+                <h2 className="pv-cat-title"><span>{i + 1}</span>{c.title}</h2>
+                {choicesFor(c)}
+              </article>
+            ))
+          )}
+        </div>
+      )}
+
+      {tab === "results" && (
+        <div className="pv-results">
+          {cats.map((cat, i) => {
+            const splitHidden = !cat.vote_distribution;
+            const dist = cat.vote_distribution || {};
+            const totalVotes = Object.values(dist).reduce((a, b) => a + b, 0);
+            const userVotes = cat.user_votes || [];
+            const correctId = cat.correct_option_id;
+            const isRanked = mode === "ranked";
+            return (
+              <article key={cat.id} className="pv-cat">
+                <h2 className="pv-cat-title"><span>{i + 1}</span>{cat.title}</h2>
+                {splitHidden && <p className="pv-hint">Pick yours to see how everyone voted.</p>}
+                <div className="pv-bars">
+                  {cat.options.map(opt => {
+                    const count = dist[opt.id] || 0;
+                    const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                    const isWinner = correctId === opt.id;
+                    const mine = isRanked ? userVotes.find(v => v.option_id === opt.id) : null;
+                    const isMine = isRanked ? !!mine : cat.user_vote?.option_id === opt.id;
+                    return (
+                      <div key={opt.id} className={`pv-bar${isWinner ? " winner" : ""}${isMine ? " mine" : ""}${isMine && correctId ? (isWinner ? " right" : " wrong") : ""}`}>
+                        <span className="pv-bar-fill" style={{ width: `${splitHidden ? 0 : pct}%` }} />
+                        <span className="pv-bar-label">
+                          {isWinner && "🏆 "}{opt.text}
+                          {isMine && <span className="pv-bar-you">{isRanked ? `your #${mine.rank}` : "your pick"}{correctId ? (isWinner ? " ✓" : " ✗") : ""}</span>}
+                        </span>
+                        {!splitHidden && <span className="pv-bar-count">{count} · {pct}%</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+                {isAdmin && poll.status !== "scored" && mode !== "none" && (
+                  <label className="pv-winner">
+                    <span>Winner</span>
+                    <select className="group-role-select" value={winners[cat.id] || ""}
+                            onChange={e => {
+                              const val = e.target.value ? parseInt(e.target.value) : null;
+                              setWinners(prev => { const next = { ...prev }; if (val) next[cat.id] = val; else delete next[cat.id]; return next; });
+                              saveWinnerForCategory(cat.id, val);
+                            }}>
+                      <option value="">—</option>
+                      {cat.options.map(opt => <option key={opt.id} value={opt.id}>{opt.text}</option>)}
+                    </select>
+                    <span className={`pv-saved ${winnerSaveStatus[cat.id] || ""}`}>
+                      {winnerSaveStatus[cat.id] === "saving" ? "Saving…" : winnerSaveStatus[cat.id] === "saved" ? "Saved ✓" : winnerSaveStatus[cat.id] === "error" ? "Couldn't save" : ""}
+                    </span>
+                  </label>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "leaderboard" && (
+        <div className="pv-board">
+          {leaderboard.length === 0 && <p className="pv-empty">No scores yet — winners are marked after voting closes.</p>}
+          {leaderboard.map((entry, i) => (
+            <div key={entry.user.id} className={`pv-board-row${entry.user.id === user.id ? " me" : ""}`}>
+              <span className="pv-board-rank">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
+              <Avatar user={entry.user} size={28} />
+              <span className="pv-board-name">{entry.user.name}</span>
+              <span className="pv-board-stats">{entry.correct}/{entry.total} correct</span>
+              <span className="pv-board-kernels">{entry.kernels} 🍿</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showSettings && (
+        <Sheet label="Poll settings" onClose={() => setShowSettings(false)} className="share-sheet">
+          <div className="share-sheet-body">
+            <h2 className="ui-section-title"><span className="deco share-sheet-title">Poll settings</span></h2>
+            <label className="share-label" htmlFor="ps-title">Title</label>
+            <input id="ps-title" className="share-input" value={editTitle} maxLength={200} onChange={e => setEditTitle(e.target.value)} />
+            <label className="share-label" htmlFor="ps-desc">Description</label>
+            <textarea id="ps-desc" className="share-input" rows={3} value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Optional" />
+            <span className="share-label">Type</span>
+            <Segmented label="Type" options={[{ status: "standard", label: "Opinion" }, { status: "prediction", label: "Prediction" }]}
+                       value={editType} onChange={v => v && setEditType(v)} />
+            <span className="share-label">Scoring</span>
+            <select className="share-input" value={editScoring} onChange={e => setEditScoring(e.target.value)}>
+              {Object.entries(SCORING_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <div className="share-sheet-foot">
+              <button className="btn btn-ghost pv-danger" onClick={handleDeletePoll}>Delete poll</button>
+              <button className="btn" onClick={() => setShowSettings(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveSettings} disabled={savingSettings || !editTitle.trim()}>
+                {savingSettings ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </Sheet>
+      )}
     </div>
   );
 }

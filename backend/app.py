@@ -3623,7 +3623,17 @@ def get_group_polls(group_id):
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
     polls = Poll.query.filter_by(group_id=group_id).order_by(Poll.created_at.desc()).all()
-    return jsonify([p.to_dict() for p in polls])
+    # For the list (R6a): how many voted, and how far you've got.
+    cat_poll = {c.id: c.poll_id for c in PollCategory.query.filter(PollCategory.poll_id.in_([p.id for p in polls]))} if polls else {}
+    voters, mine = {}, {}
+    for cat_id, uid in (db.session.query(PollVote.category_id, PollVote.user_id)
+                        .filter(PollVote.category_id.in_(cat_poll)).distinct() if cat_poll else []):
+        pid = cat_poll[cat_id]
+        voters.setdefault(pid, set()).add(uid)
+        if uid == user.id:
+            mine.setdefault(pid, set()).add(cat_id)
+    return jsonify([{**p.to_dict(), 'voters': len(voters.get(p.id, ())), 'you_picked': len(mine.get(p.id, ()))}
+                    for p in polls])
 
 
 @app.route('/api/groups/<int:group_id>/polls', methods=['POST'])
@@ -3680,8 +3690,9 @@ def build_poll(group_id, user, data):
 DRAFTS_PER_HOUR = 12        # per person: drafts use the shared AI's daily budget
 
 
-def _draft_poll(user, group, prompt):
-    """(response, status) — shared by the site and the bot's /poll."""
+def _draft_poll(user, group, prompt, scope='playing'):
+    """(response, status) — shared by the site and the bot's /poll. `scope`:
+    "playing" (local showings) or "all" (films in general)."""
     import poll_ai
     ai = _ai()
     prompt = re.sub(r'\s+', ' ', prompt or '').strip()[:300]
@@ -3692,7 +3703,7 @@ def _draft_poll(user, group, prompt):
     if recent >= DRAFTS_PER_HOUR:
         return {'error': "That's a lot of drafts this hour. Try again in a bit, or build the poll by hand."}, 429
     try:
-        data = poll_ai.draft(group, prompt)
+        data = poll_ai.draft(group, prompt, scope=scope)
     except ai.RateLimited as e:
         mins = max(1, round((e.retry_after_sec or 600) / 60))
         return {'error': f"The AI is out of juice for now (back in ~{mins} min). You can still build the poll by hand.",
@@ -3717,7 +3728,8 @@ def draft_poll(group_id):
     _, err = require_role(user, group_id, 'organizer')
     if err:
         return err
-    body, status = _draft_poll(user, db.session.get(Group, group_id), (request.json or {}).get('prompt'))
+    data = request.json or {}
+    body, status = _draft_poll(user, db.session.get(Group, group_id), data.get('prompt'), data.get('scope') or 'playing')
     return jsonify(body), status
 
 
@@ -3747,7 +3759,7 @@ def internal_draft_poll():
     _, err = require_role(user, group_id, 'organizer')
     if err:
         return err
-    body, status = _draft_poll(user, db.session.get(Group, group_id), data.get('prompt'))
+    body, status = _draft_poll(user, db.session.get(Group, group_id), data.get('prompt'), data.get('scope') or 'playing')
     return jsonify(body), status
 
 
