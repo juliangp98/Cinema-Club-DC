@@ -26,7 +26,7 @@ export default defineConfig({
         // Page loads under /api/ (Sign in with Discord and its callback) must
         // reach the server; by default the service worker answers every page
         // load with the cached app, which bounced Discord sign-in back to "/".
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/],
         // Never serve stale API data — the calendar must reflect fresh scrapes
         runtimeCaching: [
           {

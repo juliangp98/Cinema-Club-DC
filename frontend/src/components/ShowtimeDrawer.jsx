@@ -116,9 +116,10 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
           <Poster movie={movie} className="drawer-poster-thumb" alt={movie.title} loading="eager" />
           <div className="drawer-header-text">
             <div className="drawer-badge-row">
-              <span className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}>
+              <Link className="drawer-theatre-badge" data-theatre={theatre.slug} style={{ "--tcolor": theatre.color }}
+                    to={`/theatres/${theatre.slug}`} onClick={onClose} title={`About ${theatre.name}`}>
                 {theatre.name}
-              </span>
+              </Link>
               {movie.content_rating && <span className="drawer-content-rating">{movie.content_rating}</span>}
               {primary.recommended && <span className="drawer-rec-badge">&#9733; For you</span>}
             </div>

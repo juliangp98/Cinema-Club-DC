@@ -75,3 +75,4 @@
 }
 
 .film-interest { font-size: var(--fs-sm); color: var(--muted); margin-top: 0.5rem; }
+.film-theatre-link { display: inline-block; margin: -0.25rem 0 0.9rem; font-size: var(--fs-sm); color: var(--amber); }

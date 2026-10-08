@@ -8,6 +8,7 @@ import Avatar from "../ui/Avatar";
 import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
+import InstallPrompt from "./InstallPrompt";
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -106,6 +107,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             </NavLink>
           ))}
         </nav>
+
+        <InstallPrompt />
 
         {activity.isOpen && (
           <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} onClose={activity.close} />

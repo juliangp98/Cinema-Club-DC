@@ -5,6 +5,7 @@ import Tabs from "../ui/Tabs";
 import Avatar, { ClubBadge } from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import ClubSettings from "../components/ClubSettings";
+import CalendarLinks from "../components/CalendarLinks";
 import Feed from "./Feed";
 import { ClubWeek } from "./DiscoverPage";
 import { useShell } from "../shell/AppShell";
@@ -69,6 +70,8 @@ export default function ClubPage({ user, apiBase }) {
           <>
             <ClubWeek apiBase={apiBase} groupId={group.id} viewerId={user.id} onOpenShowtime={openShowtime}
                       onOpenActivity={shell.openActivity} />
+            <SectionTitle>In your calendar</SectionTitle>
+            <CalendarLinks apiBase={apiBase} clubId={group.id} />
             <SectionTitle>Recent activity</SectionTitle>
             <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} /></div>
           </>

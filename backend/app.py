@@ -207,6 +207,7 @@ class User(db.Model):
     is_guest = db.Column(db.Boolean, default=False)
     last_seen_at = db.Column(db.DateTime)           # guests: for idle expiry
     guest_ip_hash = db.Column(db.String(64), index=True)   # guests: creation cap (a hash, not the address)
+    calendar_token = db.Column(db.String(64), unique=True)   # R7a: your calendar subscription link
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
@@ -325,6 +326,7 @@ class GroupMembership(db.Model):
     role = db.Column(db.String(20), default='member')  # see ROLE_RANK: viewer, member, organizer, admin
     status = db.Column(db.String(20), default='active')  # 'active', 'pending'
     joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    calendar_token = db.Column(db.String(64), unique=True)   # R7a: this member's club-plans link
     user = db.relationship('User', lazy=True)
     __table_args__ = (db.UniqueConstraint('user_id', 'group_id'),)
 
@@ -348,6 +350,8 @@ class Theatre(db.Model):
     color = db.Column(db.String(20), default='#e8a838')
     short_name = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
+    latitude = db.Column(db.Float)                 # for the theatre page's map (R7a)
+    longitude = db.Column(db.Float)
     showtimes = db.relationship('Showtime', backref='theatre', lazy=True)
 
     def to_dict(self):
@@ -360,6 +364,8 @@ class Theatre(db.Model):
             'color': self.color,
             'short_name': self.short_name or self.name,
             'is_active': bool(self.is_active),
+            'lat': self.latitude,
+            'lon': self.longitude,
         }
 
 
@@ -2156,6 +2162,59 @@ def get_theatres():
     return jsonify([t.to_dict() for t in theatres])
 
 
+def _theatre_summary(t, now):
+    """How busy a theatre is over the next month (films, showings, next one)."""
+    q = Showtime.query.filter(Showtime.theatre_id == t.id, Showtime.start_time >= now,
+                              Showtime.start_time <= now + timedelta(days=30), Showtime.is_cancelled.isnot(True))
+    nxt = q.order_by(Showtime.start_time).first()
+    return {'films': q.with_entities(db.func.count(db.distinct(Showtime.movie_id))).scalar() or 0,
+            'showings': q.count(), 'next': nxt.start_time.isoformat() if nxt else None}
+
+
+@app.route('/api/theatres/<slug>')
+def get_theatre(slug):
+    """A theatre's page (R7a, public): where it is, its area, and how much is
+    playing in the next month. Its films come from Browse (?theatres=<slug>)."""
+    import discover
+    t = Theatre.query.filter_by(slug=slug).first()
+    if not t or t.is_active is False:
+        return jsonify({'error': 'Theatre not found'}), 404
+    return jsonify({**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, datetime.now())})
+
+
+@app.route('/api/theatres-overview')
+def theatres_overview():
+    """Every theatre with its area and next month's numbers (the Theatres page)."""
+    import discover
+    now = datetime.now()
+    return jsonify([{**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, now)}
+                    for t in Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name)])
+
+
+@app.route('/api/sitemap.xml')
+def sitemap():
+    """The public pages, for search engines (served at /sitemap.xml): home,
+    Calendar, Theatres, each theatre, and every film playing in the next 60
+    days. Private pages are never listed."""
+    from xml.sax.saxutils import escape as xesc
+    now = datetime.now()
+    urls = [('/', 'daily'), ('/calendar', 'daily'), ('/browse', 'daily'), ('/theatres', 'weekly')]
+    urls += [(f'/theatres/{t.slug}', 'daily') for t in Theatre.query.filter(Theatre.is_active.isnot(False))]
+    films = (db.session.query(Showtime.movie_id).join(Theatre)
+             .filter(Showtime.start_time >= now, Showtime.start_time <= now + timedelta(days=60),
+                     Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False))
+             .distinct().all())
+    urls += [(f'/films/{mid}', 'weekly') for (mid,) in films]
+    body = ['<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    body += [f'<url><loc>{xesc(FRONTEND_URL + path)}</loc><changefreq>{freq}</changefreq></url>' for path, freq in urls]
+    body.append('</urlset>')
+    resp = make_response('\n'.join(body))
+    resp.headers['Content-Type'] = 'application/xml; charset=utf-8'
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
 # ─── Routes: Showtimes ────────────────────────────────────────────────────────
 
 @app.route('/api/showtimes')
@@ -2653,6 +2712,16 @@ def og_film(movie_id):
     description = ' · '.join(bits) + (f"\n{_blurb(movie.description)}" if movie.description else '')
     return _og_page(f"{movie.title}{year}", description, movie.backdrop_url or movie.poster_url,
                     f"/films/{movie_id}", large=bool(movie.backdrop_url))
+
+
+@app.route('/api/og/theatres/<slug>')
+def og_theatre(slug):
+    t = Theatre.query.filter_by(slug=slug).first()
+    if not t or t.is_active is False:
+        return _og_page('Cinema Club DC', "DC's repertory and new-release screenings, together.", None, '/')
+    n = _theatre_summary(t, datetime.now())
+    bits = [t.address or '', f"{n['films']} film{'s' if n['films'] != 1 else ''} in the next month" if n['films'] else '']
+    return _og_page(t.name, ' · '.join(b for b in bits if b), None, f'/theatres/{slug}')
 
 
 @app.route('/api/og/showtimes/<int:showtime_id>')
@@ -3901,44 +3970,141 @@ def delete_message(message_id):
 
 @app.route('/api/showtimes/<int:sid>/ical')
 def showtime_ical(sid):
+    import ics
     showtime = db.session.get(Showtime, sid)
     if not showtime:
         return jsonify({'error': 'Showtime not found'}), 404
-
-    movie = showtime.movie
-    theatre = showtime.theatre
-    start = showtime.start_time
-    end = showtime.end_time or (start + timedelta(minutes=(movie.runtime_minutes or 120) + 20))
-
-    def fmt_dt(dt):
-        return dt.strftime('%Y%m%dT%H%M%S')
-
-    desc_parts = []
-    if movie.director:
-        desc_parts.append(f"Dir. {movie.director}")
-    if movie.runtime_minutes:
-        desc_parts.append(f"{movie.runtime_minutes} min")
-    if showtime.purchase_link:
-        desc_parts.append(f"Tickets: {showtime.purchase_link}")
-    description = ' | '.join(desc_parts)
-
-    ics = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//CinemaClubDC//EN
-BEGIN:VEVENT
-DTSTART:{fmt_dt(start)}
-DTEND:{fmt_dt(end)}
-SUMMARY:{movie.title}
-LOCATION:{theatre.name} - {theatre.address or ''}
-DESCRIPTION:{description}
-URL:{showtime.purchase_link or theatre.website or ''}
-END:VEVENT
-END:VCALENDAR"""
-
-    response = make_response(ics)
+    body = ics.calendar([_screening_event(showtime, f'showtime-{sid}@cinemaclubdc')])
+    response = make_response(body)
     response.headers['Content-Type'] = 'text/calendar; charset=utf-8'
-    response.headers['Content-Disposition'] = f'attachment; filename="{movie.title}.ics"'
+    safe = re.sub(r'[^\w\- ]+', '', showtime.movie.title).strip() or 'screening'
+    response.headers['Content-Disposition'] = f'attachment; filename="{safe}.ics"'
     return response
+
+
+def _screening_event(s, uid, summary=None, extra=(), updated=None):
+    """A screening as a calendar event: film, theatre and address, format,
+    the venue's billing, tickets, and a link back to it on the site."""
+    import ics
+    movie, theatre = s.movie, s.theatre
+    start, end = ics.screening_times(s)
+    lines = [x for x in (s.event_label, s.format_label,
+                         ' · '.join(b for b in (f"Dir. {movie.director}" if movie.director else '',
+                                                f"{movie.runtime_minutes} min" if movie.runtime_minutes else '') if b),
+                         *extra,
+                         f"Tickets: {s.purchase_link}" if s.purchase_link else '',
+                         f"{FRONTEND_URL}/calendar?showtime={s.id}") if x]
+    return ics.event(uid, start, end, summary or movie.title,
+                     location=f"{theatre.name}, {theatre.address}" if theatre.address else theatre.name,
+                     description='\n'.join(lines), url=f"{FRONTEND_URL}/calendar?showtime={s.id}",
+                     cancelled=bool(s.is_cancelled), updated=updated,
+                     sequence=int(updated.timestamp()) // 60 % 100000 if updated else 0)
+
+
+# ─── Calendar subscriptions (R7a) ─────────────────────────────────────────────
+# A link a calendar app subscribes to and re-checks: your Going and Maybe plans,
+# or (per member) a club's plans. Calendar apps can't sign in, so each link
+# carries a long random code; resetting it turns the old link off. Leaving a
+# club ends its link (the code lives on the membership).
+
+FEED_PAST = timedelta(days=30)          # recent screenings stay on the calendar a while
+
+
+def _calendar_url(token, club=False):
+    return f"{FRONTEND_URL}/api/calendar/{'club/' if club else ''}{token}.ics"
+
+
+def _feed_response(body):
+    resp = make_response(body)
+    resp.headers['Content-Type'] = 'text/calendar; charset=utf-8'
+    resp.headers['Cache-Control'] = 'private, no-cache'
+    return resp
+
+
+@app.route('/api/me/calendar')
+@require_auth
+def my_calendar_links():
+    """Your subscription links (made on first ask): {personal, clubs: [{group_id, name, url}]}."""
+    user = current_user()
+    blocked = guest_blocked(user)
+    if blocked:
+        return blocked
+    if not user.calendar_token:
+        user.calendar_token = secrets.token_urlsafe(32)
+    clubs = []
+    for m in GroupMembership.query.filter_by(user_id=user.id, status='active').all():
+        if not m.calendar_token:
+            m.calendar_token = secrets.token_urlsafe(32)
+        clubs.append({'group_id': m.group_id, 'name': m.group.name, 'url': _calendar_url(m.calendar_token, club=True)})
+    db.session.commit()
+    return jsonify({'personal': _calendar_url(user.calendar_token), 'clubs': clubs})
+
+
+@app.route('/api/me/calendar/reset', methods=['POST'])
+@require_auth
+def reset_calendar_link():
+    """A new link (the old one stops working): {group_id} for a club's, else yours."""
+    user = current_user()
+    group_id = _as_int((request.json or {}).get('group_id'))
+    if group_id:
+        m = _active_membership(user, group_id)
+        if not m:
+            return jsonify({'error': 'Not a member of this group'}), 403
+        m.calendar_token = secrets.token_urlsafe(32)
+    else:
+        user.calendar_token = secrets.token_urlsafe(32)
+    db.session.commit()
+    return my_calendar_links()
+
+
+@app.route('/api/calendar/<token>.ics')
+def personal_feed(token):
+    """Your Going and Maybe screenings (every club, and your own plans)."""
+    import ics
+    user = User.query.filter_by(calendar_token=token).first() if len(token) >= 30 else None
+    if not user or not user.is_active or user.is_guest:
+        return jsonify({'error': 'Not found'}), 404
+    since = datetime.now() - FEED_PAST
+    best = {}                     # showtime id -> (rsvp) — going beats maybe across clubs
+    for r in (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+              .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')), Showtime.start_time >= since)):
+        cur = best.get(r.showtime_id)
+        if not cur or (cur.status == 'maybe' and r.status == 'going'):
+            best[r.showtime_id] = r
+    events = []
+    for r in sorted(best.values(), key=lambda r: r.showtime.start_time):
+        s = r.showtime
+        title = s.movie.title + (' (maybe)' if r.status == 'maybe' else '')
+        events.append(_screening_event(s, f'plan-{user.id}-{s.id}@cinemaclubdc', summary=title,
+                                       updated=r.updated_at or r.created_at))
+    return _feed_response(ics.calendar(events, name='Cinema Club: my plans', refresh_hours=1))
+
+
+@app.route('/api/calendar/club/<token>.ics')
+def club_feed(token):
+    """A club's plans: every screening its members are going (or maybe going) to."""
+    import ics
+    m = GroupMembership.query.filter_by(calendar_token=token).first() if len(token) >= 30 else None
+    if not m or m.status != 'active' or not m.user or not m.user.is_active:
+        return jsonify({'error': 'Not found'}), 404
+    since = datetime.now() - FEED_PAST
+    by_show = {}
+    for r in (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+              .filter(RSVP.group_id == m.group_id, RSVP.status.in_(('going', 'maybe')), Showtime.start_time >= since)
+              .order_by(RSVP.created_at)):
+        by_show.setdefault(r.showtime_id, []).append(r)
+    events = []
+    for sid, rsvps in sorted(by_show.items(), key=lambda kv: kv[1][0].showtime.start_time):
+        s = rsvps[0].showtime
+        going = [r.user.name for r in rsvps if r.status == 'going' and r.user]
+        maybe = [r.user.name for r in rsvps if r.status == 'maybe' and r.user]
+        n = len(going)
+        summary = f"{s.movie.title} · {n} going" if n else f"{s.movie.title} · maybe"
+        who = [f"Going: {', '.join(going)}" if going else '', f"Maybe: {', '.join(maybe)}" if maybe else '']
+        updated = max((r.updated_at or r.created_at) for r in rsvps)
+        events.append(_screening_event(s, f'club-{m.group_id}-{sid}@cinemaclubdc', summary=summary,
+                                       extra=[w for w in who if w], updated=updated))
+    return _feed_response(ics.calendar(events, name=f"Cinema Club: {m.group.name}", refresh_hours=1))
 
 
 @app.route('/api/showtimes/<int:sid>/gcal-url')
@@ -6134,6 +6300,13 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN photo_url VARCHAR(200)",
         "ALTER TABLE 'group' ADD COLUMN emoji VARCHAR(16)",
         "ALTER TABLE 'group' ADD COLUMN short_name VARCHAR(12)",
+        # R7a: theatre maps, calendar subscriptions
+        "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
+        "ALTER TABLE theatre ADD COLUMN longitude FLOAT",
+        "ALTER TABLE user ADD COLUMN calendar_token VARCHAR(64)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_user_calendar_token ON user (calendar_token)",
+        "ALTER TABLE group_membership ADD COLUMN calendar_token VARCHAR(64)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_membership_calendar_token ON group_membership (calendar_token)",
     ]
     for sql in stmts:
         try:
@@ -6280,6 +6453,7 @@ def seed_theatres():
         theatre.website = cfg.website
         theatre.color = cfg.color
         theatre.is_active = cfg.enabled
+        theatre.latitude, theatre.longitude = cfg.lat, cfg.lon
 
     for theatre in Theatre.query.all():
         if theatre.slug not in registry_slugs:

@@ -9,6 +9,7 @@ import UserProfileDrawer from "../components/UserProfileDrawer";
 import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { accountLabel } from "../accountLabel";
+import CalendarLinks from "../components/CalendarLinks";
 
 const TABS = ["Watchlist", "Going", "History"];
 
@@ -67,6 +68,14 @@ export default function MePage({ user, apiBase, groupId }) {
           <HistoryTab userId={user.id} apiBase={apiBase} onOpen={openShowtime} onChange={() => setListKey(k => k + 1)} />
         )}
       </div>
+
+      {!user.is_guest && (
+        <div style={{ marginTop: "2rem" }}>
+          <SectionTitle>In your calendar</SectionTitle>
+          <p className="pv-hint">Subscribe once and your plans stay in sync with Google, Apple or Outlook Calendar.</p>
+          <CalendarLinks apiBase={apiBase} />
+        </div>
+      )}
 
       {!user.is_guest && groupId && (<>
       <div style={{ marginTop: "2rem" }}>

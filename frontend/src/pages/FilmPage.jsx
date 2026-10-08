@@ -178,6 +178,10 @@ export default function FilmPage({ user, apiBase, groupId }) {
             ))}
           </div>
         )}
+        {(theatres.length === 1 || theatre !== "all") && (() => {
+          const t = theatres.length === 1 ? theatres[0] : theatres.find(x => x.slug === theatre);
+          return t && <Link className="film-theatre-link" to={`/theatres/${t.slug}`}>About {t.name} · map and what else is on →</Link>;
+        })()}
         {days.length === 0 ? (
           <p className="film-none">
             {club ? "No upcoming showings at your club's theatres." : "No upcoming showings at the theatres we track."}

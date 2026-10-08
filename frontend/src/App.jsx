@@ -12,6 +12,7 @@ import MePage from "./pages/MePage";
 import FilmPage from "./pages/FilmPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import BrowsePage from "./pages/BrowsePage";
+import { TheatresPage, TheatrePage } from "./pages/Theatres";
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 
@@ -179,6 +180,8 @@ export default function App() {
           {/* Discover is home now; old /discover links land there too. */}
           <Route path="/discover" element={<Navigate to="/" replace />} />
           <Route path="/browse" element={<BrowsePage apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/theatres" element={<TheatresPage apiBase={API_BASE} />} />
+          <Route path="/theatres/:slug" element={<TheatrePage apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/me" element={<RequireSignIn user={user}><MePage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/groups" element={
             <RequireSignIn user={user}>

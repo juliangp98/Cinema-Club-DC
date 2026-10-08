@@ -1,0 +1,15 @@
+# Cinema Club DC — public showtimes may be indexed; accounts and clubs stay private.
+User-agent: *
+Disallow: /api/
+Disallow: /signin
+Disallow: /auth/
+Disallow: /invite/
+Disallow: /me
+Disallow: /club
+Disallow: /groups
+Disallow: /polls
+Disallow: /members
+Disallow: /leaderboard
+Allow: /
+
+Sitemap: https://cinemaclubdc.com/sitemap.xml
