@@ -544,3 +544,23 @@ a.share-state { color: #6fbf98; }
 @media (max-width: 767px) {
   .install-card { left: 0.75rem; right: 0.75rem; width: auto; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 0.6rem); }
 }
+
+/* ── Loading (R7b) ────────────────────────────────────────────────────── */
+.loading-reel {
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center;
+  padding: 2.5rem 1rem; color: var(--amber);
+}
+.loading-reel-svg { animation: reel-spin 1.6s linear infinite; }
+.loading-reel.error .loading-reel-svg { animation: none; opacity: 0.6; }
+@keyframes reel-spin { to { transform: rotate(360deg); } }
+.loading-quote { margin: 0; max-width: 34ch; font-family: var(--font-serif); font-style: italic; color: var(--cream); font-size: var(--fs-md); }
+.loading-quote cite { display: block; margin-top: 0.2rem; font-style: normal; font-family: var(--font-body); font-size: var(--fs-xs); color: var(--muted); }
+.loading-error-text { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+@media (prefers-reduced-motion: reduce) { .loading-reel-svg { animation: none; } }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Crash screen (R7b): instead of a blank page */
+.crash-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; padding: 2rem; text-align: center; background: var(--bg); color: var(--cream); }
+.crash-title { font-size: 1.6rem; color: var(--amber); }
+.crash-screen p { max-width: 30rem; margin: 0; }

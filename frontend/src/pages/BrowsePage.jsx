@@ -6,6 +6,8 @@ import SearchBox from "../ui/SearchBox";
 import FilterSheet, { FILTER_LABEL as LABEL, listOf } from "../ui/FilterSheet";
 import Menu, { MenuItem } from "../ui/Menu";
 import "./DiscoverPage.css";
+import Loading, { LoadError } from "../ui/Loading";
+import { useJson, getJson } from "../api";
 import { groupParam } from "../scope";
 
 // Every filter lives in the URL, so any view is a shareable link (and the
@@ -22,10 +24,6 @@ const SORTS = [["soonest", "Soonest"], ["rarest", "Rarest"], ["wanted", "Most wa
 export default function BrowsePage({ apiBase, groupId }) {
   const [params, setParams] = useSearchParams();
   const searchNote = useLocation().state?.searchNote;     // what ✨ AI search read the request as
-  const [films, setFilms] = useState([]);
-  const [meta, setMeta] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
   const [theatreNames, setTheatreNames] = useState({});
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -44,24 +42,20 @@ export default function BrowsePage({ apiBase, groupId }) {
       .catch(() => {});
   }, [apiBase]);
 
-  useEffect(() => {
-    let live = true;
-    setLoading(true);
-    fetch(`${apiBase}/api/discover/browse?${groupParam(groupId)}${qs}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then(d => { if (live) { setFilms(d.films); setMeta(d); setFailed(false); } })
-      .catch(() => { if (live) { setFilms([]); setMeta(null); setFailed(true); } })
-      .finally(() => live && setLoading(false));
-    return () => { live = false; };
-  }, [apiBase, groupId, qs]);
+  // The first page through the shared loader (remembered for going back);
+  // "Load more" pages are added after it.
+  const url = `${apiBase}/api/discover/browse?${groupParam(groupId)}${qs}`;
+  const first = useJson(url);
+  const [more, setMore] = useState({ url: null, films: [], meta: null });
+  const extra = more.url === url ? more : { films: [], meta: null };
+  const films = [...(first.data?.films || []), ...extra.films];
+  const meta = extra.meta || first.data;
+  const loading = first.loading && !first.data;
+  const failed = !!first.error && !first.data;
 
   async function loadMore() {
-    const r = await fetch(`${apiBase}/api/discover/browse?${groupParam(groupId)}${qs}&offset=${meta.next_offset}`,
-                          { credentials: "include" }).catch(() => null);
-    if (!r?.ok) return;
-    const d = await r.json();
-    setFilms(prev => [...prev, ...d.films]);
-    setMeta(d);
+    const d = await getJson(`${url}&offset=${meta.next_offset}`).catch(() => null);
+    if (d) setMore({ url, films: [...extra.films, ...d.films], meta: d });
   }
 
   function set(key, value) {
@@ -153,8 +147,10 @@ export default function BrowsePage({ apiBase, groupId }) {
       )}
 
       {failed ? (
-        <div className="discover-empty"><p>Couldn't load films right now — try again in a moment.</p></div>
-      ) : !loading && films.length === 0 ? (
+        <LoadError what="films" onRetry={first.reload} />
+      ) : loading ? (
+        <Loading context="browse" />
+      ) : films.length === 0 ? (
         <div className="discover-empty">
           <p>Nothing matches. Try a wider window or fewer filters.</p>
           <div className="browse-when">

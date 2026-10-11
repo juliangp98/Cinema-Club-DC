@@ -27,13 +27,11 @@ export default defineConfig({
         // reach the server; by default the service worker answers every page
         // load with the cached app, which bounced Discord sign-in back to "/".
         navigateFallbackDenylist: [/^\/api\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/],
-        // Never serve stale API data — the calendar must reflect fresh scrapes
+        // API responses are never stored by the service worker (R7b): its
+        // 5-second give-up left pages empty when the server was slow, and it
+        // kept signed-in data on the device. The site keeps what it loaded in
+        // memory instead (src/api.js).
         runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/[^/]+\/api\//,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'api', networkTimeoutSeconds: 5 },
-          },
           {
             urlPattern: /^https:\/\/image\.tmdb\.org\//,
             handler: 'CacheFirst',

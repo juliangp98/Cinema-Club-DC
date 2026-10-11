@@ -4,6 +4,8 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
 import Poster from "../ui/Poster";
+import Loading, { LoadError } from "../ui/Loading";
+import { useJson } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
@@ -291,19 +293,11 @@ function BringPlans({ apiBase, groupId, user, clubName, onShared }) {
 export default function DiscoverPage({ user, apiBase, groupId }) {
   const navigate = useNavigate();
   const shell = useShell();
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(false);
+  const { data, error, reload } = useJson(`${apiBase}/api/discover?${groupParam(groupId)}`);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
   const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId, onChange: refresh });
 
-  const load = useCallback(() => {
-    fetch(`${apiBase}/api/discover?${groupParam(groupId)}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then(d => { setData(d); setError(false); })
-      .catch(() => setError(true));
-  }, [apiBase, groupId]);
-  useEffect(() => { setData(null); load(); }, [load]);
 
   async function answerAttendance(showtimeId, status) {
     const r = await fetch(`${apiBase}/api/attendance`, {
@@ -352,8 +346,8 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
         </section>
       </div>
 
-      {error && <p className="discover-empty">Couldn't load Discover right now.</p>}
-      {!data && !error && <p className="discover-empty">Loading…</p>}
+      {error && !data && <LoadError what="Discover" onRetry={reload} />}
+      {!data && !error && <Loading context="discover" />}
 
       {sections}
 

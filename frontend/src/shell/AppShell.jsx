@@ -9,6 +9,7 @@ import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, Log
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
+import { clearCache } from "../api";
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -53,6 +54,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     try {
       await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
     } finally {
+      clearCache();                   // nothing loaded while signed in stays around
       setUser(null);
       navigate("/", { replace: true });
     }

@@ -50,14 +50,16 @@ def normalize(text):
     return ''.join(c for c in text if not unicodedata.combining(c)).casefold()
 
 
-def window(when, now=None, start=None, end=None):
-    """(start, end) for a When choice, or explicit YYYY-MM-DD dates."""
+def window(when, now=None, start=None, end=None, past_days=0):
+    """(start, end) for a When choice, or explicit YYYY-MM-DD dates. Explicit
+    dates never reach further back than `past_days` (the Calendar shows recent
+    history; everything else starts now)."""
     now = now or datetime.now()
     day_end = lambda d: datetime.combine(d, datetime.max.time())
     if start or end:
         s = datetime.fromisoformat(start) if start else now
         e = day_end(datetime.fromisoformat(end).date()) if end else s + timedelta(days=7)
-        return max(s, now), e
+        return max(s, now - timedelta(days=past_days)), e
     if when == 'tonight':
         return now, day_end(now.date())
     if when == 'tomorrow':
@@ -379,7 +381,7 @@ def discover(group, viewer, per_shelf=12, now=None):
 SORTS = ('soonest', 'rarest', 'wanted', 'critics', 'title')
 
 
-def select(group, viewer, params, now=None):
+def select(group, viewer, params, now=None, past_days=0):
     """The films matching Browse's filters, sorted, as (films, ctx, reasons,
     start, end). `params` is a dict of the URL filters: when/from/to,
     theatres, regions, genres, decade, format, time, rarity, club, runtime,
@@ -388,7 +390,7 @@ def select(group, viewer, params, now=None):
     now = now or datetime.now()
     p = {k: v for k, v in params.items() if v not in (None, '')}
     split = lambda k: {x.strip().lower() for x in str(p.get(k, '')).split(',') if x.strip()}
-    start, end = window(p.get('when', 'week'), now, p.get('from'), p.get('to'))
+    start, end = window(p.get('when', 'week'), now, p.get('from'), p.get('to'), past_days=past_days)
     theatres = split('theatres') | {slug for slug, region in REGIONS.items()
                                     if region.lower() in split('regions')} or None
     films = catalog(group, start, end, viewer, theatres=theatres, formats=split('format') or None,

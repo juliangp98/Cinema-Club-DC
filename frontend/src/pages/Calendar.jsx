@@ -12,6 +12,11 @@ import AttendancePrompt from "../components/AttendancePrompt";
 import "./DiscoverPage.css";        // the Filters sheet looks the same as Browse's
 import "./Calendar.css";
 import { groupParam } from "../scope";
+import Loading, { LoadError } from "../ui/Loading";
+import { getJson, cachedJson } from "../api";
+
+// The server sends each film and theatre once (R7b); put them back on each screening.
+const hydrate = d => (d?.movies ? { ...d, showtimes: d.showtimes.map(s => ({ ...s, movie: d.movies[s.movie_id], theatre: d.theatres[s.theatre_id] })) } : d);
 
 // The calendar (R4): Agenda (a poster grid per day), Week (columns) and Month
 // (overview; tap a day for just that day). A film playing at several theatres
@@ -71,6 +76,9 @@ function viewRange(view, anchor, span) {
   }
   return { start: anchor, end: addDays(anchor, view === "week" ? 7 : span) };
 }
+
+// Every showing of this film that day has already started (the Calendar keeps ~60 days of history).
+const isPast = entry => entry.shows.every(s => new Date(s.start_time) < new Date());
 
 function passes(s, members) {
   if (!members.length) return true;
@@ -141,7 +149,7 @@ function AgendaTile({ entry, onOpen }) {
   const times = entry.shows.length;
   const theatres = entry.byTheatre.map(t => t.theatre.short_name || t.theatre.name);
   return (
-    <article className={`cal-tile${entry.youGoing ? " mine" : ""}`}>
+    <article className={`cal-tile${entry.youGoing ? " mine" : ""}${isPast(entry) ? " past" : ""}`}>
       <button type="button" className="cal-tile-poster" onClick={() => onOpen(first.shows, first.shows[0])} aria-label={`${m.title} — showtimes`}>
         <PosterImage movie={m} fill />
         {entry.rare && <span className="cal-pill rare" title={entry.rare.join(" · ")}>Rare</span>}
@@ -163,7 +171,7 @@ function AgendaTile({ entry, onOpen }) {
 function WeekCard({ entry, onOpen }) {
   const m = entry.movie;
   return (
-    <div className={`cal-card${entry.youGoing ? " mine" : ""}`}>
+    <div className={`cal-card${entry.youGoing ? " mine" : ""}${isPast(entry) ? " past" : ""}`}>
       <button type="button" className="cal-card-head" onClick={() => onOpen(entry.byTheatre[0].shows, entry.byTheatre[0].shows[0])}>
         <Poster movie={m} />
         <span className="cal-card-title">
@@ -269,20 +277,24 @@ export default function Calendar({ user, apiBase, groupId }) {
     return () => { live = false; };
   }, [apiBase, groupId]);
 
+  // Shows what was already loaded for these days at once, then the fresh copy.
+  const calUrl = `${apiBase}/api/discover/calendar?${groupParam(groupId)}from=${startKey}&to=${lastKey}${serverQs ? `&${serverQs}` : ""}`;
+  const latest = useRef(calUrl);
+  latest.current = calUrl;
   const fetchShowtimes = useCallback(async () => {
-    setLoading(true);
+    const hit = cachedJson(calUrl);
+    if (hit) setData(hydrate(hit));
+    setLoading(!hit);
+    setFailed(false);
     try {
-      const r = await fetch(`${apiBase}/api/discover/calendar?${groupParam(groupId)}from=${startKey}&to=${lastKey}${serverQs ? `&${serverQs}` : ""}`,
-                            { credentials: "include" });
-      if (!r.ok) throw new Error();
-      setData(await r.json());
-      setFailed(false);
+      const d = await getJson(calUrl);
+      if (latest.current === calUrl) setData(hydrate(d));
     } catch {
-      setFailed(true);
+      if (latest.current === calUrl && !hit) setFailed(true);
     } finally {
-      setLoading(false);
+      if (latest.current === calUrl) setLoading(false);
     }
-  }, [apiBase, groupId, startKey, lastKey, serverQs]);
+  }, [calUrl]);
   useEffect(() => { fetchShowtimes(); }, [fetchShowtimes]);
 
   // Deep link: open one screening.
@@ -386,7 +398,9 @@ export default function Calendar({ user, apiBase, groupId }) {
       {groupId && <AttendancePrompt apiBase={apiBase} refreshKey={attendanceKey} onAnswer={handleAttendance} onOpenShowtime={openShowtime} />}
 
       {failed ? (
-        <p className="cal-empty">Couldn't load the calendar — <button type="button" className="share-link" onClick={fetchShowtimes}>try again</button>.</p>
+        <LoadError what="the calendar" onRetry={fetchShowtimes} />
+      ) : loading && !data.showtimes.length ? (
+        <Loading context="calendar" />
       ) : view === "month" ? (
         <div className="cal-month">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d} className="cal-month-dow">{d}</div>)}
@@ -416,7 +430,7 @@ export default function Calendar({ user, apiBase, groupId }) {
             const entries = days[key] || [];
             const all = expanded.has(key);
             return (
-              <section key={key} className={`cal-col${key === ymd(today) ? " today" : ""}`} aria-label={dayTitle(d, today)}>
+              <section key={key} className={`cal-col${key === ymd(today) ? " today" : ""}${d < today ? " past" : ""}`} aria-label={dayTitle(d, today)}>
                 <h2 className="cal-col-head">
                   <span className="deco">{d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
                   <span className="cal-col-sub">

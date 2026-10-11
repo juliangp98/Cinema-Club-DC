@@ -2484,10 +2484,13 @@ def publicize_cards(payload):
 
 
 def public_cached(key, build):
-    """Anonymous public responses, cached briefly per worker."""
+    """Anonymous public responses, cached briefly per worker (the warm-up
+    loop below rebuilds the common ones before they expire)."""
     hit = _public_cache.get(key)
     now = time.monotonic()
-    if hit and now - hit[0] < PUBLIC_CACHE_SECONDS:
+    rewarm = bool(INTERNAL_API_TOKEN) and request.headers.get('X-Internal-Token') == INTERNAL_API_TOKEN \
+        and request.headers.get('X-Warm') == '1'
+    if hit and now - hit[0] < PUBLIC_CACHE_SECONDS and not rewarm:
         return hit[1]
     value = build()
     if len(_public_cache) > 500:
@@ -2596,6 +2599,9 @@ def search_ai_route():
                     'explain': discover.describe({**params, '_theatre_label': label})})
 
 
+CALENDAR_PAST_DAYS = 60          # the Calendar can look back this far
+
+
 @app.route('/api/discover/calendar')
 def discover_calendar():
     """The Calendar's screenings: every showing of the films matching Browse's
@@ -2610,7 +2616,7 @@ def discover_calendar():
         params['club'] = None
 
     def build():
-        films, ctx, reasons, start, end = discover.select(group, user, params)
+        films, ctx, reasons, start, end = discover.select(group, user, params, past_days=CALENDAR_PAST_DAYS)
         rare = {f.movie.id: f.rare_reasons for f in films if f.rare_score >= ctx['rare_min']}
         shows = sorted((s for f in films for s in f.shows), key=lambda s: s.start_time)
         if group:
@@ -2618,10 +2624,16 @@ def discover_calendar():
                 s.to_dict(user_id=user.id, group_id=group.id, user_genres=user.favorite_genres) for s in shows], group.id)
         else:
             dicts = public_showtimes(shows, user)
+        # Each film and theatre once (a busy week repeated them per screening:
+        # megabytes); the Calendar puts them back together.
+        movies, theatres = {}, {}
         for s, d in zip(shows, dicts):
             d['rare'] = rare.get(s.movie_id)
             d['shelf_reasons'] = reasons.get(s.movie_id)
-        return {'showtimes': dicts, 'total': len(films), 'facets': discover.facets(films),
+            movies.setdefault(s.movie_id, d.pop('movie'))
+            theatres.setdefault(s.theatre_id, d.pop('theatre'))
+            d['movie_id'], d['theatre_id'] = s.movie_id, s.theatre_id
+        return {'showtimes': dicts, 'movies': movies, 'theatres': theatres, 'total': len(films), 'facets': discover.facets(films),
                 'regions': discover.REGIONS,
                 'title': discover.SHELF_TITLES.get(params.get('shelf'))
                 or discover.MOODS.get(params.get('mood') or '', {}).get('label')}
@@ -6512,6 +6524,43 @@ def enable_wal():
             app._wal_enabled = True
         except Exception:
             pass
+
+
+# ─── Keeping the public pages warm (R7b) ─────────────────────────────────────
+# Building Discover from scratch takes seconds on the NAS, so the first visitor
+# after a quiet spell waited (and the app could give up). Each server process
+# rebuilds the common public responses every few minutes instead, in the
+# background. Turned on by WARM_PUBLIC_CACHE=1 (the Docker entrypoint).
+
+WARM_EVERY_SECONDS = 240
+
+
+def _warm_urls(today):
+    """The public views most visits open first (the same URLs the site asks for)."""
+    days = lambda n: (today + timedelta(days=n)).isoformat()
+    return ['/api/discover', '/api/discover/browse?when=week',
+            f'/api/discover/calendar?from={today.isoformat()}&to={days(6)}',      # Week
+            f'/api/discover/calendar?from={today.isoformat()}&to={days(13)}']     # Agenda
+
+
+def start_warming():
+    import threading
+
+    def loop():
+        time.sleep(3)
+        while True:
+            client = app.test_client()
+            for url in _warm_urls(datetime.now().date()):
+                try:
+                    client.get(url, headers={'X-Internal-Token': INTERNAL_API_TOKEN, 'X-Warm': '1'})
+                except Exception as e:            # never let warming take a worker down
+                    print(f'warm-up of {url} failed: {e}')
+            time.sleep(WARM_EVERY_SECONDS)
+    threading.Thread(target=loop, name='warm-public-pages', daemon=True).start()
+
+
+if os.environ.get('WARM_PUBLIC_CACHE') == '1':
+    start_warming()
 
 
 if __name__ == '__main__':

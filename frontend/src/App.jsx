@@ -15,6 +15,7 @@ import BrowsePage from "./pages/BrowsePage";
 import { TheatresPage, TheatrePage } from "./pages/Theatres";
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
+import { clearCache } from "./api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -141,6 +142,7 @@ export default function App() {
   useEffect(() => { fetchUser(); }, [fetchUser]);
 
   function handleLogin(u) {
+    clearCache();                     // pages reload as this account
     setUser(u);
     fetchGroups();
   }

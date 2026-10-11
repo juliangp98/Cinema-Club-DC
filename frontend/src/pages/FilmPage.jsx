@@ -6,6 +6,8 @@ import UserProfileDrawer from "../components/UserProfileDrawer";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
 import Poster from "../ui/Poster";
+import Loading, { LoadError } from "../ui/Loading";
+import { useJson } from "../api";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
 import { groupParam } from "../scope";
@@ -34,8 +36,6 @@ function People({ label, people, onView }) {
 export default function FilmPage({ user, apiBase, groupId }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
   const [theatre, setTheatre] = useState("all");
   const [watching, setWatching] = useState(false);
   const [watchPrompt, setWatchPrompt] = useState(false);     // "mention you in the Discord digest?"
@@ -43,17 +43,10 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [profileUserId, setProfileUserId] = useState(null);
   const shell = useShell();
 
-  const load = useCallback(() => {
-    fetch(`${apiBase}/api/films/${id}?${groupParam(groupId)}`, { credentials: "include" })
-      .then(async r => {
-        if (!r.ok) throw new Error(r.status === 404 ? "That film isn't in our listings." : "Couldn't load this film.");
-        return r.json();
-      })
-      .then(d => { setData(d); setWatching(d.viewer_wants); setError(""); })
-      .catch(e => setError(e.message));
-  }, [apiBase, id, groupId]);
-
-  useEffect(() => { setData(null); setTheatre("all"); load(); }, [load]);
+  const { data, error: loadError, reload: load } = useJson(`${apiBase}/api/films/${id}?${groupParam(groupId)}`);
+  useEffect(() => { setTheatre("all"); }, [id]);
+  useEffect(() => { if (data) setWatching(data.viewer_wants); }, [data]);
+  const missing = loadError?.status === 404;
 
   const { openShowtime, sheet } = useShowtimeSheet({
     user, apiBase, groupId, onViewProfile: setProfileUserId, onChange: load,
@@ -105,15 +98,16 @@ export default function FilmPage({ user, apiBase, groupId }) {
     } catch { /* cancelled */ }
   }
 
-  if (error) {
+  if (loadError && !data && !missing) return <div className="page narrow"><LoadError what="this film" onRetry={load} /></div>;
+  if (missing) {
     return (
       <div className="page narrow film-empty">
-        <p>{error}</p>
+        <p>That film isn't in our listings.</p>
         <button className="btn" onClick={() => navigate(-1)}>‹ Back</button>
       </div>
     );
   }
-  if (!data) return <div className="page narrow film-empty"><p>Loading…</p></div>;
+  if (!data) return <div className="page narrow"><Loading context="film" /></div>;
 
   const { movie, club, rare, interest } = data;           // club is null in public mode (R5a)
   const genres = (movie.genres || "").split(",").map(g => g.trim()).filter(Boolean);
