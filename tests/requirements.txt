@@ -1,0 +1,4 @@
+# Everything the tests need: the backend's and the bot's packages, plus pytest.
+-r ../backend/requirements.txt
+-r ../bot/requirements.txt
+pytest==8.4.2

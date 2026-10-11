@@ -9,3 +9,6 @@ python-dotenv==1.0.1
 curl_cffi==0.15.0
 groq==1.5.0
 Pillow==11.3.0
+# Pinned so builds match what's tested (Flask-SQLAlchemy doesn't pin these).
+SQLAlchemy==2.0.51
+Werkzeug==3.1.8

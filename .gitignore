@@ -26,3 +26,7 @@ backend/instance/*.bak
 
 # R6b: uploaded pictures (dev)
 backend/instance/media/
+
+# Test environment (tests/run.sh makes it)
+tests/.venv/
+.pytest_cache/
