@@ -564,3 +564,12 @@ a.share-state { color: #6fbf98; }
   gap: 1rem; padding: 2rem; text-align: center; background: var(--bg); color: var(--cream); }
 .crash-title { font-size: 1.6rem; color: var(--amber); }
 .crash-screen p { max-width: 30rem; margin: 0; }
+
+/* A theatre, wherever it's named (R7b) */
+.theatre-link {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.1rem 0.55rem 0.1rem 0.45rem;
+  border-radius: var(--radius-pill); border: 1px solid var(--border); background: rgba(0, 0, 0, 0.15);
+  color: var(--cream); font-size: var(--fs-xs); font-weight: 600; line-height: 1.5; white-space: nowrap;
+}
+.theatre-link:hover { border-color: var(--tcolor, var(--amber)); color: var(--amber); }
+.theatre-link-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tcolor, var(--amber)); flex-shrink: 0; }

@@ -359,11 +359,13 @@ def context(group, viewer, films, now):
     return ctx
 
 
-def discover(group, viewer, per_shelf=12, now=None):
-    """The Discover page: every non-empty shelf for the next two weeks."""
+def discover(group, viewer, per_shelf=12, now=None, theatres=None):
+    """The Discover page: every non-empty shelf for the next two weeks. With
+    `theatres` (a set of slugs), the same page for just those theatres (a
+    theatre's own page)."""
     now = now or datetime.now()
     start, end = window('2weeks', now)
-    films = catalog(group, start, end, viewer)
+    films = catalog(group, start, end, viewer, theatres=theatres)
     ctx = context(group, viewer, films, now)
     shelves = []
     for key, title, blurb in SHELVES:
@@ -373,7 +375,39 @@ def discover(group, viewer, per_shelf=12, now=None):
                             'items': [card(f, r) for f, r in items[:per_shelf]]})
     return {'window': {'start': start.isoformat(), 'end': end.isoformat()}, 'shelves': shelves,
             'moods': [{'key': k, 'label': v['label']} for k, v in MOODS.items()],
-            'spotlights': spotlights(group, viewer, now), 'double_features': double_features(films)}
+            'spotlights': spotlights(group, viewer, now, theatres=theatres),
+            'double_features': double_features(films, per_theatre=8 if theatres else 3)}
+
+
+def theatre_previews(group, now=None, posters=5):
+    """{slug: preview} for the Theatres page: the next two weeks at each
+    theatre — its most interesting films (rarest first, then soonest), how
+    many films and how many rare ones, the film formats on offer, tonight's
+    showings and the next one."""
+    now = now or datetime.now()
+    start, end = window('2weeks', now)
+    films = catalog(group, start, end)
+    ctx = context(group, None, films, now)
+    tonight_end = window('tonight', now)[1]
+    out = {}
+    for f in films.values():
+        for slug in f.venues:
+            p = out.setdefault(slug, {'films': [], 'rare': 0, 'formats': set(), 'tonight': 0, 'next': None})
+            p['films'].append(f)
+    for slug, p in out.items():
+        shows = [s for f in p['films'] for s in f.shows if s.theatre.slug == slug]
+        p['rare'] = sum(1 for f in p['films'] if f.rare_score >= ctx['rare_min'])
+        p['formats'] = sorted({x.strip() for s in shows for x in (s.format_label or '').split('·')
+                               if x.strip() in ('35mm', '70mm', '16mm', 'IMAX', 'Dolby')})
+        p['tonight'] = sum(1 for s in shows if s.start_time <= tonight_end)
+        nxt = min(shows, key=lambda s: s.start_time)
+        p['next'] = {'start_time': nxt.start_time.isoformat(), 'title': nxt.movie.title, 'movie_id': nxt.movie_id}
+        best = sorted(p['films'], key=lambda f: (-max(0, f.rare_score), f.next.start_time))
+        p['posters'] = [{'id': f.movie.id, 'title': f.movie.title, 'year': f.year, 'poster_url': f.movie.poster_url}
+                        for f in best[:posters]]
+        p['film_count'] = len(p['films'])
+        del p['films']
+    return out
 
 
 # ─── Browse / search ──────────────────────────────────────────────────────────
@@ -496,7 +530,7 @@ def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random, th
     return {**card(f, why), 'when': w}
 
 
-def double_features(films, limit=8):
+def double_features(films, limit=8, per_theatre=3):
     """Two films at the same theatre the same day, with a 15–75 minute gap."""
     shows = sorted((s for f in films.values() for s in f.shows), key=lambda s: s.start_time)
     by_venue_day = {}
@@ -516,13 +550,14 @@ def double_features(films, limit=8):
     pairs.sort(key=lambda p: (-p[0], p[1].start_time))
     # Variety: each film in at most one pair, at most three pairs per theatre
     # (otherwise one repertory series fills the whole list).
-    used, per_theatre, out = set(), {}, []
+    used, count, out = set(), {}, []
     for score, a, b, gap in pairs:
-        if a.movie_id in used or b.movie_id in used or per_theatre.get(a.theatre_id, 0) >= 3:
+        if a.movie_id in used or b.movie_id in used or count.get(a.theatre_id, 0) >= per_theatre:
             continue
         used.update((a.movie_id, b.movie_id))
-        per_theatre[a.theatre_id] = per_theatre.get(a.theatre_id, 0) + 1
-        out.append({'theatre': a.theatre.short_name or a.theatre.name, 'gap_minutes': gap,
+        count[a.theatre_id] = count.get(a.theatre_id, 0) + 1
+        out.append({'theatre': a.theatre.short_name or a.theatre.name, 'theatre_slug': a.theatre.slug,
+                    'theatre_color': a.theatre.color, 'gap_minutes': gap,
                     'first': card(films[a.movie_id]) | {'next': _show_brief(a)},
                     'second': card(films[b.movie_id]) | {'next': _show_brief(b)}})
         if len(out) >= limit:
@@ -535,12 +570,13 @@ def _show_brief(s):
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
 
 
-def spotlights(group, viewer, now=None, limit=6):
-    """Directors (2+ films) and actors (3+ films) with work playing this month."""
+def spotlights(group, viewer, now=None, limit=6, theatres=None):
+    """Directors (2+ films) and actors (3+ films) with work playing this month
+    (at `theatres`, if given)."""
     import json
     now = now or datetime.now()
     start, end = window('month', now)
-    films = catalog(group, start, end, viewer)
+    films = catalog(group, start, end, viewer, theatres=theatres)
     people = {}
     for f in films.values():
         for d in (f.movie.director or '').split(','):

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import Menu, { MenuItem } from "./Menu";
 import { CalendarIcon } from "./icons";
 import { TicketDiscord } from "./DiscordShare";
+import TheatreLink from "./TheatreLink";
 
 const RSVP = [
   { status: "going", label: "Going" },
@@ -43,7 +44,6 @@ export function Segmented({ options, value, onChange, label }) {
 export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, rsvpNote, showTheatre = true }) {
   const start = new Date(s.start_time);
   const started = start <= new Date();
-  const theatre = s.theatre?.name;
 
   async function googleCalendar() {
     try {
@@ -65,7 +65,7 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
           {s.format_label && <span className="chip gold">{s.format_label}</span>}
           {s.is_sold_out && !started && <span className="chip ticket-soldout">Sold out</span>}
         </div>
-        {showTheatre && theatre && <div className="ticket-where">{theatre}</div>}
+        {showTheatre && s.theatre && <div className="ticket-where"><TheatreLink theatre={s.theatre} /></div>}
         {s.event_label && <div className="ticket-billing">{s.event_label}</div>}
 
         <div className="ticket-actions">

@@ -11,6 +11,7 @@ import { ClubWeek } from "./DiscoverPage";
 import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { roleLabel } from "../roles";
+import TheatreLink from "../ui/TheatreLink";
 import "./Club.css";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -25,7 +26,7 @@ export default function ClubPage({ user, apiBase }) {
   const group = shell?.group;
   const [params, setParams] = useSearchParams();
   const [profileUserId, setProfileUserId] = useState(null);
-  const [theatreNames, setTheatreNames] = useState({});
+  const [theatreBySlug, setTheatreBySlug] = useState({});
   const isAdmin = shell?.role === "admin";
   const tabs = [{ key: "overview", label: "Overview" }, { key: "members", label: "Members" },
                 { key: "leaderboard", label: "Leaderboard" }, ...(isAdmin ? [{ key: "settings", label: "Settings" }] : [])];
@@ -36,7 +37,7 @@ export default function ClubPage({ user, apiBase }) {
   useEffect(() => {
     fetch(`${apiBase}/api/theatres`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : []))
-      .then(ts => setTheatreNames(Object.fromEntries(ts.map(t => [t.slug, t.short_name || t.name]))))
+      .then(ts => setTheatreBySlug(Object.fromEntries(ts.map(t => [t.slug, t]))))
       .catch(() => {});
   }, [apiBase]);
 
@@ -48,7 +49,7 @@ export default function ClubPage({ user, apiBase }) {
     );
   }
 
-  const theatres = (group.theatres || []).map(s => theatreNames[s] || s);
+  const theatres = (group.theatres || []).map(s => theatreBySlug[s] || { slug: s, name: s });
   return (
     <div className="page club-page">
       <header className="club-hero">
@@ -60,7 +61,7 @@ export default function ClubPage({ user, apiBase }) {
             {group.member_count} member{group.member_count === 1 ? "" : "s"} · you're {isAdmin ? "an" : "a"} {roleLabel(shell.role).toLowerCase()}
             {group.discord && " · has a Discord server"}
           </p>
-          {theatres.length > 0 && <p className="club-hero-theatres">{theatres.join(" · ")}</p>}
+          {theatres.length > 0 && <p className="club-hero-theatres">{theatres.map(t => <TheatreLink key={t.slug} theatre={t} short />)}</p>}
         </div>
       </header>
 

@@ -35,7 +35,8 @@
 .shelf-all:hover { text-decoration: underline; }
 .shelf-blurb { color: var(--muted); font-size: var(--fs-sm); margin-bottom: 0.85rem; }
 .shelf-row {
-  display: flex; gap: 0.9rem; overflow-x: auto; padding-bottom: 0.5rem; scroll-snap-type: x proximity;
+  /* Top padding: a scrolling row clips whatever rises above it, and posters lift on hover. */
+  display: flex; gap: 0.9rem; overflow-x: auto; padding: 6px 2px 0.5rem; scroll-snap-type: x proximity;
   scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
 }
 .shelf-row > * { scroll-snap-align: start; }

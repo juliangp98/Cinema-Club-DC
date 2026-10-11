@@ -6,6 +6,7 @@ import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
 import { AvatarFace } from "../ui/Avatar";
 import Poster from "../ui/Poster";
+import TheatreLink from "../ui/TheatreLink";
 
 function timeAgo(iso) {
   const diff = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
@@ -97,7 +98,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
         <div className="feed-card-body">
           <button type="button" className="feed-title" onClick={onOpen}>{s.movie.title}</button>
           <div className="feed-meta">
-            {formatWhen(s.start_time)} · {s.theatre.short_name || s.theatre.name}
+            {formatWhen(s.start_time)} · <TheatreLink theatre={s.theatre} short />
             {s.format_label ? ` · ${s.format_label}` : ""}
           </div>
           {people.length > 0 && <Avatars users={people} onViewProfile={onViewProfile} />}

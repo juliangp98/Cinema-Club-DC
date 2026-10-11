@@ -127,7 +127,8 @@ function TimeChips({ entry, onOpen, compact = false }) {
     <div className={`cal-times${compact ? " compact" : ""}`}>
       {entry.byTheatre.map(({ theatre, shows }) => (
         <div key={theatre.id} className="cal-times-theatre">
-          <span className="cal-theatre" style={{ "--tcolor": theatre.color }}>{theatre.short_name || theatre.name}</span>
+          <Link to={`/theatres/${theatre.slug}`} className="cal-theatre" style={{ "--tcolor": theatre.color }}
+                title={`About ${theatre.name}`}>{theatre.short_name || theatre.name}</Link>
           {shows.map(s => (
             <button key={s.id} type="button" onClick={() => onOpen(shows, s)}
                     className={`cal-time${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}
@@ -147,7 +148,7 @@ function AgendaTile({ entry, onOpen }) {
   const m = entry.movie;
   const first = entry.byTheatre[0];
   const times = entry.shows.length;
-  const theatres = entry.byTheatre.map(t => t.theatre.short_name || t.theatre.name);
+  const theatres = entry.byTheatre.map(t => t.theatre);
   return (
     <article className={`cal-tile${entry.youGoing ? " mine" : ""}${isPast(entry) ? " past" : ""}`}>
       <button type="button" className="cal-tile-poster" onClick={() => onOpen(first.shows, first.shows[0])} aria-label={`${m.title} — showtimes`}>
@@ -161,8 +162,11 @@ function AgendaTile({ entry, onOpen }) {
         <button type="button" className="cal-tile-time" onClick={() => onOpen(first.shows, first.shows[0])}>{time(entry.shows[0].start_time)}</button>
         {times > 1 && <span className="cal-tile-more">+{times - 1}</span>}
       </div>
-      <div className="cal-tile-where" title={theatres.join(", ")}>
-        {theatres.slice(0, 2).join(", ")}{theatres.length > 2 ? ` +${theatres.length - 2}` : ""}
+      <div className="cal-tile-where" title={theatres.map(t => t.name).join(", ")}>
+        {theatres.slice(0, 2).map((t, i) => (
+          <span key={t.id}>{i > 0 && ", "}<Link to={`/theatres/${t.slug}`}>{t.short_name || t.name}</Link></span>
+        ))}
+        {theatres.length > 2 ? ` +${theatres.length - 2}` : ""}
       </div>
     </article>
   );

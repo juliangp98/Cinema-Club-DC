@@ -5,7 +5,7 @@ import ProfileEditor from "../components/ProfileMenu";
 import Sheet from "../ui/Sheet";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
@@ -23,6 +23,7 @@ export const useShell = () => useContext(ShellContext);
 const PUBLIC_NAV = [
   { to: "/", label: "Discover", icon: CompassIcon, end: true, also: "/browse" },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
+  { to: "/theatres", label: "Theatres", icon: TheatreIcon },
 ];
 const CLUB_NAV = [...PUBLIC_NAV, { to: "/polls", label: "Polls", icon: PollIcon }];
 const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: UsersIcon }];

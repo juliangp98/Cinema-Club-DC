@@ -40,8 +40,6 @@
 .film-club-people { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
 .film-club-names { margin-left: 0.35rem; font-size: var(--fs-sm); }
 
-.film-filter { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-.film-filter .chip { cursor: pointer; background: none; font-family: var(--font-body); }
 .film-none { color: var(--muted); }
 .film-days { display: flex; flex-direction: column; gap: 1rem; }
 .film-day-label { font-family: var(--font-serif); font-weight: 700; margin-bottom: 0.45rem; }
@@ -75,4 +73,15 @@
 }
 
 .film-interest { font-size: var(--fs-sm); color: var(--muted); margin-top: 0.5rem; }
-.film-theatre-link { display: inline-block; margin: -0.25rem 0 0.9rem; font-size: var(--fs-sm); color: var(--amber); }
+.film-theatre-link { margin: -0.25rem 0 0.9rem; font-size: var(--fs-sm); color: var(--muted); }
+/* Where it's playing (R7b): pick a theatre first when there are lots of showings */
+.film-venues { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 0.5rem; margin-bottom: 0.9rem; }
+.film-venue {
+  display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.75rem; text-align: left; cursor: pointer;
+  background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--tcolor, var(--border-strong));
+  border-radius: var(--radius); color: var(--cream); font: inherit;
+}
+.film-venue:hover { border-color: var(--border-strong); border-left-color: var(--tcolor, var(--amber)); }
+.film-venue.on { background: rgba(220, 177, 92, 0.12); border-color: var(--amber); }
+.film-venue-name { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+.film-venue-meta { color: var(--muted); font-size: var(--fs-xs); }

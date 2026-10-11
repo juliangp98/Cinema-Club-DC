@@ -26,6 +26,7 @@
   font-size: var(--fs-xs); color: var(--muted); min-width: 4.5rem; padding-left: 0.5rem;
   border-left: 3px solid var(--tcolor, var(--border-strong)); line-height: 1.3;
 }
+a.cal-theatre:hover { color: var(--amber); }
 .cal-time {
   font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--cream); cursor: pointer;
   padding: 0.2rem 0.55rem; border-radius: var(--radius-pill); background: var(--bg3); border: 1px solid var(--border);
@@ -74,6 +75,8 @@
 .cal-tile-time:hover { border-color: var(--amber); }
 .cal-tile-more { font-size: 0.68rem; color: var(--muted); }
 .cal-tile-where { font-size: 0.68rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-tile-where a { color: inherit; }
+.cal-tile-where a:hover { color: var(--amber); }
 .cal-only { font-size: var(--fs-sm); color: var(--muted); margin-bottom: 0.5rem; }
 .cal-load-more { display: flex; justify-content: center; padding: 0.5rem 0 1.5rem; }
 

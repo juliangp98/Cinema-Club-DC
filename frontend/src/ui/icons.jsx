@@ -8,6 +8,9 @@ export const HomeIcon = () => (
 export const CalendarIcon = () => (
   <svg {...base}><rect x="3" y="5" width="18" height="16" rx="2.5" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
 );
+export const TheatreIcon = () => (
+  <svg {...base}><path d="M3 21V9l9-5 9 5v12" /><path d="M3 9h18" /><path d="M9 21v-5a3 3 0 0 1 6 0v5" /></svg>
+);
 export const PollIcon = () => (
   <svg {...base}><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
 );

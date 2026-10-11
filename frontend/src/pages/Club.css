@@ -5,6 +5,7 @@
 .deco.club-hero-name { margin: 0; font-size: clamp(1.45rem, 4vw, 2.3rem); color: var(--amber); line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
 .club-hero-desc { margin: 0.35rem 0 0; color: var(--cream); }
 .club-hero-meta, .club-hero-theatres { margin: 0.3rem 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.club-hero-theatres { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
 .club-panel { padding-top: 0.75rem; }
 .club-feed .feed-page { background: transparent; }
 .club-feed .feed-main { padding: 0; }

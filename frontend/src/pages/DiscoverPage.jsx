@@ -4,6 +4,7 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
 import Poster from "../ui/Poster";
+import TheatreLink from "../ui/TheatreLink";
 import Loading, { LoadError } from "../ui/Loading";
 import { useJson } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
@@ -15,7 +16,7 @@ import "./DiscoverPage.css";
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
 // non-shelf sections; shelves not listed become "more ways to browse" chips.
-const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics", "awards", "arthouse",
+export const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics", "awards", "arthouse",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -161,10 +162,12 @@ export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtim
   );
 }
 
-function Shelf({ s }) {
+// Discover's sections, also used on theatre pages: `scope` narrows their
+// "See all" links (e.g. "&theatres=afi").
+export function Shelf({ s, scope = "" }) {
   return (
     <section className="shelf">
-      <SectionTitle action={<Link className="shelf-all" to={`/browse?shelf=${s.key}&when=2weeks`}>See all {s.total} →</Link>}>
+      <SectionTitle action={<Link className="shelf-all" to={`/browse?shelf=${s.key}&when=2weeks${scope}`}>See all {s.total} →</Link>}>
         {s.title}
       </SectionTitle>
       <p className="shelf-blurb">{s.blurb}</p>
@@ -175,7 +178,7 @@ function Shelf({ s }) {
   );
 }
 
-function DoubleFeatures({ items }) {
+export function DoubleFeatures({ items }) {
   return (
     <section className="shelf">
       <SectionTitle>Double features</SectionTitle>
@@ -190,7 +193,9 @@ function DoubleFeatures({ items }) {
                 <span className="double-title">{c.movie.title}</span>
               </Link>
             ))}
-            <div className="double-meta">{d.theatre} · {dayLabel(d.first.next.start_time)} · {d.gap_minutes}-min break</div>
+            <div className="double-meta">
+              <TheatreLink theatre={{ slug: d.theatre_slug, name: d.theatre, color: d.theatre_color }} /> · {dayLabel(d.first.next.start_time)} · {d.gap_minutes}-min break
+            </div>
           </div>
         ))}
       </div>
@@ -198,14 +203,14 @@ function DoubleFeatures({ items }) {
   );
 }
 
-function Spotlights({ items }) {
+export function Spotlights({ items, scope = "" }) {
   return (
     <section className="shelf">
       <SectionTitle>Spotlights</SectionTitle>
       <p className="shelf-blurb">Directors and stars with several films playing this month.</p>
       <div className="spotlights">
         {items.map(sp => (
-          <Link key={sp.name} className="spotlight" to={`/browse?q=${encodeURIComponent(sp.name)}&when=month`}>
+          <Link key={sp.name} className="spotlight" to={`/browse?q=${encodeURIComponent(sp.name)}&when=month${scope}`}>
             <div className="spotlight-head">
               <span className="spotlight-name">{sp.name}</span>
               <span className="spotlight-count">{sp.count} films · {sp.role}</span>

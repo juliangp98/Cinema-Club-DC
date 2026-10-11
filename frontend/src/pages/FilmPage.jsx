@@ -7,6 +7,7 @@ import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
 import Poster from "../ui/Poster";
 import Loading, { LoadError } from "../ui/Loading";
+import TheatreLink from "../ui/TheatreLink";
 import { useJson } from "../api";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
@@ -15,6 +16,8 @@ import { WatchDiscordPrompt } from "../ui/DiscordShare";
 
 const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const shortDay = iso => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
 
 function People({ label, people, onView }) {
   if (!people.length) return null;
@@ -37,6 +40,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [theatre, setTheatre] = useState("all");
+  const [showAll, setShowAll] = useState(false);       // a crowded film's every showtime at once
   const [watching, setWatching] = useState(false);
   const [watchPrompt, setWatchPrompt] = useState(false);     // "mention you in the Discord digest?"
   const [copied, setCopied] = useState(false);
@@ -44,7 +48,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const shell = useShell();
 
   const { data, error: loadError, reload: load } = useJson(`${apiBase}/api/films/${id}?${groupParam(groupId)}`);
-  useEffect(() => { setTheatre("all"); }, [id]);
+  useEffect(() => { setTheatre("all"); setShowAll(false); }, [id]);
   useEffect(() => { if (data) setWatching(data.viewer_wants); }, [data]);
   const missing = loadError?.status === 404;
 
@@ -57,6 +61,17 @@ export default function FilmPage({ user, apiBase, groupId }) {
     for (const s of data?.showtimes || []) seen.set(s.theatre.slug, s.theatre);
     return [...seen.values()];
   }, [data]);
+
+  // Where it's playing (R7b): showings, dates and formats per theatre. With
+  // lots of showings at several theatres, you pick a theatre first instead of
+  // scrolling a wall of times.
+  const venues = useMemo(() => theatres.map(t => {
+    const shows = (data?.showtimes || []).filter(s => s.theatre.slug === t.slug);
+    return { t, count: shows.length, first: shows[0]?.start_time, last: shows[shows.length - 1]?.start_time,
+             formats: [...new Set(shows.map(s => s.format_label).filter(Boolean))] };
+  }), [theatres, data]);
+  const crowded = (data?.showtimes?.length || 0) > 12 && theatres.length > 1;
+  const picking = crowded && theatre === "all" && !showAll;
 
   const days = useMemo(() => {
     const groups = new Map();
@@ -161,22 +176,30 @@ export default function FilmPage({ user, apiBase, groupId }) {
 
         <SectionTitle>Showtimes</SectionTitle>
         {theatres.length > 1 && (
-          <div className="film-filter" role="group" aria-label="Theatre">
-            <button className={`chip${theatre === "all" ? " gold" : ""}`} onClick={() => setTheatre("all")}>
-              All theatres
-            </button>
-            {theatres.map(t => (
-              <button key={t.slug} className={`chip${theatre === t.slug ? " gold" : ""}`} onClick={() => setTheatre(t.slug)}>
-                {t.short_name || t.name}
+          <div className="film-venues" role="group" aria-label="Where it's playing">
+            {venues.map(({ t, count, first, last, formats }) => (
+              <button key={t.slug} type="button" style={{ "--tcolor": t.color }} aria-pressed={theatre === t.slug}
+                      className={`film-venue${theatre === t.slug ? " on" : ""}`} onClick={() => setTheatre(theatre === t.slug ? "all" : t.slug)}>
+                <span className="film-venue-name"><span className="theatre-link-dot" aria-hidden="true" />{t.name}</span>
+                <span className="film-venue-meta">
+                  {count} showing{count === 1 ? "" : "s"} · {dateRange(first, last)}{formats.length ? ` · ${formats.join(", ")}` : ""}
+                </span>
               </button>
             ))}
+            <button type="button" className={`film-venue all${theatre === "all" && !picking ? " on" : ""}`}
+                    onClick={() => { setTheatre("all"); setShowAll(true); }}>
+              <span className="film-venue-name">All theatres</span>
+              <span className="film-venue-meta">{data.showtimes.length} showings</span>
+            </button>
           </div>
         )}
         {(theatres.length === 1 || theatre !== "all") && (() => {
           const t = theatres.length === 1 ? theatres[0] : theatres.find(x => x.slug === theatre);
-          return t && <Link className="film-theatre-link" to={`/theatres/${t.slug}`}>About {t.name} · map and what else is on →</Link>;
+          return t && <p className="film-theatre-link">About <TheatreLink theatre={t} /> — its map and what else is on.</p>;
         })()}
-        {days.length === 0 ? (
+        {picking ? (
+          <p className="film-none">Pick a theatre above to see its showtimes.</p>
+        ) : days.length === 0 ? (
           <p className="film-none">
             {club ? "No upcoming showings at your club's theatres." : "No upcoming showings at the theatres we track."}
             {user && !watching && " Add it to your watchlist and the weekly digest will tell you when it's back."}
@@ -193,7 +216,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
                       <button key={s.id} type="button" onClick={() => openShowtime(s.id)}
                               className={`show-chip${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}>
                         <span className="show-time">{timeLabel(s.start_time)}</span>
-                        <span className="show-where">{s.theatre.short_name || s.theatre.name}</span>
+                        {theatre === "all" && <span className="show-where">{s.theatre.short_name || s.theatre.name}</span>}
                         {s.format_label && <span className="show-format">{s.format_label}</span>}
                         {s.user_rsvp === "going" && <span className="show-you">You're going</span>}
                         {friends.length > 0 && (

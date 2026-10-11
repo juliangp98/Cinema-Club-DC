@@ -2184,11 +2184,18 @@ def get_theatre(slug):
 
 @app.route('/api/theatres-overview')
 def theatres_overview():
-    """Every theatre with its area and next month's numbers (the Theatres page)."""
+    """Every theatre with its area, next month's numbers, and a preview of the
+    next two weeks there (posters, rare films, formats, tonight) — the Theatres page."""
     import discover
-    now = datetime.now()
-    return jsonify([{**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, now)}
-                    for t in Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name)])
+
+    def build():
+        now = datetime.now()
+        previews = discover.theatre_previews(None, now)
+        empty = {'posters': [], 'rare': 0, 'formats': [], 'tonight': 0, 'film_count': 0}
+        return [{**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, now),
+                 'preview': previews.get(t.slug, empty)}
+                for t in Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name)]
+    return jsonify(public_cached(('theatres-overview',), build))
 
 
 @app.route('/api/sitemap.xml')
@@ -2511,10 +2518,15 @@ def discover_page():
     user, group, err = _discover_group()
     if err:
         return err
+    # ?theatres=<slug>: the same page for one theatre (its own page, R7b).
+    asked = [x for x in (request.args.get('theatres') or '').split(',') if x]
+    theatres = {t.slug for t in Theatre.query.filter(Theatre.slug.in_(asked))} if asked else None
+    if asked and not theatres:
+        return jsonify({'error': 'Theatre not found'}), 404
     if group:
-        return jsonify(discover.discover(group, user))
-    build = lambda: publicize_cards(discover.discover(None, user))
-    return jsonify(build() if user else public_cached(('discover',), build))
+        return jsonify(discover.discover(group, user, theatres=theatres))
+    build = lambda: publicize_cards(discover.discover(None, user, theatres=theatres))
+    return jsonify(build() if user else public_cached(('discover', tuple(sorted(theatres or ()))), build))
 
 
 @app.route('/api/discover/browse')
@@ -6538,7 +6550,7 @@ WARM_EVERY_SECONDS = 240
 def _warm_urls(today):
     """The public views most visits open first (the same URLs the site asks for)."""
     days = lambda n: (today + timedelta(days=n)).isoformat()
-    return ['/api/discover', '/api/discover/browse?when=week',
+    return ['/api/discover', '/api/discover/browse?when=week', '/api/theatres-overview',
             f'/api/discover/calendar?from={today.isoformat()}&to={days(6)}',      # Week
             f'/api/discover/calendar?from={today.isoformat()}&to={days(13)}']     # Agenda
 

@@ -1,75 +1,89 @@
-import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
+import Poster from "../ui/Poster";
+import Loading, { LoadError } from "../ui/Loading";
+import { Shelf, DoubleFeatures, Spotlights, LAYOUT } from "./DiscoverPage";
+import { useJson } from "../api";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
 import "./Theatres.css";
 
 const REGION_ORDER = ["DC", "Maryland", "Virginia"];
-const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const dayTime = iso => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(":00", "");
 
-function useJson(url) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    let live = true;
-    setData(null);
-    fetch(url, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : { error: r.status }))
-      .then(d => live && setData(d))
-      .catch(() => live && setData({ error: true }));
-    return () => { live = false; };
-  }, [url]);
-  return data;
-}
-
-// Every theatre the site follows (R7a), by area, with how busy each is.
+// Every theatre we follow (R7b), by area: what's on at each (its most
+// interesting films first), how many films and rare ones, film formats,
+// tonight, and the next showing.
 export function TheatresPage({ apiBase }) {
-  const list = useJson(`${apiBase}/api/theatres-overview`);
+  const { data: list, error, reload } = useJson(`${apiBase}/api/theatres-overview`);
+  if (error && !list) return <div className="page"><LoadError what="the theatres" onRetry={reload} /></div>;
+  if (!list) return <div className="page"><Loading context="theatre" /></div>;
+
   const regions = {};
-  for (const t of Array.isArray(list) ? list : []) (regions[t.region || "Other"] ||= []).push(t);
+  for (const t of list) (regions[t.region || "Other"] ||= []).push(t);
   const order = [...REGION_ORDER.filter(r => regions[r]), ...Object.keys(regions).filter(r => !REGION_ORDER.includes(r))];
+  const films = new Set(list.flatMap(t => t.preview.posters.map(p => p.id))).size;
+  const tonight = list.reduce((n, t) => n + t.preview.tonight, 0);
   return (
-    <div className="page narrow theatres">
-      <PageHeader title="Theatres" subtitle="The DC-area theatres we follow, and what's on at each." />
-      {!list && <p className="pv-empty">Loading…</p>}
-      {list?.error && <p className="pv-empty">Couldn't load the theatres right now.</p>}
+    <div className="page theatres">
+      <PageHeader title="Theatres" subtitle={`${list.length} DC-area theatres${tonight ? ` · ${tonight} showings tonight` : ""}. Pick one for its rare finds, double bills and everything on.`} />
       {order.map(region => (
-        <section key={region}>
+        <section key={region} className="theatres-region">
           <SectionTitle>{region}</SectionTitle>
-          <ul className="theatre-list">
-            {regions[region].map(t => (
-              <li key={t.slug}>
-                <Link to={`/theatres/${t.slug}`} className="theatre-row" style={{ "--tcolor": t.color }}>
-                  <span className="theatre-row-dot" aria-hidden="true" />
-                  <span className="theatre-row-text">
-                    <span className="theatre-row-name">{t.name}</span>
-                    <span className="theatre-row-sub">{t.address}</span>
-                  </span>
-                  <span className="theatre-row-count">
-                    {t.films ? `${t.films} film${t.films === 1 ? "" : "s"}` : "Nothing scheduled"}
-                    {t.next && <small>next {dayLabel(t.next)}</small>}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="theatre-cards">
+            {regions[region].map(t => <TheatreCard key={t.slug} t={t} />)}
+          </div>
         </section>
       ))}
+      {films === 0 && <p className="pv-empty">Nothing's scheduled at any theatre right now — check back soon.</p>}
     </div>
   );
 }
 
-// One theatre (R7a, public): where it is (with a map), and what's playing —
-// its rare screenings, then everything in the next month.
+function TheatreCard({ t }) {
+  const p = t.preview;
+  return (
+    <article className="theatre-card" style={{ "--tcolor": t.color }}>
+      <Link to={`/theatres/${t.slug}`} className="theatre-card-head">
+        <span className="theatre-card-dot" aria-hidden="true" />
+        <span className="theatre-card-name">{t.name}</span>
+        {p.tonight > 0 && <span className="theatre-card-tonight">{p.tonight} tonight</span>}
+      </Link>
+      <p className="theatre-card-meta">
+        {p.film_count ? `${p.film_count} film${p.film_count === 1 ? "" : "s"} in the next two weeks` : "Nothing scheduled right now"}
+        {p.rare > 0 && <> · <span className="theatre-card-rare">{p.rare} rare</span></>}
+        {p.formats.map(f => <span key={f} className="chip theatre-card-format">{f}</span>)}
+      </p>
+      {p.posters.length > 0 && (
+        <div className="theatre-card-posters">
+          {p.posters.map(m => (
+            <Link key={m.id} to={`/films/${m.id}`} title={m.year ? `${m.title} (${m.year})` : m.title}>
+              <Poster movie={m} className="theatre-card-poster" />
+            </Link>
+          ))}
+        </div>
+      )}
+      <div className="theatre-card-foot">
+        {p.next ? <span className="theatre-card-next">Next: {dayTime(p.next.start_time)} · {p.next.title}</span>
+          : <span className="theatre-card-next">{t.address}</span>}
+        <Link className="btn btn-sm" to={`/theatres/${t.slug}`}>See what's on →</Link>
+      </div>
+    </article>
+  );
+}
+
+// One theatre (R7b, public): where it is (with a map), then the Discover page
+// for just this theatre — rare gems, double bills, spotlights and every other
+// shelf — and everything playing in the next month.
 export function TheatrePage({ apiBase, groupId }) {
   const { slug } = useParams();
-  const t = useJson(`${apiBase}/api/theatres/${slug}`);
-  const base = `${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month`;
-  const rare = useJson(`${base}&shelf=rare`);
-  const all = useJson(`${base}&sort=soonest`);
+  const info = useJson(`${apiBase}/api/theatres/${slug}`);
+  const disc = useJson(`${apiBase}/api/discover?${groupParam(groupId)}theatres=${slug}`);
+  const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest`);
+  const t = info.data;
 
-  if (t?.error) {
+  if (info.error?.status === 404) {
     return (
       <div className="page narrow">
         <PageHeader title="Theatre not found" back={{ to: "/theatres", label: "Theatres" }} />
@@ -77,13 +91,26 @@ export function TheatrePage({ apiBase, groupId }) {
       </div>
     );
   }
-  if (!t) return <div className="page narrow"><p className="pv-empty">Loading…</p></div>;
+  if (info.error && !t) return <div className="page"><LoadError what="this theatre" onRetry={info.reload} /></div>;
+  if (!t) return <div className="page"><Loading context="theatre" /></div>;
 
+  const scope = `&theatres=${slug}`;
   const query = encodeURIComponent(`${t.name}, ${t.address || ""}`);
   const hasMap = t.lat != null && t.lon != null;
   const box = hasMap ? [t.lon - 0.009, t.lat - 0.005, t.lon + 0.009, t.lat + 0.005].map(n => n.toFixed(5)).join(",") : "";
+
+  const d = disc.data;
+  const byKey = Object.fromEntries((d?.shelves || []).map(s => [s.key, s]));
+  const sections = [];
+  for (const key of LAYOUT) {
+    if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} />);
+    else if (key === "@spotlights" && d?.spotlights?.length) sections.push(<Spotlights key={key} items={d.spotlights} scope={scope} />);
+    else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} scope={scope} />);
+  }
+  for (const s of d?.shelves || []) if (!LAYOUT.includes(s.key)) sections.push(<Shelf key={s.key} s={s} scope={scope} />);
+
   return (
-    <div className="page theatre-page">
+    <div className="page theatre-page" style={{ "--tcolor": t.color }}>
       <PageHeader title={t.name} back={{ to: "/theatres", label: "Theatres" }}
                   subtitle={[t.region, t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "Nothing scheduled right now"]
                     .filter(Boolean).join(" · ")} />
@@ -112,23 +139,17 @@ export function TheatrePage({ apiBase, groupId }) {
         )}
       </div>
 
-      {rare?.films?.length > 0 && (
-        <section className="shelf">
-          <SectionTitle action={<Link className="shelf-all" to={`/browse?theatres=${slug}&shelf=rare&when=month`}>See all {rare.total} →</Link>}>
-            Rare at {t.short_name}
-          </SectionTitle>
-          <p className="shelf-blurb">One-offs, film prints, old favorites and special events in the next month.</p>
-          <div className="shelf-row">{rare.films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>
-        </section>
-      )}
+      {!d && !disc.error && <Loading context="theatre" />}
+      {disc.error && !d && <LoadError what={`what's on at ${t.short_name}`} onRetry={disc.reload} />}
+      {sections}
 
       <section className="shelf">
-        <SectionTitle action={all?.total > 0 && <Link className="shelf-all" to={`/browse?theatres=${slug}&when=month`}>Browse all {all.total} →</Link>}>
+        <SectionTitle action={all.data?.total > 0 && <Link className="shelf-all" to={`/browse?when=month${scope}`}>Browse all {all.data.total} →</Link>}>
           Playing in the next month
         </SectionTitle>
-        {!all ? <p className="pv-empty">Loading…</p> : !all.films?.length
-          ? <p className="pv-empty">Nothing on the schedule yet — check back soon.</p>
-          : <div className="poster-grid">{all.films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>}
+        {!all.data ? (all.error ? <LoadError what="the schedule" onRetry={all.reload} /> : <Loading context="theatre" />)
+          : !all.data.films?.length ? <p className="pv-empty">Nothing on the schedule yet — check back soon.</p>
+          : <div className="poster-grid">{all.data.films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>}
       </section>
     </div>
   );
