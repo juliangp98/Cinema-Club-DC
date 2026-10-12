@@ -30,3 +30,15 @@ backend/instance/media/
 # Test environment (tests/run.sh makes it)
 tests/.venv/
 .pytest_cache/
+
+# Databases and local notes never go in the repo (it's public): the app's own
+# databases live on the server / your machine. The test fixture (fake data) is
+# the exception.
+*.db
+!tests/fixtures/base.db
+*.db.*.bak
+.claude/settings.local.json
+.claude/memory/CONVERSATION_LOG.md
+*.db-shm
+*.db-wal
+backend/instance/

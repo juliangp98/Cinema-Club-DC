@@ -25,7 +25,7 @@ def test_discord_accounts():
         check('user.email now nullable', 'email VARCHAR(120) NOT NULL' not in ddl and 'email VARCHAR(120)' in ddl)
         after = {t: db.session.execute(db.text(f'select count(*) from "{t}"')).scalar() for t in before}
         check('all rows preserved', after == before, (before, after))
-        admin = User.query.filter_by(email='sunscinemafanclub@gmail.com').first()
+        admin = User.query.filter_by(email='member4@example.test').first()      # the club's admin (fixture data is fake)
         check('existing accounts intact (admin keeps email + group)', admin and GroupMembership.query.filter_by(user_id=admin.id, group_id=1).first())
         check('backup written next to the DB', os.path.exists(DBPATH + '.pre-discord-accounts.bak'))
         idx = db.session.execute(db.text("select name from sqlite_master where type='index' and name='ux_user_discord_user_id'")).scalar()

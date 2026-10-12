@@ -1606,12 +1606,16 @@ def seed_theatres():
 
 
 def seed_admin():
-    email = 'sunscinemafanclub@gmail.com'
+    """A fresh install's first admin and default club, from ADMIN_EMAIL (and
+    ADMIN_NAME) in the environment; without them there's nothing to seed."""
+    email = os.environ.get('ADMIN_EMAIL', '').strip().lower()
+    if not email:
+        return
     user = User.query.filter_by(email=email).first()
     if not user:
         user = User(
             email=email,
-            name='Julian',
+            name=os.environ.get('ADMIN_NAME', '').strip() or 'Admin',
             avatar_color='#e8a838',
             is_active=True,
         )
