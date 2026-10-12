@@ -13,7 +13,7 @@ import { groupParam } from "../scope";
 // Every filter lives in the URL, so any view is a shareable link (and the
 // bot's /find answers can link straight to the same view).
 const KEYS = ["when", "from", "to", "theatres", "regions", "genres", "decade", "format", "time",
-              "rarity", "club", "runtime", "mood", "shelf", "q", "sort"];
+              "rarity", "club", "runtime", "mood", "shelf", "q", "person", "sort"];
 const MULTI = new Set(["theatres", "regions", "genres", "format"]);
 
 const WHEN = [["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"],
@@ -90,7 +90,7 @@ export default function BrowsePage({ apiBase, groupId }) {
     if (["when", "from", "to", "q", "sort"].includes(k) || !query[k]) continue;
     for (const v of MULTI.has(k) ? listOf(query[k]) : [query[k]]) {
       const label = k === "theatres" ? (theatreNames[v] || v) : k === "decade" ? `${v}s`
-        : k === "shelf" ? (meta?.title || v) : LABEL[`${k}:${v}`] || v.replace(/\b\w/g, c => c.toUpperCase());
+        : k === "shelf" ? (meta?.title || v) : k === "person" ? (meta?.title || v) : LABEL[`${k}:${v}`] || v.replace(/\b\w/g, c => c.toUpperCase());
       active.push({ k, v, label });
     }
   }

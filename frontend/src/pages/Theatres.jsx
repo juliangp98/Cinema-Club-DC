@@ -103,7 +103,7 @@ export function TheatrePage({ apiBase, groupId }) {
   const byKey = Object.fromEntries((d?.shelves || []).map(s => [s.key, s]));
   const sections = [];
   for (const key of LAYOUT) {
-    if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} />);
+    if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} scope={scope} />);
     else if (key === "@spotlights" && d?.spotlights?.length) sections.push(<Spotlights key={key} items={d.spotlights} scope={scope} />);
     else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} scope={scope} />);
   }

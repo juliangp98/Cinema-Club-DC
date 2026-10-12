@@ -764,6 +764,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   overflow-x: auto;
   padding-bottom: 0.4rem;
   scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 .drawer-cast-scroll::-webkit-scrollbar { height: 3px; }
 .drawer-cast-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -3026,3 +3027,14 @@ button.feed-title:hover { color: var(--amber); }
 .chat-delete:hover { color: var(--red); }
 @media (hover: none) { .chat-delete { opacity: 1; } }
 a.feed-action { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Scrollbars: thin, dark, gold on hover (Windows' defaults are white). */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--amber-dim); }
+::-webkit-scrollbar-thumb:active { background-color: var(--amber); }
+::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+}

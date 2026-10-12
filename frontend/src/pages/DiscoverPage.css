@@ -52,8 +52,16 @@
 .double-time { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--amber); }
 .double-title { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-sm); line-height: 1.2; }
 .double-meta { grid-column: 1 / -1; font-size: var(--fs-xs); color: var(--muted); }
+.double-also { margin-top: 0.2rem; }
 
 .spotlights { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.9rem; }
+.spotlights.wide { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+/* See-all pages: where (area / theatre) and who */
+.more-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem; }
+.more-scope-theatre {
+  background: var(--bg3); color: var(--cream); border: 1px solid var(--border); border-radius: var(--radius-pill);
+  padding: 0.25rem 0.7rem; font: inherit; font-size: var(--fs-sm); max-width: 100%;
+}
 .spotlight {
   display: flex; flex-direction: column; gap: 0.6rem; padding: 0.85rem 1rem;
   background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--cream);
@@ -62,7 +70,7 @@
 .spotlight-head { display: flex; flex-direction: column; }
 .spotlight-name { font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; }
 .spotlight-count { font-size: var(--fs-xs); color: var(--muted); text-transform: capitalize; }
-.spotlight-posters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+.spotlight-posters { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 0.35rem; }
 .spotlight-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg2); }
 
 /* Browse */

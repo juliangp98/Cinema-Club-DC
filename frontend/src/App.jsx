@@ -13,6 +13,7 @@ import FilmPage from "./pages/FilmPage";
 import DiscoverPage from "./pages/DiscoverPage";
 import BrowsePage from "./pages/BrowsePage";
 import { TheatresPage, TheatrePage } from "./pages/Theatres";
+import { SpotlightsPage, DoublesPage } from "./pages/DiscoverMore";
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 import { clearCache } from "./api";
@@ -181,6 +182,8 @@ export default function App() {
           <Route path="/films/:id" element={<FilmPage user={user} apiBase={API_BASE} groupId={scopeGroupId} />} />
           {/* Discover is home now; old /discover links land there too. */}
           <Route path="/discover" element={<Navigate to="/" replace />} />
+          <Route path="/discover/spotlights" element={<SpotlightsPage apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/discover/doubles" element={<DoublesPage apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/browse" element={<BrowsePage apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/theatres" element={<TheatresPage apiBase={API_BASE} />} />
           <Route path="/theatres/:slug" element={<TheatrePage apiBase={API_BASE} groupId={scopeGroupId} />} />

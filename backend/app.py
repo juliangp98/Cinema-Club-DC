@@ -2550,7 +2550,37 @@ def discover_browse():
 
 
 BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time', 'rarity',
-                 'club', 'runtime', 'mood', 'shelf', 'q', 'sort')
+                 'club', 'runtime', 'mood', 'shelf', 'q', 'person', 'sort')
+
+
+def _discover_more(name, build):
+    """Discover's See-all pages (R7b): ?theatres= and/or ?regions= narrow
+    them; club mode with ?group_id, public (cached for visitors) without."""
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    slugs = {x for x in (request.args.get('theatres') or '').split(',') if x}
+    regions = {x.lower() for x in (request.args.get('regions') or '').split(',') if x}
+    slugs |= {s for s, r in discover.REGIONS.items() if r.lower() in regions}
+    theatres = slugs or None
+    if group:
+        return jsonify(build(group, user, theatres))
+    run = lambda: publicize_cards(build(None, user, theatres))
+    return jsonify(run() if user else public_cached((name, tuple(sorted(slugs))), run))
+
+
+@app.route('/api/discover/spotlights')
+def discover_spotlights():
+    import discover
+    return _discover_more('spotlights', lambda g, u, th: {
+        'spotlights': discover.spotlights(g, u, theatres=th, limit=None, films_each=8)})
+
+
+@app.route('/api/discover/doubles')
+def discover_doubles():
+    import discover
+    return _discover_more('doubles', lambda g, u, th: discover.every_double(g, u, theatres=th))
 
 
 # ─── Search (R6c) ─────────────────────────────────────────────────────────────
@@ -6551,6 +6581,7 @@ def _warm_urls(today):
     """The public views most visits open first (the same URLs the site asks for)."""
     days = lambda n: (today + timedelta(days=n)).isoformat()
     return ['/api/discover', '/api/discover/browse?when=week', '/api/theatres-overview',
+            '/api/discover/doubles', '/api/discover/spotlights',
             f'/api/discover/calendar?from={today.isoformat()}&to={days(6)}',      # Week
             f'/api/discover/calendar?from={today.isoformat()}&to={days(13)}']     # Agenda
 

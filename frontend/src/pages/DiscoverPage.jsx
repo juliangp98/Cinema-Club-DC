@@ -20,7 +20,7 @@ export const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+export const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 function Surprise({ apiBase, groupId }) {
   const [when, setWhen] = useState("tonight");
@@ -178,48 +178,65 @@ export function Shelf({ s, scope = "" }) {
   );
 }
 
-export function DoubleFeatures({ items }) {
+// `scope` ("&theatres=afi") → the See-all pages' query string.
+const moreQuery = scope => (scope ? `?${scope.replace(/^&/, "")}` : "");
+
+export function DoubleCard({ d, showDay = true }) {
+  return (
+    <div className="double">
+      {[d.first, d.second].map((c, j) => (
+        <Link key={j} to={`/films/${c.movie.id}`} className="double-film">
+          <Poster movie={c.movie} className="double-poster" />
+          <span className="double-time">{timeLabel(c.next.start_time)}</span>
+          <span className="double-title">{c.movie.title}</span>
+        </Link>
+      ))}
+      <div className="double-meta">
+        <TheatreLink theatre={{ slug: d.theatre_slug, name: d.theatre, color: d.theatre_color }} />
+        {showDay && <> · {dayLabel(d.first.next.start_time)}</>} · {d.gap_minutes}-min break
+        {d.also?.length > 0 && <div className="double-also">Also {d.also.map(dayLabel).join(", ")}</div>}
+      </div>
+    </div>
+  );
+}
+
+export function DoubleFeatures({ items, scope = "" }) {
   return (
     <section className="shelf">
-      <SectionTitle>Double features</SectionTitle>
+      <SectionTitle action={<Link className="shelf-all" to={`/discover/doubles${moreQuery(scope)}`}>See all →</Link>}>
+        Double features
+      </SectionTitle>
       <p className="shelf-blurb">Two films, one theatre, one evening — with time for a drink in between.</p>
       <div className="doubles">
-        {items.slice(0, 6).map((d, i) => (
-          <div key={i} className="double">
-            {[d.first, d.second].map((c, j) => (
-              <Link key={j} to={`/films/${c.movie.id}`} className="double-film">
-                <Poster movie={c.movie} className="double-poster" />
-                <span className="double-time">{timeLabel(c.next.start_time)}</span>
-                <span className="double-title">{c.movie.title}</span>
-              </Link>
-            ))}
-            <div className="double-meta">
-              <TheatreLink theatre={{ slug: d.theatre_slug, name: d.theatre, color: d.theatre_color }} /> · {dayLabel(d.first.next.start_time)} · {d.gap_minutes}-min break
-            </div>
-          </div>
-        ))}
+        {items.slice(0, 6).map((d, i) => <DoubleCard key={i} d={d} />)}
       </div>
     </section>
+  );
+}
+
+export function SpotlightCard({ sp, scope = "", posters = 4 }) {
+  return (
+    <Link className="spotlight" to={`/browse?person=${encodeURIComponent(sp.name)}&when=month${scope}`}>
+      <div className="spotlight-head">
+        <span className="spotlight-name">{sp.name}</span>
+        <span className="spotlight-count">{sp.count} films · {sp.role}</span>
+      </div>
+      <div className="spotlight-posters" style={{ "--n": posters }}>
+        {sp.films.slice(0, posters).map(f => <Poster key={f.movie.id} movie={f.movie} className="spotlight-poster" alt={f.movie.title} />)}
+      </div>
+    </Link>
   );
 }
 
 export function Spotlights({ items, scope = "" }) {
   return (
     <section className="shelf">
-      <SectionTitle>Spotlights</SectionTitle>
+      <SectionTitle action={<Link className="shelf-all" to={`/discover/spotlights${moreQuery(scope)}`}>See all →</Link>}>
+        Spotlights
+      </SectionTitle>
       <p className="shelf-blurb">Directors and stars with several films playing this month.</p>
       <div className="spotlights">
-        {items.map(sp => (
-          <Link key={sp.name} className="spotlight" to={`/browse?q=${encodeURIComponent(sp.name)}&when=month${scope}`}>
-            <div className="spotlight-head">
-              <span className="spotlight-name">{sp.name}</span>
-              <span className="spotlight-count">{sp.count} films · {sp.role}</span>
-            </div>
-            <div className="spotlight-posters">
-              {sp.films.slice(0, 4).map(f => <Poster key={f.movie.id} movie={f.movie} className="spotlight-poster" alt={f.movie.title} />)}
-            </div>
-          </Link>
-        ))}
+        {items.map(sp => <SpotlightCard key={`${sp.role}:${sp.name}`} sp={sp} scope={scope} />)}
       </div>
     </section>
   );

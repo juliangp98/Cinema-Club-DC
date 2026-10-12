@@ -71,7 +71,7 @@ def window(when, now=None, start=None, end=None, past_days=0):
             return now, day_end(now.date() + timedelta(days=6 - wd))
         fri = now.date() + timedelta(days=4 - wd)
         return datetime.combine(fri, datetime.min.time()).replace(hour=17), day_end(fri + timedelta(days=2))
-    days = {'week': 7, '2weeks': 14, 'month': 30}.get(when, 14)
+    days = {'week': 7, '2weeks': 14, 'month': 30, '6weeks': 42}.get(when, 14)
     return now, now + timedelta(days=days)
 
 
@@ -439,6 +439,7 @@ def select(group, viewer, params, now=None, past_days=0):
     genres = split('genres') | (MOODS.get(p.get('mood'), {}).get('genres') or set())
     decade = p.get('decade')
     q = normalize(p.get('q', ''))
+    person = normalize(p.get('person', ''))
     out = []
     for f in films.values():
         if genres and not f.genres & genres:
@@ -458,6 +459,8 @@ def select(group, viewer, params, now=None, past_days=0):
             continue
         rt = f.movie.runtime_minutes or 0
         if (p.get('runtime') == 'short' and not 0 < rt < 95) or (p.get('runtime') == 'long' and rt <= 150):
+            continue
+        if person and not any(normalize(name) == person for _, name in people(f)):
             continue
         if q:
             import json
@@ -502,7 +505,15 @@ def browse(group, viewer, params, now=None, limit=24, offset=0):
                       for f in page],
             'total': len(out), 'next_offset': offset + limit if len(out) > offset + limit else None,
             'facets': facets(out), 'regions': REGIONS, 'window': {'start': start.isoformat(), 'end': end.isoformat()},
-            'title': SHELF_TITLES.get(p.get('shelf')) or MOODS.get(p.get('mood'), {}).get('label')}
+            'title': SHELF_TITLES.get(p.get('shelf')) or MOODS.get(p.get('mood'), {}).get('label') or _person_name(out, p)}
+
+
+def _person_name(films, p):
+    """?person= as the film credits spell it ("tony leung" → "Tony Leung")."""
+    if not p.get('person'):
+        return None
+    want = normalize(p['person'])
+    return next((name for f in films for _, name in people(f) if normalize(name) == want), p['person'])
 
 
 # ─── Fun finders ──────────────────────────────────────────────────────────────
@@ -530,8 +541,11 @@ def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random, th
     return {**card(f, why), 'when': w}
 
 
-def double_features(films, limit=8, per_theatre=3):
-    """Two films at the same theatre the same day, with a 15–75 minute gap."""
+def double_features(films, limit=8, per_theatre=3, every=False):
+    """Two films at the same theatre the same day, with a 15–75 minute gap.
+    Discover's list keeps variety (each film once, a few per theatre); with
+    `every`, the full list (R7b): each showing in one pair at most, soonest
+    first, and a bill that repeats is listed once with its other dates."""
     shows = sorted((s for f in films.values() for s in f.shows), key=lambda s: s.start_time)
     by_venue_day = {}
     for s in shows:
@@ -548,6 +562,8 @@ def double_features(films, limit=8, per_theatre=3):
                         + (2 if fa.genres & fb.genres else 0)
                     pairs.append((score, a, b, int(gap)))
     pairs.sort(key=lambda p: (-p[0], p[1].start_time))
+    if every:
+        return _every_double(films, pairs)
     # Variety: each film in at most one pair, at most three pairs per theatre
     # (otherwise one repertory series fills the whole list).
     used, count, out = set(), {}, []
@@ -565,36 +581,66 @@ def double_features(films, limit=8, per_theatre=3):
     return out
 
 
+def _every_double(films, pairs):
+    used, bills = set(), {}
+    for score, a, b, gap in pairs:
+        if a.id in used or b.id in used:
+            continue
+        used.update((a.id, b.id))
+        bills.setdefault((a.theatre_id, a.movie_id, b.movie_id), []).append((a, b, gap))
+    out = []
+    for nights in bills.values():
+        nights.sort(key=lambda n: n[0].start_time)
+        a, b, gap = nights[0]
+        out.append({'theatre': a.theatre.short_name or a.theatre.name, 'theatre_slug': a.theatre.slug,
+                    'theatre_color': a.theatre.color, 'gap_minutes': gap,
+                    'first': card(films[a.movie_id]) | {'next': _show_brief(a)},
+                    'second': card(films[b.movie_id]) | {'next': _show_brief(b)},
+                    'also': [x.start_time.isoformat() for x, _, _ in nights[1:]]})
+    return sorted(out, key=lambda d: d['first']['next']['start_time'])
+
+
 def _show_brief(s):
     return {'showtime_id': s.id, 'start_time': s.start_time.isoformat(),
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
 
 
-def spotlights(group, viewer, now=None, limit=6, theatres=None):
-    """Directors (2+ films) and actors (3+ films) with work playing this month
-    (at `theatres`, if given)."""
+def people(f):
+    """(role, name) for a film's directors and top-billed three actors: who
+    Spotlights and Browse's person filter go by."""
     import json
+    out = [('director', d.strip()) for d in (f.movie.director or '').split(',') if d.strip()]
+    try:
+        cast = json.loads(f.movie.cast_json or '[]')[:3]
+    except ValueError:
+        cast = []
+    return out + [('actor', c['name']) for c in cast if c.get('name')]
+
+
+def spotlights(group, viewer, now=None, limit=6, theatres=None, films_each=6):
+    """Directors (2+ films) and actors (3+ films) with work playing this month
+    (at `theatres`, if given). limit=None: all of them (the Spotlights page)."""
     now = now or datetime.now()
     start, end = window('month', now)
     films = catalog(group, start, end, viewer, theatres=theatres)
-    people = {}
+    found = {}
     for f in films.values():
-        for d in (f.movie.director or '').split(','):
-            if d.strip():
-                people.setdefault(('director', d.strip()), []).append(f)
-        try:
-            cast = json.loads(f.movie.cast_json or '[]')[:3]
-        except ValueError:
-            cast = []
-        for c in cast:
-            if c.get('name'):
-                people.setdefault(('actor', c['name']), []).append(f)
-    out = [(role, name, fs) for (role, name), fs in people.items()
+        for who in people(f):
+            found.setdefault(who, []).append(f)
+    out = [(role, name, fs) for (role, name), fs in found.items()
            if len(fs) >= (2 if role == 'director' else 3)]
     out.sort(key=lambda x: (-len(x[2]), x[0] != 'director', x[1]))
     return [{'role': role, 'name': name, 'count': len(fs),
-             'films': [card(f) for f in sorted(fs, key=lambda f: f.next.start_time)[:6]]}
+             'films': [card(f) for f in sorted(fs, key=lambda f: f.next.start_time)[:films_each]]}
             for role, name, fs in out[:limit]]
+
+
+def every_double(group, viewer, now=None, theatres=None):
+    """The Double Features page: every double bill in the next six weeks."""
+    now = now or datetime.now()
+    start, end = window('6weeks', now)
+    return {'window': {'start': start.isoformat(), 'end': end.isoformat()},
+            'doubles': double_features(catalog(group, start, end, viewer, theatres=theatres), every=True)}
 
 
 # ─── Discord: /find, /surprise and the chatbot (R3b) ─────────────────────────
@@ -603,7 +649,7 @@ def spotlights(group, viewer, now=None, limit=6, theatres=None):
 # the same params Browse uses, so every answer can link to the matching view.
 
 BROWSE_KEYS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time',
-               'rarity', 'club', 'runtime', 'mood', 'shelf', 'q', 'sort')
+               'rarity', 'club', 'runtime', 'mood', 'shelf', 'q', 'person', 'sort')
 REGION_KEYS = {'dc': 'DC', 'maryland': 'Maryland', 'virginia': 'Virginia'}
 # /find's type list, in the order it's offered before anyone types.
 FIND_SHELVES = ('rare', 'one-night', 'on-film', 'big-screen', 'events', 'arthouse', 'classics', 'opening',
@@ -632,6 +678,8 @@ def describe(params, title=None):
         bits.append('Your list')
     if params.get('q'):
         bits.append(f"“{params['q']}”")
+    if params.get('person') and not title:
+        bits.append(params['person'])
     bits.append(WHEN.get(params.get('when') or 'week'))
     if params.get('regions'):
         bits.append(' + '.join(REGION_KEYS.get(r, r) for r in params['regions'].split(',')))
