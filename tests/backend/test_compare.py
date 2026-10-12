@@ -1,56 +1,13 @@
 """Seeing a member's lists and comparing with them (R5): watchlists, RSVPs,
 what you both want / are going to / saw — only through a shared club."""
-from datetime import datetime, timedelta
-
 import pytest
 
-from helpers import H, all_linked_present, client, film_id, setup_db
+from helpers import H, client, seed_compare_pair
 
 
 @pytest.fixture
 def pair():
-    """Ana and Bo share the club (group 1); Ana is also in a private club Bo
-    isn't; Eve shares nothing. Screenings: SIRÂT (Ana going, Bo maybe),
-    HAMNET (Ana), VERTIGO (Bo), KHARTOUM (Ana, private club), SINNERS (next
-    showing); past: SIRÂT both went, HAMNET Ana only. Watchlists: both want
-    SINNERS, Bo wants HAMNET, Ana wants VERTIGO and KHARTOUM."""
-    from app import app, db, User, Group, GroupMembership, RSVP, Showtime, Theatre, Watchlist
-    setup_db()
-    with app.app_context():
-        now = datetime.now()
-        tid = Theatre.query.filter_by(slug='afi').first().id
-        films = {t: film_id(t) for t in ('SIRÂT', 'HAMNET', 'VERTIGO', 'SINNERS', 'KHARTOUM')}
-
-        def show(title, days):
-            s = Showtime(movie_id=films[title], theatre_id=tid, start_time=now + timedelta(days=days),
-                         end_time=now + timedelta(days=days, hours=2))
-            db.session.add(s)
-            db.session.flush()
-            return s.id
-        ids = {'both': show('SIRÂT', 1), 'ana_hamnet': show('HAMNET', 2), 'bo_vertigo': show('VERTIGO', 3),
-               'private': show('KHARTOUM', 4), 'sinners_next': show('SINNERS', 5),
-               'together': show('SIRÂT', -3), 'ana_only': show('HAMNET', -4)}
-        g2 = Group(name='Ana Private', slug='ana-private', is_public=False)
-        db.session.add(g2)
-        db.session.flush()
-        ana = User(email='ana7@test.dev', name='Ana', is_active=True, discord_user_id='7701')
-        bo = User(email='bo7@test.dev', name='Bo', is_active=True, discord_user_id='7702')
-        eve = User(email='eve7@test.dev', name='Eve', is_active=True)
-        db.session.add_all([ana, bo, eve])
-        db.session.flush()
-        db.session.add_all([GroupMembership(user_id=ana.id, group_id=1, status='active'),
-                            GroupMembership(user_id=ana.id, group_id=g2.id, status='active'),
-                            GroupMembership(user_id=bo.id, group_id=1, status='active')])
-        for u, key, gid, st in [(ana, 'both', 1, 'going'), (bo, 'both', 1, 'maybe'), (ana, 'ana_hamnet', 1, 'going'),
-                                (bo, 'bo_vertigo', 1, 'going'), (ana, 'private', g2.id, 'going'),
-                                (ana, 'together', 1, 'going'), (bo, 'together', 1, 'going'), (ana, 'ana_only', 1, 'going')]:
-            db.session.add(RSVP(user_id=u.id, showtime_id=ids[key], group_id=gid, status=st))
-        for u, t in [(ana, 'SINNERS'), (bo, 'SINNERS'), (bo, 'HAMNET'), (ana, 'VERTIGO'), (ana, 'KHARTOUM')]:
-            db.session.add(Watchlist(user_id=u.id, movie_id=films[t]))
-        db.session.commit()
-        ids.update(ana=ana.id, bo=bo.id, eve=eve.id)
-    all_linked_present()
-    return ids
+    return seed_compare_pair()
 
 
 def test_a_members_watchlist_with_next_showings(pair):
