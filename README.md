@@ -32,8 +32,13 @@ Cinema Club/
 ├── .dockerignore
 ├── .env.production.example       # Template for production secrets
 ├── backend/
-│   ├── app.py                    # Flask API server (models, routes, email, seed)
-│   ├── scraper.py                # Theatre scraper (Suns Cinema + AFI Silver)
+│   ├── app.py                    # Flask app: config, sessions, shared helpers, migrations, seed
+│   ├── models.py                 # The database tables
+│   ├── routes/                   # The API by area: auth, people, clubs, schedule (what's playing),
+│   │                             #   plans (RSVPs, watchlists), social, polls, discord, alerts, internal (the bot)
+│   ├── discover.py               # The Discover engine: shelves, Browse, Calendar, digest picks
+│   ├── notify.py                 # Personal alerts (opt-in): bell, Discord DM, email, push
+│   ├── scraper.py + scrapers/    # Theatre scrapers and the sync into the database
 │   ├── entrypoint.sh             # Docker startup (migrate + seed + gunicorn)
 │   ├── requirements.txt
 │   └── .env.example
