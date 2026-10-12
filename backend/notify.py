@@ -239,9 +239,10 @@ def send_emails(now=None):
         by_user.setdefault(n.user_id, []).append(n)
     for ns in by_user.values():
         user = ns[0].user
+        from html import escape as esc
         rows = ''.join(
             f'<li style="margin-bottom:10px;"><a href="{FRONTEND_URL}{d["link"]}" style="color:#e8a838;font-weight:bold;">'
-            f'{d["headline"]}</a><br><span style="color:#666;">{d["detail"]}</span></li>'
+            f'{esc(d["headline"])}</a><br><span style="color:#666;">{esc(d["detail"])}</span></li>'
             for d in map(describe, ns))
         subject = describe(ns[0])['headline'] if len(ns) == 1 else f'{len(ns)} updates on your watchlist'
         send_email(user.email, subject,

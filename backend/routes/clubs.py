@@ -2,6 +2,8 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
+from html import escape as esc
+
 import app as core
 from app import (AVATAR_COLORS, FRONTEND_URL, Group, GroupMembership, Message, Poll, PollCategory,
     PollOption, PollVote, ROLES, RSVP, Reaction, ShowtimeThread, Theatre, User, _active_membership, _as_int,
@@ -13,7 +15,7 @@ def email_invite(to_email, group_name, invite_url):
     core.send_email(to_email, f"You're invited to {group_name} on Cinema Club DC",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
         <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>You've been invited to join <strong>{group_name}</strong> on Cinema Club DC!</p>
+        <p>You've been invited to join <strong>{esc(group_name)}</strong> on Cinema Club DC!</p>
         <p><a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Accept Invite</a></p>
         <p style="color:#888;font-size:13px;">Or copy this link: {invite_url}</p>
@@ -24,7 +26,7 @@ def email_added_to_group(to_email, group_name):
     core.send_email(to_email, f"You've been added to {group_name}",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
         <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>You've been added to <strong>{group_name}</strong>. Open Cinema Club DC to check out upcoming showtimes!</p>
+        <p>You've been added to <strong>{esc(group_name)}</strong>. Open Cinema Club DC to check out upcoming showtimes!</p>
         <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
         </div>""")
@@ -34,7 +36,7 @@ def email_join_request(admin_email, requester_name, group_name):
     core.send_email(admin_email, f"{requester_name} wants to join {group_name}",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
         <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p><strong>{requester_name}</strong> has requested to join <strong>{group_name}</strong>.</p>
+        <p><strong>{esc(requester_name)}</strong> has requested to join <strong>{esc(group_name)}</strong>.</p>
         <p>Log in to Cinema Club DC to approve or deny the request.</p>
         <p><a href="{FRONTEND_URL}/groups" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Manage Group</a></p>
@@ -45,7 +47,7 @@ def email_approved(to_email, group_name):
     core.send_email(to_email, f"Welcome to {group_name}!",
         f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
         <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>Your request to join <strong>{group_name}</strong> has been approved! 🎉</p>
+        <p>Your request to join <strong>{esc(group_name)}</strong> has been approved! 🎉</p>
         <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
         text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
         </div>""")

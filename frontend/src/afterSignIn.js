@@ -1,7 +1,8 @@
 // Where to go once signed in (R5a): /signin?next=… remembers it here, so the
 // emailed link (often opened as a fresh page) still lands you back there.
 const KEY = "cinemaclub_after_signin";
-export const safeNext = next => (next && next.startsWith("/") && !next.startsWith("//") ? next : null);
+// Only a path on this site: browsers read "//x" and "/\x" as another site.
+export const safeNext = next => (next && next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null);
 export function rememberNext(next) {
   try { safe(next) ? localStorage.setItem(KEY, next) : localStorage.removeItem(KEY); } catch { /* private mode */ }
 }

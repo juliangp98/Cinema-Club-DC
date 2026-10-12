@@ -93,6 +93,7 @@ def send_email(to, subject, html_body):
     """Send an email via Gmail SMTP. Falls back to console if SMTP not configured."""
     if not to:
         return  # Discord-only accounts have no email address
+    subject = ' '.join(str(subject).split())        # one line: a name can't add headers
     if not SMTP_EMAIL or not SMTP_PASSWORD:
         print(f"\n📧 EMAIL (console fallback — set SMTP_EMAIL & SMTP_PASSWORD to send for real)")
         print(f"   To: {to}")

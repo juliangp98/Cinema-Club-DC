@@ -3,6 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
+import html as _html
 import json as _json
 from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, BotSetting, DIGEST_CAPS,
     DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, GENRE_LIST, Group, GroupMembership,
@@ -731,7 +732,7 @@ def internal_digest_delivered():
     db.session.commit()
 
     for user, movies in by_user.values():
-        items = ''.join(f'<li><strong>{m.title}</strong></li>' for m in movies)
+        items = ''.join(f'<li><strong>{_html.escape(m.title)}</strong></li>' for m in movies)
         core.send_email(user.email, 'Your watchlist is playing this week',
             f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
             <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
