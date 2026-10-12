@@ -1,143 +1,222 @@
-"""discord_accounts"""
-from helpers import H, client, Checks, WORK
+"""Accounts without an email (Discord-only), /link merging them into a site
+account, and Sign in with Discord (OAuth)."""
+import os
+import sqlite3
+from datetime import datetime, timedelta
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+
+from helpers import H, client, setup_db
+
+ANA = {'discord_user_id': '5001', 'discord_name': 'Ana (server nick)', 'discord_username': 'ana_d',
+       'discord_avatar': 'https://cdn.discordapp.com/a.png', 'group_id': 1}
 
 
-def test_discord_accounts():
-    checks = Checks()
-    check = checks.check
-    import os, sqlite3, sys
-    from datetime import datetime, timedelta
-    from urllib.parse import urlparse, parse_qs
-    DBPATH = os.environ['DATABASE_URL'].replace('sqlite:///', '')
-    pre = sqlite3.connect(DBPATH)
-    before = {t: pre.execute(f'select count(*) from "{t}"').fetchone()[0] for t in ('user', 'rsvp', 'watchlist', 'group_membership')}
-    pre.close()
+def test_the_email_nullable_migration_keeps_everything():
     import app as A
-    from app import app, db, migrate, User, GroupMembership, RSVP, Watchlist, Showtime, Movie, Reaction, INTERNAL_API_TOKEN
-
-    H = {'X-Internal-Token': INTERNAL_API_TOKEN}
-    c = app.test_client()
-
-    print('--- migration ---')
+    from app import app, db, migrate, User, GroupMembership
+    path = os.environ['DATABASE_URL'].replace('sqlite:///', '')
+    con = sqlite3.connect(path)
+    before = {t: con.execute(f'select count(*) from "{t}"').fetchone()[0] for t in ('user', 'rsvp', 'watchlist', 'group_membership')}
+    con.close()
     with app.app_context():
-        db.create_all(); migrate()
+        db.create_all()
+        migrate()
         ddl = db.session.execute(db.text("select sql from sqlite_master where name='user'")).scalar()
-        check('user.email now nullable', 'email VARCHAR(120) NOT NULL' not in ddl and 'email VARCHAR(120)' in ddl)
-        after = {t: db.session.execute(db.text(f'select count(*) from "{t}"')).scalar() for t in before}
-        check('all rows preserved', after == before, (before, after))
-        admin = User.query.filter_by(email='member4@example.test').first()      # the club's admin (fixture data is fake)
-        check('existing accounts intact (admin keeps email + group)', admin and GroupMembership.query.filter_by(user_id=admin.id, group_id=1).first())
-        check('backup written next to the DB', os.path.exists(DBPATH + '.pre-discord-accounts.bak'))
-        idx = db.session.execute(db.text("select name from sqlite_master where type='index' and name='ux_user_discord_user_id'")).scalar()
-        check('unique Discord-id index added', idx == 'ux_user_discord_user_id')
-        migrate()   # second boot
-        check('migration is idempotent', 'NOT NULL' not in db.session.execute(db.text("select sql from sqlite_master where name='user'")).scalar().split('email')[1].split(',')[0])
-        sid = Showtime.query.filter(Showtime.movie_id == Movie.query.filter_by(title='SIRÂT').first().id).first().id
-        movie_title = db.session.get(Movie, db.session.get(Showtime, sid).movie_id).title
+        assert 'email VARCHAR(120) NOT NULL' not in ddl and 'email VARCHAR(120)' in ddl
+        assert {t: db.session.execute(db.text(f'select count(*) from "{t}"')).scalar() for t in before} == before
+        admin = User.query.filter_by(email='member4@example.test').first()        # the club's admin (fake fixture data)
+        assert GroupMembership.query.filter_by(user_id=admin.id, group_id=1).first()
+        assert os.path.exists(path + '.pre-discord-accounts.bak')                  # a backup first
+        assert db.session.execute(db.text("select name from sqlite_master where type='index' "
+                                          "and name='ux_user_discord_user_id'")).scalar() == 'ux_user_discord_user_id'
+        migrate()                                                                   # a second boot
+        ddl = db.session.execute(db.text("select sql from sqlite_master where name='user'")).scalar()
+        assert 'NOT NULL' not in ddl.split('email')[1].split(',')[0]
 
-    print('--- Discord-only accounts ---')
-    ident = {'discord_user_id': '5001', 'discord_name': 'Ana (server nick)', 'discord_username': 'ana_d',
-             'discord_avatar': 'https://cdn.discordapp.com/a.png', 'group_id': 1}
-    r = c.post('/api/internal/rsvp', json={**ident, 'create': False, 'showtime_id': sid, 'status': 'going'}, headers=H)
-    check('outside the home server: no account is created', r.status_code == 404 and r.get_json()['error'] == 'no_account')
-    r = c.post('/api/internal/rsvp', json={**ident, 'create': True, 'showtime_id': sid, 'status': 'going'}, headers=H)
-    check('in the home server: RSVP works with no site account', r.status_code == 200 and any(a['name'] == 'Ana (server nick)' for a in r.get_json()['attendees']), r.get_json())
-    with app.app_context():
-        ana = User.query.filter_by(discord_user_id='5001').first()
-        check('Discord-only account: no email, handle + avatar stored', ana and ana.email is None and ana.discord_username == 'ana_d' and ana.avatar_url)
-        check('…and is an active member of the server group', GroupMembership.query.filter_by(user_id=ana.id, group_id=1, status='active').first() is not None)
-        ANA = ana.id
-    c.post('/api/internal/watch', json={**ident, 'create': True, 'discord_name': 'Ana B', 'title': movie_title, 'action': 'add'}, headers=H)
-    with app.app_context():
-        check('repeat use: same account, no duplicate', User.query.filter_by(discord_user_id='5001').count() == 1)
-        check('Discord-only name follows Discord', db.session.get(User, ANA).name == 'Ana B')
-    d = c.get('/api/internal/watchlist', query_string={**ident, 'create': True, 'discord_name': 'Ana B'}, headers=H).get_json()
-    check('/watch show works for a Discord-only member', d['owner'] == 'Ana B' and len(d['items']) == 1, d)
-    d = c.get('/api/internal/watchlist', query_string={'member_id': ANA}, headers=H).get_json()
-    check("viewing someone else's watchlist needs no account", d['owner'] == 'Ana B')
-    members = c.get('/api/internal/members?group_id=1', headers=H).get_json()
-    check('shows up in the member picker', any(m['id'] == ANA for m in members))
 
-    print('--- /profile endpoints ---')
-    p = c.get('/api/internal/profile', query_string={**ident, 'create': True, 'discord_name': 'Ana B'}, headers=H).get_json()
-    check('own profile + genre options', p['user']['id'] == ANA and 'horror' in p['genre_options'] and p['site_account'] is False and p['upcoming_rsvps'] == 0, p)
-    p = c.post('/api/internal/profile', json={**ident, 'create': True, 'discord_name': 'Ana B', 'favorite_genres': ['Horror', 'noir', 'not-a-genre'],
-               'bio': '  i like it scary  ', 'letterboxd_username': 'ana d!'}, headers=H).get_json()
-    check('update: genres validated, bio trimmed, Letterboxd sanitized',
-          p['genres'] == ['horror', 'noir'] and p['user']['bio'] == 'i like it scary' and p['user']['letterboxd_username'] == 'anad', p)
-    check("someone else's profile (no account) -> 404", c.get('/api/internal/profile', query_string={'member_discord_id': '7777'}, headers=H).status_code == 404)
-    check("someone else's profile (has account)", c.get('/api/internal/profile', query_string={'member_discord_id': '5001'}, headers=H).get_json()['user']['name'] == 'Ana B')
-
-    print('--- /link merges a Discord-only account ---')
+@pytest.fixture
+def sirat():
+    from app import app, Movie, Showtime
+    setup_db()
     with app.app_context():
-        site = User(email='ana@test.dev', name='Ana Site', is_active=True); db.session.add(site); db.session.flush()
+        movie = Movie.query.filter_by(title='SIRÂT').first()
+        return {'showtime': Showtime.query.filter_by(movie_id=movie.id).first().id, 'title': movie.title}
+
+
+def rsvp(sirat, create):
+    return client().post('/api/internal/rsvp', json={**ANA, 'create': create, 'showtime_id': sirat['showtime'], 'status': 'going'},
+                         headers=H)
+
+
+@pytest.fixture
+def ana(sirat):
+    """Ana used /rsvp and /watch in the server: a Discord-only account."""
+    from app import app, User
+    rsvp(sirat, True)
+    client().post('/api/internal/watch', json={**ANA, 'create': True, 'discord_name': 'Ana B', 'title': sirat['title'],
+                                               'action': 'add'}, headers=H)
+    with app.app_context():
+        return {**sirat, 'ana': User.query.filter_by(discord_user_id='5001').first().id}
+
+
+def test_accounts_are_made_only_in_the_clubs_server(sirat):
+    from app import app, User, GroupMembership
+    r = rsvp(sirat, False)
+    assert r.status_code == 404 and r.json['error'] == 'no_account'
+    r = rsvp(sirat, True)
+    assert r.status_code == 200 and any(a['name'] == 'Ana (server nick)' for a in r.json['attendees'])
+    with app.app_context():
+        u = User.query.filter_by(discord_user_id='5001').first()
+        assert u.email is None and u.discord_username == 'ana_d' and u.avatar_url
+        assert GroupMembership.query.filter_by(user_id=u.id, group_id=1, status='active').first()
+
+
+def test_a_discord_only_member_uses_the_bot_like_anyone(ana):
+    from app import app, db, User
+    with app.app_context():
+        assert User.query.filter_by(discord_user_id='5001').count() == 1           # no duplicate
+        assert db.session.get(User, ana['ana']).name == 'Ana B'                   # name follows Discord
+    d = client().get('/api/internal/watchlist', query_string={**ANA, 'create': True, 'discord_name': 'Ana B'}, headers=H).json
+    assert d['owner'] == 'Ana B' and len(d['items']) == 1
+    assert client().get('/api/internal/watchlist', query_string={'member_id': ana['ana']}, headers=H).json['owner'] == 'Ana B'
+    assert any(m['id'] == ana['ana'] for m in client().get('/api/internal/members?group_id=1', headers=H).json)
+
+
+def test_profiles_from_discord(ana):
+    me = {**ANA, 'create': True, 'discord_name': 'Ana B'}
+    p = client().get('/api/internal/profile', query_string=me, headers=H).json
+    assert p['user']['id'] == ana['ana'] and 'horror' in p['genre_options'] and p['site_account'] is False and p['upcoming_rsvps'] == 0
+    p = client().post('/api/internal/profile', headers=H, json={**me, 'favorite_genres': ['Horror', 'noir', 'not-a-genre'],
+                                                                'bio': '  i like it scary  ', 'letterboxd_username': 'ana d!'}).json
+    assert p['genres'] == ['horror', 'noir'] and p['user']['bio'] == 'i like it scary' and p['user']['letterboxd_username'] == 'anad'
+    assert client().get('/api/internal/profile', query_string={'member_discord_id': '7777'}, headers=H).status_code == 404
+    assert client().get('/api/internal/profile', query_string={'member_discord_id': '5001'}, headers=H).json['user']['name'] == 'Ana B'
+
+
+@pytest.fixture
+def linked(ana):
+    """Ana also had a site account (pending in the club, a clashing 'maybe');
+    she used /link with its code. Her Discord-only account had a reaction and
+    a profile."""
+    from app import app, db, User, GroupMembership, RSVP, Reaction
+    client().post('/api/internal/profile', headers=H, json={**ANA, 'create': True, 'discord_name': 'Ana B',
+                                                            'favorite_genres': ['horror', 'noir'], 'letterboxd_username': 'anad'})
+    with app.app_context():
+        site = User(email='ana@test.dev', name='Ana Site', is_active=True, discord_link_code='ABC234',
+                    discord_link_code_expires=datetime.utcnow() + timedelta(minutes=5))
+        db.session.add(site)
+        db.session.flush()
         db.session.add(GroupMembership(user_id=site.id, group_id=1, status='pending'))
-        db.session.add(RSVP(user_id=site.id, showtime_id=sid, group_id=1, status='maybe'))   # clashes with Ana's 'going'
-        db.session.add(Reaction(user_id=ANA, showtime_id=sid, group_id=1, emoji='\U0001F37F'))
-        site.discord_link_code = 'ABC234'; site.discord_link_code_expires = datetime.utcnow() + timedelta(minutes=5)
-        db.session.commit(); SITE = site.id
-    r = c.post('/api/internal/link/verify', json={'code': 'abc234', 'discord_user_id': '5001', 'discord_username': 'ana_d'}, headers=H)
-    with app.app_context():
-        site = db.session.get(User, SITE)
-        check('link succeeds and the site account takes the Discord id', r.status_code == 200 and site.discord_user_id == '5001', r.get_json())
-        check('Discord-only account is gone', db.session.get(User, ANA) is None)
-        check('watchlist + reaction moved over', Watchlist.query.filter_by(user_id=SITE).count() == 1 and Reaction.query.filter_by(user_id=SITE).count() == 1)
-        rs = RSVP.query.filter_by(user_id=SITE, showtime_id=sid).all()
-        check("clashing RSVP: the site account's own one wins", len(rs) == 1 and rs[0].status == 'maybe')
-        check('pending membership upgraded to active', GroupMembership.query.filter_by(user_id=SITE, group_id=1).first().status == 'active')
-        check('profile fields carried over', site.favorite_genres == 'horror,noir' and site.letterboxd_username == 'anad')
-        check('site account keeps its own name', site.name == 'Ana Site')
+        db.session.add(RSVP(user_id=site.id, showtime_id=ana['showtime'], group_id=1, status='maybe'))
+        db.session.add(Reaction(user_id=ana['ana'], showtime_id=ana['showtime'], group_id=1, emoji='🍿'))
+        db.session.commit()
+        site_id = site.id
+    r = client().post('/api/internal/link/verify', json={'code': 'abc234', 'discord_user_id': '5001', 'discord_username': 'ana_d'},
+                      headers=H)
+    return {**ana, 'site': site_id, 'link': r}
 
-    print('--- Sign in with Discord (OAuth) ---')
-    check('providers: off when not configured', c.get('/api/auth/providers').get_json() == {'discord': False})
-    A.DISCORD_CLIENT_ID, A.DISCORD_CLIENT_SECRET = 'cid', 'secret'
-    check('providers: on when configured', c.get('/api/auth/providers').get_json() == {'discord': True})
+
+def test_link_merges_the_discord_only_account(linked):
+    from app import app, db, User, GroupMembership, RSVP, Reaction, Watchlist
+    with app.app_context():
+        site = db.session.get(User, linked['site'])
+        assert linked['link'].status_code == 200 and site.discord_user_id == '5001'
+        assert db.session.get(User, linked['ana']) is None
+        assert Watchlist.query.filter_by(user_id=site.id).count() == 1 and Reaction.query.filter_by(user_id=site.id).count() == 1
+        [r] = RSVP.query.filter_by(user_id=site.id, showtime_id=linked['showtime']).all()
+        assert r.status == 'maybe'                                                  # the site account's own wins
+        assert GroupMembership.query.filter_by(user_id=site.id, group_id=1).first().status == 'active'
+        assert site.favorite_genres == 'horror,noir' and site.letterboxd_username == 'anad' and site.name == 'Ana Site'
+
+
+@pytest.fixture
+def discord_oauth(monkeypatch):
+    """Discord's OAuth endpoints faked; `me` is who Discord says you are."""
+    import app as A
     import requests
-    fake_me = {}
+    me = {}
+
     class Resp:
-        def __init__(self, data): self.data = data
-        def raise_for_status(self): pass
-        def json(self): return self.data
-    requests.post = lambda *a, **k: Resp({'access_token': 'tok'})
-    requests.get = lambda *a, **k: Resp(fake_me)
-    def oauth(client, mode=None):
-        r = client.get('/api/auth/discord/start' + ('?mode=connect' if mode else ''))
-        q = parse_qs(urlparse(r.headers['Location']).query)
-        return client.get('/api/auth/discord/callback', query_string={'code': 'x', 'state': q['state'][0]})
-    br = app.test_client()
-    r = br.get('/api/auth/discord/start'); q = parse_qs(urlparse(r.headers['Location']).query)
-    check('start: redirects to Discord with identify scope + state', r.status_code == 302 and q['scope'] == ['identify'] and q['state'])
-    r = br.get('/api/auth/discord/callback', query_string={'code': 'x', 'state': 'forged'})
-    check('callback with a forged state is rejected', 'discord_error=expired' in r.headers['Location'])
-    fake_me.update(id='6001', username='ben_h', global_name='Ben', avatar='abc')
-    r = oauth(br)
-    me = br.get('/api/auth/me').get_json()['user']
-    check('login: new Discord-only account, signed in', 'discord=signed_in' in r.headers['Location'] and me and me['name'] == 'Ben' and me['discord_only'], me)
+        def __init__(self, data):
+            self.data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.data
+    monkeypatch.setattr(requests, 'post', lambda *a, **k: Resp({'access_token': 'tok'}))
+    monkeypatch.setattr(requests, 'get', lambda *a, **k: Resp(me))
+    monkeypatch.setattr(A, 'DISCORD_CLIENT_ID', 'cid')
+    monkeypatch.setattr(A, 'DISCORD_CLIENT_SECRET', 'secret')
+    return me
+
+
+def sign_in(browser, connect=False):
+    r = browser.get('/api/auth/discord/start' + ('?mode=connect' if connect else ''))
+    state = parse_qs(urlparse(r.headers['Location']).query)['state'][0]
+    return browser.get('/api/auth/discord/callback', query_string={'code': 'x', 'state': state})
+
+
+def test_providers_follow_configuration(monkeypatch):
+    import app as A
+    setup_db()
+    assert client().get('/api/auth/providers').json == {'discord': False}
+    monkeypatch.setattr(A, 'DISCORD_CLIENT_ID', 'cid')
+    monkeypatch.setattr(A, 'DISCORD_CLIENT_SECRET', 'secret')
+    assert client().get('/api/auth/providers').json == {'discord': True}
+
+
+def test_the_oauth_round_trip_is_protected(discord_oauth):
+    setup_db()
+    b = client()
+    r = b.get('/api/auth/discord/start')
+    q = parse_qs(urlparse(r.headers['Location']).query)
+    assert r.status_code == 302 and q['scope'] == ['identify'] and q['state']
+    assert 'discord_error=expired' in b.get('/api/auth/discord/callback', query_string={'code': 'x', 'state': 'forged'}).headers['Location']
+
+
+def test_signing_in_makes_one_account(discord_oauth):
+    from app import app, User, GroupMembership
+    setup_db()
+    discord_oauth.update(id='6001', username='ben_h', global_name='Ben', avatar='abc')
+    b = client()
+    r = sign_in(b)
+    me = b.get('/api/auth/me').json['user']
+    assert 'discord=signed_in' in r.headers['Location'] and me['name'] == 'Ben' and me['discord_only']
     with app.app_context():
-        BEN = User.query.filter_by(discord_user_id='6001').first().id
-        check('…with no group yet (joins the normal way)', GroupMembership.query.filter_by(user_id=BEN).count() == 0)
-    br2 = app.test_client(); oauth(br2)
-    check('login again: same account', br2.get('/api/auth/me').get_json()['user']['id'] == BEN)
-    fake_me.update(id='5001', username='ana_d', global_name='Ana')
-    br3 = app.test_client(); oauth(br3)
-    check('login as a linked member signs into their site account', br3.get('/api/auth/me').get_json()['user']['id'] == SITE)
+        assert GroupMembership.query.filter_by(user_id=me['id']).count() == 0     # joins clubs the normal way
+    again = client()
+    sign_in(again)
+    assert again.get('/api/auth/me').json['user']['id'] == me['id']
+
+
+def test_a_linked_member_signs_into_their_site_account(linked, discord_oauth):
+    discord_oauth.update(id='5001', username='ana_d', global_name='Ana')
+    b = client()
+    sign_in(b)
+    assert b.get('/api/auth/me').json['user']['id'] == linked['site']
+
+
+def test_connecting_discord_to_a_site_account(discord_oauth):
+    from app import app, db, User, Movie, Watchlist
+    setup_db()
+    discord_oauth.update(id='6001', username='ben_h', global_name='Ben')
+    sign_in(client())                                                               # Ben: Discord-only, with a watchlist
     with app.app_context():
-        carl = User(email='carl@test.dev', name='Carl', is_active=True); db.session.add(carl); db.session.commit(); CARL = carl.id
-        db.session.add(Watchlist(user_id=BEN, movie_id=Movie.query.first().id)); db.session.commit()
-    cc = app.test_client()
-    with cc.session_transaction() as s: s['user_id'] = CARL
-    fake_me.update(id='6001', username='ben_h', global_name='Ben')
-    r = oauth(cc, mode='connect')
+        ben = User.query.filter_by(discord_user_id='6001').first().id
+        db.session.add(Watchlist(user_id=ben, movie_id=Movie.query.first().id))
+        carl, dan = User(email='carl@test.dev', name='Carl', is_active=True), User(email='dan@test.dev', name='Dan', is_active=True)
+        db.session.add_all([carl, dan])
+        db.session.commit()
+        carl_id, dan_id = carl.id, dan.id
+    r = sign_in(client(carl_id), connect=True)
     with app.app_context():
-        check('connect: merges the Discord-only account into the site account', 'discord=connected' in r.headers['Location']
-              and db.session.get(User, BEN) is None and db.session.get(User, CARL).discord_user_id == '6001'
-              and Watchlist.query.filter_by(user_id=CARL).count() == 1, r.headers['Location'])
-    dd = app.test_client()
+        assert 'discord=connected' in r.headers['Location'] and db.session.get(User, ben) is None
+        assert db.session.get(User, carl_id).discord_user_id == '6001' and Watchlist.query.filter_by(user_id=carl_id).count() == 1
+    r = sign_in(client(dan_id), connect=True)                                        # already Carl's
     with app.app_context():
-        dan = User(email='dan@test.dev', name='Dan', is_active=True); db.session.add(dan); db.session.commit(); DAN = dan.id
-    with dd.session_transaction() as s: s['user_id'] = DAN
-    r = oauth(dd, mode='connect')
-    with app.app_context():
-        check("connect: refuses a Discord account linked to another site account", 'discord_error=taken' in r.headers['Location']
-              and db.session.get(User, CARL).discord_user_id == '6001' and db.session.get(User, DAN).discord_user_id is None)
-    checks.done()
+        assert 'discord_error=taken' in r.headers['Location']
+        assert db.session.get(User, carl_id).discord_user_id == '6001' and db.session.get(User, dan_id).discord_user_id is None
