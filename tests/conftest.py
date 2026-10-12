@@ -1,9 +1,9 @@
 """Shared test setup.
 
 Every test gets a fresh copy of the base database (fixtures/base.db: an old
-production snapshot, which also exercises the migrations), a private instance
-folder for uploads, and cleared in-memory caches, so tests never depend on
-each other's leftovers. Everything runs in one process: the app is imported
+database with real films and fake accounts, which also exercises the
+migrations), a private instance folder for uploads, and cleared in-memory
+caches, so tests never depend on each other's leftovers. Everything runs in one process: the app is imported
 once, the database file is swapped underneath it.
 """
 import os
@@ -22,7 +22,7 @@ os.environ.update({
     'DATABASE_URL': f'sqlite:///{DB_PATH}', 'INTERNAL_API_TOKEN': 'test-token', 'SECRET_KEY': 'test-secret',
     'GROQ_API_KEY': 'fake', 'GROQ_MODEL': '', 'GROQ_FALLBACK_MODEL': '', 'SMTP_EMAIL': '', 'SMTP_PASSWORD': '',
     'TMDB_API_KEY': '', 'TMDB_API_TOKEN': '', 'OMDB_API_KEY': '', 'DEFAULT_GROUP_ID': '1', 'FRONTEND_URL': 'https://cinemaclubdc.com',
-    'DISCORD_CLIENT_SECRET': '', 'WARM_PUBLIC_CACHE': '0', 'CINEMACLUB_TEST_WORK': WORK,
+    'DISCORD_CLIENT_SECRET': '', 'WARM_PUBLIC_CACHE': '0',
 })
 
 import pytest  # noqa: E402

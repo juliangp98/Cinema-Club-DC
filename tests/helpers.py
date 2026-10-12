@@ -21,23 +21,6 @@ def setup_db():
         db.create_all()
         migrate()
 
-WORK = os.environ['CINEMACLUB_TEST_WORK']        # a scratch folder for the test run
-
-
-class Checks:
-    """Named checks inside one test: every failure is reported, not just the first."""
-    def __init__(self):
-        self.failed, self.count = [], 0
-
-    def check(self, name, cond, detail=''):
-        self.count += 1
-        print(('PASS ' if cond else 'FAIL ') + name + ('' if cond or detail == '' else f'   [{str(detail)[:600]}]'))
-        if not cond:
-            self.failed.append(name + (f'   [{str(detail)[:600]}]' if detail != '' else ''))
-
-    def done(self):
-        assert not self.failed, f'{len(self.failed)} of {self.count} checks failed:\n  ' + '\n  '.join(self.failed)
-
 
 def patch_bot_api():
     """Route the bot's calls to the backend through the Flask test client:
