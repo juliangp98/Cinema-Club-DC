@@ -220,6 +220,71 @@ def _apply_movie_fields(movie, m, enriched):
     movie.last_updated = datetime.datetime.utcnow()
 
 
+def _movie_for(db, Movie, MovieAlias, m, enrich_movie):
+    """The Movie for scraped dict `m` — matched, or made (and enriched) —
+    with the venue's label remembered. Returns (movie, is_new)."""
+    label = m['title'].strip()[:255]
+    movie, enriched, looked_up = _match_movie(Movie, MovieAlias, m, enrich_movie)
+    is_new = movie is None
+    if is_new:
+        # Title a new film by the variant TMDB matched ("THE FLY", not
+        # "Count Gore De Vol presents THE FLY"), else the clean label.
+        title = (enriched or {}).get('matched_query') or parse_movie_title(label)[0]
+        movie = Movie(title=title[:200])
+        db.session.add(movie)
+    if looked_up and not enriched:
+        movie.enrich_attempted_at = datetime.datetime.utcnow()
+    adopt_matched_title(movie, enriched, label)
+    _apply_movie_fields(movie, m, enriched)
+    db.session.flush()
+    if not MovieAlias.query.filter_by(title=label).first():
+        db.session.add(MovieAlias(title=label, movie_id=movie.id))
+    return movie, is_new
+
+
+def sync_announced(cfg, items):
+    """Films the theatre has announced (`announced_for`: a date) whose
+    showtimes aren't up yet: remember them so they can be shown and
+    watchlisted, and tell watchers. Call after the theatre's sync_to_db, so
+    films already on sale are known. Returns how many are newly announced."""
+    from app import app, db, Theatre, Movie, MovieAlias, Showtime, Announcement
+    from enrich import enrich_movie
+    import notify
+    with app.app_context():
+        theatre = Theatre.query.filter_by(slug=cfg.slug).first()
+        if not theatre:
+            return 0
+        now = datetime.datetime.now()
+        on_sale = {mid for (mid,) in db.session.query(Showtime.movie_id).filter(
+            Showtime.theatre_id == theatre.id, Showtime.start_time > now, Showtime.is_cancelled.isnot(True)).distinct()}
+        fresh = []
+        for m in items:
+            day = m.get('announced_for')
+            if not m.get('title') or not day or day < now.date():
+                continue
+            movie = Movie.query.filter_by(tmdb_id=m['tmdb_id']).first() if m.get('tmdb_id') else None
+            if movie is None:
+                movie, _ = _movie_for(db, Movie, MovieAlias, m, enrich_movie)
+            if movie.id in on_sale:
+                continue
+            a = Announcement.query.filter_by(theatre_id=theatre.id, movie_id=movie.id).first()
+            if a is None:
+                a = Announcement(theatre_id=theatre.id, movie_id=movie.id, expected_on=day)
+                db.session.add(a)
+                fresh.append(a)
+            elif a.on_sale_at:
+                if day <= a.expected_on + datetime.timedelta(days=7):
+                    continue                     # this run's post, already on sale
+                a.on_sale_at, a.first_seen_at = None, datetime.datetime.utcnow()   # back again, later
+                fresh.append(a)
+            a.expected_on, a.url, a.last_seen_at = day, (m.get('url') or '')[:500], datetime.datetime.utcnow()
+        db.session.flush()
+        notify.alert_announced(theatre, fresh)
+        db.session.commit()
+        print(f"  {cfg.slug}: {len(fresh)} newly announced")
+        return len(fresh)
+
+
 def sync_to_db(cfg, scraped_movies):
     """Upsert scraped movies + showtimes for one theatre and emit change events.
 
@@ -266,22 +331,8 @@ def sync_to_db(cfg, scraped_movies):
                 continue
 
             label = m['title'].strip()[:255]
-            movie, enriched, looked_up = _match_movie(Movie, MovieAlias, m, enrich_movie)
-            if movie is None:
-                # Title a new film by the variant TMDB matched ("THE FLY", not
-                # "Count Gore De Vol presents THE FLY"), else the clean label.
-                title = (enriched or {}).get('matched_query') or parse_movie_title(label)[0]
-                movie = Movie(title=title[:200])
-                db.session.add(movie)
-                new_movie_count += 1
-            if looked_up and not enriched:
-                movie.enrich_attempted_at = datetime.datetime.utcnow()
-            adopt_matched_title(movie, enriched, label)
-
-            _apply_movie_fields(movie, m, enriched)
-            db.session.flush()
-            if not MovieAlias.query.filter_by(title=label).first():
-                db.session.add(MovieAlias(title=label, movie_id=movie.id))
+            movie, is_new = _movie_for(db, Movie, MovieAlias, m, enrich_movie)
+            new_movie_count += is_new
 
             format_label = extract_format_label(label)
             billing = event_label(label, movie.title)
@@ -354,9 +405,10 @@ def sync_to_db(cfg, scraped_movies):
         run.new_max_date = new_max_date
 
         _emit_events(db, ScrapeEvent, cfg, theatre, run, new_future, prev_max_date, new_max_date)
+        import notify
+        on_sale = notify.alert_on_sale(theatre, new_future)     # announced films whose tickets are up
         if prev_max_date is not None:        # a venue's first-ever scrape isn't "just booked"
-            import notify
-            notify.alert_new_showings(theatre, new_future,
+            notify.alert_new_showings(theatre, [s for s in new_future if s.movie_id not in on_sale],
                                       {s.movie_id for s in prev_future if not s.is_cancelled})
 
         db.session.commit()

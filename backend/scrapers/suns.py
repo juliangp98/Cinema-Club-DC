@@ -1,9 +1,17 @@
 """Suns Cinema — static HTML on sunscinema.com."""
 
 import datetime
+import html
 import re
+from zoneinfo import ZoneInfo
 
-from .base import get_soup, new_movie_dict, parse_ampm_time, make_showtime
+import requests
+from bs4 import BeautifulSoup
+
+from .base import BOT_UA, get_json, get_soup, new_movie_dict, parse_ampm_time, make_showtime
+
+SHOWS_API = 'https://sunscinema.com/wp-json/nj/v1/show'
+ET = ZoneInfo('America/New_York')
 
 
 def scrape_suns():
@@ -99,3 +107,37 @@ def scrape_suns():
 
     print(f"  Found {len(movies)} movies at Suns Cinema")
     return movies
+
+
+def scrape_suns_announced(pages=2):
+    """Films Suns has posted with a date (R8b). Suns posts a film about a week
+    before its showtimes and ticket links appear; sync_announced keeps the
+    ones that aren't on sale yet. Undated posts are skipped (placeholders)."""
+    session = requests.Session()
+    session.headers['User-Agent'] = BOT_UA
+    out = []
+    for page in range(1, pages + 1):             # newest posts first; 100 a page covers months
+        posts = get_json(session, SHOWS_API, params={'per_page': 100, 'page': page}) or []
+        for p in posts:
+            stamp = str(p.get('_start_date') or '')
+            if p.get('status') != 'publish' or not stamp.isdigit():
+                continue
+            m = new_movie_dict()
+            m['title'] = html.unescape(re.sub(r'<[^>]+>', '', (p.get('title') or {}).get('rendered', ''))).strip()
+            m['announced_for'] = datetime.datetime.fromtimestamp(int(stamp), ET).date()
+            m['url'] = p.get('link') or ''
+            m['tmdb_id'] = int(p['_tmdb_id']) if str(p.get('_tmdb_id') or '').isdigit() else None
+            m['release_year'] = (p.get('_release_date') or '')[:4]
+            if str(p.get('_length') or '').isdigit():
+                m['runtime_minutes'] = int(p['_length'])
+            m['director'] = ', '.join(d['name'] for d in p.get('director') or [] if isinstance(d, dict) and d.get('name'))
+            m['starring'] = ', '.join(c['name'] for c in (p.get('cast') or [])[:5] if isinstance(c, dict) and c.get('name'))
+            m['poster_url'] = p.get('featured_media_url') or ''
+            text = BeautifulSoup((p.get('content') or {}).get('rendered', ''), 'html.parser').get_text()
+            m['description'] = re.sub(r'\s+', ' ', text).strip()[:2000]
+            if m['title']:
+                out.append(m)
+        if len(posts) < 100:
+            break
+    print(f"  Found {len(out)} dated film posts at Suns Cinema")
+    return out

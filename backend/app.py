@@ -634,13 +634,30 @@ class Watchlist(db.Model):
     __table_args__ = (db.UniqueConstraint('user_id', 'movie_id'),)
 
 
+class Announcement(db.Model):
+    """A film a theatre has announced, with its date, before the showtimes
+    and tickets are up (R8b: Suns posts films about a week ahead). Marked
+    on sale once its showtimes appear."""
+    id = db.Column(db.Integer, primary_key=True)
+    theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'), nullable=False)
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False, index=True)
+    expected_on = db.Column(db.Date, nullable=False)
+    url = db.Column(db.String(500))
+    first_seen_at = db.Column(db.DateTime, default=lambda: _utcnow_naive())
+    last_seen_at = db.Column(db.DateTime, default=lambda: _utcnow_naive())
+    on_sale_at = db.Column(db.DateTime)
+    theatre = db.relationship('Theatre', lazy=True)
+    movie = db.relationship('Movie', lazy=True)
+    __table_args__ = (db.UniqueConstraint('theatre_id', 'movie_id'),)
+
+
 class Notification(db.Model):
     """A personal alert (R8), e.g. a film on your watchlist got showings. Kept
     for the bell; also sent by Discord DM / email (and push) as your
     notification setting says, bundled per scrape run (see notify.py)."""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    kind = db.Column(db.String(20), nullable=False)       # 'showings' | 'on_sale'
+    kind = db.Column(db.String(20), nullable=False)       # 'showings' | 'announced' | 'on_sale'
     movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'))
     theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'))
     payload_json = db.Column(db.Text)
@@ -2340,6 +2357,7 @@ def film_detail(movie_id):
     on it (want to see / going / seen), and whether this week's screenings
     are rare. Public mode (no ?group_id): every tracked theatre, anonymous
     interest only, no club section."""
+    import discover
     user, group, err = view_scope()
     if err:
         return err
@@ -2378,6 +2396,7 @@ def film_detail(movie_id):
         want, _ = interest_counts([movie_id])
         return jsonify({
             'movie': movie.to_dict(), 'showtimes': showtimes, 'club': None, 'rare': rare,
+            'announced': discover.announced(movie_id=movie_id),
             'interest': {'want': want.get(movie_id)},
             'viewer_wants': bool(user and Watchlist.query.filter_by(user_id=user.id, movie_id=movie_id).first()),
         })
@@ -2391,6 +2410,7 @@ def film_detail(movie_id):
         'club': {'wanters': people(watchers), 'going': people(going), 'seen': people(seen)},
         'viewer_wants': user.id in watchers,
         'rare': rare,
+        'announced': discover.announced(movie_id=movie_id),
     })
 
 

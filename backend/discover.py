@@ -376,7 +376,31 @@ def discover(group, viewer, per_shelf=12, now=None, theatres=None):
     return {'window': {'start': start.isoformat(), 'end': end.isoformat()}, 'shelves': shelves,
             'moods': [{'key': k, 'label': v['label']} for k, v in MOODS.items()],
             'spotlights': spotlights(group, viewer, now, theatres=theatres),
+            'announced': announced(group, theatres, now=now),
             'double_features': double_features(films, per_theatre=8 if theatres else 3)}
+
+
+def announced(group=None, theatres=None, movie_id=None, now=None):
+    """Films announced with a date whose tickets aren't on sale yet (R8b),
+    soonest first — at the club's theatres, or `theatres` (slugs)."""
+    from app import Announcement
+    now = now or datetime.now()
+    q = Announcement.query.filter(Announcement.on_sale_at.is_(None), Announcement.expected_on >= now.date(),
+                                  Announcement.last_seen_at >= datetime.utcnow() - timedelta(days=7))
+    if movie_id:
+        q = q.filter(Announcement.movie_id == movie_id)
+    allowed = theatres or ({s.strip() for s in (group.theatres or '').split(',') if s.strip()} if group else None)
+    out = []
+    for a in q.order_by(Announcement.expected_on).all():
+        if allowed and a.theatre.slug not in allowed:
+            continue
+        y = (a.movie.release_year or '')[:4]
+        out.append({'movie': {'id': a.movie.id, 'title': a.movie.title, 'year': int(y) if y.isdigit() else None,
+                              'poster_url': a.movie.poster_url},
+                    'theatre': {'slug': a.theatre.slug, 'name': a.theatre.name, 'short_name': a.theatre.short_name,
+                                'color': a.theatre.color},
+                    'date': a.expected_on.isoformat(), 'url': a.url})
+    return out
 
 
 def theatre_previews(group, now=None, posters=5):

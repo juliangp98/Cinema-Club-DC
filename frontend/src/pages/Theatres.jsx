@@ -3,7 +3,7 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import Poster from "../ui/Poster";
 import Loading, { LoadError } from "../ui/Loading";
-import { Shelf, DoubleFeatures, Spotlights, LAYOUT } from "./DiscoverPage";
+import { Shelf, DoubleFeatures, Spotlights, Announced, LAYOUT } from "./DiscoverPage";
 import { useJson } from "../api";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
@@ -103,7 +103,8 @@ export function TheatrePage({ apiBase, groupId }) {
   const byKey = Object.fromEntries((d?.shelves || []).map(s => [s.key, s]));
   const sections = [];
   for (const key of LAYOUT) {
-    if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} scope={scope} />);
+    if (key === "@announced" && d?.announced?.length) sections.push(<Announced key={key} items={d.announced} />);
+    else if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} scope={scope} />);
     else if (key === "@spotlights" && d?.spotlights?.length) sections.push(<Spotlights key={key} items={d.spotlights} scope={scope} />);
     else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} scope={scope} />);
   }

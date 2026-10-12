@@ -175,6 +175,20 @@ export default function FilmPage({ user, apiBase, groupId }) {
         )}
 
         <SectionTitle>Showtimes</SectionTitle>
+        {data.announced?.map(a => (
+          <div key={a.theatre.slug} className="film-announced" style={{ "--tcolor": a.theatre.color }}>
+            <div>
+              <strong>Coming to <TheatreLink theatre={a.theatre} /> · {shortDay(`${a.date}T12:00:00`)}</strong>
+              <span> — announced; tickets aren't on sale yet.</span>
+            </div>
+            <div className="film-announced-hint">
+              {!user ? "Sign in and add it to your watchlist to hear the moment tickets go on sale."
+                : watching ? "It's on your watchlist — we'll tell you the moment tickets go on sale."
+                : "Add it to your watchlist and we'll tell you the moment tickets go on sale."}
+              {a.url && <> · <a href={a.url} target="_blank" rel="noreferrer">The theatre's page ↗</a></>}
+            </div>
+          </div>
+        ))}
         {theatres.length > 1 && (
           <div className="film-venues" role="group" aria-label="Where it's playing">
             {venues.map(({ t, count, first, last, formats }) => (
@@ -199,12 +213,12 @@ export default function FilmPage({ user, apiBase, groupId }) {
         })()}
         {picking ? (
           <p className="film-none">Pick a theatre above to see its showtimes.</p>
-        ) : days.length === 0 ? (
+        ) : days.length === 0 ? (data.announced?.length ? null : (
           <p className="film-none">
             {club ? "No upcoming showings at your club's theatres." : "No upcoming showings at the theatres we track."}
-            {user && !watching && " Add it to your watchlist and the weekly digest will tell you when it's back."}
+            {user && !watching && " Add it to your watchlist and we'll tell you when a theatre books it."}
           </p>
-        ) : (
+        )) : (
           <div className="film-days">
             {days.map(list => (
               <div key={list[0].start_time.slice(0, 10)} className="film-day">

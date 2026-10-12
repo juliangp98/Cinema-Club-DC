@@ -134,3 +134,6 @@
 .filter-note { font-size: var(--fs-xs); color: var(--muted); }
 .filter-note a { color: var(--amber); }
 
+
+/* Announced — tickets soon (R8b) */
+.announced-when { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--fs-xs); color: var(--muted); }

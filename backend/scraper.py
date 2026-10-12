@@ -17,7 +17,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from scrapers import THEATRE_REGISTRY, get_config, enabled_configs
-from scrapers.sync import sync_to_db, record_scrape_error
+from scrapers.sync import sync_to_db, sync_announced, record_scrape_error
 
 
 def run(configs):
@@ -40,6 +40,13 @@ def run(configs):
                 record_scrape_error(cfg, e)
             except Exception as db_err:
                 print(f"  (also failed to record error for {cfg.slug}: {db_err})")
+            continue
+
+        if cfg.announced:                  # films announced before tickets (R8b)
+            try:
+                sync_announced(cfg, cfg.announced())
+            except Exception as e:
+                print(f"  ERROR reading {cfg.slug}'s announced films: {e}")
 
 
 def emit_test_event(slug):

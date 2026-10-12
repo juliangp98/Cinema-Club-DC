@@ -16,7 +16,7 @@ import "./DiscoverPage.css";
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
 // non-shelf sections; shelves not listed become "more ways to browse" chips.
-export const LAYOUT = ["friends", "rare", "@doubles", "@spotlights", "classics", "awards", "arthouse",
+export const LAYOUT = ["friends", "rare", "@announced", "@doubles", "@spotlights", "classics", "awards", "arthouse",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -214,6 +214,28 @@ export function DoubleFeatures({ items, scope = "" }) {
   );
 }
 
+// Films a theatre has announced whose tickets aren't on sale yet (R8b).
+export function Announced({ items }) {
+  return (
+    <section className="shelf">
+      <SectionTitle>Announced — tickets soon</SectionTitle>
+      <p className="shelf-blurb">Coming, but not on sale yet. Watchlist one and we'll tell you the moment tickets are.</p>
+      <div className="shelf-row">
+        {items.map(a => (
+          <Link key={`${a.theatre.slug}:${a.movie.id}`} to={`/films/${a.movie.id}`} className="poster-card announced-card">
+            <Poster movie={a.movie} className="poster-card-img" />
+            <span className="poster-card-title">{a.movie.title}</span>
+            <span className="announced-when">
+              <span className="theatre-link-dot" style={{ "--tcolor": a.theatre.color }} aria-hidden="true" />
+              {a.theatre.short_name || a.theatre.name} · {dayLabel(`${a.date}T12:00:00`)}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function SpotlightCard({ sp, scope = "", posters = 4 }) {
   return (
     <Link className="spotlight" to={`/browse?person=${encodeURIComponent(sp.name)}&when=month${scope}`}>
@@ -333,7 +355,8 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
   const byKey = Object.fromEntries((data?.shelves || []).map(s => [s.key, s]));
   const sections = [];
   for (const key of LAYOUT) {
-    if (key === "@doubles" && data?.double_features.length) sections.push(<DoubleFeatures key={key} items={data.double_features} />);
+    if (key === "@announced" && data?.announced?.length) sections.push(<Announced key={key} items={data.announced} />);
+    else if (key === "@doubles" && data?.double_features.length) sections.push(<DoubleFeatures key={key} items={data.double_features} />);
     else if (key === "@spotlights" && data?.spotlights.length) sections.push(<Spotlights key={key} items={data.spotlights} />);
     else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} />);
   }

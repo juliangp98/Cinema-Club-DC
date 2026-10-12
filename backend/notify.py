@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 # Alert types, in the order the settings list them.
 TYPES = {
-    'showings': ('A film on your watchlist gets showings', 'When a theatre books it (not every new time in a run).'),
+    'showings': ('A film on your watchlist is booked or announced', 'When a theatre books or announces it (not every new time in a run).'),
     'on_sale': ('Tickets go on sale', 'For announced films on your watchlist.'),
     'attendance': ('"Did you make it?"', 'After screenings you said you were going to (Discord DM).'),
 }
@@ -106,6 +106,47 @@ def alert_new_showings(theatre, new_future, had_upcoming):
     return made
 
 
+def _watchers(Watchlist, movie_ids, kind):
+    return [w for w in (Watchlist.query.filter(Watchlist.movie_id.in_(movie_ids)).all() if movie_ids else [])
+            if w.user and wants(w.user, kind)]
+
+
+def alert_announced(theatre, announcements):
+    """R8b: a theatre announced films on people's watchlists (tickets later)."""
+    from app import db, Notification, Watchlist
+    by_movie = {a.movie_id: a for a in announcements}
+    for w in _watchers(Watchlist, list(by_movie), 'showings'):
+        a, m = by_movie[w.movie_id], by_movie[w.movie_id].movie
+        _make(db, Notification, w.user, 'announced', w.movie_id, theatre.id, {
+            'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url,
+            'theatre': theatre.name, 'theatre_slug': theatre.slug, 'date': a.expected_on.isoformat()})
+
+
+def alert_on_sale(theatre, new_future):
+    """R8b: announced films at `theatre` whose showtimes just appeared — mark
+    them on sale and tell watchers. Returns those movie ids (they get this
+    alert instead of "is playing")."""
+    from app import db, Announcement, Notification, Watchlist
+    shows = {}
+    for s in new_future:
+        shows.setdefault(s.movie_id, []).append(s)
+    if not shows:
+        return set()
+    opened = Announcement.query.filter(Announcement.theatre_id == theatre.id, Announcement.on_sale_at.is_(None),
+                                       Announcement.movie_id.in_(list(shows))).all()
+    for a in opened:
+        a.on_sale_at = _now()
+    ids = {a.movie_id for a in opened}
+    for w in _watchers(Watchlist, list(ids), 'on_sale'):
+        ss = sorted(shows[w.movie_id], key=lambda s: s.start_time)
+        m = ss[0].movie
+        _make(db, Notification, w.user, 'on_sale', w.movie_id, theatre.id, {
+            'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url,
+            'theatre': theatre.name, 'theatre_slug': theatre.slug,
+            'first': ss[0].start_time.isoformat(), 'count': len(ss)})
+    return ids
+
+
 # ─── Showing them ─────────────────────────────────────────────────────────────
 
 def _when(iso):
@@ -124,8 +165,13 @@ def describe(n):
                 f'+{more} more' if more > 0 else None, ' · '.join(p.get('formats') or []) or None]
         return {'headline': f'{title} is playing', 'detail': ' · '.join(b for b in bits if b), 'link': link}
     if n.kind == 'on_sale':
-        bits = [p.get('theatre'), _when(p['first']) if p.get('first') else None]
+        more = p.get('count', 1) - 1
+        bits = [p.get('theatre'), _when(p['first']) if p.get('first') else None, f'+{more} more' if more > 0 else None]
         return {'headline': f'Tickets on sale: {title}', 'detail': ' · '.join(b for b in bits if b), 'link': link}
+    if n.kind == 'announced':
+        day = datetime.fromisoformat(p['date']).strftime('%a, %b %-d') if p.get('date') else None
+        bits = [p.get('theatre'), day, 'tickets not on sale yet']
+        return {'headline': f'{title} is coming', 'detail': ' · '.join(b for b in bits if b), 'link': link}
     return {'headline': title, 'detail': '', 'link': link}
 
 

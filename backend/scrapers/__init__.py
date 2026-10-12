@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Callable, List
 
-from .suns import scrape_suns
+from .suns import scrape_suns, scrape_suns_announced
 from .afi import scrape_afi
 from .alamo import scrape_alamo
 from .regal import scrape_regal
@@ -37,6 +37,8 @@ class TheatreConfig:
     lon: float = None
     # 'drop_only': announce only schedule drops; 'all': also announce small
     # additions; 'none': never announce.
+    # Films announced (with a date) before their showtimes are up (R8b).
+    announced: Callable[[], list] = None
     announce_mode: str = 'drop_only'
     drop_min_count: int = 10     # new future showtimes in one run = a "drop"
     drop_horizon_days: int = 7   # or calendar horizon extends by more than this
@@ -47,7 +49,7 @@ THEATRE_REGISTRY: List[TheatreConfig] = [
         slug='suns', lat=38.92896, lon=-77.03722, name='Suns Cinema', short_name='SUNS',
         address='3107 Mt Pleasant St NW, Washington, DC 20010',
         website='https://sunscinema.com', color='#e8a838',
-        scrape=scrape_suns,
+        scrape=scrape_suns, announced=scrape_suns_announced,
     ),
     TheatreConfig(
         slug='afi', lat=38.99659, lon=-77.0272, name='AFI Silver Theatre', short_name='AFI',

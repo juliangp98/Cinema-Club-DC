@@ -85,3 +85,11 @@
 .film-venue.on { background: rgba(220, 177, 92, 0.12); border-color: var(--amber); }
 .film-venue-name { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
 .film-venue-meta { color: var(--muted); font-size: var(--fs-xs); }
+
+/* Announced, tickets not on sale yet (R8b) */
+.film-announced {
+  padding: 0.8rem 1rem; margin-bottom: 0.8rem; border-radius: var(--radius); background: var(--bg3);
+  border: 1px solid var(--border); border-left: 3px solid var(--tcolor, var(--amber));
+}
+.film-announced-hint { margin-top: 0.3rem; font-size: var(--fs-sm); color: var(--muted); }
+.film-announced-hint a { color: var(--amber); }
