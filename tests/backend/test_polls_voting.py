@@ -1,122 +1,181 @@
-"""polls_voting"""
-from helpers import H, client, Checks, WORK
+"""Poll voting on the site and in Discord's /vote (same rules), ranked
+ballots, closing, scoring and posting results."""
+import pytest
+
+from helpers import H, all_linked_present, client, setup_db
+
+FEST = {'title': 'Fest picks', 'scoring_mode': 'confidence', 'poll_type': 'prediction', 'announce': 'now',
+        'categories': [{'title': 'Best Picture', 'options': [{'text': 'SIRÂT'}, {'text': 'HAMNET'}, {'text': 'SINNERS'}]},
+                       {'title': 'Best Director', 'options': [{'text': 'Laxe'}, {'text': 'Zhao'}]}]}
 
 
-def test_polls_voting():
-    checks = Checks()
-    check = checks.check
-    import sys, json
-    from app import (app, db, migrate, User, Group, GroupMembership, Poll, PollVote, DiscordPost, render_post, INTERNAL_API_TOKEN)
-    import app as APP
-
-    H = {'X-Internal-Token': INTERNAL_API_TOKEN}
-
+@pytest.fixture
+def club():
+    """Vote Club (the Discord server's club): Ana admin (9901), Bo (9902,
+    Discord-only), Cy (9904); Out (9903) isn't in it."""
+    import app as A
+    from app import app, db, User, Group, GroupMembership
+    setup_db()
     with app.app_context():
-        db.create_all(); migrate()
-        g = Group(name='Vote Club', slug='vote-club', is_public=False); db.session.add(g); db.session.flush()
-        ana = User(email='ana9@test.dev', name='Ana', is_active=True, discord_user_id='9901')   # announcing needs the server
+        g = Group(name='Vote Club', slug='vote-club', is_public=False)
+        db.session.add(g)
+        db.session.flush()
+        ana = User(email='ana9@test.dev', name='Ana', is_active=True, discord_user_id='9901')
         bo = User(email=None, name='Bo', is_active=True, discord_user_id='9902')
         cy = User(email='cy9@test.dev', name='Cy', is_active=True, discord_user_id='9904')
         out = User(email=None, name='Out', is_active=True, discord_user_id='9903')
-        db.session.add_all([ana, bo, cy, out]); db.session.flush()
+        db.session.add_all([ana, bo, cy, out])
+        db.session.flush()
         db.session.add_all([GroupMembership(user_id=ana.id, group_id=g.id, status='active', role='admin'),
                             GroupMembership(user_id=bo.id, group_id=g.id, status='active'),
                             GroupMembership(user_id=cy.id, group_id=g.id, status='active')])
         db.session.commit()
-        G, A, B, C = g.id, ana.id, bo.id, cy.id
-    APP.DISCORD_GROUP_ID = G      # this club plays the Discord server's club (R3d)
+        ids = {'group': g.id, 'ana': ana.id, 'cy': cy.id}
+    A.DISCORD_GROUP_ID = ids['group']
+    all_linked_present()
+    return ids
 
-    def as_user(uid):
-        c = app.test_client()
-        with c.session_transaction() as s: s['user_id'] = uid
-        return c
-    a, cy_site = as_user(A), as_user(C)
-    bot = app.test_client()
-    def who(did, **k): return {'discord_user_id': did, 'create': '0', 'group_id': G, **k}
-    def ballot(pid, did='9902'): return bot.get(f'/api/internal/polls/{pid}/ballot', query_string=who(did), headers=H)
-    def bvote(pid, did='9902', **body): return bot.post(f'/api/internal/polls/{pid}/vote', json={**who(did), **body}, headers=H)
-    def posts(kind, pid):
-        with app.app_context():
-            return [render_post(p) for p in DiscordPost.query.filter_by(kind=kind, ref_id=pid)]
 
-    from helpers import all_linked_present
-    all_linked_present()   # R6a.1: they're all in the club's server
-    print('--- creating ---')
-    r = a.post(f'/api/groups/{G}/polls', json={'title': 'Fest picks', 'scoring_mode': 'confidence', 'poll_type': 'prediction', 'announce': 'now',
-                                              'categories': [{'title': 'Best Picture', 'options': [{'text': 'SIRÂT'}, {'text': 'HAMNET'}, {'text': 'SINNERS'}]},
-                                                             {'title': 'Best Director', 'options': [{'text': 'Laxe'}, {'text': 'Zhao'}]}]})
-    P = r.get_json()['id']; cats = r.get_json()['categories']
-    BP, BD = cats[0]['id'], cats[1]['id']
-    SIRAT, HAMNET, SINNERS = [o['id'] for o in cats[0]['options']]
-    LAXE, ZHAO = [o['id'] for o in cats[1]['options']]
-    opened = posts('poll', P)
-    check('announce now: one #movies announcement queued for its club', len(opened) == 1 and opened[0]['group_id'] == G
-          and opened[0]['categories'] == 2, opened)
+@pytest.fixture
+def fest(club):
+    """Ana's prediction poll (confidence scoring), announced now."""
+    r = client(club['ana']).post(f"/api/groups/{club['group']}/polls", json=FEST).json
+    bp, bd = r['categories']
+    return {**club, 'poll': r['id'], 'bp': bp['id'], 'bd': bd['id'],
+            **dict(zip(('sirat', 'hamnet', 'sinners'), [o['id'] for o in bp['options']])),
+            **dict(zip(('laxe', 'zhao'), [o['id'] for o in bd['options']]))}
 
-    print('--- Discord ballot ---')
-    b = ballot(P).get_json()
-    check('ballot: categories, nominees, nothing answered', b['answered'] == 0 and [c['title'] for c in b['categories']] == ['Best Picture', 'Best Director']
-          and [o['text'] for o in b['categories'][0]['options']] == ['SIRÂT', 'HAMNET', 'SINNERS'], b)
-    check('no vote split before you pick', all('split' not in c for c in b['categories']))
-    b = bvote(P, votes=[{'category_id': BP, 'option_id': SIRAT, 'confidence': 7}]).get_json()
+
+def who(club, did):
+    return {'discord_user_id': did, 'create': '0', 'group_id': club['group']}
+
+
+def ballot(club, pid, did='9902'):
+    return client().get(f'/api/internal/polls/{pid}/ballot', query_string=who(club, did), headers=H)
+
+
+def discord_vote(club, pid, did='9902', **body):
+    return client().post(f'/api/internal/polls/{pid}/vote', json={**who(club, did), **body}, headers=H)
+
+
+def posts(kind, pid):
+    from app import app, DiscordPost, render_post
+    with app.app_context():
+        return [render_post(p) for p in DiscordPost.query.filter_by(kind=kind, ref_id=pid)]
+
+
+def test_announce_now_queues_one_announcement(fest):
+    [post] = posts('poll', fest['poll'])
+    assert post['group_id'] == fest['group'] and post['categories'] == 2
+
+
+def test_a_fresh_ballot(fest):
+    b = ballot(fest, fest['poll']).json
+    assert b['answered'] == 0 and [c['title'] for c in b['categories']] == ['Best Picture', 'Best Director']
+    assert [o['text'] for o in b['categories'][0]['options']] == ['SIRÂT', 'HAMNET', 'SINNERS']
+    assert all('split' not in c for c in b['categories'])                        # no split before you pick
+
+
+def test_a_pick_saves_and_reveals_that_categorys_split(fest):
+    b = discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['sirat'], 'confidence': 7}]).json
     bp = b['categories'][0]
-    check('a pick saves and returns the refreshed ballot', b['answered'] == 1 and bp['picks'] == [{'option_id': SIRAT, 'confidence': 7, 'rank': None}], bp)
-    check('…with the split now visible for that category only', bp['split'] == {str(SIRAT): 1} and bp['voters'] == 1 and 'split' not in b['categories'][1])
-    b = bvote(P, votes=[{'category_id': BP, 'option_id': HAMNET, 'confidence': 99}]).get_json()
-    check('changing a pick replaces it; confidence clamps to 10', b['categories'][0]['picks'] == [{'option_id': HAMNET, 'confidence': 10, 'rank': None}])
-    b = bvote(P, votes=[{'category_id': BP, 'option_id': LAXE}, {'category_id': 99999, 'option_id': SIRAT}]).get_json()
-    check("nominees from another category / unknown categories are ignored", b['categories'][0]['picks'][0]['option_id'] == HAMNET)
-    check('not in the group -> not_member', ballot(P, '9903').status_code == 403 and 'not_member' in ballot(P, '9903').get_data(as_text=True))
-    check('no account (and not in the server) -> no_account', ballot(P, '9999').status_code == 404 and 'no_account' in ballot(P, '9999').get_data(as_text=True))
-    check('unknown poll -> 404', ballot(99999).status_code == 404)
+    assert b['answered'] == 1 and bp['picks'] == [{'option_id': fest['sirat'], 'confidence': 7, 'rank': None}]
+    assert bp['split'] == {str(fest['sirat']): 1} and bp['voters'] == 1 and 'split' not in b['categories'][1]
 
-    print('--- site, same rules ---')
-    r = cy_site.post(f'/api/polls/{P}/vote', json={'votes': [{'category_id': BP, 'option_id': SIRAT, 'confidence': 'abc'}]})
-    check('junk confidence no longer crashes the site route (defaults to 1)', r.status_code == 200 and r.get_json()['count'] == 1, r.status_code)
-    cy_site.post(f'/api/polls/{P}/vote', json={'votes': [{'category_id': BD, 'option_id': ZHAO, 'confidence': 3}]})
-    site = cy_site.get(f'/api/polls/{P}').get_json()
-    check("site: split shown where you've picked", site['categories'][0].get('vote_distribution') == {SIRAT: 1, HAMNET: 1}
-          or site['categories'][0].get('vote_distribution') == {str(SIRAT): 1, str(HAMNET): 1}, site['categories'][0].get('vote_distribution'))
-    fresh = a.get(f'/api/polls/{P}').get_json()
-    check("site: hidden from someone who hasn't picked yet", all('vote_distribution' not in c for c in fresh['categories']))
-    check('Discord sees site votes in the split', ballot(P).get_json()['categories'][0]['voters'] == 2)
 
-    print('--- ranked ---')
-    r = a.post(f'/api/groups/{G}/polls', json={'title': 'Top 3', 'scoring_mode': 'ranked',
-                                              'categories': [{'title': 'Year best', 'options': [{'text': t} for t in 'ABCDE']}]})
-    R = r.get_json()['id']; RC = r.get_json()['categories'][0]; RO = [o['id'] for o in RC['options']]
-    b = bvote(R, votes=[{'category_id': RC['id'], 'option_id': RO[0], 'rank': 1}, {'category_id': RC['id'], 'option_id': RO[0], 'rank': 2},
-                        {'category_id': RC['id'], 'option_id': RO[1], 'rank': 1}, {'category_id': RC['id'], 'option_id': RO[2], 'rank': 4},
-                        {'category_id': RC['id'], 'option_id': RO[3], 'rank': 2}]).get_json()
-    check('ranked: duplicates and ranks outside 1–3 are dropped', [(p['option_id'], p['rank']) for p in b['categories'][0]['picks']] == [(RO[0], 1), (RO[3], 2)], b['categories'][0]['picks'])
-    b = bvote(R, clear=[RC['id']]).get_json()
-    check('ranked: clearing empties the category', b['categories'][0]['picks'] == [] and b['answered'] == 0)
-    a.post(f'/api/polls/{R}/vote', json={'votes': [{'category_id': RC['id'], 'option_id': RO[4], 'rank': 1}]})
-    a.post(f'/api/polls/{R}/vote', json={'votes': [], 'clear': [RC['id']]})
-    check('site: removing your last ranked pick now actually clears it', 'user_votes' not in a.get(f'/api/polls/{R}').get_json()['categories'][0])
+def test_changing_a_pick_and_ignoring_junk(fest):
+    discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['sirat'], 'confidence': 7}])
+    b = discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['hamnet'], 'confidence': 99}]).json
+    assert b['categories'][0]['picks'] == [{'option_id': fest['hamnet'], 'confidence': 10, 'rank': None}]   # replaced; clamped to 10
+    b = discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['laxe']},
+                                                {'category_id': 99999, 'option_id': fest['sirat']}]).json
+    assert b['categories'][0]['picks'][0]['option_id'] == fest['hamnet']          # another category's nominee: ignored
 
-    print('--- closing, scoring ---')
-    a.put(f'/api/polls/{P}', json={'status': 'closed'})
-    r = bvote(P, votes=[{'category_id': BD, 'option_id': LAXE, 'confidence': 2}])
-    check('closed poll: Discord vote refused with the read-only ballot', r.status_code == 409 and r.get_json()['error'] == 'poll_closed'
-          and r.get_json()['poll']['status'] == 'closed')
-    check('closed poll: split visible even where you never picked', 'split' in ballot(P).get_json()['categories'][1])
-    check('closed poll: site vote refused', cy_site.post(f'/api/polls/{P}/vote', json={'votes': [{'category_id': BD, 'option_id': LAXE}]}).status_code == 400)
-    lst = bot.get('/api/internal/polls', query_string={'group_id': G, 'include_closed': 1}, headers=H).get_json()
-    check('/vote picker: open polls first, then recently closed', [p['id'] for p in lst] == [R, P], [p['id'] for p in lst])
-    check('/polls still lists only open ones', [p['id'] for p in bot.get('/api/internal/polls', query_string={'group_id': G}, headers=H).get_json()] == [R])
-    a.post(f'/api/polls/{P}/score', json={'winners': {str(BP): SIRAT, str(BD): ZHAO}, 'post_results': True})
-    b = ballot(P).get_json()
-    check('scored: winners shown, kernels per category (wrong confidence pick loses its 10)',
-          b['categories'][0]['correct_option_id'] == SIRAT and b['categories'][0]['kernels'] == -10 and 'kernels' not in b['categories'][1], b['categories'])
-    check("scored: Bo's total and place", b['score'] == {'kernels': -10, 'correct': 0, 'place': 2, 'of': 2}, b['score'])
-    scored = posts('poll_results', P)
-    check('posting results: one post with the top 3 (names only, no pings)', len(scored) == 1 and [t['name'] for t in scored[0]['top']] == ['Cy', 'Bo']
-          and scored[0]['top'][0]['kernels'] == 4 and 'discord_user_id' not in scored[0]['top'][0], scored)
-    a.post(f'/api/polls/{P}/score', json={'winners': {str(BP): SIRAT, str(BD): ZHAO}})
-    check('re-scoring (a correction) does not post again', len(posts('poll_results', P)) == 1)
-    lb = a.get(f'/api/polls/{P}/leaderboard').get_json()
-    check('poll leaderboard: same shape as before', [(x['user']['name'], x['kernels'], x['correct'], x['total']) for x in lb] == [('Cy', 4, 2, 2), ('Bo', -10, 0, 1)], lb)
-    k = a.get(f'/api/users/{C}/kernels', query_string={'group_id': G}).get_json()
-    check('overall kernels agree with the poll leaderboard', k.get('kernels', k.get('total')) == 4, k)
-    checks.done()
+
+def test_ballot_refusals(fest):
+    r = ballot(fest, fest['poll'], '9903')
+    assert r.status_code == 403 and 'not_member' in r.get_data(as_text=True)
+    r = ballot(fest, fest['poll'], '9999')
+    assert r.status_code == 404 and 'no_account' in r.get_data(as_text=True)
+    assert ballot(fest, 99999).status_code == 404
+
+
+def test_site_votes_follow_the_same_rules(fest):
+    cy = client(fest['cy'])
+    discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['hamnet'], 'confidence': 10}])
+    r = cy.post(f"/api/polls/{fest['poll']}/vote", json={'votes': [{'category_id': fest['bp'], 'option_id': fest['sirat'], 'confidence': 'abc'}]})
+    assert r.status_code == 200 and r.json['count'] == 1                         # junk confidence: defaults to 1
+    split = cy.get(f"/api/polls/{fest['poll']}").json['categories'][0].get('vote_distribution')
+    assert {str(k): v for k, v in split.items()} == {str(fest['sirat']): 1, str(fest['hamnet']): 1}
+    assert all('vote_distribution' not in c for c in client(fest['ana']).get(f"/api/polls/{fest['poll']}").json['categories'])
+    assert ballot(fest, fest['poll']).json['categories'][0]['voters'] == 2         # Discord sees site votes
+
+
+def test_ranked_ballots(club):
+    a = client(club['ana'])
+    r = a.post(f"/api/groups/{club['group']}/polls", json={'title': 'Top 3', 'scoring_mode': 'ranked',
+                                                          'categories': [{'title': 'Year best', 'options': [{'text': t} for t in 'ABCDE']}]}).json
+    pid, cat = r['id'], r['categories'][0]
+    o = [x['id'] for x in cat['options']]
+    pick = lambda opt, rank: {'category_id': cat['id'], 'option_id': o[opt], 'rank': rank}
+    b = discord_vote(club, pid, votes=[pick(0, 1), pick(0, 2), pick(1, 1), pick(2, 4), pick(3, 2)]).json
+    assert [(p['option_id'], p['rank']) for p in b['categories'][0]['picks']] == [(o[0], 1), (o[3], 2)]   # dupes, ranks > 3 dropped
+    b = discord_vote(club, pid, clear=[cat['id']]).json
+    assert b['categories'][0]['picks'] == [] and b['answered'] == 0
+    a.post(f'/api/polls/{pid}/vote', json={'votes': [pick(4, 1)]})
+    a.post(f'/api/polls/{pid}/vote', json={'votes': [], 'clear': [cat['id']]})
+    assert 'user_votes' not in a.get(f'/api/polls/{pid}').json['categories'][0]     # site: clearing really clears
+
+
+def test_a_closed_poll(fest):
+    a = client(fest['ana'])
+    ranked = a.post(f"/api/groups/{fest['group']}/polls", json={'title': 'Top 3', 'scoring_mode': 'ranked',
+                    'categories': [{'title': 'Y', 'options': [{'text': t} for t in 'AB']}]}).json['id']
+    a.put(f"/api/polls/{fest['poll']}", json={'status': 'closed'})
+    r = discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bd'], 'option_id': fest['laxe'], 'confidence': 2}])
+    assert r.status_code == 409 and r.json['error'] == 'poll_closed' and r.json['poll']['status'] == 'closed'
+    assert 'split' in ballot(fest, fest['poll']).json['categories'][1]              # visible now, even unpicked
+    assert client(fest['cy']).post(f"/api/polls/{fest['poll']}/vote",
+                                   json={'votes': [{'category_id': fest['bd'], 'option_id': fest['laxe']}]}).status_code == 400
+    listed = lambda **q: [p['id'] for p in client().get('/api/internal/polls', query_string={'group_id': fest['group'], **q}, headers=H).json]
+    assert listed(include_closed=1) == [ranked, fest['poll']]                       # /vote: open first, then recently closed
+    assert listed() == [ranked]                                                     # /polls: open only
+
+
+@pytest.fixture
+def scored(fest):
+    """Bo bet 10 on HAMNET (wrong); Cy picked SIRÂT (1) and Zhao (3), both
+    right. Closed and scored, results posted."""
+    discord_vote(fest, fest['poll'], votes=[{'category_id': fest['bp'], 'option_id': fest['hamnet'], 'confidence': 10}])
+    cy = client(fest['cy'])
+    cy.post(f"/api/polls/{fest['poll']}/vote", json={'votes': [{'category_id': fest['bp'], 'option_id': fest['sirat'], 'confidence': 1}]})
+    cy.post(f"/api/polls/{fest['poll']}/vote", json={'votes': [{'category_id': fest['bd'], 'option_id': fest['zhao'], 'confidence': 3}]})
+    a = client(fest['ana'])
+    a.put(f"/api/polls/{fest['poll']}", json={'status': 'closed'})
+    a.post(f"/api/polls/{fest['poll']}/score", json={'winners': {str(fest['bp']): fest['sirat'], str(fest['bd']): fest['zhao']},
+                                                     'post_results': True})
+    return fest
+
+
+def test_scored_ballots_show_winners_and_kernels(scored):
+    b = ballot(scored, scored['poll']).json
+    assert b['categories'][0]['correct_option_id'] == scored['sirat']
+    assert b['categories'][0]['kernels'] == -10 and 'kernels' not in b['categories'][1]    # a wrong 10 loses 10
+    assert b['score'] == {'kernels': -10, 'correct': 0, 'place': 2, 'of': 2}
+
+
+def test_results_are_posted_once_without_pings(scored):
+    [post] = posts('poll_results', scored['poll'])
+    assert [t['name'] for t in post['top']] == ['Cy', 'Bo'] and post['top'][0]['kernels'] == 4
+    assert 'discord_user_id' not in post['top'][0]
+    client(scored['ana']).post(f"/api/polls/{scored['poll']}/score",
+                               json={'winners': {str(scored['bp']): scored['sirat'], str(scored['bd']): scored['zhao']}})
+    assert len(posts('poll_results', scored['poll'])) == 1                       # a correction doesn't post again
+
+
+def test_leaderboards_agree(scored):
+    a = client(scored['ana'])
+    lb = a.get(f"/api/polls/{scored['poll']}/leaderboard").json
+    assert [(x['user']['name'], x['kernels'], x['correct'], x['total']) for x in lb] == [('Cy', 4, 2, 2), ('Bo', -10, 0, 1)]
+    k = a.get(f"/api/users/{scored['cy']}/kernels", query_string={'group_id': scored['group']}).json
+    assert k.get('kernels', k.get('total')) == 4

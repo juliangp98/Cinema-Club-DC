@@ -1,123 +1,159 @@
-"""attendance_history"""
-from helpers import H, client, Checks, WORK
+"""'Did you make it?' — the site card, the Discord DMs (opt-in), watch
+history, the leaderboard's attendance, and account merges."""
+from datetime import datetime, timedelta
+
+import pytest
+
+from helpers import H, all_linked_present, client, setup_db
 
 
-def test_attendance_history():
-    checks = Checks()
-    check = checks.check
-    import sys
-    from datetime import datetime, timedelta
-    from app import (app, db, migrate, User, Group, GroupMembership, RSVP, Showtime, Movie, Theatre,
-                     Attendance, INTERNAL_API_TOKEN)
-
-    H = {'X-Internal-Token': INTERNAL_API_TOKEN}
-
+@pytest.fixture
+def ana():
+    """Ana (Discord 6601) is going to SIRÂT at AFI: yesterday, an hour ago,
+    10 days ago, tomorrow, and 2 days ago. Bo shares the club; Eve doesn't."""
+    from app import app, db, User, GroupMembership, RSVP, Showtime, Movie, Theatre
+    setup_db()
     with app.app_context():
-        db.create_all(); migrate()
         now = datetime.now()
         movie, theatre = Movie.query.filter_by(title='SIRÂT').first(), Theatre.query.filter_by(slug='afi').first()
+
         def mk(start):
             s = Showtime(movie_id=movie.id, theatre_id=theatre.id, start_time=start, end_time=start + timedelta(hours=2))
-            db.session.add(s); db.session.flush(); return s.id
-        YESTERDAY, JUST_STARTED, OLD, FUTURE, YESTERDAY2 = (mk(now - timedelta(days=1)), mk(now - timedelta(hours=1)),
-            mk(now - timedelta(days=10)), mk(now + timedelta(days=1)), mk(now - timedelta(days=2)))
-        ana = User(email='ana6@test.dev', name='Ana', is_active=True, discord_user_id='6601')
+            db.session.add(s)
+            db.session.flush()
+            return s.id
+        ids = {'yesterday': mk(now - timedelta(days=1)), 'just_started': mk(now - timedelta(hours=1)),
+               'old': mk(now - timedelta(days=10)), 'future': mk(now + timedelta(days=1)), 'yesterday2': mk(now - timedelta(days=2))}
+        a = User(email='ana6@test.dev', name='Ana', is_active=True, discord_user_id='6601')
         bo = User(email='bo6@test.dev', name='Bo', is_active=True)
-        eve = User(email='eve6@test.dev', name='Eve', is_active=True)   # shares no group
-        db.session.add_all([ana, bo, eve]); db.session.flush()
-        db.session.add_all([GroupMembership(user_id=ana.id, group_id=1, status='active'),
+        eve = User(email='eve6@test.dev', name='Eve', is_active=True)
+        db.session.add_all([a, bo, eve])
+        db.session.flush()
+        db.session.add_all([GroupMembership(user_id=a.id, group_id=1, status='active'),
                             GroupMembership(user_id=bo.id, group_id=1, status='active')])
-        for sid in (YESTERDAY, JUST_STARTED, OLD, FUTURE, YESTERDAY2):
-            db.session.add(RSVP(user_id=ana.id, showtime_id=sid, group_id=1, status='going'))
+        for sid in ids.values():
+            db.session.add(RSVP(user_id=a.id, showtime_id=sid, group_id=1, status='going'))
         db.session.commit()
-        ANA, BO, EVE = ana.id, bo.id, eve.id
-        MID, TID = movie.id, theatre.id
+        ids.update(ana=a.id, bo=bo.id, eve=eve.id, movie=movie.id, theatre=theatre.id)
+    all_linked_present()
+    return ids
 
-    def as_user(uid):
-        c = app.test_client()
-        with c.session_transaction() as s: s['user_id'] = uid
-        return c
-    a, b, e = as_user(ANA), as_user(BO), as_user(EVE)
 
-    from helpers import all_linked_present
-    all_linked_present()   # R6a.1: they're all in the club's server
-    print('--- who gets asked ---')
-    pending = [p['showtime_id'] for p in a.get('/api/attendance/pending').get_json()]
-    check('asks only about screenings over 2h+ ago within the past week', pending == [YESTERDAY2, YESTERDAY], pending)
-    check('nobody else is asked about Ana\'s RSVPs', b.get('/api/attendance/pending').get_json() == [])
+@pytest.fixture
+def answered(ana):
+    """Ana went yesterday and missed the day before; Bo went to the old one
+    without an RSVP."""
+    client(ana['ana']).post('/api/attendance', json={'showtime_id': ana['yesterday'], 'status': 'went'})
+    client(ana['ana']).post('/api/attendance', json={'showtime_id': ana['yesterday2'], 'status': 'missed'})
+    client(ana['bo']).post('/api/attendance', json={'showtime_id': ana['old'], 'status': 'went'})
+    return ana
 
-    print('--- answering on the site ---')
-    r = a.post('/api/attendance', json={'showtime_id': YESTERDAY, 'status': 'went'})
-    check('mark "went"', r.status_code == 200)
-    check('…drops it from the prompt list', [p['showtime_id'] for p in a.get('/api/attendance/pending').get_json()] == [YESTERDAY2])
-    st = a.get(f'/api/showtimes/{YESTERDAY}?group_id=1').get_json()
-    check('drawer data carries your answer', st['user_attendance'] == 'went')
-    month = a.get('/api/showtimes', query_string={'group_id': 1, 'start': (datetime.now() - timedelta(days=3)).isoformat(),
-                                                  'end': datetime.now().isoformat()}).get_json()
-    check('calendar data carries it too (one query)', {s['id']: s['user_attendance'] for s in month}.get(YESTERDAY) == 'went')
-    check("can't mark a screening that hasn't happened", a.post('/api/attendance', json={'showtime_id': FUTURE, 'status': 'went'}).status_code == 400)
-    check('bad status rejected', a.post('/api/attendance', json={'showtime_id': YESTERDAY, 'status': 'maybe'}).status_code == 400)
-    a.post('/api/attendance', json={'showtime_id': YESTERDAY2, 'status': 'missed'})
-    r = b.post('/api/attendance', json={'showtime_id': OLD, 'status': 'went'})
-    check('log a screening you never RSVP\'d to', r.status_code == 200)
 
-    print('--- watch history ---')
-    own = a.get(f'/api/users/{ANA}/history').get_json()
+def pending(uid):
+    return [p['showtime_id'] for p in client(uid).get('/api/attendance/pending').json]
+
+
+def test_who_gets_asked(ana):
+    assert pending(ana['ana']) == [ana['yesterday2'], ana['yesterday']]            # ended 2h+ ago, within the week
+    assert pending(ana['bo']) == []
+
+
+def test_answering_on_the_site(ana):
+    a = client(ana['ana'])
+    assert a.post('/api/attendance', json={'showtime_id': ana['yesterday'], 'status': 'went'}).status_code == 200
+    assert pending(ana['ana']) == [ana['yesterday2']]
+    assert a.get(f"/api/showtimes/{ana['yesterday']}?group_id=1").json['user_attendance'] == 'went'
+    week = a.get('/api/showtimes', query_string={'group_id': 1, 'start': (datetime.now() - timedelta(days=3)).isoformat(),
+                                                 'end': datetime.now().isoformat()}).json
+    assert {s['id']: s['user_attendance'] for s in week}.get(ana['yesterday']) == 'went'      # the calendar too
+    assert a.post('/api/attendance', json={'showtime_id': ana['future'], 'status': 'went'}).status_code == 400
+    assert a.post('/api/attendance', json={'showtime_id': ana['yesterday'], 'status': 'maybe'}).status_code == 400
+    assert client(ana['bo']).post('/api/attendance', json={'showtime_id': ana['old'], 'status': 'went'}).status_code == 200   # no RSVP needed
+
+
+def test_watch_history(answered):
+    own = client(answered['ana']).get(f"/api/users/{answered['ana']}/history").json
     by_id = {i['showtime_id']: i['status'] for i in own['items']}
-    check('own history: confirmed, unanswered RSVPs, and missed (to fix it)', own['own'] and by_id.get(YESTERDAY) == 'went'
-          and by_id.get(OLD) == 'going' and by_id.get(YESTERDAY2) == 'missed' and FUTURE not in by_id, by_id)
-    theirs = b.get(f'/api/users/{ANA}/history').get_json()
-    check("someone else's view: only what she saw (no 'missed')", not theirs['own']
-          and {i['showtime_id'] for i in theirs['items']} == {YESTERDAY, OLD, JUST_STARTED}, theirs)
-    check('history needs a shared group', e.get(f'/api/users/{ANA}/history').status_code == 403)
-    own = a.get(f'/api/users/{ANA}/history').get_json()
-    check('newest first', [i['start_time'] for i in own['items']] == sorted([i['start_time'] for i in own['items']], reverse=True))
+    assert own['own'] and by_id[answered['yesterday']] == 'went' and by_id[answered['old']] == 'going'
+    assert by_id[answered['yesterday2']] == 'missed' and answered['future'] not in by_id
+    assert [i['start_time'] for i in own['items']] == sorted([i['start_time'] for i in own['items']], reverse=True)
+    theirs = client(answered['bo']).get(f"/api/users/{answered['ana']}/history").json
+    assert not theirs['own']
+    assert {i['showtime_id'] for i in theirs['items']} == {answered['yesterday'], answered['old'], answered['just_started']}   # no "missed"
+    assert client(answered['eve']).get(f"/api/users/{answered['ana']}/history").status_code == 403
 
-    print('--- leaderboard ---')
-    board = {r['user']['id']: r['attendance'] for r in a.get('/api/groups/1/leaderboard').get_json()}
-    check('attended = went + unanswered going − missed', board[ANA] == 3, board[ANA])   # YESTERDAY(went) + JUST_STARTED + OLD (going); YESTERDAY2 missed
-    check('…and confirmed visits count without an RSVP', board[BO] == 1, board[BO])
 
-    print('--- Discord prompts ---')
-    with app.app_context():
-        db.session.add(Attendance.query.filter_by(user_id=ANA, showtime_id=YESTERDAY2).first())
-        Attendance.query.filter_by(user_id=ANA).delete(); db.session.commit()       # start fresh
-    c = app.test_client()
-    asked = lambda: [p['discord_user_id'] for p in c.get('/api/internal/attendance/prompts', headers=H).get_json()]
-    check('"Did you make it?" DMs are opt-in: not asked before saying yes', '6601' not in asked())
-    client(ANA).put('/api/me/notifications', json={'types': {'attendance': True}})
-    prompts = c.get('/api/internal/attendance/prompts', headers=H).get_json()
-    mine = next((p for p in prompts if p['discord_user_id'] == '6601'), None)
-    check('Discord member with unanswered screenings is listed', mine and [s['showtime_id'] for s in mine['screenings']] == [YESTERDAY2, YESTERDAY], prompts)
-    check('site-only members are not (they get the site card)', all(p['discord_user_id'] for p in prompts))
-    c.post('/api/internal/attendance/prompted', json={'discord_user_id': '6601', 'showtime_ids': [YESTERDAY2, YESTERDAY]}, headers=H)
-    check('once asked, not asked again', not any(p['discord_user_id'] == '6601' for p in c.get('/api/internal/attendance/prompts', headers=H).get_json()))
-    check('…but still on the site card until answered', len(a.get('/api/attendance/pending').get_json()) == 2)
-    with app.app_context():
-        late = Showtime(movie_id=MID, theatre_id=TID, start_time=datetime.now() - timedelta(hours=5),
-                        end_time=datetime.now() - timedelta(hours=3)); db.session.add(late); db.session.flush()
-        db.session.add(RSVP(user_id=ANA, showtime_id=late.id, group_id=1, status='going')); db.session.commit(); LATE = late.id
-    check('a new screening within 20h of the last DM waits (daily cap)',
-          not any(p['discord_user_id'] == '6601' for p in c.get('/api/internal/attendance/prompts', headers=H).get_json()))
-    r = c.post('/api/internal/attendance', json={'discord_user_id': '6601', 'create': '0', 'showtime_id': YESTERDAY, 'status': 'went'}, headers=H)
-    check('button press from a DM records it', r.status_code == 200 and r.get_json()['status'] == 'went' and r.get_json()['title'] == 'SIRÂT')
-    a.post('/api/attendance', json={'showtime_id': YESTERDAY, 'status': None})
-    with app.app_context():
-        row = Attendance.query.filter_by(user_id=ANA, showtime_id=YESTERDAY).first()
-        check('clearing an answer keeps the "already asked" marker', row and row.status is None and row.prompted_at)
-    a.post('/api/attendance', json={'showtime_id': LATE, 'status': 'went'}); a.post('/api/attendance', json={'showtime_id': LATE, 'status': None})
-    with app.app_context():
-        check('clearing one never asked removes it entirely', Attendance.query.filter_by(user_id=ANA, showtime_id=LATE).first() is None)
-    h = c.get('/api/internal/history', query_string={'member_discord_id': '6601', 'group_id': 1}, headers=H).get_json()
-    check('/history data: name + what they saw', h['name'] == 'Ana' and all(i['status'] in ('went', 'going') for i in h['items']))
+def test_the_leaderboard_counts_attendance(answered):
+    board = {r['user']['id']: r['attendance'] for r in client(answered['ana']).get('/api/groups/1/leaderboard').json}
+    assert board[answered['ana']] == 3          # went + unanswered going − missed
+    assert board[answered['bo']] == 1           # a confirmed visit counts without an RSVP
 
-    print('--- account merge ---')
+
+def dm_prompts():
+    return client().get('/api/internal/attendance/prompts', headers=H).json
+
+
+def test_discord_dms_are_opt_in_and_once(ana):
+    assert '6601' not in [p['discord_user_id'] for p in dm_prompts()]
+    client(ana['ana']).put('/api/me/notifications', json={'types': {'attendance': True}})
+    prompts = dm_prompts()
+    mine = next(p for p in prompts if p['discord_user_id'] == '6601')
+    assert [s['showtime_id'] for s in mine['screenings']] == [ana['yesterday2'], ana['yesterday']]
+    assert all(p['discord_user_id'] for p in prompts)                              # site-only members get the site card
+    client().post('/api/internal/attendance/prompted', json={'discord_user_id': '6601',
+                                                             'showtime_ids': [ana['yesterday2'], ana['yesterday']]}, headers=H)
+    assert not any(p['discord_user_id'] == '6601' for p in dm_prompts())           # not asked again
+    assert len(pending(ana['ana'])) == 2                                           # still on the site card
+
+
+def test_one_dm_a_day_at_most(ana):
+    from app import app, db, RSVP, Showtime
+    client(ana['ana']).put('/api/me/notifications', json={'types': {'attendance': True}})
+    client().post('/api/internal/attendance/prompted', json={'discord_user_id': '6601', 'showtime_ids': [ana['yesterday']]}, headers=H)
     with app.app_context():
-        d = User(discord_user_id='6602', name='Dee', is_active=True); db.session.add(d); db.session.flush()
-        db.session.add(Attendance(user_id=d.id, showtime_id=OLD, status='went', source='discord'))
-        s = User(email='dee@test.dev', name='Dee Site', is_active=True, discord_link_code='DEE234',
-                 discord_link_code_expires=datetime.utcnow() + timedelta(minutes=5)); db.session.add(s); db.session.commit(); SITE = s.id
-    c.post('/api/internal/link/verify', json={'code': 'DEE234', 'discord_user_id': '6602'}, headers=H)
+        late = Showtime(movie_id=ana['movie'], theatre_id=ana['theatre'], start_time=datetime.now() - timedelta(hours=5),
+                        end_time=datetime.now() - timedelta(hours=3))
+        db.session.add(late)
+        db.session.flush()
+        db.session.add(RSVP(user_id=ana['ana'], showtime_id=late.id, group_id=1, status='going'))
+        db.session.commit()
+    assert not any(p['discord_user_id'] == '6601' for p in dm_prompts())           # within 20h of the last DM: waits
+
+
+def test_answering_from_discord_and_clearing(ana):
+    from app import app, db, Attendance, RSVP, Showtime
+    client().post('/api/internal/attendance/prompted', json={'discord_user_id': '6601', 'showtime_ids': [ana['yesterday']]}, headers=H)
+    r = client().post('/api/internal/attendance', json={'discord_user_id': '6601', 'create': '0', 'showtime_id': ana['yesterday'],
+                                                        'status': 'went'}, headers=H)
+    assert r.status_code == 200 and r.json['status'] == 'went' and r.json['title'] == 'SIRÂT'      # a DM button press
+    a = client(ana['ana'])
+    a.post('/api/attendance', json={'showtime_id': ana['yesterday'], 'status': None})
     with app.app_context():
-        check('watch history follows the account through a merge', Attendance.query.filter_by(user_id=SITE, showtime_id=OLD, status='went').first() is not None)
-    checks.done()
+        row = Attendance.query.filter_by(user_id=ana['ana'], showtime_id=ana['yesterday']).first()
+        assert row.status is None and row.prompted_at                              # keeps the "already asked" marker
+    a.post('/api/attendance', json={'showtime_id': ana['old'], 'status': 'went'})
+    a.post('/api/attendance', json={'showtime_id': ana['old'], 'status': None})
+    with app.app_context():
+        assert Attendance.query.filter_by(user_id=ana['ana'], showtime_id=ana['old']).first() is None   # never asked: gone
+
+
+def test_history_from_discord(answered):
+    h = client().get('/api/internal/history', query_string={'member_discord_id': '6601', 'group_id': 1}, headers=H).json
+    assert h['name'] == 'Ana' and all(i['status'] in ('went', 'going') for i in h['items'])
+
+
+def test_history_follows_an_account_merge(ana):
+    from app import app, db, Attendance, User
+    with app.app_context():
+        d = User(discord_user_id='6602', name='Dee', is_active=True)
+        db.session.add(d)
+        db.session.flush()
+        db.session.add(Attendance(user_id=d.id, showtime_id=ana['old'], status='went', source='discord'))
+        site = User(email='dee@test.dev', name='Dee Site', is_active=True, discord_link_code='DEE234',
+                    discord_link_code_expires=datetime.utcnow() + timedelta(minutes=5))
+        db.session.add(site)
+        db.session.commit()
+        site_id = site.id
+    client().post('/api/internal/link/verify', json={'code': 'DEE234', 'discord_user_id': '6602'}, headers=H)
+    with app.app_context():
+        assert Attendance.query.filter_by(user_id=site_id, showtime_id=ana['old'], status='went').first() is not None
