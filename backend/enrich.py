@@ -109,6 +109,27 @@ def search_tmdb(title, year=None):
         return None
 
 
+def tmdb_search_list(query, limit=8):
+    """TMDB's films for a typed title, most relevant first (R8c: watchlist any
+    film): [{tmdb_id, title, year, poster_url}]. [] without a token or on errors."""
+    if not _tmdb_token() or not (query or '').strip():
+        return []
+    try:
+        r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(),
+                         params={'query': query.strip(), 'include_adult': 'false'}, timeout=8)
+        r.raise_for_status()
+        out = []
+        for x in r.json().get('results', [])[:limit]:
+            y = (x.get('release_date') or '')[:4]
+            out.append({'tmdb_id': x['id'], 'title': x.get('title') or x.get('original_title') or '',
+                        'year': int(y) if y.isdigit() else None,
+                        'poster_url': f"{TMDB_IMG_PROFILE}{x['poster_path']}" if x.get('poster_path') else None})
+        return out
+    except Exception as e:
+        print(f"  [enrich] TMDB list search error for '{query}': {e}")
+        return []
+
+
 def tmdb_details(tmdb_id):
     """Full metadata for one TMDB film (credits + videos in the same call)."""
     try:

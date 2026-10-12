@@ -1541,7 +1541,7 @@ async def fetch_my_watchlist(interaction, member_id=None, start=None, end=None):
 @client.tree.command(name='watch', description='Watchlist: add, remove, or show a member\'s list')
 @app_commands.describe(
     action='Add to / remove from your watchlist, or show a list (default Add)',
-    title='Movie (for Add/Remove)',
+    title='Any film — playing or not (for Add/Remove)',
     member='Whose watchlist to show (default you)',
     date='Show only: a date (or start of a range) to filter the list',
     end='Show only: end of a date range (use with date)',
@@ -1623,9 +1623,16 @@ async def watch_title_autocomplete(interaction: discord.Interaction, current: st
             titles = [it['title'] for it in data.get('items', [])]
         except Exception:
             titles = []
+    elif len(cur) >= 2:
+        # Any film (R8c): ours first (playing, then the catalog), then TMDB's.
+        try:
+            found = await api.get('/api/internal/films/find', q=current)
+        except Exception:
+            found = []
+        return [app_commands.Choice(name=f['name'][:100], value=f['value'][:100]) for f in found[:25]]
     else:
         try:
-            sts = await fetch_window(60, search=current or None)
+            sts = await fetch_window(60)
         except Exception:
             sts = []
         titles = []

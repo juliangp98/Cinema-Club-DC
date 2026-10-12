@@ -2632,6 +2632,104 @@ def discover_doubles():
 # Suggestions as you type (everyone), and ✨ AI search (kept accounts only: it
 # spends the club's shared AI allowance, which the chatbot and poll drafts use too).
 
+# ─── Any film on TMDB (R8c) ───────────────────────────────────────────────────
+# Watchlist films no DC theatre has listed (yet): search TMDB, and open one
+# (it's added to the catalog then; when a theatre books it, the scraper finds
+# it by its TMDB id and its watchers hear).
+
+TMDB_SEARCHES_PER_HOUR = 120
+TMDB_CACHE_SECONDS = 3600
+_tmdb_searches, _tmdb_cache = {}, {}
+
+
+def tmdb_matches(q, who):
+    """TMDB's films for `q` (cached an hour), each with our movie_id if we
+    have it. None if `who` searched too much this hour."""
+    import discover
+    from enrich import tmdb_search_list
+    key = discover.normalize(q)
+    now = time.monotonic()
+    hit = _tmdb_cache.get(key)
+    if not hit or now - hit[0] > TMDB_CACHE_SECONDS:
+        recent = [t for t in _tmdb_searches.get(who, []) if now - t < 3600]
+        if len(recent) >= TMDB_SEARCHES_PER_HOUR:
+            return None
+        _tmdb_searches[who] = recent + [now]
+        if len(_tmdb_cache) > 2000:
+            _tmdb_cache.clear()
+        hit = _tmdb_cache[key] = (now, tmdb_search_list(q))
+    results = hit[1]
+    ids = [r['tmdb_id'] for r in results]
+    known = {m.tmdb_id: m.id for m in Movie.query.filter(Movie.tmdb_id.in_(ids))} if ids else {}
+    return [{**r, 'movie_id': known.get(r['tmdb_id'])} for r in results]
+
+
+def movie_for_tmdb(tmdb_id):
+    """Our Movie for a TMDB film, added (with TMDB's details) if we don't have it."""
+    from enrich import enrich_by_tmdb_id
+    from scrapers.sync import _apply_movie_fields
+    movie = Movie.query.filter_by(tmdb_id=tmdb_id).first()
+    if movie:
+        return movie
+    details = enrich_by_tmdb_id(tmdb_id)
+    if not details:
+        return None
+    movie = Movie(title=(details.get('tmdb_title') or '')[:200] or 'Untitled')
+    _apply_movie_fields(movie, {}, details)
+    db.session.add(movie)
+    try:
+        db.session.commit()
+    except IntegrityError:                       # added by a simultaneous request
+        db.session.rollback()
+        movie = Movie.query.filter_by(tmdb_id=tmdb_id).first()
+    return movie
+
+
+@app.route('/api/films/tmdb-search')
+@require_auth
+def films_tmdb_search():
+    q = (request.args.get('q') or '').strip()[:80]
+    if len(q) < 3:
+        return jsonify({'results': []})
+    results = tmdb_matches(q, current_user().id)
+    if results is None:
+        return jsonify({'error': 'Lots of searching — try again in a while.', 'results': []}), 429
+    return jsonify({'results': results})
+
+
+@app.route('/api/films/from-tmdb', methods=['POST'])
+@require_auth
+def films_from_tmdb():
+    """Open a TMDB film: {tmdb_id} → {movie_id} (added to the catalog if new)."""
+    tmdb_id = _as_int((request.json or {}).get('tmdb_id'))
+    movie = movie_for_tmdb(tmdb_id) if tmdb_id else None
+    if not movie:
+        return jsonify({'error': "Couldn't find that film."}), 404
+    return jsonify({'movie_id': movie.id})
+
+
+@app.route('/api/internal/films/find')
+@require_internal
+def internal_films_find():
+    """/watch's film picker: films we list (playing first), then TMDB's —
+    [{name, value}] with value 'movie:<id>' or 'tmdb:<id>'."""
+    import discover
+    q = (request.args.get('q') or '').strip()[:80]
+    if len(q) < 2:
+        return jsonify([])
+    ours = discover.suggest(None, None, q)['films']
+    year = lambda x: f" ({x['year']})" if x.get('year') else ''
+    out = [{'name': f"{x['title']}{year(x)}{' — playing' if x.get('playing') else ''}", 'value': f"movie:{x['id']}"}
+           for x in ours]
+    if len(q) >= 3:
+        listed = {x['id'] for x in ours}
+        for r in tmdb_matches(q, 'bot') or []:
+            if r['movie_id'] in listed:
+                continue
+            out.append({'name': f"{r['title']}{year(r)}", 'value': f"movie:{r['movie_id']}" if r['movie_id'] else f"tmdb:{r['tmdb_id']}"})
+    return jsonify([{**o, 'name': o['name'][:100]} for o in out[:25]])
+
+
 AI_SEARCHES_PER_HOUR = 15
 _ai_searches = {}            # user id -> recent search times (per server process)
 
@@ -5886,8 +5984,18 @@ def internal_watch():
         return err
     title = (data.get('title') or '').strip()
     action = (data.get('action') or 'toggle').lower()
-    movie = Movie.query.filter(Movie.title.ilike(title)).first() \
-        or Movie.query.filter(Movie.title.ilike(f'%{title}%')).first()
+    kind, _, ref = title.partition(':')
+    if kind == 'movie' and ref.isdigit():
+        movie = db.session.get(Movie, int(ref))
+    elif kind == 'tmdb' and ref.isdigit():
+        movie = movie_for_tmdb(int(ref))
+    else:
+        movie = Movie.query.filter(Movie.title.ilike(title)).first() \
+            or Movie.query.filter(Movie.title.ilike(f'%{title}%')).first()
+        if not movie and action != 'remove' and len(title) >= 3:       # any film: TMDB's best match
+            from enrich import search_tmdb
+            best = search_tmdb(title)
+            movie = movie_for_tmdb(best['id']) if best else None
     if not movie:
         return jsonify({'error': 'Movie not found'}), 404
 

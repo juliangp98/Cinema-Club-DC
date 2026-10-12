@@ -50,9 +50,29 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     return () => { clearTimeout(timer); ctl.abort(); };
   }, [q, apiBase, groupId]);
 
-  // Groups in the order the server ranks them (best match first).
-  const groups = results ? (results.order || GROUPS.map(([k]) => k)).map(k => GROUPS.find(([g]) => g === k)) : [];
-  const items = groups.flatMap(([key]) => results[key].map(x => ({ kind: key, x })));
+  // Any film on TMDB (R8c), for signed-in people: films no DC theatre has
+  // listed, to open and watchlist. A little slower to ask, so it waits longer.
+  const [tmdb, setTmdb] = useState([]);
+  useEffect(() => {
+    const text = q.trim();
+    if (!user || !typed.current || text.length < 3) { setTmdb([]); return undefined; }
+    const ctl = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`${apiBase}/api/films/tmdb-search?${new URLSearchParams({ q: text })}`, { credentials: "include", signal: ctl.signal })
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => { if (d) { setTmdb(d.results || []); setOpen(true); } })
+        .catch(() => {});
+    }, 450);
+    return () => { clearTimeout(timer); ctl.abort(); };
+  }, [q, apiBase, user]);
+
+  // Groups in the order the server ranks them (best match first), then TMDB's.
+  const ours = new Set((results?.films || []).map(f => f.id));
+  const lists = { ...(results || { films: [], people: [], filters: [] }),
+                  tmdb: tmdb.filter(t => !ours.has(t.movie_id)).slice(0, 5) };
+  const groups = [...(results ? (results.order || GROUPS.map(([k]) => k)).map(k => GROUPS.find(([g]) => g === k)) : []),
+                  ...(lists.tmdb.length ? [["tmdb", "More films"]] : [])];
+  const items = groups.flatMap(([key]) => lists[key].map(x => ({ kind: key, x })));
   const showList = open && items.length > 0;
 
   const apply = (params, extra = {}) => {
@@ -63,6 +83,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     setOpen(false);
     typed.current = false;
     if (item.kind === "films") { navigate(`/films/${item.x.id}`); return; }
+    if (item.kind === "tmdb") { openTmdb(item.x); return; }
     if (item.kind === "people") setQ(item.x.name);
     else setQ("");
     setNote("");
@@ -98,6 +119,16 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     apply(d.params, { replace: true, note: text });
   }
 
+  async function openTmdb(t) {
+    if (t.movie_id) { navigate(`/films/${t.movie_id}`); return; }
+    const r = await fetch(`${apiBase}/api/films/from-tmdb`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tmdb_id: t.tmdb_id }),
+    }).catch(() => null);
+    if (r?.ok) navigate(`/films/${(await r.json()).movie_id}`);
+    else setError("Couldn't open that film — try again in a bit.");
+  }
+
   let i = -1;
   return (
     <div className="searchbox-wrap">
@@ -125,24 +156,25 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
       </form>
       {showList && (
         <div className="searchbox-list" id={listId} role="listbox" aria-label="Suggestions">
-          {groups.map(([key, title]) => results[key].length > 0 && (
+          {groups.map(([key, title]) => lists[key].length > 0 && (
             <div key={key} role="group" aria-label={title}>
               <div className="searchbox-group">{title}</div>
-              {results[key].map(x => {
+              {lists[key].map(x => {
                 i += 1;
                 const n = i;
                 const item = { kind: key, x };
                 return (
-                  <div key={`${key}-${x.id || x.name || x.label}`} id={`${listId}-${n}`} role="option" aria-selected={active === n}
+                  <div key={`${key}-${x.id || x.tmdb_id || x.name || x.label}`} id={`${listId}-${n}`} role="option" aria-selected={active === n}
                        className={`searchbox-option${active === n ? " active" : ""}`}
                        onMouseDown={e => e.preventDefault()} onMouseEnter={() => setActive(n)} onClick={() => pick(item)}>
-                    {key === "films" && <Poster movie={x} className="searchbox-poster" />}
+                    {(key === "films" || key === "tmdb") && <Poster movie={x} className="searchbox-poster" />}
                     <span className="searchbox-option-text">
                       <span className="searchbox-option-label">
-                        {key === "films" ? `${x.title}${yearOf(x)}` : key === "people" ? x.name : x.label}
+                        {key === "films" || key === "tmdb" ? `${x.title}${yearOf(x)}` : key === "people" ? x.name : x.label}
                       </span>
                       <span className="searchbox-option-hint">
                         {key === "films" ? (x.playing ? `Next: ${nextLabel(x.next)} · ${x.theatre}` : "Not playing right now")
+                          : key === "tmdb" ? (x.movie_id ? "Not playing right now" : "Not listed in DC yet — open it to watchlist")
                           : key === "people" ? `${ROLE[x.role] || "Person"} · ${x.count} film${x.count === 1 ? "" : "s"} playing`
                           : x.hint}
                       </span>

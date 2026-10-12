@@ -43,7 +43,7 @@ def _reset_state(instance_dir):
             pass
     shutil.copy(BASE_DB, DB_PATH)
     A.app.instance_path = instance_dir
-    for cache in (A._public_cache, A._uploads, A._ai_searches, discover._suggest_index):
+    for cache in (A._public_cache, A._uploads, A._ai_searches, A._tmdb_searches, A._tmdb_cache, discover._suggest_index):
         cache.clear()
     ai._client = None
     ai._extras.clear()
