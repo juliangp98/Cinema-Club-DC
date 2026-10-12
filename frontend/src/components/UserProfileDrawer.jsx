@@ -137,7 +137,7 @@ export function HistoryTab({ userId, apiBase, onOpen, onChange }) {
                 {[["went", "Went"], ["missed", "Didn't go"]].map(([status, label]) => (
                   <button
                     key={status}
-                    className={`rsvp-btn att-opt-${status}${i.status === status ? " selected" : ""}`}
+                    className={`btn btn-sm att-opt-${status}${i.status === status ? " selected" : ""}`}
                     onClick={() => setStatus(i, i.status === status ? null : status)}
                   >
                     {label}

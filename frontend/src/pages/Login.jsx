@@ -104,11 +104,11 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
             It works once and expires in 15 minutes.
           </p>
           {error && <div className="auth-error">{error}</div>}
-          <button className="auth-btn" type="button" onClick={requestLink} disabled={loading}>
-            {loading ? "..." : "RESEND LINK"}
+          <button className="btn btn-primary btn-block btn-lg" type="button" onClick={requestLink} disabled={loading}>
+            {loading ? "..." : "Resend link"}
           </button>
           <p className="auth-toggle">
-            <button type="button" className="auth-toggle-btn" onClick={() => { setSentTo(""); setError(""); }}>
+            <button type="button" className="linkish" onClick={() => { setSentTo(""); setError(""); }}>
               Use a different email
             </button>
           </p>
@@ -144,7 +144,7 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
               required
               autoFocus
             />
-            <button className="auth-btn" type="submit" disabled={loading}>
+            <button className="btn btn-primary btn-block btn-lg" type="submit" disabled={loading}>
               {loading ? "..." : "JOIN"}
             </button>
           </form>
@@ -174,15 +174,15 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
                 />
               </>
             )}
-            <button className="auth-btn" type="submit" disabled={loading}>
-              {loading ? "..." : "EMAIL ME A LINK"}
+            <button className="btn btn-primary btn-block btn-lg" type="submit" disabled={loading}>
+              {loading ? "..." : "Email me a link"}
             </button>
             {discordEnabled && (
               <>
                 <div className="auth-or">or</div>
                 {/* Signs in, or creates an account for Discord members — no separate sign-up. */}
-                <a className="auth-discord-btn" href={`${apiBase}/api/auth/discord/start${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>
-                  SIGN IN WITH DISCORD
+                <a className="btn btn-discord btn-block btn-lg" href={`${apiBase}/api/auth/discord/start${next && next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`}>
+                  Sign in with Discord
                 </a>
               </>
             )}
@@ -190,7 +190,7 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
               {mode === "signup" ? "Already have an account? " : "New here? "}
               <button
                 type="button"
-                className="auth-toggle-btn"
+                className="linkish"
                 onClick={() => switchMode(mode === "signup" ? "login" : "signup")}
               >
                 {mode === "signup" ? "Log in" : "Sign up"}

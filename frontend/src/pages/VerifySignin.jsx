@@ -45,15 +45,15 @@ export default function VerifySignin({ apiBase, onLogin }) {
         {error ? (
           <>
             <div className="auth-error">{error}</div>
-            <button className="auth-btn" type="button" onClick={() => navigate("/", { replace: true })}>
-              BACK TO SIGN IN
+            <button className="btn btn-primary btn-block btn-lg" type="button" onClick={() => navigate("/", { replace: true })}>
+              Back to sign in
             </button>
           </>
         ) : (
           <>
             <p className="auth-note">You're one step away. Continue to finish signing in on this device.</p>
-            <button className="auth-btn" type="button" onClick={handleContinue} disabled={loading} autoFocus>
-              {loading ? "..." : "CONTINUE"}
+            <button className="btn btn-primary btn-block btn-lg" type="button" onClick={handleContinue} disabled={loading} autoFocus>
+              {loading ? "..." : "Continue"}
             </button>
           </>
         )}

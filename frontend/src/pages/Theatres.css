@@ -9,7 +9,7 @@
 .theatre-card-head { display: flex; align-items: center; gap: 0.5rem; color: var(--cream); }
 .theatre-card-head:hover .theatre-card-name { color: var(--amber); }
 .theatre-card-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tcolor, var(--amber)); flex-shrink: 0; }
-.theatre-card-name { font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; flex: 1; min-width: 0; }
+.theatre-card-name { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-lg); flex: 1; min-width: 0; }
 .theatre-card-tonight { font-size: var(--fs-xs); color: var(--bg); background: var(--amber); border-radius: var(--radius-pill); padding: 0.05rem 0.5rem; font-weight: 700; }
 .theatre-card-meta { margin: 0; color: var(--muted); font-size: var(--fs-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
 .theatre-card-rare { color: var(--amber); }

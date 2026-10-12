@@ -208,7 +208,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
           placeholder="Type a message..."
           maxLength={2000}
         />
-        <button className="chat-send-btn" type="submit" disabled={sending || !input.trim()}>
+        <button className="btn btn-sm btn-primary" type="submit" disabled={sending || !input.trim()}>
           Send
         </button>
       </form>

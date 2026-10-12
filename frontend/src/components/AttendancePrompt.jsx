@@ -48,8 +48,8 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
             {item.format_label ? ` · ${item.format_label}` : ""}
           </span>
           <div className="attendance-item-actions">
-            <button className="rsvp-btn att-opt-went" onClick={() => answer(item, "went")}>Went</button>
-            <button className="rsvp-btn att-opt-missed" onClick={() => answer(item, "missed")}>Didn't go</button>
+            <button className="btn btn-sm att-opt-went" onClick={() => answer(item, "went")}>Went</button>
+            <button className="btn btn-sm att-opt-missed" onClick={() => answer(item, "missed")}>Didn't go</button>
           </div>
         </div>
       ))}

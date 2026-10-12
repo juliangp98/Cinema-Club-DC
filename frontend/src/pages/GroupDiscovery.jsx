@@ -154,7 +154,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                   <div className="group-card-actions">
                     {g.id !== activeGroupId && (
                       <button
-                        className="group-action-btn"
+                        className="btn btn-sm"
                         onClick={() => setGroupId(g.id)}
                       >
                         Switch
@@ -164,14 +164,14 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                       <span className="group-active-badge">Active</span>
                     )}
                     <button
-                      className="group-card-members-btn"
+                      className="btn btn-sm"
                       onClick={() => { setGroupId(g.id); navigate("/club"); }}
                     >
                       Club page
                     </button>
                     {g.role === "admin" && (
                       <button
-                        className="group-action-btn admin"
+                        className="btn btn-sm"
                         onClick={() => { setGroupId(g.id); navigate("/club?tab=settings"); }}
                       >
                         Manage
@@ -194,11 +194,11 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
               value={query}
               onChange={e => setQuery(e.target.value)}
             />
-            <button className="group-search-btn" type="submit" disabled={loadingPublic}>
+            <button className="btn btn-primary" type="submit" disabled={loadingPublic}>
               Search
             </button>
             {query && (
-              <button className="group-search-btn clear" type="button" onClick={handleClearSearch}>
+              <button className="btn btn-ghost" type="button" onClick={handleClearSearch}>
                 Clear
               </button>
             )}
@@ -227,7 +227,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                       <span className="group-pending-badge">Pending</span>
                     ) : (
                       <button
-                        className="group-action-btn join"
+                        className="btn btn-sm btn-primary"
                         onClick={() => handleJoin(g.slug)}
                       >
                         Request to Join
@@ -243,7 +243,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
           {totalPages > 1 && (
             <div className="group-pagination">
               <button
-                className="group-action-btn"
+                className="btn btn-sm"
                 disabled={page <= 1}
                 onClick={() => { const p = page - 1; setPage(p); fetchPublicGroups(p, query); }}
               >
@@ -253,7 +253,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                 Page {page} of {totalPages}
               </span>
               <button
-                className="group-action-btn"
+                className="btn btn-sm"
                 disabled={page >= totalPages}
                 onClick={() => { const p = page + 1; setPage(p); fetchPublicGroups(p, query); }}
               >
@@ -320,10 +320,10 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                 </div>
               )}
               <div className="group-create-actions">
-                <button className="group-action-btn" type="submit" disabled={creating}>
+                <button className="btn btn-sm btn-primary" type="submit" disabled={creating}>
                   {creating ? "Creating..." : "Create"}
                 </button>
-                <button className="group-action-btn cancel" type="button" onClick={() => setShowCreate(false)}>
+                <button className="btn btn-sm btn-ghost" type="button" onClick={() => setShowCreate(false)}>
                   Cancel
                 </button>
               </div>

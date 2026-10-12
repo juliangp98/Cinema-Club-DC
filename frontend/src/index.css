@@ -9,6 +9,7 @@
   --bg3:      #34111b;   /* cards, inputs */
   --border:   rgba(220, 177, 92, 0.18);
   --border-strong: rgba(220, 177, 92, 0.38);
+  --gold-wash: rgba(220, 177, 92, 0.12);   /* hover and selected fills */
   --gold-line: rgba(220, 177, 92, 0.55);
   --amber:    #dcb15c;   /* gold */
   --amber-dim:#a8823c;
@@ -18,6 +19,9 @@
   --teal:     #5fa392;
   --purple:   #a58bd0;
   --ink:      #22090f;   /* dark text on gold / avatar colors */
+  --green:    #6fbf98;   /* going / went */
+  --discord:  #5865f2;   /* Discord's own blurple, for its buttons */
+  --discord-dark: #4752c4;
 
   --font-body:    'DM Sans', system-ui, sans-serif;
   --font-deco:    'Limelight', 'Playfair Display', serif;   /* titles only, set ~12% narrower (.deco) */
@@ -25,7 +29,9 @@
   --font-serif:   'Playfair Display', Georgia, serif;
   --font-mono:    'DM Mono', monospace;
 
-  --fs-xs: 0.75rem;  --fs-sm: 0.875rem;  --fs-md: 1rem;  --fs-lg: 1.25rem;  --fs-xl: 1.75rem;
+  /* The type scale: every size on the site is one of these. */
+  --fs-2xs: 0.6875rem;  --fs-xs: 0.75rem;  --fs-sm: 0.875rem;  --fs-md: 1rem;
+  --fs-lg: 1.25rem;  --fs-xl: 1.5rem;  --fs-2xl: 1.75rem;
   --radius: 10px;
   --radius-sm: 6px;
   --radius-lg: 14px;
@@ -81,7 +87,7 @@ input { font-family: inherit; }
   padding: 2.5rem;
 }
 .auth-note {
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   line-height: 1.6;
   color: var(--cream);
   margin-bottom: 1.5rem;
@@ -96,7 +102,7 @@ input { font-family: inherit; }
   margin-bottom: 0.25rem;
 }
 .auth-subtitle {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   color: var(--muted);
   text-transform: uppercase;
@@ -106,7 +112,7 @@ input { font-family: inherit; }
 }
 .auth-label {
   display: block;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -118,27 +124,16 @@ input { font-family: inherit; }
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.7rem 0.9rem;
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   outline: none;
   margin-bottom: 1.25rem;
   transition: border-color 0.2s;
   border-radius: var(--radius);
 }
 .auth-input:focus { border-color: var(--amber); }
-.auth-btn {
-  width: 100%;
-  background: var(--amber);
-  color: var(--bg);
-  padding: 0.75rem;
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  letter-spacing: 0.06em;
-  border-radius: var(--radius);
-  transition: background 0.2s;
-}
-.auth-btn:hover { background: var(--amber-dim); }
+
 .auth-error {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--red);
   margin-bottom: 1rem;
   padding: 0.5rem 0.75rem;
@@ -158,59 +153,34 @@ input { font-family: inherit; }
   align-items: center;
   gap: 0.75rem;
   padding: 0.6rem 0.9rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
   background: var(--bg2);
-  border: 1px solid #5865f2;
+  border: 1px solid var(--discord);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 .site-notice.error { border-color: var(--red); }
-.site-notice button { color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.site-notice button { color: var(--muted); font-size: var(--fs-lg); line-height: 1; }
 .site-notice button:hover { color: var(--cream); }
 .auth-or {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin: 1rem 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
 }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
-.auth-discord-btn {
-  display: block;
-  width: 100%;
-  padding: 0.75rem;
-  text-align: center;
-  text-decoration: none;
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  letter-spacing: 0.06em;
-  color: #fff;
-  background: #5865f2;          /* Discord blurple */
-  border-radius: var(--radius);
-  transition: background 0.2s;
-}
-.auth-discord-btn:hover { background: #4752c4; }
+
 .auth-toggle {
   margin-top: 1rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-align: center;
 }
-.auth-toggle-btn {
-  background: none;
-  border: none;
-  color: var(--gold);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.875rem;
-  text-decoration: underline;
-  padding: 0;
-}
-.auth-toggle-btn:hover { color: var(--amber-dim); }
 
 .drawer {
   width: 420px;
@@ -289,7 +259,7 @@ input { font-family: inherit; }
   align-self: flex-end;      /* keep title text below the hero, beside poster base */
 }
 .drawer-theatre-badge {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.25rem 0.5rem;
@@ -310,25 +280,25 @@ input { font-family: inherit; }
 }
 .drawer-title {
   font-family: var(--font-serif);
-  font-size: 1.45rem;
+  font-size: var(--fs-xl);
   line-height: 1.15;
   color: var(--cream);
   margin-bottom: 0.25rem;
 }
 .drawer-tagline {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   font-style: italic;
   color: var(--muted);
   line-height: 1.4;
   margin-bottom: 0.35rem;
 }
 .drawer-meta {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   letter-spacing: 0.05em;
 }
 .drawer-desc {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   line-height: 1.65;
   color: var(--cream);
   opacity: 0.8;
@@ -341,7 +311,7 @@ input { font-family: inherit; }
   margin-bottom: 0.6rem;
 }
 .drawer-award-stat {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -354,17 +324,17 @@ input { font-family: inherit; }
   border-color: var(--amber-dim);
 }
 .drawer-awards-raw {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   line-height: 1.5;
 }
 .drawer-starring {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   line-height: 1.5;
 }
 .drawer-section-label {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -372,25 +342,13 @@ input { font-family: inherit; }
   display: block;
 }
 
-.rsvp-btn {
-  flex: 1;
-  padding: 0.4rem 0;
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--muted);
-  transition: all 0.15s;
-}
-
 /* After a screening: Went / Didn't go, same faint-until-selected treatment. */
-.att-opt-went   { border-color: rgba(76,175,135,0.4); color: rgba(76,175,135,0.78); }
-.att-opt-missed { border-color: rgba(196,92,58,0.4);  color: rgba(196,92,58,0.78); }
-.att-opt-went:hover   { border-color: #4caf87;   color: #4caf87; }
-.att-opt-missed:hover { border-color: var(--red); color: var(--red); }
-.att-opt-went.selected   { border-color: #4caf87;   color: #4caf87;   background: rgba(76,175,135,0.14); }
-.att-opt-missed.selected { border-color: var(--red); color: var(--red); background: rgba(196,92,58,0.14); }
+.btn.att-opt-went   { border-color: rgba(111, 191, 152,0.4); color: rgba(111, 191, 152,0.78); }
+.btn.att-opt-missed { border-color: rgba(224, 105, 78,0.4);  color: rgba(224, 105, 78,0.78); }
+.btn.att-opt-went:hover   { border-color: var(--green);   color: var(--green); }
+.btn.att-opt-missed:hover { border-color: var(--red); color: var(--red); }
+.btn.att-opt-went.selected   { border-color: var(--green);   color: var(--green);   background: rgba(111, 191, 152,0.14); }
+.btn.att-opt-missed.selected { border-color: var(--red); color: var(--red); background: rgba(224, 105, 78,0.14); }
 
 /* "Did you make it?" card above the calendar */
 .attendance-prompt {
@@ -398,15 +356,15 @@ input { font-family: inherit; }
   padding: 0.75rem 1rem;
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-left: 2px solid #4caf87;
+  border-left: 2px solid var(--green);
   border-radius: var(--radius);
 }
 .attendance-prompt-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
-.attendance-prompt-title { font-size: 0.8125rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream); }
-.attendance-prompt-close { color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.attendance-prompt-title { font-size: var(--fs-sm); letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream); }
+.attendance-prompt-close { color: var(--muted); font-size: var(--fs-lg); line-height: 1; }
 .attendance-prompt-close:hover { color: var(--cream); }
-.attendance-prompt-done { font-size: 0.875rem; color: var(--cream); margin-bottom: 0.5rem; }
-.attendance-link { color: var(--amber); font-size: 0.875rem; text-decoration: underline; }
+.attendance-prompt-done { font-size: var(--fs-sm); color: var(--cream); margin-bottom: 0.5rem; }
+.attendance-link { color: var(--amber); font-size: var(--fs-sm); text-decoration: underline; }
 .attendance-item {
   display: flex;
   align-items: center;
@@ -415,13 +373,12 @@ input { font-family: inherit; }
   padding: 0.4rem 0;
   border-top: 1px solid var(--border);
 }
-.attendance-item-text { font-size: 0.875rem; color: var(--muted); }
+.attendance-item-text { font-size: var(--fs-sm); color: var(--muted); }
 .attendance-item-text strong { color: var(--cream); font-weight: 500; }
 .attendance-item-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
-.attendance-item-actions .rsvp-btn { flex: none; padding: 0.35rem 0.75rem; }
+
 @media (max-width: 600px) {
   .attendance-item { flex-direction: column; align-items: stretch; gap: 0.4rem; }
-  .attendance-item-actions .rsvp-btn { flex: 1; }
 }
 
 .history-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
@@ -447,11 +404,11 @@ input { font-family: inherit; }
   cursor: pointer;
 }
 .history-text:hover .history-title { color: var(--amber); }
-.history-title { font-family: var(--font-serif); font-size: 0.9375rem; color: var(--cream); }
-.history-meta { font-size: 0.8125rem; color: var(--muted); }
+.history-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--cream); }
+.history-meta { font-size: var(--fs-sm); color: var(--muted); }
 .history-actions { display: flex; gap: 0.35rem; flex-shrink: 0; }
-.history-actions .rsvp-btn { flex: none; padding: 0.3rem 0.55rem; font-size: 0.75rem; }
-.history-mark { color: #4caf87; font-size: 0.9375rem; flex-shrink: 0; }
+
+.history-mark { color: var(--green); font-size: var(--fs-md); flex-shrink: 0; }
 
 /* Profile drawer tabs: watchlist, going, history, compare */
 .profile-tabs {
@@ -467,7 +424,7 @@ input { font-family: inherit; }
 .profile-tab {
   flex: none;
   padding: 0.45rem 0.7rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -478,8 +435,8 @@ input { font-family: inherit; }
 .profile-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
 .profile-tab-panel { min-height: 120px; }
 
-.list-empty { color: var(--muted); font-size: 0.875rem; padding: 0.5rem 0; }
-.list-count { font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.25rem; }
+.list-empty { color: var(--muted); font-size: var(--fs-sm); padding: 0.5rem 0; }
+.list-count { font-size: var(--fs-sm); color: var(--muted); margin-bottom: 0.25rem; }
 .list-rows { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
 .list-rows > li { border-bottom: 1px solid var(--border); }
 .list-row {
@@ -500,11 +457,11 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .list-row.muted { cursor: default; }
 .list-row.muted .list-row-title { color: var(--muted); }
 .list-row-text { display: flex; flex-direction: column; min-width: 0; }
-.list-row-title { font-family: var(--font-serif); font-size: 0.9375rem; color: var(--cream); }
-.list-row-meta { font-size: 0.8125rem; color: var(--muted); }
+.list-row-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--cream); }
+.list-row-meta { font-size: var(--fs-sm); color: var(--muted); }
 .list-chip {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.15rem 0.45rem;
@@ -512,13 +469,13 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border: 1px solid var(--border);
   color: var(--muted);
 }
-.list-chip.going { color: #4caf87; border-color: rgba(76, 175, 135, 0.4); }
-.list-chip.maybe { color: var(--amber); border-color: rgba(220, 177, 92, 0.4); }
+.list-chip.going { color: var(--green); border-color: rgba(111, 191, 152, 0.4); }
+.list-chip.maybe { color: var(--amber); border-color: var(--border-strong); }
 .list-chip.went  { color: var(--cream); border-color: var(--muted); }
 
 .compare-section + .compare-section { margin-top: 1rem; }
 .compare-section-title {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--cream);
@@ -538,7 +495,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
 }
 
@@ -547,7 +504,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -558,7 +515,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 
 /* ── Content-rating + ratings badges ───────────────────────────────────── */
 .drawer-content-rating {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   color: var(--muted);
   border: 1px solid var(--border);
@@ -573,7 +530,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   margin-bottom: 1.25rem;
 }
 .drawer-rating-badge {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.03em;
   color: var(--cream);
   background: var(--bg3);
@@ -617,18 +574,18 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--muted);
 }
 .drawer-cast-name {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--cream);
   margin-top: 0.3rem;
   line-height: 1.2;
 }
 .drawer-cast-character {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
   line-height: 1.2;
 }
@@ -666,7 +623,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border: none;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -674,7 +631,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 }
 .drawer-section-toggle:hover { color: var(--cream); }
 .drawer-section-count { color: var(--border-strong, var(--muted)); opacity: 0.7; }
-.drawer-section-caret { font-size: 0.8125rem; letter-spacing: 0; }
+.drawer-section-caret { font-size: var(--fs-sm); letter-spacing: 0; }
 .drawer-section-body { padding-bottom: 1.1rem; }
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────── */
@@ -685,7 +642,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 /* ── Recommended Star ──────────────────────────────────────────────────── */
 
 .drawer-rec-badge {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--amber);
@@ -726,7 +683,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   gap: 0.3rem;
 }
 .profile-email {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -737,18 +694,18 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   align-items: center;
   align-self: flex-start;
   gap: 0.2rem;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--amber);
-  background: rgba(220, 177, 92,0.12);
-  border: 1px solid rgba(220, 177, 92,0.25);
+  background: var(--gold-wash);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 0.15rem 0.5rem;
 }
 
 .profile-field-label {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -762,7 +719,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   outline: none;
   border-radius: var(--radius);
   font-family: inherit;
@@ -774,7 +731,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   outline: none;
   border-radius: var(--radius);
   font-family: inherit;
@@ -805,7 +762,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   margin-top: 0.3rem;
 }
 .genre-chip {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
@@ -818,27 +775,12 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .genre-chip.active {
   border-color: var(--amber);
   color: var(--amber);
-  background: rgba(220, 177, 92,0.12);
+  background: var(--gold-wash);
 }
 
 .profile-actions {
   margin-top: 1rem;
 }
-.profile-save-btn {
-  width: 100%;
-  padding: 0.5rem;
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: var(--amber);
-  color: var(--bg);
-  border-radius: var(--radius);
-  font-family: var(--font-display);
-  font-size: 0.9375rem;
-  transition: background 0.15s;
-}
-.profile-save-btn:hover { background: var(--amber-dim); }
-.profile-save-btn:disabled { opacity: 0.5; }
 
 .profile-divider {
   border: none;
@@ -847,25 +789,13 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 }
 
 .profile-discord { text-align: center; }
-.profile-discord-btn {
-  width: 100%;
-  padding: 0.5rem;
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #7b8fd4;
-  border: 1px solid #7b8fd4;
-  border-radius: var(--radius);
-  transition: all 0.15s;
-}
-.profile-discord-btn:hover { background: rgba(123, 143, 212, 0.1); }
-a.profile-discord-btn { display: block; text-align: center; text-decoration: none; }
+
 .profile-discord-linked {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .profile-discord-code {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
 }
 .profile-discord-code code {
@@ -876,18 +806,18 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--amber);
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   letter-spacing: 0.06em;
   user-select: all;
 }
 .profile-discord-hint {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
 .user-profile-letterboxd {
   display: inline-block;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   color: #9ab97a;
   text-decoration: none;
@@ -919,24 +849,24 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 14px;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   transition: all 0.15s;
   color: var(--cream);
 }
 .reaction-pill:hover { border-color: var(--muted); }
 .reaction-pill.active {
   border-color: var(--amber);
-  background: rgba(220, 177, 92,0.1);
+  background: var(--gold-wash);
 }
-.reaction-emoji { font-size: 0.9375rem; }
-.reaction-count { font-size: 0.75rem; color: var(--muted); }
+.reaction-emoji { font-size: var(--fs-md); }
+.reaction-count { font-size: var(--fs-xs); color: var(--muted); }
 .reaction-add-btn {
   width: 26px;
   height: 26px;
   border: 1px dashed var(--border);
   border-radius: 50%;
   color: var(--muted);
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -959,12 +889,12 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   z-index: 60;
 }
 .reaction-picker-item {
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   padding: 0.3rem;
   border-radius: var(--radius);
   transition: background 0.1s;
 }
-.reaction-picker-item:hover { background: rgba(220, 177, 92,0.15); }
+.reaction-picker-item:hover { background: var(--gold-wash); }
 
 /* ── Chat Section ──────────────────────────────────────────────────────── */
 .chat-section {
@@ -985,7 +915,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .chat-empty {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-align: center;
   padding: 1.5rem 0;
@@ -1002,7 +932,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   flex-shrink: 0;
   margin-top: 2px;
@@ -1014,16 +944,16 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   gap: 0.4rem;
 }
 .chat-name {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--cream);
 }
 .chat-time {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
 }
 .chat-body {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
   opacity: 0.85;
   line-height: 1.5;
@@ -1040,26 +970,12 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.45rem 0.6rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   outline: none;
   border-radius: var(--radius);
   font-family: inherit;
 }
 .chat-input:focus { border-color: var(--amber); }
-.chat-send-btn {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.45rem 0.75rem;
-  background: var(--amber);
-  color: var(--bg);
-  border-radius: var(--radius);
-  font-family: var(--font-display);
-  font-size: 0.875rem;
-  transition: background 0.15s;
-}
-.chat-send-btn:hover { background: var(--amber-dim); }
-.chat-send-btn:disabled { opacity: 0.4; }
 
 /* ── Group Discovery Page ──────────────────────────────────────────────── */
 .group-discovery-page {
@@ -1079,13 +995,13 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 }
 .group-section-title {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: var(--fs-lg);
   letter-spacing: 0.06em;
   color: var(--cream);
   margin-bottom: 0.75rem;
 }
 .group-empty {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .group-cards {
@@ -1107,12 +1023,12 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 .group-card-info { flex: 1; min-width: 0; }
 .group-card-name {
   font-family: var(--font-serif);
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   color: var(--cream);
   display: block;
 }
 .group-card-meta {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
   margin-top: 0.15rem;
   display: block;
@@ -1125,35 +1041,15 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   gap: 0.4rem;
   flex-shrink: 0;
 }
-.group-action-btn {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--cream);
-  transition: all 0.15s;
-}
-.group-action-btn:hover { border-color: var(--amber); color: var(--amber); }
-.group-action-btn.admin { color: var(--amber); border-color: var(--amber-dim); }
-.group-action-btn.join { color: var(--amber); border-color: var(--amber); }
-.group-action-btn.join:hover { background: rgba(220, 177, 92,0.1); }
-.group-action-btn.approve { color: #4caf87; border-color: #4caf87; }
-.group-action-btn.approve:hover { background: rgba(76,175,135,0.1); }
-.group-action-btn.deny { color: var(--red); border-color: var(--red); }
-.group-action-btn.deny:hover { background: rgba(196,92,58,0.1); }
-
-.group-action-btn.cancel { color: var(--muted); }
 
 .group-active-badge {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--amber);
 }
 .group-pending-badge {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1170,28 +1066,16 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   outline: none;
   border-radius: var(--radius);
   font-family: inherit;
 }
 .group-search-input:focus { border-color: var(--amber); }
-.group-search-btn {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.5rem 0.8rem;
-  background: var(--amber);
-  color: var(--bg);
-  border-radius: var(--radius);
-  font-family: var(--font-display);
-  font-size: 0.9375rem;
-}
-.group-search-btn:hover { background: var(--amber-dim); }
 
 /* Create group */
 .group-create-toggle {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   color: var(--amber);
   padding: 0.5rem 0;
@@ -1210,7 +1094,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   border: 1px solid var(--border);
   color: var(--cream);
   padding: 0.5rem 0.7rem;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   outline: none;
   border-radius: var(--radius);
   margin-bottom: 0.6rem;
@@ -1221,7 +1105,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   margin-bottom: 0.75rem;
 }
@@ -1240,7 +1124,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 
 /* Theatre pill selectors (group create & admin) */
 .theatre-pill {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
@@ -1269,18 +1153,9 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   margin-top: 1rem;
 }
 .group-pagination-info {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   letter-spacing: 0.06em;
   color: var(--muted);
-}
-.group-search-btn.clear {
-  background: transparent;
-  border-color: var(--muted);
-  color: var(--muted);
-}
-.group-search-btn.clear:hover {
-  border-color: var(--cream);
-  color: var(--cream);
 }
 
 .user-profile-header {
@@ -1294,20 +1169,20 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 }
 
 .user-profile-name {
-  font-size: 1.2rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--cream);
 }
 .user-profile-email {
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   color: var(--muted);
 }
 .user-profile-section {
   margin-bottom: 1.5rem;
 }
 .user-profile-bio {
-  font-size: 0.9375rem;
-  color: var(--text);
+  font-size: var(--fs-md);
+  color: var(--cream);
   line-height: 1.5;
   white-space: pre-wrap;
 }
@@ -1325,7 +1200,7 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 }
 
 .group-pending-badge {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   color: var(--muted);
   background: rgba(255,255,255,0.05);
   padding: 0.15rem 0.4rem;
@@ -1333,12 +1208,12 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 }
 
 .profile-email {
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
 .profile-section-label {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1348,25 +1223,9 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
 
 .group-empty {
   color: var(--muted);
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   text-align: center;
   padding: 2rem;
-}
-
-/* Members button on group cards */
-.group-card-members-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 0.3rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.group-card-members-btn:hover {
-  border-color: var(--gold);
-  color: var(--gold);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1423,9 +1282,9 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
    ══════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
 
-  .drawer-title { font-size: 1.25rem; }
+  .drawer-title { font-size: var(--fs-lg); }
   .drawer-hero { height: 130px; }
-  .group-section-title { font-size: 0.9375rem; }
+  .group-section-title { font-size: var(--fs-md); }
 
   .auth-logo { font-size: 2.2rem; }
   .auth-box { padding: 1.25rem; }
@@ -1453,8 +1312,8 @@ a.profile-discord-btn { display: block; text-align: center; text-decoration: non
   min-width: 0;
 }
 .feed-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; }
-.feed-kicker { font-size: 0.8125rem; color: var(--cream); line-height: 1.4; min-width: 0; }
-.feed-time { font-size: 0.75rem; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.feed-kicker { font-size: var(--fs-sm); color: var(--cream); line-height: 1.4; min-width: 0; }
+.feed-time { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .feed-card-main { display: flex; gap: 0.85rem; align-items: flex-start; }
 .feed-poster { flex-shrink: 0; padding: 0; border: none; background: none; cursor: pointer; }
 span.feed-poster { cursor: default; }
@@ -1469,7 +1328,7 @@ span.feed-poster { cursor: default; }
 .feed-card-body { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .feed-title {
   font-family: var(--font-serif);
-  font-size: 1.05rem;
+  font-size: var(--fs-md);
   font-weight: 700;
   line-height: 1.2;
   color: var(--cream);
@@ -1482,7 +1341,7 @@ span.feed-poster { cursor: default; }
 }
 button.feed-title:hover { color: var(--amber); }
 
-.feed-meta, .feed-activity { font-size: 0.8125rem; color: var(--muted); }
+.feed-meta, .feed-activity { font-size: var(--fs-sm); color: var(--muted); }
 .feed-activity.nudge { color: var(--amber); }
 .feed-avatars { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.1rem; }
 .feed-avatar {
@@ -1494,7 +1353,7 @@ button.feed-title:hover { color: var(--amber); }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--ink);
   cursor: pointer;
@@ -1507,7 +1366,7 @@ button.feed-title:hover { color: var(--amber); }
   overflow-wrap: anywhere;
   text-align: left;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--cream);
   background: var(--bg3);
@@ -1520,7 +1379,7 @@ button.feed-title:hover { color: var(--amber); }
 .feed-comment-author { color: var(--amber); }
 .feed-reactions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .feed-reaction {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--cream);
   padding: 0.1rem 0.45rem;
   border: 1px solid var(--border);
@@ -1533,7 +1392,7 @@ button.feed-title:hover { color: var(--amber); }
 .feed-discussion .chat-section { margin-top: 0; padding-top: 0; border-top: none; }
 .feed-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .feed-action, .feed-more {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1552,10 +1411,10 @@ button.feed-title:hover { color: var(--amber); }
   gap: 0.75rem;
   padding: 2rem 1rem;
   text-align: center;
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
-.feed-end { text-align: center; font-size: 0.8125rem; color: var(--muted); padding: 0.5rem 0; }
+.feed-end { text-align: center; font-size: var(--fs-sm); color: var(--muted); padding: 0.5rem 0; }
 
 @media (max-width: 768px) {
   .feed-main { padding: 0.75rem 0.75rem 2.5rem; }
@@ -1565,14 +1424,14 @@ button.feed-title:hover { color: var(--amber); }
 /* Discussion mirrored with Discord */
 .chat-discord-link {
   display: block;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   text-decoration: none;
   margin-bottom: 0.5rem;
 }
 .chat-discord-link:hover { color: var(--amber); }
 .chat-via {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #8f9cf2;
@@ -1585,7 +1444,7 @@ button.feed-title:hover { color: var(--amber); }
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 0.9375rem;
+  font-size: var(--fs-md);
   line-height: 1;
   padding: 0 0.15rem;
   cursor: pointer;

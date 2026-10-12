@@ -54,8 +54,8 @@
 .show-time { font-family: var(--font-mono); }
 .show-where { color: var(--muted); }
 .show-format { color: var(--amber); font-size: var(--fs-xs); }
-.show-you { font-size: var(--fs-xs); color: #6fbf98; }
-.show-chip.going { border-color: #6fbf98; }
+.show-you { font-size: var(--fs-xs); color: var(--green); }
+.show-chip.going { border-color: var(--green); }
 .show-chip.maybe { border-color: var(--amber); }
 .show-chip.sold-out .show-time { text-decoration: line-through; color: var(--muted); }
 .show-friends { display: inline-flex; }
@@ -68,7 +68,7 @@
   .film-hero-inner { padding: 0.85rem 0.85rem 1.25rem; }
   .film-hero-row { gap: 1rem; align-items: flex-start; }
   .film-poster { width: 104px; }
-  .film-title { font-size: 1.6rem; }
+  .film-title { font-size: var(--fs-xl); }
   .film-actions .btn { flex: 1 1 auto; }
 }
 
@@ -82,7 +82,7 @@
   border-radius: var(--radius); color: var(--cream); font: inherit;
 }
 .film-venue:hover { border-color: var(--border-strong); border-left-color: var(--tcolor, var(--amber)); }
-.film-venue.on { background: rgba(220, 177, 92, 0.12); border-color: var(--amber); }
+.film-venue.on { background: var(--gold-wash); border-color: var(--amber); }
 .film-venue-name { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
 .film-venue-meta { color: var(--muted); font-size: var(--fs-xs); }
 

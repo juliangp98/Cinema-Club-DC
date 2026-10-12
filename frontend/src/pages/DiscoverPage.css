@@ -6,14 +6,14 @@
   background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.1rem;
 }
 .surprise-head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-.surprise-title, .moods-title { color: var(--amber); font-size: 1.2rem; }
+.surprise-title, .moods-title { color: var(--amber); font-size: var(--fs-lg); }
 .surprise-when { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .surprise-when .chip, .filter-choice, .browse-when .chip { cursor: pointer; background: none; font-family: var(--font-body); }
 .surprise-pick { display: flex; gap: 1rem; }
 .surprise-poster { width: 96px; flex-shrink: 0; aspect-ratio: 2 / 3; border-radius: var(--radius); overflow: hidden; background: var(--bg2); }
 .surprise-poster img { width: 100%; height: 100%; object-fit: cover; }
 .surprise-text { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
-.surprise-film { font-family: var(--font-serif); font-weight: 700; font-size: 1.2rem; color: var(--cream); }
+.surprise-film { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-lg); color: var(--cream); }
 .surprise-film:hover { color: var(--amber); }
 .surprise-next { font-size: var(--fs-sm); color: var(--muted); }
 .surprise-note { font-size: var(--fs-xs); color: var(--amber); }
@@ -68,7 +68,7 @@
 }
 .spotlight:hover { border-color: var(--amber); }
 .spotlight-head { display: flex; flex-direction: column; }
-.spotlight-name { font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; }
+.spotlight-name { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-lg); }
 .spotlight-count { font-size: var(--fs-xs); color: var(--muted); text-transform: capitalize; }
 .spotlight-posters { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 0.35rem; }
 .spotlight-poster { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg2); }
@@ -105,7 +105,7 @@
 .discover .attendance-prompt { margin: 0 0 1rem; }
 .club-week { margin-bottom: 1.5rem; }
 .club-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
-.club-week-title { color: var(--amber); font-size: 1.2rem; }
+.club-week-title { color: var(--amber); font-size: var(--fs-lg); }
 .club-week-head .shelf-all { background: none; border: none; padding: 0; cursor: pointer; }
 .club-week-empty { color: var(--muted); font-size: var(--fs-sm); }
 .club-week-row {
@@ -118,9 +118,9 @@
   border-radius: var(--radius-lg); color: var(--cream); cursor: pointer;
 }
 .club-week-item:hover { border-color: var(--border-strong); }
-.club-week-item.mine { border-color: rgba(220, 177, 92, 0.45); }
+.club-week-item.mine { border-color: var(--gold-line); }
 .club-week-poster { width: 40px; height: 60px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
-.club-week-icon { width: 40px; flex-shrink: 0; text-align: center; font-size: 1.4rem; }
+.club-week-icon { width: 40px; flex-shrink: 0; text-align: center; font-size: var(--fs-xl); }
 .club-week-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .club-week-name { font-weight: 600; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .club-week-meta, .club-week-who {
