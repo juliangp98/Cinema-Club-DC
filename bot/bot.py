@@ -114,6 +114,7 @@ class CinemaClubBot(discord.Client):
         share_loop.start()
         digest_loop.start()
         attendance_loop.start()
+        notify_loop.start()
         discussion_loop.start()
         member_sync_loop.start()
 
@@ -975,6 +976,100 @@ async def attendance_loop():
 @attendance_loop.before_loop
 async def before_attendance():
     await client.wait_until_ready()
+
+
+# ─── Your alerts by DM (R8) ───────────────────────────────────────────────────
+# A film on your watchlist got showings, tickets went on sale…: the site
+# bundles each person's news per scrape run; this sends it. Nights wait for
+# the morning. DMs closed: the alert is still in the site's bell.
+
+@tasks.loop(seconds=60)
+async def notify_loop():
+    if not 8 <= datetime.now(ET).hour < 23:
+        return
+    try:
+        pending = await api.get('/api/internal/notifications/dm')
+    except Exception as e:
+        print(f'notify_loop: fetch failed: {e}')
+        return
+    for p in pending:
+        try:
+            user = await client.fetch_user(int(p['discord_user_id']))
+            await user.send(embed=embeds.alerts_embed(p['items']))
+        except discord.Forbidden:
+            pass                                   # DMs closed: the bell has it
+        except Exception as e:
+            print(f"notify_loop: DM to {p['discord_user_id']} failed: {e}")
+            continue                               # try again next run
+        try:
+            await api.post('/api/internal/notifications/dm-sent', {'ids': p['ids']})
+        except Exception as e:
+            print(f'notify_loop: marking sent failed: {e}')
+
+
+@notify_loop.before_loop
+async def before_notify():
+    await client.wait_until_ready()
+
+
+class NotifyView(discord.ui.View):
+    """Toggles under /notifications (only you see them)."""
+
+    def __init__(self, ident, settings):
+        super().__init__(timeout=600)
+        self.ident = ident
+        for key, label in embeds.NOTIFY_CHANNELS:
+            if not settings['available'].get(key):
+                continue
+            on = settings['channels'][key]
+            b = discord.ui.Button(label=f"{label}: {'on' if on else 'off'}", row=0,
+                                  style=discord.ButtonStyle.success if on else discord.ButtonStyle.secondary)
+            b.callback = self._toggle(key, not on)
+            self.add_item(b)
+        types = discord.ui.Select(placeholder='Which alerts you get', min_values=0, row=1,
+                                  max_values=len(settings['types_info']),
+                                  options=[discord.SelectOption(label=t['label'][:100], value=t['key'],
+                                                                description=t['hint'][:100],
+                                                                default=settings['types'][t['key']])
+                                           for t in settings['types_info']])
+        types.callback = self._types(types, [t['key'] for t in settings['types_info']])
+        self.add_item(types)
+
+    def _toggle(self, key, value):
+        async def callback(interaction):
+            await self.save(interaction, {'channels': {key: value}})
+        return callback
+
+    def _types(self, select, keys):
+        async def callback(interaction):
+            await self.save(interaction, {'types': {k: k in select.values for k in keys}})
+        return callback
+
+    async def save(self, interaction, change):
+        try:
+            s = await api.post('/api/internal/notifications/settings', {**self.ident, **change})
+        except Exception as e:
+            print(f'/notifications save failed: {e}')
+            await interaction.response.send_message("Couldn't save that — try again in a bit.", ephemeral=True)
+            return
+        await interaction.response.edit_message(embed=embeds.notify_settings_embed(s), view=NotifyView(self.ident, s))
+
+
+@client.tree.command(name='notifications', description='What alerts you get (watchlist films playing…) and where')
+async def notifications_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    ident = discord_identity(interaction)
+    try:
+        s = await api.post('/api/internal/notifications/settings', ident)
+    except ApiError as e:
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Settings lookup failed ({e.status}).',
+                                        ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/notifications failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    await interaction.followup.send(embed=embeds.notify_settings_embed(s), view=NotifyView(ident, s), ephemeral=True)
 
 
 @client.event

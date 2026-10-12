@@ -111,4 +111,9 @@ if __name__ == '__main__':
         configs = enabled_configs()
 
     run(configs)
+    try:                                   # this run's alerts go out together (R8)
+        import notify
+        print(f"Alert emails sent: {notify.release()}")
+    except Exception as e:
+        print(f"  ERROR releasing alerts: {e}")
     print("\nDone!")

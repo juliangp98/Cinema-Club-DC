@@ -211,6 +211,9 @@ class User(db.Model):
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
+    # R8: where your alerts reach you and which ones you get (see notify.py);
+    # JSON of only what you changed — the rest follows your account's defaults.
+    notify_prefs = db.Column(db.Text)
     rsvps = db.relationship('RSVP', backref='user', lazy=True)
 
     def to_dict(self):
@@ -629,6 +632,28 @@ class Watchlist(db.Model):
     user = db.relationship('User', lazy=True)
     movie = db.relationship('Movie', lazy=True)
     __table_args__ = (db.UniqueConstraint('user_id', 'movie_id'),)
+
+
+class Notification(db.Model):
+    """A personal alert (R8), e.g. a film on your watchlist got showings. Kept
+    for the bell; also sent by Discord DM / email (and push) as your
+    notification setting says, bundled per scrape run (see notify.py)."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)       # 'showings' | 'on_sale'
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'))
+    theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'))
+    payload_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: _utcnow_naive())
+    ready_at = db.Column(db.DateTime)       # the scrape run finished: send it
+    read_at = db.Column(db.DateTime)
+    channels = db.Column(db.String(40), default='')       # where to send it, decided when made
+    discord_at = db.Column(db.DateTime)
+    email_at = db.Column(db.DateTime)
+    push_at = db.Column(db.DateTime)
+    user = db.relationship('User', lazy=True)
+    movie = db.relationship('Movie', lazy=True)
+    theatre = db.relationship('Theatre', lazy=True)
 
 
 class RSVP(db.Model):
@@ -3532,6 +3557,55 @@ def next_showings(movie_ids):
     return first
 
 
+# ─── Alerts (R8) ──────────────────────────────────────────────────────────────
+# Your alerts (the bell's "For you") and your one notification setting.
+
+def _notify_settings(user):
+    import notify
+    return {**notify.prefs(user), 'available': notify.available(user),
+            'types_info': [{'key': k, 'label': label, 'hint': hint} for k, (label, hint) in notify.TYPES.items()]}
+
+
+@app.route('/api/notifications')
+@require_auth
+def notifications_list():
+    """Your latest alerts (newest first) and how many are unread; ?count=1
+    for just the count (the bell polls that)."""
+    import notify
+    user = current_user()
+    unread = Notification.query.filter_by(user_id=user.id, read_at=None).count()
+    if request.args.get('count'):
+        return jsonify({'unread': unread})
+    rows = (Notification.query.filter_by(user_id=user.id)
+            .order_by(Notification.created_at.desc(), Notification.id.desc()).limit(50).all())
+    return jsonify({'items': [notify.item(n) for n in rows], 'unread': unread})
+
+
+@app.route('/api/notifications/read', methods=['POST'])
+@require_auth
+def notifications_read():
+    """Mark alerts read: {ids: [...]}, or all of them without ids."""
+    user = current_user()
+    q = Notification.query.filter_by(user_id=user.id, read_at=None)
+    ids = (request.json or {}).get('ids')
+    if isinstance(ids, list):
+        q = q.filter(Notification.id.in_([i for i in ids if isinstance(i, int)]))
+    marked = q.update({'read_at': _utcnow_naive()}, synchronize_session=False)
+    db.session.commit()
+    return jsonify({'marked': marked})
+
+
+@app.route('/api/me/notifications', methods=['GET', 'PUT'])
+@require_auth
+def my_notification_settings():
+    import notify
+    user = current_user()
+    if request.method == 'PUT':
+        notify.set_prefs(user, request.json or {})
+        db.session.commit()
+    return jsonify(_notify_settings(user))
+
+
 def watchlist_items(user):
     """A member's watchlist, newest first, each with its next showing (if any)."""
     rows = Watchlist.query.filter_by(user_id=user.id).order_by(Watchlist.created_at.desc()).all()
@@ -5989,12 +6063,50 @@ def internal_attendance_prompts():
     out = []
     users = (User.query.filter(User.id.in_(candidates - recently_asked), User.discord_user_id.isnot(None),
                                User.is_active.is_(True)).all() if candidates - recently_asked else [])
+    import notify
     for user in users:
+        if not notify.wants_dm(user, 'attendance'):
+            continue
         pending = pending_attendance(user, include_prompted=False)[:5]
         if pending:
             out.append({'discord_user_id': user.discord_user_id, 'name': user.name,
                         'screenings': [_screening_item(s) for s in pending]})
     return jsonify(out)
+
+
+@app.route('/api/internal/notifications/dm')
+@require_internal
+def internal_notification_dms():
+    """Alerts the bot should DM now, bundled per person."""
+    import notify
+    return jsonify(notify.pending_dms())
+
+
+@app.route('/api/internal/notifications/dm-sent', methods=['POST'])
+@require_internal
+def internal_notification_dm_sent():
+    """The bot DMed these (or couldn't — DMs closed): don't send them again."""
+    ids = [i for i in (request.json or {}).get('ids') or [] if isinstance(i, int)]
+    if ids:
+        Notification.query.filter(Notification.id.in_(ids)).update(
+            {'discord_at': _utcnow_naive()}, synchronize_session=False)
+        db.session.commit()
+    return jsonify({'marked': len(ids)})
+
+
+@app.route('/api/internal/notifications/settings', methods=['POST'])
+@require_internal
+def internal_notification_settings():
+    """/notifications in Discord: read (no changes sent) or change your setting."""
+    import notify
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    if data.get('channels') or data.get('types'):
+        notify.set_prefs(user, data)
+        db.session.commit()
+    return jsonify(_notify_settings(user))
 
 
 @app.route('/api/internal/attendance/prompted', methods=['POST'])
@@ -6361,6 +6473,8 @@ def migrate():
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_user_calendar_token ON user (calendar_token)",
         "ALTER TABLE group_membership ADD COLUMN calendar_token VARCHAR(64)",
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_membership_calendar_token ON group_membership (calendar_token)",
+        # R8: alerts
+        "ALTER TABLE user ADD COLUMN notify_prefs TEXT",
     ]
     for sql in stmts:
         try:

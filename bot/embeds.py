@@ -729,6 +729,7 @@ HELP_SECTIONS = [
         ('/whosgoing', 'who\'s RSVP\'d this week'),
         ('/discuss', 'open a screening\'s thread (and comment)'),
         ('/watch', 'add to, remove from, or show a watchlist'),
+        ('/notifications', 'what alerts you get (watchlist films playing…) and where'),
     ]),
     ('🗳️ Polls', [
         ('/polls', 'what\'s open right now'),
@@ -749,6 +750,39 @@ HELP_SECTIONS = [
         ('/wisdom', 'a random line of cinematic wisdom'),
     ]),
 ]
+
+
+def alerts_embed(items):
+    """Your alerts (R8), bundled: everything new for you from one scrape run."""
+    one = len(items) == 1
+    embed = discord.Embed(title=f"🔔 {items[0]['headline']}" if one else f'🔔 {len(items)} updates on your watchlist',
+                          colour=AMBER, url=items[0]['url'] if one else SITE_URL)
+    if one:
+        embed.description = items[0]['detail']
+    else:
+        embed.description = '\n'.join(f"**[{it['headline']}]({it['url']})**\n{it['detail']}" for it in items[:15])[:4000]
+        if len(items) > 15:
+            embed.description += f'\n…and {len(items) - 15} more on the site.'
+    if poster := _image_url(items[0].get('poster_url')):
+        embed.set_thumbnail(url=poster)
+    embed.set_footer(text='Change what you get and where: /notifications')
+    return embed
+
+
+NOTIFY_CHANNELS = (('discord', 'Discord DMs'), ('email', 'Email'), ('push', 'Push'))
+
+
+def notify_settings_embed(s):
+    """/notifications: where your alerts reach you, and which you get."""
+    embed = discord.Embed(title='🔔 Your notifications', colour=AMBER, url=SITE_URL,
+                          description='The same setting as on the site. Every alert also shows in the bell there.')
+    where = [f"{'✅' if s['channels'][k] else '⬜'} {label}" for k, label in NOTIFY_CHANNELS if s['available'].get(k)]
+    if not s['available'].get('email'):
+        where.append('*Email: add an address to your account on the site to get alerts by email.*')
+    embed.add_field(name='Where', value='\n'.join(where), inline=False)
+    embed.add_field(name='What', inline=False, value='\n'.join(
+        f"{'✅' if s['types'][t['key']] else '⬜'} {t['label']}" for t in s['types_info']))
+    return embed
 
 
 def help_embed():

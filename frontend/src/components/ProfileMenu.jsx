@@ -4,6 +4,7 @@ import { Segmented } from "../ui/TicketRow";
 import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
 import Avatar from "../ui/Avatar";
 import PicturePicker, { sendPicture, sendJson } from "../ui/PicturePicker";
+import NotifySettings from "./NotifySettings";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
 
@@ -265,6 +266,10 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
       </div>
 
       <SharingPrefs user={user} apiBase={apiBase} onUpdate={onUpdate} />
+
+      <hr className="profile-divider" />
+      <div className="profile-section-label profile-notify-title">Notifications</div>
+      <NotifySettings apiBase={apiBase} key={`${user.discord_linked}-${!!user.email}`} />
     </div>
   );
 }

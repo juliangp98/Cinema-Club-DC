@@ -354,6 +354,10 @@ def sync_to_db(cfg, scraped_movies):
         run.new_max_date = new_max_date
 
         _emit_events(db, ScrapeEvent, cfg, theatre, run, new_future, prev_max_date, new_max_date)
+        if prev_max_date is not None:        # a venue's first-ever scrape isn't "just booked"
+            import notify
+            notify.alert_new_showings(theatre, new_future,
+                                      {s.movie_id for s in prev_future if not s.is_cancelled})
 
         db.session.commit()
         print(f"  Synced {len(scraped_movies)} movies for {cfg.slug} "

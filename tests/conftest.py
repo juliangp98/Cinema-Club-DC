@@ -21,7 +21,7 @@ shutil.copy(BASE_DB, DB_PATH)
 os.environ.update({
     'DATABASE_URL': f'sqlite:///{DB_PATH}', 'INTERNAL_API_TOKEN': 'test-token', 'SECRET_KEY': 'test-secret',
     'GROQ_API_KEY': 'fake', 'GROQ_MODEL': '', 'GROQ_FALLBACK_MODEL': '', 'SMTP_EMAIL': '', 'SMTP_PASSWORD': '',
-    'TMDB_API_KEY': '', 'OMDB_API_KEY': '', 'DEFAULT_GROUP_ID': '1', 'FRONTEND_URL': 'https://cinemaclubdc.com',
+    'TMDB_API_KEY': '', 'TMDB_API_TOKEN': '', 'OMDB_API_KEY': '', 'DEFAULT_GROUP_ID': '1', 'FRONTEND_URL': 'https://cinemaclubdc.com',
     'DISCORD_CLIENT_SECRET': '', 'WARM_PUBLIC_CACHE': '0', 'CINEMACLUB_TEST_WORK': WORK,
 })
 

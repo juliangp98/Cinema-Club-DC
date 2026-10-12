@@ -67,7 +67,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
                   editProfile: () => setEditing(true),
-                  openActivity: activity.open };
+                  openActivity: () => activity.open("club") };
 
   return (
     <ShellContext.Provider value={shell}>
@@ -83,7 +83,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
           </nav>
           <div className="topbar-spacer" />
           {user && groupId && <GroupSwitcher groups={groups} activeGroupId={groupId} setGroupId={setGroupId} />}
-          {user && groupId && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
+          {user && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
           {!user && <Link className="btn btn-sm btn-primary topbar-signin" to={signInLink}>Sign in</Link>}
           {user && <Menu
             className="topbar-avatar"
@@ -114,7 +114,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         <InstallPrompt />
 
         {activity.isOpen && (
-          <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} onClose={activity.close} />
+          <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} activity={activity} />
         )}
 
         {editing && (
