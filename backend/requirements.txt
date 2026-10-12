@@ -12,3 +12,4 @@ Pillow==11.3.0
 # Pinned so builds match what's tested (Flask-SQLAlchemy doesn't pin these).
 SQLAlchemy==2.0.51
 Werkzeug==3.1.8
+pywebpush==2.0.3

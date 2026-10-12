@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import GroupSwitcher from "../components/GroupSwitcher";
 import ProfileEditor from "../components/ProfileMenu";
@@ -62,6 +62,12 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   }, [apiBase, setUser, navigate, user]);
 
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
+  // A push about several alerts opens the bell (?alerts=1).
+  useEffect(() => {
+    if (!user || !new URLSearchParams(window.location.search).has("alerts")) return;
+    activity.open("mine");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [user]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Your role in the club you're viewing (R5c): read-only members see, but don't post.
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";

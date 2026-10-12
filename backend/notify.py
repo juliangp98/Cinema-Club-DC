@@ -34,8 +34,10 @@ def _raw(user):
 
 
 def available(user):
-    """Which channels this account can use at all."""
-    return {'discord': bool(user.discord_user_id), 'email': bool(user.email), 'push': False}
+    """Which channels this account can use at all (push: a device turned it on)."""
+    from app import PushSubscription
+    push = bool(user.id) and PushSubscription.query.filter_by(user_id=user.id).first() is not None
+    return {'discord': bool(user.discord_user_id), 'email': bool(user.email), 'push': push}
 
 
 def prefs(user):
@@ -43,7 +45,7 @@ def prefs(user):
     with defaults for anything you haven't set: Discord accounts get DMs,
     email-only accounts get email; every alert type is on."""
     raw, can = _raw(user), available(user)
-    default = {'discord': can['discord'], 'email': can['email'] and not can['discord'], 'push': False}
+    default = {'discord': can['discord'], 'email': can['email'] and not can['discord'], 'push': can['push']}
     chosen = raw.get('channels') or {}
     channels = {c: bool(chosen.get(c, default[c])) and can[c] for c in CHANNELS}
     types = {t: bool((raw.get('types') or {}).get(t, True)) for t in TYPES}
@@ -199,7 +201,9 @@ def release(now=None):
     with app.app_context():
         Notification.query.filter(Notification.ready_at.is_(None)).update({'ready_at': now})
         db.session.commit()
-        return send_emails(now)
+        emailed = send_emails(now)
+        send_pushes(now)
+        return emailed
 
 
 def send_emails(now=None):
@@ -225,6 +229,52 @@ def send_emails(now=None):
                    Notifications on <a href="{FRONTEND_URL}" style="color:#888;">the site</a>.</p></div>""")
         for n in ns:
             n.email_at = now
+    db.session.commit()
+    return len(by_user)
+
+
+def push_to(user, message):
+    """Send `message` ({title, body, url, tag}) to every device `user` turned
+    push on for; forget devices that are gone. Returns how many got it."""
+    from app import db, PushSubscription, VAPID_PRIVATE_KEY, VAPID_SUBJECT
+    if not VAPID_PRIVATE_KEY:
+        return 0
+    from pywebpush import webpush, WebPushException
+    sent = 0
+    for sub in PushSubscription.query.filter_by(user_id=user.id).all():
+        try:
+            webpush({'endpoint': sub.endpoint, 'keys': {'p256dh': sub.p256dh, 'auth': sub.auth}},
+                    json.dumps(message), vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims={'sub': VAPID_SUBJECT}, ttl=12 * 3600)
+            sent += 1
+        except WebPushException as e:
+            if getattr(e.response, 'status_code', None) in (404, 410):     # unsubscribed / expired
+                db.session.delete(sub)
+            else:
+                print(f'push to user {user.id} failed: {e}')
+        except Exception as e:
+            print(f'push to user {user.id} failed: {e}')
+    db.session.commit()
+    return sent
+
+
+def send_pushes(now=None):
+    """One push per person with everything ready for them."""
+    from app import db, Notification
+    now = now or _now()
+    pending = Notification.query.filter(_ready(Notification, now), Notification.push_at.is_(None),
+                                        Notification.channels.like('%push%')).order_by(Notification.created_at).all()
+    by_user = {}
+    for n in pending:
+        by_user.setdefault(n.user_id, []).append(n)
+    for ns in by_user.values():
+        first = describe(ns[0])
+        message = ({'title': first['headline'], 'body': first['detail'], 'url': first['link']} if len(ns) == 1 else
+                   {'title': f'{len(ns)} updates on your watchlist',
+                    'body': ' · '.join(describe(n)['headline'] for n in ns[:4]), 'url': '/?alerts=1'})
+        push_to(ns[0].user, {**message, 'tag': f'alerts-{ns[-1].id}'})
+        for n in ns:
+            n.push_at = now
     db.session.commit()
     return len(by_user)
 

@@ -242,6 +242,8 @@ button.ui-avatar:hover { box-shadow: 0 0 0 2px var(--amber); }
 .notify-row > span { display: flex; flex-direction: column; }
 .notify-name { font-weight: 600; }
 .notify-hint { font-size: var(--fs-xs); color: var(--muted); }
+.notify-push { margin: 0.2rem 0 0.3rem 1.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.linkish { background: none; border: 0; padding: 0; color: var(--amber); font: inherit; cursor: pointer; text-decoration: underline; }
 .profile-notify-title { font-size: var(--fs-md, 1rem); color: var(--amber); }
 
 @media (max-width: 767px) {

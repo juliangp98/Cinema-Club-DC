@@ -23,6 +23,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Web push (R8d): public/push-sw.js shows alerts and opens their page.
+        importScripts: ['push-sw.js'],
         // Page loads under /api/ (Sign in with Discord and its callback) must
         // reach the server; by default the service worker answers every page
         // load with the cached app, which bounced Discord sign-in back to "/".

@@ -72,6 +72,11 @@ CINEMA_EMOJIS = [
 ]
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# Web push (R8d): a key pair made once with `python vapid_keys.py`. Without
+# it, push simply isn't offered.
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_SUBJECT = os.environ.get('VAPID_SUBJECT', 'mailto:alerts@cinemaclubdc.com')
 SMTP_EMAIL = os.environ.get('SMTP_EMAIL', '')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
 TMDB_API_TOKEN = os.environ.get('TMDB_API_TOKEN', '')
@@ -649,6 +654,17 @@ class Announcement(db.Model):
     theatre = db.relationship('Theatre', lazy=True)
     movie = db.relationship('Movie', lazy=True)
     __table_args__ = (db.UniqueConstraint('theatre_id', 'movie_id'),)
+
+
+class PushSubscription(db.Model):
+    """A browser or phone that gets your alerts as push notifications (R8d)."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    endpoint = db.Column(db.String(800), unique=True, nullable=False)
+    p256dh = db.Column(db.String(200), nullable=False)
+    auth = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: _utcnow_naive())
+    user = db.relationship('User', lazy=True)
 
 
 class Notification(db.Model):
@@ -3680,7 +3696,7 @@ def next_showings(movie_ids):
 
 def _notify_settings(user):
     import notify
-    return {**notify.prefs(user), 'available': notify.available(user),
+    return {**notify.prefs(user), 'available': notify.available(user), 'push_ready': bool(VAPID_PUBLIC_KEY),
             'types_info': [{'key': k, 'label': label, 'hint': hint} for k, (label, hint) in notify.TYPES.items()]}
 
 
@@ -3711,6 +3727,53 @@ def notifications_read():
     marked = q.update({'read_at': _utcnow_naive()}, synchronize_session=False)
     db.session.commit()
     return jsonify({'marked': marked})
+
+
+@app.route('/api/push/key')
+def push_key():
+    """The public half of the push key pair (None: push isn't set up)."""
+    return jsonify({'key': VAPID_PUBLIC_KEY or None})
+
+
+@app.route('/api/push/subscribe', methods=['POST'])
+@require_auth
+def push_subscribe():
+    """This device wants push: {endpoint, keys: {p256dh, auth}} (the browser's
+    PushSubscription). Turns push on in your setting."""
+    import notify
+    user = current_user()
+    data = request.json or {}
+    endpoint, keys = str(data.get('endpoint') or ''), data.get('keys') or {}
+    if not VAPID_PUBLIC_KEY or not endpoint.startswith('https://') or not keys.get('p256dh') or not keys.get('auth'):
+        return jsonify({'error': "Couldn't turn on push for this device."}), 400
+    sub = PushSubscription.query.filter_by(endpoint=endpoint[:800]).first() \
+        or PushSubscription(endpoint=endpoint[:800], user_id=user.id, p256dh='', auth='')
+    sub.user_id, sub.p256dh, sub.auth = user.id, str(keys['p256dh'])[:200], str(keys['auth'])[:100]
+    db.session.add(sub)
+    db.session.flush()
+    notify.set_prefs(user, {'channels': {'push': True}})
+    db.session.commit()
+    return jsonify(_notify_settings(user))
+
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+@require_auth
+def push_unsubscribe():
+    """This device stops getting push: {endpoint}."""
+    user = current_user()
+    PushSubscription.query.filter_by(user_id=user.id, endpoint=str((request.json or {}).get('endpoint') or '')).delete()
+    db.session.commit()
+    return jsonify(_notify_settings(user))
+
+
+@app.route('/api/push/test', methods=['POST'])
+@require_auth
+def push_test():
+    """Send yourself a test push on every device you turned it on for."""
+    import notify
+    sent = notify.push_to(current_user(), {'title': 'Push is on 🎬', 'body': "You'll get your Cinema Club alerts here.",
+                                           'url': '/', 'tag': 'test'})
+    return jsonify({'sent': sent})
 
 
 @app.route('/api/me/notifications', methods=['GET', 'PUT'])

@@ -13,6 +13,9 @@
 #
 # Scraper (run manually or via Synology Task Scheduler):
 #   docker exec cinemaclub-backend python scraper.py
+# Suns announces films before tickets go on sale; check it every 30 minutes too
+# so on-sale alerts go out quickly (a second Task Scheduler entry):
+#   docker exec cinemaclub-backend python scraper.py --only suns
 
 services:
   backend:
