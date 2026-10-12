@@ -1,18 +1,26 @@
-"""bot_digest"""
-from helpers import H, client, Checks, WORK
+"""The weekly digest's content (backend) and its Discord post (embeds):
+rarity, plans, last chance, opening, the recap and the post's shape."""
+import json
+from datetime import datetime, timedelta
+
+import pytest
+
+from helpers import H, all_linked_present, client, setup_db
 
 
-def test_bot_digest():
-    checks = Checks()
-    check = checks.check
-    import sys, json
-    from datetime import datetime, timedelta
-    from app import (app, db, migrate, User, Group, GroupMembership, RSVP, Showtime, Movie, Theatre, Watchlist,
-                     Attendance, Message, Poll, PollCategory, PollOption, PollVote, ScrapeEvent, INTERNAL_API_TOKEN)
-
-
+@pytest.fixture
+def digest():
+    """A club at AFI + Suns over the next week: a one-night 35mm 1974 print, a
+    wide re-release, a new film once on 35mm, an indie doc with a Q&A, six
+    classics, SINNERS (2 watchers, nobody going), HOT TICKET (2 watchers,
+    someone going), SOLO WANT (1 watcher), LEAVING (final showing), EDGE (last
+    showing at the edge of the published schedule), OPENER, RETURNING; last
+    week's check-ins, comments, a scored poll and a schedule drop. Everyone
+    lets the digest mention their watchlist."""
+    from app import (app, db, User, Group, GroupMembership, RSVP, Showtime, Movie, Theatre, Watchlist,
+                     Attendance, Message, Poll, PollCategory, PollOption, PollVote, ScrapeEvent)
+    setup_db()
     with app.app_context():
-        db.create_all(); migrate()
         now = datetime.now().replace(minute=0, second=0, microsecond=0)
         afi, suns = Theatre.query.filter_by(slug='afi').first(), Theatre.query.filter_by(slug='suns').first()
         g = Group(name='Digest Club', slug='digest-club', is_public=False, theatres='afi,suns'); db.session.add(g); db.session.flush()
@@ -72,63 +80,73 @@ def test_bot_digest():
         db.session.commit()
         G, IDS = g.id, {'conv': conv_s.id, 'want': want_s.id, 'leave': leave_s.id, 'edge': edge_s.id}
 
-    from helpers import all_linked_present
     all_linked_present()   # R6a.1: they're all in the club's server
     with app.app_context():                # …and let the digest mention their watchlists
         Watchlist.query.update({'share_discord': True}); db.session.commit()
-    c = app.test_client()
-    d = c.get('/api/internal/digest', query_string={'group_id': G, 'days': 7}, headers={'X-Internal-Token': INTERNAL_API_TOKEN}).get_json()
-    titles = lambda sec: [x['title'] for x in d[sec]]
-    print('rare:', [(r['title'], r['score'], r['reasons']) for r in d['rare']])
+    d = client().get('/api/internal/digest', query_string={'group_id': G, 'days': 7}, headers=H).json
+    return {'d': d, 'ids': IDS, 'now': now}
 
-    print('--- rarity ---')
-    check('one-night 35mm 1974 print tops the list with its reasons', d['rare'][0]['title'] == 'THE CONVERSATION'
-          and d['rare'][0]['reasons'] == ['one night only', '35mm', '1974'] and d['rare'][0]['score'] == 10, d['rare'][0])
-    check('wide anniversary re-release is not "rare"', 'FELLOWSHIP' not in titles('rare'))
-    check('capped at 5', len(d['rare']) == 5)
-    check('a new release shown once on 35mm can be rare (scores 7)', any(r['title'] == 'NEW ON FILM' and r['score'] == 7 for r in d['rare'])
-          or 'NEW ON FILM' in titles('rare'), titles('rare'))
-    from app import rarity
+
+def titles(d, section):
+    return [x['title'] for x in d[section]]
+
+
+def test_rare_screenings_lead_with_their_reasons(digest):
+    d = digest['d']
+    top = d['rare'][0]
+    assert top['title'] == 'THE CONVERSATION' and top['reasons'] == ['one night only', '35mm', '1974'] and top['score'] == 10
+    assert 'FELLOWSHIP' not in titles(d, 'rare')                               # a wide re-release isn't rare
+    assert len(d['rare']) == 5                                                  # capped
+    assert any(r['title'] == 'NEW ON FILM' and r['score'] == 7 for r in d['rare']) or 'NEW ON FILM' in titles(d, 'rare')
+
+
+def test_a_q_and_a_adds_points_and_a_reason(digest):
+    from app import app, rarity, Showtime
     with app.app_context():
         s = Showtime.query.filter(Showtime.event_label.like('%Q&A%')).first()
-        sc, why = rarity(s, 2, 1, now.year)
-    check('Q&A billing adds points and a reason', 'Q&A' in why and '2 showings' in why and sc == 5, (sc, why))
+        score, why = rarity(s, 2, 1, digest['now'].year)
+    assert 'Q&A' in why and '2 showings' in why and score == 5
 
-    print('--- plans ---')
-    check('2 members want it, nobody going -> Make plans', titles('plans') == ['SINNERS'] and d['plans'][0]['wanters'] == ['Ana', 'Bo']
-          and d['plans'][0]['showtime_id'] == IDS['want'], d['plans'])
-    check("someone's going -> not a plan (it's under Who's going)", 'HOT TICKET' not in titles('plans') and 'HOT TICKET' in titles('whos_going'))
-    check('one watcher is not enough', 'SOLO WANT' not in titles('plans'))
-    check('planned films are flagged in the watchlist list (shown once)', [w['planned'] for w in d['watchlist'] if w['title'] == 'SINNERS'] == [True])
 
-    print('--- last chance / opening ---')
-    check('final showing while its theatre schedule runs on -> last chance', titles('last_chance') == ['LEAVING'], d['last_chance'])
-    check("a film whose last showing is just the edge of the published schedule isn't flagged", 'EDGE' not in titles('last_chance'))
-    check('first-ever showings of a recent release -> opening (with venue count)', any(o['title'] == 'OPENER' and o['theatres'] == 2 for o in d['opening']), d['opening'])
-    check('a film that played before is not "opening"', 'RETURNING' not in titles('opening'))
-    check('old films never "open"', 'THE CONVERSATION' not in titles('opening'))
-    secs = ['plans', 'rare', 'last_chance', 'opening']
-    all_titles = [t for s in secs for t in titles(s)]
-    check('each film in at most one section', len(all_titles) == len(set(all_titles)), all_titles)
+def test_make_plans(digest):
+    d = digest['d']
+    assert titles(d, 'plans') == ['SINNERS'] and d['plans'][0]['wanters'] == ['Ana', 'Bo']
+    assert d['plans'][0]['showtime_id'] == digest['ids']['want']
+    assert 'HOT TICKET' not in titles(d, 'plans') and 'HOT TICKET' in titles(d, 'whos_going')   # someone's going
+    assert 'SOLO WANT' not in titles(d, 'plans')                                               # one watcher isn't enough
+    assert [w['planned'] for w in d['watchlist'] if w['title'] == 'SINNERS'] == [True]
 
-    print('--- recap, footer ---')
+
+def test_last_chance_and_opening(digest):
+    d = digest['d']
+    assert titles(d, 'last_chance') == ['LEAVING']                    # final showing, its theatre's schedule runs on
+    assert 'EDGE' not in titles(d, 'last_chance')                     # its last showing is just the schedule's edge
+    assert any(o['title'] == 'OPENER' and o['theatres'] == 2 for o in d['opening'])
+    assert 'RETURNING' not in titles(d, 'opening') and 'THE CONVERSATION' not in titles(d, 'opening')
+    every = [t for s in ('plans', 'rare', 'last_chance', 'opening') for t in titles(d, s)]
+    assert len(every) == len(set(every))                              # each film in one section
+
+
+def test_last_weeks_recap(digest):
+    d = digest['d']
     r = d['recap']
-    check('recap: check-ins incl. unanswered going RSVPs, top film', r['checkins'] == 4 and r['films'] == 2
-          and r['top_film'] == {'title': 'THE CONVERSATION', 'count': 3}, r)
-    check('recap: most discussed + poll winner', r['discussed']['comments'] == 4 and r['poll'] == {'title': 'Fest picks', 'winner': 'Bo', 'kernels': 1}, r)
-    check('schedule drops reduced to counts', d['new_on_calendar'] == [{'theatre': 'AFI', 'showtimes': 23}] or d['new_on_calendar'][0]['showtimes'] == 23, d['new_on_calendar'])
+    assert r['checkins'] == 4 and r['films'] == 2 and r['top_film'] == {'title': 'THE CONVERSATION', 'count': 3}
+    assert r['discussed']['comments'] == 4 and r['poll'] == {'title': 'Fest picks', 'winner': 'Bo', 'kernels': 1}
+    assert d['new_on_calendar'][0]['showtimes'] == 23
 
-    print('--- the Discord post ---')
+
+@pytest.fixture
+def post(digest):
     import embeds
-    content, embed, tagged, plans = embeds.digest_message(d, tag_watchers=True)
-    names = [f.name for f in embed.fields]
-    check('sections in order, no title dump', names == ["🎟️ Who's going", '🤝 Make plans — nobody’s going yet', '💎 Rare this week',
-                                                         '🆕 Opening this week', '⏳ Last chance', '👀 On your watchlists', '📊 Last week'], names)
-    check('footer is one line of counts + calendar link', embed.footer.text.startswith('New on the calendar: AFI +23\n'), embed.footer.text)
-    check('rare lines carry reasons', 'one night only · 35mm · 1974' in embed.fields[2].value, embed.fields[2].value)
-    wl = embed.fields[5].value
-    check('SINNERS listed under plans, not again under watchlists — but still pinged', 'SINNERS' not in wl and 'SINNERS' in content, (wl, content))
-    total_lines = sum(f.value.count('\n') + 1 for f in embed.fields)
-    check(f'short: {total_lines} lines', total_lines <= 22, total_lines)
-    check('plan picks returned for Going buttons', [p['title'] for p in plans] == ['SINNERS'])
-    checks.done()
+    return embeds.digest_message(digest['d'], tag_watchers=True)
+
+
+def test_the_discord_post(post):
+    content, embed, tagged, plans = post
+    assert [f.name for f in embed.fields] == ["🎟️ Who's going", '🤝 Make plans — nobody’s going yet', '💎 Rare this week',
+                                              '🆕 Opening this week', '⏳ Last chance', '👀 On your watchlists', '📊 Last week']
+    assert embed.footer.text.startswith('New on the calendar: AFI +23\n')
+    assert 'one night only · 35mm · 1974' in embed.fields[2].value
+    assert 'SINNERS' not in embed.fields[5].value and 'SINNERS' in content     # under plans only — but still pinged
+    assert sum(f.value.count('\n') + 1 for f in embed.fields) <= 22          # short
+    assert [p['title'] for p in plans] == ['SINNERS']                          # for the Going buttons
