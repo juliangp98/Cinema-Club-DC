@@ -77,7 +77,7 @@ def window(when, now=None, start=None, end=None, past_days=0):
 
 class Film:
     """One film's showings in a window, with what discovery needs to know."""
-    __slots__ = ('movie', 'shows', 'venues', 'formats', 'events', 'rare_score', 'rare_reasons',
+    __slots__ = ('movie', 'shows', 'venues', 'formats', 'events', 'rare_score', 'rare_reasons', 'rare_show',
                  'year', 'genres', 'wanted', 'going', 'you_want', 'you_going')
 
     def __init__(self, movie):
@@ -94,7 +94,9 @@ class Film:
             for pattern, label in event_words:
                 if re.search(pattern, s.event_label or '', re.I) and label not in self.events:
                     self.events.append(label)
-        best = max((rarity(s, len(self.shows), len(self.venues), this_year) for s in self.shows), key=lambda x: x[0])
+        # Its rarest showing (the earliest, on a tie) stands for it, e.g. in the digest.
+        best, self.rare_show = max(((rarity(s, len(self.shows), len(self.venues), this_year), s) for s in self.shows),
+                                   key=lambda x: (x[0][0], -x[1].start_time.timestamp()))
         self.rare_score, self.rare_reasons = best
         y = (self.movie.release_year or '')[:4]
         self.year = int(y) if y.isdigit() else None
@@ -401,6 +403,35 @@ def announced(group=None, theatres=None, movie_id=None, now=None):
                                 'color': a.theatre.color},
                     'date': a.expected_on.isoformat(), 'url': a.url})
     return out
+
+
+def weekly(group, now=None, days=7, caps=None, plan_min=2):
+    """The weekly digest's film picks, from the same shelves as Discover (so a
+    film is "rare", "last chance" or "opening" by the same rules everywhere).
+    Each film is in at most one section, in this order:
+      plans       — 'most-wanted' films (plan_min+ members want them) nobody's going to yet
+      rare        — the 'rare' shelf, each at its rarest showing (with reasons)
+      last_chance — the 'last-chance' shelf, at the final showing
+      opening     — the 'opening' shelf, at the first showing (+ how many theatres)
+    Returns (films, {section: [(Film, Showtime, extra)]}); `films` is the
+    window's catalog ({movie_id: Film}), for the digest's people sections."""
+    now = now or datetime.now()
+    caps = caps or {}
+    films = catalog(group, now, now + timedelta(days=days))
+    ctx = context(group, None, films, now)
+    used, picks = set(), {}
+
+    def take(section, rows):
+        out = [r for r in rows if r[0].movie.id not in used][:caps.get(section, 5)]
+        used.update(f.movie.id for f, _, _ in out)
+        picks[section] = out
+
+    take('plans', [(f, f.next, None) for f, _ in shelf('most-wanted', films, ctx)
+                   if f.wanted >= plan_min and not f.going])
+    take('rare', [(f, f.rare_show, f.rare_reasons) for f, _ in shelf('rare', films, ctx)])
+    take('last_chance', [(f, f.shows[-1], None) for f, _ in shelf('last-chance', films, ctx)])
+    take('opening', [(f, f.next, len(f.venues)) for f, _ in shelf('opening', films, ctx)])
+    return films, picks
 
 
 def theatre_previews(group, now=None, posters=5):

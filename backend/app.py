@@ -5525,23 +5525,21 @@ def internal_digest():
       watchlist       — watchlisted films playing, with their watchers (`fresh`: taggable)
       open_polls, recap (last week), new_on_calendar (schedule-drop counts per theatre)."""
     import json as _json
+    import discover
     group_id = request.args.get('group_id', type=int)
     days = request.args.get('days', 7, type=int)
     group = db.session.get(Group, group_id) if group_id else None
     now = datetime.now()
-    window_end = now + timedelta(days=days)
 
-    showtimes = (_group_showtime_query(group)
-                 .filter(Showtime.start_time >= now, Showtime.start_time <= window_end)
-                 .order_by(Showtime.start_time).all())
-    by_movie = {}
-    for s in showtimes:
-        by_movie.setdefault(s.movie_id, []).append(s)
+    # The films come from the Discover engine (R9a): the same rules as its shelves.
+    films, picks = discover.weekly(group, now, days, DIGEST_CAPS, PLAN_MIN_WATCHERS)
+    by_movie = {mid: f.shows for mid, f in films.items()}
+    showtimes = sorted((s for f in films.values() for s in f.shows), key=lambda s: s.start_time)
     members = ({m.user_id for m in group.memberships if m.status == 'active'} if group else None)
 
     # Names are only members in the club's server (and, for watchlists, only
     # if they let the digest mention them); everyone else is a *_more count.
-    whos_going, going_movies = [], set()
+    whos_going = []
     for s in showtimes:
         going = [r.user for r in s.rsvps
                  if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
@@ -5551,7 +5549,6 @@ def internal_digest():
             quiet = [u for u in shown if share_prefs(u)['rsvp'] == 'never']
             shown, more = [u for u in shown if u not in quiet], more + len(quiet)
             whos_going.append({**_showtime_brief(s), 'going': [u.name for u in shown], 'going_more': more})
-            going_movies.add(s.movie_id)
 
     retag_before = _utcnow_naive() - DIGEST_RETAG_AFTER
     watchers_by_movie = {}
@@ -5570,55 +5567,13 @@ def internal_digest():
         shown = [{k: w[k] for k in ('watchlist_id', 'name', 'discord_user_id', 'fresh')} for w in ws if w['shown']]
         return shown, len(ws) - len(shown), [w['watchlist_id'] for w in ws if not w['shown'] and w['fresh']]
 
-    used = set()
     plans = []
-    for mid, ws in sorted(watchers_by_movie.items(), key=lambda kv: (-len(kv[1]), by_movie[kv[0]][0].start_time)):
-        if len(ws) >= PLAN_MIN_WATCHERS and mid not in going_movies and len(plans) < DIGEST_CAPS['plans']:
-            shown, more, _ = watchers_out(ws)
-            plans.append({**_showtime_brief(by_movie[mid][0]), 'wanters': [w['name'] for w in shown],
-                          'wanters_more': more})
-            used.add(mid)
-
-    candidates = []
-    for mid, shows in by_movie.items():
-        if mid in used:
-            continue
-        venues = len({s.theatre_id for s in shows})
-        best = max(((rarity(s, len(shows), venues, now.year), s) for s in shows),
-                   key=lambda x: (x[0][0], -x[1].start_time.timestamp()))
-        (score, why), s = best
-        if score >= RARE_MIN_SCORE:
-            candidates.append((mid, {**_showtime_brief(s), 'score': score, 'reasons': why}))
-    candidates.sort(key=lambda c: (-c[1]['score'], c[1]['start_time']))
-    rare = [entry for _, entry in candidates[:DIGEST_CAPS['rare']]]
-    used.update(mid for mid, _ in candidates[:DIGEST_CAPS['rare']])
-
-    base = _group_showtime_query(group)
-    horizon = schedule_horizons(group, now)
-    span = {mid: (first, last, n) for mid, first, last, n in base.with_entities(
-        Showtime.movie_id, db.func.min(Showtime.start_time), db.func.max(Showtime.start_time),
-        db.func.count(Showtime.id)).filter(Showtime.movie_id.in_(by_movie)).group_by(Showtime.movie_id)} \
-        if by_movie else {}
-
-    last_chance = []
-    for mid, shows in sorted(by_movie.items(), key=lambda kv: kv[1][-1].start_time):
-        first, last, total = span.get(mid, (None, None, 0))
-        final = shows[-1]
-        if mid in used or total < 3 or last != final.start_time or len(last_chance) >= DIGEST_CAPS['last_chance']:
-            continue
-        if is_last_chance(final.start_time, {x.theatre_id for x in shows}, horizon):
-            last_chance.append(_showtime_brief(final))
-            used.add(mid)
-
-    opening = []
-    for mid, shows in by_movie.items():
-        first, last, total = span.get(mid, (None, None, 0))
-        year = _as_int((shows[0].movie.release_year or '')[:4])
-        if mid in used or not year or year < now.year - 1 or not first or first < now - timedelta(hours=12):
-            continue
-        opening.append({**_showtime_brief(shows[0]), 'theatres': len({s.theatre_id for s in shows})})
-    # Widest openings first: a film opening at five theatres beats a one-off.
-    opening = sorted(opening, key=lambda x: (-x['theatres'], x['start_time']))[:DIGEST_CAPS['opening']]
+    for f, s, _ in picks['plans']:
+        shown, more, _ = watchers_out(watchers_by_movie.get(f.movie.id, []))
+        plans.append({**_showtime_brief(s), 'wanters': [w['name'] for w in shown], 'wanters_more': more})
+    rare = [{**_showtime_brief(s), 'score': f.rare_score, 'reasons': why} for f, s, why in picks['rare']]
+    last_chance = [_showtime_brief(s) for _, s, _ in picks['last_chance']]
+    opening = [{**_showtime_brief(s), 'theatres': n} for _, s, n in picks['opening']]
 
     planned = {p['showtime_id'] for p in plans}
     watchlist = []
