@@ -1247,6 +1247,7 @@ def _group_showtime_query(group):
 RARE_MIN_SCORE = 4                       # a screening needs this rarity score to be called rare
 PLAN_MIN_WATCHERS = 2                    # "make plans": members wanting a film nobody's going to yet
 LAST_CHANCE_MARGIN = timedelta(days=3)   # the theatre's schedule must run this far past the last showing
+SCHEDULE_GAP_DAYS = 2                    # a published schedule can skip this many days (closed days) in a row
 DIGEST_CAPS = {'plans': 2, 'rare': 5, 'last_chance': 3, 'opening': 4}   # keep it short enough to read
 EVENT_WORDS = [                          # special-event billing -> (pattern, how the digest says it)
     (r'q\s*&\s*a', 'Q&A'), (r'in[- ]person', 'in person'), (r'\bintro', 'intro'), (r'premiere', 'premiere'),
@@ -1302,8 +1303,11 @@ def schedule_horizons(group, now):
     """{theatre_id: the date through which it has published its full schedule}.
     Theatres list regular films only a week or so out but special events months
     ahead, so a theatre's latest showtime says nothing about whether a film's
-    run continues. Instead: the last day that still has at least half the
-    theatre's typical daily showtimes (median of the coming week)."""
+    run continues. Instead: a full day has at least half the theatre's typical
+    daily showtimes (the median of the coming week's days that have any), and
+    the schedule runs from today through the last full day before more than
+    SCHEDULE_GAP_DAYS days in a row that aren't — so a lone event later on, or
+    an empty day lowering the typical count, never stretches it."""
     rows = (_group_showtime_query(group)
             .with_entities(Showtime.theatre_id, db.func.date(Showtime.start_time), db.func.count(Showtime.id))
             .filter(Showtime.start_time >= now, Showtime.start_time < now + timedelta(days=90))
@@ -1313,10 +1317,17 @@ def schedule_horizons(group, now):
         per_day.setdefault(tid, {})[(datetime.fromisoformat(str(day)).date() - now.date()).days] = n
     horizons = {}
     for tid, days in per_day.items():
-        week = sorted(days.get(d, 0) for d in range(7))
-        threshold = max(1, week[3] / 2)
-        full = [d for d, n in days.items() if n >= threshold]
-        horizons[tid] = datetime.combine(now.date() + timedelta(days=max(full) if full else 0), datetime.max.time())
+        week = sorted(n for d, n in days.items() if d < 7)
+        threshold = max(1, week[len(week) // 2] / 2) if week else 1
+        last, gap = 0, 0
+        for d in range(max(days) + 1):
+            if days.get(d, 0) >= threshold:
+                last, gap = d, 0
+            else:
+                gap += 1
+                if gap > SCHEDULE_GAP_DAYS:
+                    break
+        horizons[tid] = datetime.combine(now.date() + timedelta(days=last), datetime.max.time())
     return horizons
 
 

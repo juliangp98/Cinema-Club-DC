@@ -50,9 +50,9 @@ def digest():
         leaving = film('LEAVING', y - 1)
         for d in (-6, -4, -2): show(leaving, suns, d * 24)
         leave_s = show(leaving, suns, 70)                                                                  # final showing in window
-        later = film('SUNS LATER', y)                                                                     # suns' full schedule runs on
-        for d in range(8, 13):                                                                            # (a full day's worth, so the
-            for h in (12, 15, 18, 21): show(later, suns, 24 * d + h)                                     # horizon holds at any hour)
+        later = film('SUNS LATER', y - 3)                                                                 # suns' full schedule runs on
+        for d in range(4, 13):                                                                            # without a break (older and
+            for h in (12, 15, 18, 21): show(later, suns, 24 * d + h)                                     # common: in no digest section)
         edge = film('EDGE', y - 1)
         for d in (-5, -3): show(edge, afi, d * 24)
         edge_s = show(edge, afi, 24 * 6 + 20)                                                              # last afi show... see below
