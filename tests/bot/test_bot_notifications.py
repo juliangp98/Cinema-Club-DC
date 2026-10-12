@@ -94,5 +94,5 @@ def test_notifications_command_toggles_the_setting(bot_with_alerts):
     select._values = ['showings']                                   # what Discord fills in on a pick
     asyncio.run(select.callback(it))
     _, _, kw = it.last
-    assert '✅ A film on your watchlist gets showings' in kw['embed'].fields[1].value
+    assert '✅ A film on your watchlist is booked or announced' in kw['embed'].fields[1].value
     assert '⬜ Tickets go on sale' in kw['embed'].fields[1].value
