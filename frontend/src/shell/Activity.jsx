@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { Link } from "react-router-dom";
 import Sheet from "../ui/Sheet";
 import Tabs from "../ui/Tabs";
 import Poster from "../ui/Poster";
-import Feed from "../pages/Feed";
+import lazyPage from "../lazyPage";
+import Loading from "../ui/Loading";
 import NotifySettings from "../components/NotifySettings";
 import { BellIcon } from "../ui/icons";
 import { ago } from "../dates";
+
+const Feed = lazyPage(() => import("../pages/Feed"));      // loads when the Club tab opens
 
 // The bell in the top bar, on every page: "For you" — your alerts (R8: a film
 // on your watchlist got showings…; read/unread is kept on the server) — and
@@ -151,7 +154,7 @@ export function ActivityPanel({ user, apiBase, groupId, activity }) {
         <h2 className="ui-section-title activity-title"><span className="deco">Notifications</span></h2>
         {tabs.length > 1 && <div className="activity-tabs"><Tabs tabs={tabs} value={activity.tab} onChange={pick} label="Notifications" /></div>}
         {activity.tab === "club" && groupId
-          ? <Feed user={user} apiBase={apiBase} groupId={groupId} />
+          ? <Suspense fallback={<Loading />}><Feed user={user} apiBase={apiBase} groupId={groupId} /></Suspense>
           : <ForYou apiBase={apiBase} onSeen={activity.seeMine} onClose={activity.close} />}
       </div>
     </Sheet>

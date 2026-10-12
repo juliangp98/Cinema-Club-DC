@@ -1,19 +1,25 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import PageLoading from "./ui/Loading";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation, useSearchParams } from "react-router-dom";
-import Calendar from "./pages/Calendar";
-import Login from "./pages/Login";
-import GroupDiscovery from "./pages/GroupDiscovery";
-import ClubPage from "./pages/ClubPage";
-import PollsPage from "./pages/PollsPage";
-import PollDetailPage from "./pages/PollDetailPage";
-import PollEditorPage from "./pages/PollEditorPage";
-import VerifySignin from "./pages/VerifySignin";
-import MePage from "./pages/MePage";
-import FilmPage from "./pages/FilmPage";
-import DiscoverPage from "./pages/DiscoverPage";
-import BrowsePage from "./pages/BrowsePage";
-import { TheatresPage, TheatrePage } from "./pages/Theatres";
-import { SpotlightsPage, DoublesPage } from "./pages/DiscoverMore";
+import DiscoverPage from "./pages/DiscoverPage";       // home: in the main bundle
+import lazyPage from "./lazyPage";
+
+// Every other page loads when first visited (R9e).
+const Calendar = lazyPage(() => import("./pages/Calendar"));
+const Login = lazyPage(() => import("./pages/Login"));
+const GroupDiscovery = lazyPage(() => import("./pages/GroupDiscovery"));
+const ClubPage = lazyPage(() => import("./pages/ClubPage"));
+const PollsPage = lazyPage(() => import("./pages/PollsPage"));
+const PollDetailPage = lazyPage(() => import("./pages/PollDetailPage"));
+const PollEditorPage = lazyPage(() => import("./pages/PollEditorPage"));
+const VerifySignin = lazyPage(() => import("./pages/VerifySignin"));
+const MePage = lazyPage(() => import("./pages/MePage"));
+const FilmPage = lazyPage(() => import("./pages/FilmPage"));
+const BrowsePage = lazyPage(() => import("./pages/BrowsePage"));
+const TheatresPage = lazyPage(() => import("./pages/Theatres"), "TheatresPage");
+const TheatrePage = lazyPage(() => import("./pages/Theatres"), "TheatrePage");
+const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "SpotlightsPage");
+const DoublesPage = lazyPage(() => import("./pages/DiscoverMore"), "DoublesPage");
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 import { clearCache } from "./api";
@@ -169,6 +175,7 @@ export default function App() {
         </div>
       )}
       {loading ? <Loading /> : (
+      <Suspense fallback={<div className="page"><PageLoading /></div>}>
       <Routes>
         {/* Emailed sign-in links land here. */}
         <Route path="/auth/verify" element={<VerifySignin apiBase={API_BASE} onLogin={handleLogin} />} />
@@ -208,6 +215,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       )}
     </BrowserRouter>
   );

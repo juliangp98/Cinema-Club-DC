@@ -4,7 +4,7 @@ import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
-import { AvatarFace } from "../ui/Avatar";
+import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import { ago, dayDateTime } from "../dates";
@@ -39,7 +39,7 @@ function Avatars({ users, onViewProfile, max = 5 }) {
           key={u.id}
           type="button"
           className="feed-avatar"
-          style={{ background: u.avatar_color }}
+          style={initialsStyle(u.avatar_color)}
           title={u.discord_only ? `${u.name} (Discord)` : u.name}
           onClick={() => onViewProfile(u.id)}
         >

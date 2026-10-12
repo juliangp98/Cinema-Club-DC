@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useShell } from "../shell/AppShell";
 import { shareToDiscord } from "../ui/DiscordShare";
-import { AvatarFace } from "../ui/Avatar";
+import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import { ago } from "../dates";
 
 const timeAgo = ago;
@@ -173,7 +173,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
           <div key={m.id} className="chat-bubble">
             <div
               className="chat-avatar clickable"
-              style={{ background: m.user.avatar_color, color: "var(--ink)" }}
+              style={initialsStyle(m.user.avatar_color)}
               onClick={() => onViewProfile?.(m.user.id)}
             >
               <AvatarFace user={m.user} />

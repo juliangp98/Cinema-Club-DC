@@ -6,6 +6,14 @@ import './index.css'
 import './ui/ui.css'
 
 import ErrorBoundary from './ui/ErrorBoundary'
+// Every stylesheet loads up front (R9e): pages load on demand, but their
+// styles are shared across pages, and all of it is only ~16 kB compressed.
+import "./pages/Calendar.css";
+import "./pages/Club.css";
+import "./pages/DiscoverPage.css";
+import "./pages/FilmPage.css";
+import "./pages/Polls.css";
+import "./pages/Theatres.css";
 
 // The old service worker's stored API responses (R7b): no longer used, and
 // they could hold signed-in data — remove them.

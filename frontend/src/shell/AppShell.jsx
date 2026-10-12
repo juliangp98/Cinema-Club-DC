@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, Suspense } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import GroupSwitcher from "../components/GroupSwitcher";
-import ProfileEditor from "../components/ProfileMenu";
+import lazyPage from "../lazyPage";
 import Sheet from "../ui/Sheet";
+import Loading from "../ui/Loading";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
 import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
@@ -10,6 +11,8 @@ import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
 import { clearCache } from "../api";
+
+const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -106,7 +109,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         </header>
 
         <main className="shell-main">
-          <Outlet />
+          <Suspense fallback={<div className="page"><Loading /></div>}><Outlet /></Suspense>
         </main>
 
         <nav className="tabbar" aria-label="Main">
@@ -126,7 +129,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         {editing && (
           <Sheet label="Edit profile" onClose={() => setEditing(false)}>
             <div className="profile-editor">
-              <ProfileEditor user={user} apiBase={apiBase} onUpdate={setUser} />
+              <Suspense fallback={<Loading />}><ProfileEditor user={user} apiBase={apiBase} onUpdate={setUser} /></Suspense>
             </div>
           </Sheet>
         )}

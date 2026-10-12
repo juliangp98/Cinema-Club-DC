@@ -1,5 +1,24 @@
 import { useState, useEffect } from "react";
 
+// Initials readable on any avatar color (R9e, WCAG AA 4.5:1): dark ink on
+// light colors, ivory on dark ones; a mid-tone color that suits neither is
+// deepened a little until ivory reads. Returns { background, color }.
+const lum = n => {
+  const lin = c => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+};
+const INK = 0.0049, IVORY = 0.835;                         // --ink #22090f, --cream #f5ecd7
+export function initialsStyle(bg) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(bg || "");
+  if (!m) return { background: bg, color: "var(--ink)" };
+  let n = parseInt(m[1], 16);
+  if ((lum(n) + 0.05) / (INK + 0.05) >= 4.5) return { background: `#${m[1]}`, color: "var(--ink)" };
+  for (let i = 0; i < 20 && (IVORY + 0.05) / (lum(n) + 0.05) < 4.5; i += 1) {
+    n = [16, 8, 0].reduce((acc, sh) => acc | (Math.round(((n >> sh) & 255) * 0.9) << sh), 0);
+  }
+  return { background: `#${n.toString(16).padStart(6, "0")}`, color: "var(--cream)" };
+}
+
 // A member's picture (R6b): their photo (an upload or their Discord picture),
 // an emoji, or their initials on their chosen color.
 export default function Avatar({ user, size = 32, onClick, title }) {
@@ -8,8 +27,8 @@ export default function Avatar({ user, size = 32, onClick, title }) {
   const label = title || user?.name || "";
   const photo = user?.avatar_url && !broken;
   const emoji = !photo && user?.avatar_emoji;
-  const style = { background: photo ? "var(--bg3)" : emoji ? "var(--bg3)" : user?.avatar_color || "var(--amber)",
-                  width: size, height: size, fontSize: Math.max(10, Math.round(size * (emoji ? 0.55 : 0.36))) };
+  const colors = photo || emoji ? { background: "var(--bg3)" } : initialsStyle(user?.avatar_color || "#dcb15c");
+  const style = { ...colors, width: size, height: size, fontSize: Math.max(10, Math.round(size * (emoji ? 0.55 : 0.36))) };
   const inner = photo
     ? <img src={user.avatar_url} alt="" onError={() => setBroken(true)} />
     : emoji || (user?.name || "?").slice(0, 2).toUpperCase();
