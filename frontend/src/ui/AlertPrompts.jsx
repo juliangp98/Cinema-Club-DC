@@ -9,6 +9,10 @@ const put = (apiBase, path, body) => fetch(`${apiBase}${path}`, {
   method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
 });
 
+// What to ask after a watchlist add, from the server's answer.
+export const watchPromptOf = d => (d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt }
+  : d.discord_prompt ? { digest: true } : null);
+
 // After a first watchlist add: how (if at all) to hear when a theatre books
 // one. `digest`: also offer the Monday digest mention in the club's Discord.
 export function WatchAlertPrompt({ apiBase, movieId, digest, onDone }) {

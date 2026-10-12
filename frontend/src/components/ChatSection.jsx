@@ -2,16 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useShell } from "../shell/AppShell";
 import { shareToDiscord } from "../ui/DiscordShare";
 import { AvatarFace } from "../ui/Avatar";
+import { ago } from "../dates";
 
-function timeAgo(iso) {
-  const now = new Date();
-  const d = new Date(iso);
-  const diff = Math.floor((now - d) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+const timeAgo = ago;
 
 // A cheap fingerprint, so a poll that changes nothing doesn't re-render (or scroll).
 const signature = list => list.map(m => `${m.id}:${m.body.length}:${m.body.slice(-8)}`).join("|");

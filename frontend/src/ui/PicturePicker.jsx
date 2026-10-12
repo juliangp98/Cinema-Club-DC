@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { send } from "../api";
 
 const QUICK = ["🎬", "🍿", "🎞️", "🎥", "📽️", "🎟️", "🌙", "👻", "🦇", "🌹", "🐈‍⬛", "⭐"];
 
@@ -61,10 +62,4 @@ export async function sendPicture(url, file) {
   return d;
 }
 
-export async function sendJson(url, method, payload) {
-  const r = await fetch(url, { method, credentials: "include", headers: { "Content-Type": "application/json" },
-                               body: JSON.stringify(payload) }).catch(() => null);
-  const d = r ? await r.json().catch(() => ({})) : {};
-  if (!r?.ok) throw new Error(d.error || "Couldn't save that — try again.");
-  return d;
-}
+export const sendJson = (url, method, payload) => send(url, method, payload);

@@ -3,16 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { accountLabel } from "../accountLabel";
 import Sheet from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
+import { fullDate, dayDateTime } from "../dates";
+import { attend } from "../api";
 
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatWhen(iso) {
-  const d = new Date(iso);
-  const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  return `${day} · ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-}
+const formatDate = fullDate, formatWhen = dayDateTime;
 
 // Outside the calendar, opening a screening means going there (its deep link).
 function openOnCalendar(showtimeId) {
@@ -113,13 +107,7 @@ export function HistoryTab({ userId, apiBase, onOpen, onChange }) {
   const [data, setData] = useList(`${apiBase}/api/users/${userId}/history`);
 
   async function setStatus(item, status) {
-    const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ showtime_id: item.showtime_id, status }),
-    });
-    if (!r.ok) return;
+    if (!(await attend(apiBase, item.showtime_id, status).catch(() => null))) return;
     onChange?.();
     setData(d => ({
       ...d,

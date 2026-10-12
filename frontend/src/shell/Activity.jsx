@@ -6,6 +6,7 @@ import Poster from "../ui/Poster";
 import Feed from "../pages/Feed";
 import NotifySettings from "../components/NotifySettings";
 import { BellIcon } from "../ui/icons";
+import { ago } from "../dates";
 
 // The bell in the top bar, on every page: "For you" — your alerts (R8: a film
 // on your watchlist got showings…; read/unread is kept on the server) — and
@@ -86,11 +87,6 @@ export function ActivityBell({ unread, onOpen }) {
   );
 }
 
-const ago = iso => {
-  const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
-  return s < 3600 ? `${Math.max(1, Math.floor(s / 60))}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago`
-    : new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-};
 
 // Your alerts, newest first; opening them marks them read.
 function ForYou({ apiBase, onSeen, onClose }) {

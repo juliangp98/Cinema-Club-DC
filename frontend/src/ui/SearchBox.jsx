@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { useShell } from "../shell/AppShell";
 import Poster from "./Poster";
+import { dayDate } from "../dates";
 
 const GROUPS = [["films", "Films"], ["people", "People"], ["filters", "Filters"]];
 const ROLE = { director: "Director", actor: "Actor" };
 const yearOf = f => (f.year ? ` (${f.year})` : "");
-const nextLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const nextLabel = dayDate;
 
 // Default for picks outside Browse: open Browse with them (a month ahead).
 export const browseUrl = params => `/browse?${new URLSearchParams({ when: "month", ...params })}`;

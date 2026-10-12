@@ -8,16 +8,15 @@ import { useShell } from "../shell/AppShell";
 import Poster from "../ui/Poster";
 import Loading, { LoadError } from "../ui/Loading";
 import TheatreLink from "../ui/TheatreLink";
-import { useJson } from "../api";
+import { useJson, toggleWatch } from "../api";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "../components/film/FilmInfo";
 import "./FilmPage.css";
 import { groupParam } from "../scope";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
-import { WatchAlertPrompt } from "../ui/AlertPrompts";
+import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
+import { longDayDate, time, monthDay } from "../dates";
 
-const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-const shortDay = iso => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
 
 function People({ label, people, onView }) {
@@ -89,14 +88,10 @@ export default function FilmPage({ user, apiBase, groupId }) {
     if (!user && !(await shell.ensureProfile())) return;      // a visitor's first save makes a guest profile
     const next = !watching;
     setWatching(next);
-    const r = await fetch(`${apiBase}/api/watchlist`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ movie_id: Number(id) }),
-    }).catch(() => null);
-    if (r?.ok) {
-      const d = await r.json();
+    const d = await toggleWatch(apiBase, Number(id)).catch(() => null);
+    if (d) {
       setWatching(d.watching);
-      setWatchPrompt(d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt } : d.discord_prompt ? { digest: true } : null);
+      setWatchPrompt(watchPromptOf(d));
       load();
     } else setWatching(!next);
   }

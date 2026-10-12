@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import { groupParam } from "../scope";
+import { rsvp, attend } from "../api";
 
 // Open any screening's drawer from a page that doesn't otherwise manage
 // showtimes: const { openShowtime, sheet } = useShowtimeSheet(...); render {sheet}.
@@ -17,19 +18,12 @@ export default function useShowtimeSheet({ user, apiBase, groupId, onViewProfile
   const patch = (id, fields) => setSelected(prev => (prev ? prev.map(s => (s.id === id ? { ...s, ...fields } : s)) : prev));
 
   async function onRsvp(showtimeId, status) {
-    const r = await fetch(`${apiBase}/api/rsvp`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status, group_id: groupId }),
-    });
-    if (r.ok) { patch(showtimeId, await r.json()); onChange?.(); }
+    const d = await rsvp(apiBase, showtimeId, status, groupId).catch(() => null);
+    if (d) { patch(showtimeId, d); onChange?.(); }
   }
 
   async function onAttendance(showtimeId, status) {
-    const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status }),
-    });
-    if (!r.ok) return false;
+    if (!(await attend(apiBase, showtimeId, status).catch(() => null))) return false;
     patch(showtimeId, { user_attendance: status });
     onChange?.();
     return true;

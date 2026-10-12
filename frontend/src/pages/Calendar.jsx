@@ -13,7 +13,8 @@ import "./DiscoverPage.css";        // the Filters sheet looks the same as Brows
 import "./Calendar.css";
 import { groupParam } from "../scope";
 import Loading, { LoadError } from "../ui/Loading";
-import { getJson, cachedJson } from "../api";
+import { getJson, cachedJson, rsvp, attend } from "../api";
+import { time, dayDate, monthDay, monthYear } from "../dates";
 
 // The server sends each film and theatre once (R7b); put them back on each screening.
 const hydrate = d => (d?.movies ? { ...d, showtimes: d.showtimes.map(s => ({ ...s, movie: d.movies[s.movie_id], theatre: d.theatres[s.theatre_id] })) } : d);
@@ -58,13 +59,12 @@ const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())
 const parseYmd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const time = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 const dayTitle = (d, today) => {
-  const label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const label = dayDate(d);
   const diff = Math.round((startOfDay(d) - today) / 864e5);
   return diff === 0 ? `Today · ${label}` : diff === 1 ? `Tomorrow · ${label}` : label;
 };
-const short = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const short = monthDay;
 
 // The days a view covers: [start, end) plus the grid for Month.
 function viewRange(view, anchor, span) {
@@ -329,27 +329,20 @@ export default function Calendar({ user, apiBase, groupId }) {
     setSelected(prev => (prev ? prev.map(s => (s.id === updated.id ? { ...s, ...updated } : s)) : prev));
   };
   async function handleRsvp(id, status) {
-    const r = await fetch(`${apiBase}/api/rsvp`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_id: id, status, group_id: groupId }),
-    });
-    if (r.ok) patch(await r.json());
+    const d = await rsvp(apiBase, id, status, groupId).catch(() => null);
+    if (d) patch(d);
   }
   async function handleAttendance(id, status) {
-    const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_id: id, status }),
-    });
-    if (!r.ok) return false;
+    if (!(await attend(apiBase, id, status).catch(() => null))) return false;
     patch({ id, user_attendance: status });
     setAttendanceKey(k => k + 1);
     return true;
   }
 
   const rangeLabel = view === "month"
-    ? anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    ? monthYear(anchor)
     : view === "week" ? `${short(start)} – ${short(addDays(end, -1))}`
-    : dayOnly ? dayTitle(start, today) : `From ${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
+    : dayOnly ? dayTitle(start, today) : `From ${dayDate(start)}`;
   const atToday = !dayOnly && (ymd(anchor) === ymd(today) || (view === "month" && anchor.getMonth() === today.getMonth() && anchor.getFullYear() === today.getFullYear()));
   const browseLink = `/browse?${new URLSearchParams({ from: startKey, to: lastKey, ...Object.fromEntries(Object.entries(query).filter(([k]) => k !== "members")) })}`;
   const title = data.title ? `Calendar · ${data.title}` : "Calendar";
@@ -436,7 +429,7 @@ export default function Calendar({ user, apiBase, groupId }) {
             return (
               <section key={key} className={`cal-col${key === ymd(today) ? " today" : ""}${d < today ? " past" : ""}`} aria-label={dayTitle(d, today)}>
                 <h2 className="cal-col-head">
-                  <span className="deco">{d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                  <span className="deco">{dayDate(d)}</span>
                   <span className="cal-col-sub">
                     {[key === ymd(today) ? "Today" : key === ymd(addDays(today, 1)) ? "Tomorrow" : null,
                       !loading && `${entries.length} film${entries.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}

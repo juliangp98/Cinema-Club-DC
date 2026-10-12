@@ -7,21 +7,10 @@ import ChatSection from "../components/ChatSection";
 import { AvatarFace } from "../ui/Avatar";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
+import { ago, dayDateTime } from "../dates";
+import { rsvp, attend } from "../api";
 
-function timeAgo(iso) {
-  const diff = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 1000));
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function formatWhen(iso) {
-  const d = new Date(iso);
-  const day = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-  return `${day} · ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
-}
+const timeAgo = ago, formatWhen = dayDateTime;
 
 // "You, Ana +2" — the viewer reads as "You".
 function names(users, viewerId, max = 2) {
@@ -329,26 +318,15 @@ export default function Feed({ user, apiBase, groupId }) {
   }, [apiBase, groupId]);
 
   async function handleRsvp(showtimeId, status) {
-    const r = await fetch(`${apiBase}/api/rsvp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status, group_id: groupId }),
-    });
-    if (r.ok) {
-      patchShowtime(showtimeId, await r.json());
+    const d = await rsvp(apiBase, showtimeId, status, groupId).catch(() => null);
+    if (d) {
+      patchShowtime(showtimeId, d);
       reload();
     }
   }
 
   async function handleAttendance(showtimeId, status) {
-    const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status }),
-    });
-    if (!r.ok) return false;
+    if (!(await attend(apiBase, showtimeId, status).catch(() => null))) return false;
     patchShowtime(showtimeId, { user_attendance: status });
     reload();
     return true;

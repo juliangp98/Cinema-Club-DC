@@ -4,6 +4,7 @@ import { CalendarIcon } from "./icons";
 import { TicketDiscord } from "./DiscordShare";
 import TheatreLink from "./TheatreLink";
 import { AttendanceAsk } from "./AlertPrompts";
+import { weekday, monthDay, time } from "../dates";
 
 const RSVP = [
   { status: "going", label: "Going" },
@@ -15,9 +16,7 @@ const ATTENDED = [
   { status: "missed", label: "Didn't go" },
 ];
 
-const day = d => d.toLocaleDateString("en-US", { weekday: "short" });
-const date = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-const time = d => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const day = weekday, date = monthDay;
 
 // A choice of one: pick again to clear (e.g. un-RSVP).
 export function Segmented({ options, value, onChange, label }) {

@@ -132,13 +132,6 @@ class PerDateFetcher:
                           f"showtimes on unchecked dates are kept")
 
 
-def safe_text(tag, strip=True):
-    if not tag:
-        return ''
-    text = tag.get_text()
-    return text.strip() if strip else text
-
-
 def new_movie_dict():
     """The movie-dict contract every scraper returns a list of."""
     return {

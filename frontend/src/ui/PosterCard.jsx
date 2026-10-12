@@ -1,12 +1,8 @@
 import { Link } from "react-router-dom";
 import Poster from "./Poster";
+import { dayShortTime } from "../dates";
 
-const when = iso => {
-  const d = new Date(iso);
-  const day = d.toLocaleDateString("en-US", { weekday: "short" });
-  const t = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00 ", " ");
-  return `${day} ${t}`;
-};
+const when = dayShortTime;
 
 // A film as a poster tile: links to its film page. Used by Discover's
 // shelves and Browse results (and Home, later).

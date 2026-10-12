@@ -1,21 +1,14 @@
 import { useState, useEffect } from "react";
 import Sheet from "./Sheet";
+import { dayDateAt } from "../dates";
+import { send } from "../api";
 
 // Choosing what goes to the club's Discord (R3d). Nothing posts to #movies
 // unless you share it; shared posts stay in step with the site and never
 // @-ping anyone. Only screenings and polls in the Discord server's group
 // carry a `discord` block, so everything here hides itself elsewhere.
 
-async function call(apiBase, path, method = "GET", body) {
-  const r = await fetch(`${apiBase}${path}`, {
-    method, credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  }).catch(() => null);
-  const data = r ? await r.json().catch(() => ({})) : {};
-  if (!r?.ok) throw new Error(data.error || "Couldn't reach the server — try again.");
-  return data;
-}
+const call = (apiBase, path, method = "GET", body) => send(`${apiBase}${path}`, method, body);
 
 export const shareToDiscord = (apiBase, body) => call(apiBase, "/api/discord/shares", "POST", body);
 export const unshareFromDiscord = (apiBase, id, showtimeId) =>
@@ -24,7 +17,7 @@ export const postNow = (apiBase, id) => call(apiBase, `/api/discord/shares/${id}
 export const setSharePrefs = (apiBase, prefs) => call(apiBase, "/api/discord/prefs", "PUT", prefs);
 export const getSharePrefs = apiBase => call(apiBase, "/api/discord/prefs");
 
-const at = iso => new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const at = dayDateAt;
 // Scheduled for later (beyond the minute an RSVP waits to batch).
 export const isScheduled = p => p?.status === "pending" && new Date(p.post_at) - Date.now() > 2 * 60 * 1000;
 

@@ -7,9 +7,10 @@ import ReactionBar from "./ReactionBar";
 import ChatSection from "./ChatSection";
 import { useShell } from "../shell/AppShell";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
-import { WatchAlertPrompt } from "../ui/AlertPrompts";
+import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
 import Poster from "../ui/Poster";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
+import { toggleWatch } from "../api";
 
 // Collapsible accordion section used for the sheet's informational blocks.
 function Collapsible({ title, count, defaultOpen = false, children }) {
@@ -67,15 +68,9 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
     const next = !watching;
     setWatching(next);
     try {
-      const r = await fetch(`${apiBase}/api/watchlist`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ movie_id: movie.id }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        setWatching(d.watching);
-        setWatchPrompt(d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt } : d.discord_prompt ? { digest: true } : null);
-      } else setWatching(!next);
+      const d = await toggleWatch(apiBase, movie.id);
+      setWatching(d.watching);
+      setWatchPrompt(watchPromptOf(d));
     } catch {
       setWatching(!next);
     }

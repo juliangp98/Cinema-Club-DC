@@ -78,3 +78,28 @@ export function useJson(url, { keep = false } = {}) {
   const reload = useCallback(() => setTick(t => t + 1), []);
   return { data, error, loading, reload };
 }
+
+// Sending (R9b): one way to POST / PUT / DELETE — the session cookie, JSON
+// both ways, and the server's own message when it says no (an HttpError).
+export async function send(url, method = "POST", body) {
+  let r;
+  try {
+    r = await fetch(url, {
+      method, credentials: "include",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new HttpError(0, { error: "Couldn't reach the server — try again." });
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new HttpError(r.status, data);
+  return data;
+}
+
+// The actions many pages share.
+export const rsvp = (apiBase, showtimeId, status, groupId) =>
+  send(`${apiBase}/api/rsvp`, "POST", { showtime_id: showtimeId, status, group_id: groupId });
+export const attend = (apiBase, showtimeId, status) =>
+  send(`${apiBase}/api/attendance`, "POST", { showtime_id: showtimeId, status });
+export const toggleWatch = (apiBase, movieId) => send(`${apiBase}/api/watchlist`, "POST", { movie_id: movieId });

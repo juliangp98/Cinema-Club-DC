@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { numericDay } from "../dates";
 
-function formatDay(iso) {
-  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" });
-}
+const formatDay = numericDay;
 
 // "Did you make it?" — screenings you RSVP'd going to that ended a couple of
 // hours ago (within the past week). Answering "Went" offers a jump into that

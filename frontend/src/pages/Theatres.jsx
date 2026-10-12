@@ -8,9 +8,10 @@ import { useJson } from "../api";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
 import "./Theatres.css";
+import { dayShortTime } from "../dates";
 
 const REGION_ORDER = ["DC", "Maryland", "Virginia"];
-const dayTime = iso => new Date(iso).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(":00", "");
+const dayTime = dayShortTime;
 
 // Every theatre we follow (R7b), by area: what's on at each (its most
 // interesting films first), how many films and rare ones, film formats,

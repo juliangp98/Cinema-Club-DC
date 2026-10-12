@@ -2346,22 +2346,6 @@ def get_showtime(showtime_id):
         showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
 
 
-@app.route('/api/movies')
-@require_auth
-def get_movies():
-    movies = Movie.query.all()
-    return jsonify([m.to_dict() for m in movies])
-
-
-@app.route('/api/movies/<int:movie_id>')
-@require_auth
-def get_movie_detail(movie_id):
-    movie = db.session.get(Movie, movie_id)
-    if not movie:
-        return jsonify({'error': 'Movie not found'}), 404
-    return jsonify(movie.to_dict())
-
-
 def _brief_user(u):
     return {'id': u.id, 'name': u.name, **face(u)}
 

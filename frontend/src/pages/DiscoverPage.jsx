@@ -6,12 +6,13 @@ import SearchBox from "../ui/SearchBox";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import Loading, { LoadError } from "../ui/Loading";
-import { useJson } from "../api";
+import { useJson, attend } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
+import { time, dayDate } from "../dates";
 
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
@@ -19,8 +20,7 @@ const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["we
 export const LAYOUT = ["friends", "rare", "@announced", "@doubles", "@spotlights", "classics", "awards", "arthouse",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
-const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-export const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const timeLabel = time, dayLabel = dayDate;
 
 function Surprise({ apiBase, groupId }) {
   const [when, setWhen] = useState("tonight");
@@ -344,12 +344,9 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
 
 
   async function answerAttendance(showtimeId, status) {
-    const r = await fetch(`${apiBase}/api/attendance`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_id: showtimeId, status }),
-    }).catch(() => null);
-    if (r?.ok) refresh();
-    return !!r?.ok;
+    const ok = !!(await attend(apiBase, showtimeId, status).catch(() => null));
+    if (ok) refresh();
+    return ok;
   }
 
   const byKey = Object.fromEntries((data?.shelves || []).map(s => [s.key, s]));
