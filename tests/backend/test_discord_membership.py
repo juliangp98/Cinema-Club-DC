@@ -22,10 +22,11 @@ def test_discord_membership():
 
     with app.app_context():
         db.create_all(); migrate()
-        # The base database predates the column: linked members' lists stay mentioned.
+        # The base database predates the column. Digest mentions are opt-in
+        # (Oct 2026): everyone's entries start unchosen, linked or not.
         rows = [(w.user.discord_user_id is not None, w.share_discord) for w in Watchlist.query.all() if w.user]
-        check('migration: existing watchlist entries of linked members stay shared, others unchosen',
-              rows and all(s is True for linked, s in rows if linked) and all(s is None for linked, s in rows if not linked), rows[:6])
+        check('migration: digest mentions start unchosen for everyone (opt-in)',
+              rows and all(s is None for _, s in rows), rows[:6])
         th = Theatre.query.filter_by(slug='afi').first()
         names = ['Ana', 'Bo', 'Cy', 'Dee', 'Org']
         did = {'Ana': '7101', 'Bo': '7102', 'Dee': '7104'}            # Cy and Org never linked Discord
@@ -159,8 +160,9 @@ def test_discord_membership():
     dg2 = bot.get('/api/internal/digest', query_string={'group_id': 1, 'days': 7}, headers=H).json
     going2 = next(g for g in dg2['whos_going'] if g['showtime_id'] == S1)
     check("…and someone who never shares RSVPs is counted, not named", going2['going'] == ['Ana', 'Newbie'] and going2['going_more'] == 3, going2)
+    c['Bo'].put('/api/me/notifications', json={'channels': {'email': True}})       # email is opt-in
     r = bot.post('/api/internal/digest/delivered', json={'watchlist_ids': [w['watchlist_id'] for w in item['watchers']] + item['quiet_ids']}, headers=H).json
-    check('delivered: the three not named are emailed instead (Bo, Cy, Dee)', r == {'marked': 4, 'emailed': 3}, r)
+    check('delivered: of the three not named, only Bo (who chose email) is emailed', r == {'marked': 4, 'emailed': 1}, r)
     r = c['Ana'].put(f'/api/watchlist/{M2}/discord', json={'share': False, 'remember': True}).json
     check('"never ask" sets the watchlist choice', r['prefs']['watchlist'] == 'never' and r['discord_share'] is False)
     check('your watchlist says whether Discord may mention you', [i['discord_share'] for i in c['Ana'].get('/api/watchlist').json] == [False])

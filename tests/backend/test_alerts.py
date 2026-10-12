@@ -18,8 +18,9 @@ def scraped(title, *starts, fmt=None):
 
 @pytest.fixture
 def world(monkeypatch):
-    """Suns has been scraped before (PAST FILM is running); Ana (Discord) and
-    Bo (email) watch STALKER; Cy watches it but turned that alert off."""
+    """Suns has been scraped before (PAST FILM is running); Ana (Discord DMs)
+    and Bo (email) watch STALKER and opted in; Cy watches it but turned that
+    alert off; Dee watches it and never chose anything (bell only)."""
     import app as A
     setup_db()
     sent = []
@@ -33,16 +34,18 @@ def world(monkeypatch):
         A.db.session.add_all([stalker, running])
         A.db.session.flush()
         A.db.session.add(A.Showtime(movie_id=running.id, theatre_id=suns.id, start_time=day + timedelta(hours=18)))
-        ana = A.User(name='Ana', discord_user_id='9001', is_active=True)
-        bo = A.User(name='Bo', email='bo@t.dev', is_active=True)
-        cy = A.User(name='Cy', email='cy@t.dev', is_active=True, notify_prefs='{"types": {"showings": false}}')
-        A.db.session.add_all([ana, bo, cy])
+        ana = A.User(name='Ana', discord_user_id='9001', is_active=True, notify_prefs='{"channels": {"discord": true}}')
+        bo = A.User(name='Bo', email='bo@t.dev', is_active=True, notify_prefs='{"channels": {"email": true}}')
+        cy = A.User(name='Cy', email='cy@t.dev', is_active=True,
+                    notify_prefs='{"channels": {"email": true}, "types": {"showings": false}}')
+        dee = A.User(name='Dee', email='dee@t.dev', discord_user_id='9004', is_active=True)
+        A.db.session.add_all([ana, bo, cy, dee])
         A.db.session.flush()
-        for u in (ana, bo, cy):
+        for u in (ana, bo, cy, dee):
             A.db.session.add(A.Watchlist(user_id=u.id, movie_id=stalker.id))
         A.db.session.add(A.Watchlist(user_id=bo.id, movie_id=running.id))
         A.db.session.commit()
-        return {'day': day, 'ana': ana.id, 'bo': bo.id, 'cy': cy.id, 'stalker': stalker.id}
+        return {'day': day, 'ana': ana.id, 'bo': bo.id, 'cy': cy.id, 'dee': dee.id, 'stalker': stalker.id}
 
 
 def scrape_suns(*movies):
@@ -57,20 +60,37 @@ def alerts(uid):
     return client(uid).get('/api/notifications').json
 
 
-def test_default_channels_follow_the_account():
+def test_everything_is_opt_in():
     import app as A
     import notify
     setup_db()
+    off = {'discord': False, 'email': False, 'push': False}
     with A.app.app_context():
-        discord = A.User(name='D', discord_user_id='1')
         both = A.User(name='B', discord_user_id='2', email='b@t.dev')
         mail = A.User(name='M', email='m@t.dev')
-        assert notify.prefs(discord)['channels'] == {'discord': True, 'email': False, 'push': False}
-        assert notify.prefs(both)['channels'] == {'discord': True, 'email': False, 'push': False}
-        assert notify.prefs(mail)['channels'] == {'discord': False, 'email': True, 'push': False}
-        notify.set_prefs(mail, {'channels': {'discord': True, 'email': False}, 'types': {'bogus': True}})
-        assert notify.prefs(mail)['channels'] == {'discord': False, 'email': False, 'push': False}   # no Discord to DM
-        assert notify.prefs(mail)['types'] == {'showings': True, 'on_sale': True, 'attendance': True}
+        assert notify.prefs(both)['channels'] == off and notify.prefs(mail)['channels'] == off
+        assert notify.prefs(both)['types'] == {'showings': True, 'on_sale': True, 'attendance': False}   # bell only
+        assert not notify.wants_dm(both, 'attendance') and not notify.wants_dm(both, 'showings')
+        notify.set_prefs(mail, {'channels': {'discord': True, 'email': True}, 'types': {'bogus': True}})
+        assert notify.prefs(mail)['channels'] == {**off, 'email': True}                 # no Discord to DM
+        assert notify.ask_once(mail, 'alerts') and not notify.ask_once(mail, 'alerts')  # asked once
+
+
+def test_asked_once_at_the_first_watchlist_add_and_going(world):
+    import app as A
+    c = client(world['bo'])
+    with A.app.app_context():
+        ids = [m.id for m in A.Movie.query.filter(A.Movie.title.in_(['STALKER', 'PAST FILM']))]
+        st = A.Showtime.query.filter_by(movie_id=ids[0]).first() or A.Showtime.query.first()
+        sid = st.id
+    c.post('/api/watchlist', json={'movie_id': ids[0]})                     # already on it: this removes it
+    first = c.post('/api/watchlist', json={'movie_id': ids[0]}).json
+    again = c.post('/api/watchlist', json={'movie_id': ids[1]}).json
+    assert [first['alert_prompt'], again.get('alert_prompt')] == [True, False]
+    going = client(world['dee']).post('/api/rsvp', json={'showtime_id': sid, 'status': 'going'}).json
+    assert going['attendance_prompt'] is True
+    assert client(world['dee']).post('/api/rsvp', json={'showtime_id': sid, 'status': 'going'}).json['attendance_prompt'] is False
+    assert client(world['bo']).post('/api/rsvp', json={'showtime_id': sid, 'status': 'going'}).json['attendance_prompt'] is False  # no Discord
 
 
 def test_a_booked_watchlist_film_alerts_its_watchers_once(world):
@@ -82,6 +102,7 @@ def test_a_booked_watchlist_film_alerts_its_watchers_once(world):
     assert 'Suns' in ana['items'][0]['detail'] and '+1 more' in ana['items'][0]['detail'] and '35mm' in ana['items'][0]['detail']
     assert [i['title'] for i in bo['items']] == ['STALKER']        # PAST FILM was already running: not news
     assert alerts(world['cy'])['items'] == []                        # turned that alert off
+    assert [i['title'] for i in alerts(world['dee'])['items']] == ['STALKER']   # never chose: the bell only
     assert emailed == 1                                              # Bo (email); Ana is on Discord
 
     # The next run adds more STALKER times: no new alert.
@@ -117,7 +138,7 @@ def test_discord_dms_wait_for_the_run_then_go_once(world):
     import notify
     notify.release()
     dms = client().get('/api/internal/notifications/dm', headers=H).json
-    assert [x['discord_user_id'] for x in dms] == ['9001']
+    assert [x['discord_user_id'] for x in dms] == ['9001']                       # not Dee: never said yes
     assert dms[0]['items'][0]['headline'] == 'STALKER is playing'
     assert dms[0]['items'][0]['url'].startswith('https://cinemaclubdc.com/films/')
     client().post('/api/internal/notifications/dm-sent', json={'ids': dms[0]['ids']}, headers=H)
@@ -146,6 +167,7 @@ def test_settings_on_the_site_and_in_discord(world):
     c = client(world['bo'])
     s = c.get('/api/me/notifications').json
     assert s['channels']['email'] is True and s['available'] == {'discord': False, 'email': True, 'push': False}
+    assert client(world['dee']).get('/api/me/notifications').json['channels'] == {'discord': False, 'email': False, 'push': False}
     s = c.put('/api/me/notifications', json={'types': {'showings': False}}).json
     assert s['types']['showings'] is False and s['channels']['email'] is True
     r = client().post('/api/internal/notifications/settings', headers=H,
@@ -165,6 +187,6 @@ def test_attendance_dms_follow_the_setting(world):
         A.db.session.add(A.RSVP(user_id=world['ana'], showtime_id=st.id, status='going'))
         A.db.session.commit()
     ask = lambda: [p['discord_user_id'] for p in client().get('/api/internal/attendance/prompts', headers=H).json]
+    assert ask() == []                                               # opt-in
+    client(world['ana']).put('/api/me/notifications', json={'types': {'attendance': True}})
     assert ask() == ['9001']
-    client(world['ana']).put('/api/me/notifications', json={'types': {'attendance': False}})
-    assert ask() == []

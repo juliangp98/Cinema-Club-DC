@@ -3,6 +3,7 @@ import Menu, { MenuItem } from "./Menu";
 import { CalendarIcon } from "./icons";
 import { TicketDiscord } from "./DiscordShare";
 import TheatreLink from "./TheatreLink";
+import { AttendanceAsk } from "./AlertPrompts";
 
 const RSVP = [
   { status: "going", label: "Going" },
@@ -95,6 +96,7 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
           <span className="ticket-cta">{rsvpNote.text}{rsvpNote.to && <> <Link to={rsvpNote.to}>{rsvpNote.label} →</Link></>}</span>
         )}
         {!started && <TicketDiscord showtime={s} apiBase={apiBase} groupId={groupId} />}
+        {!started && s.attendance_prompt && <AttendanceAsk apiBase={apiBase} />}
         {started && s.user_attendance === "went" && (
           <div className="ticket-note">Logged to your watch history — share your take in the discussion.</div>
         )}

@@ -13,6 +13,7 @@ import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from
 import "./FilmPage.css";
 import { groupParam } from "../scope";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
+import { WatchAlertPrompt } from "../ui/AlertPrompts";
 
 const dayLabel = iso => new Date(iso).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 const timeLabel = iso => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -42,7 +43,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [theatre, setTheatre] = useState("all");
   const [showAll, setShowAll] = useState(false);       // a crowded film's every showtime at once
   const [watching, setWatching] = useState(false);
-  const [watchPrompt, setWatchPrompt] = useState(false);     // "mention you in the Discord digest?"
+  const [watchPrompt, setWatchPrompt] = useState(null);     // {alerts, digest}: what to ask after a watchlist add
   const [copied, setCopied] = useState(false);
   const [profileUserId, setProfileUserId] = useState(null);
   const shell = useShell();
@@ -95,7 +96,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
     if (r?.ok) {
       const d = await r.json();
       setWatching(d.watching);
-      setWatchPrompt(!!d.discord_prompt);
+      setWatchPrompt(d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt } : d.discord_prompt ? { digest: true } : null);
       load();
     } else setWatching(!next);
   }
@@ -158,7 +159,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
                 )}
               </div>
               {watching && watchPrompt && (
-                <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(false)} />
+                (watchPrompt.alerts
+            ? <WatchAlertPrompt apiBase={apiBase} movieId={movie.id} digest={watchPrompt.digest} onDone={() => setWatchPrompt(null)} />
+            : <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(null)} />)
               )}
             </div>
           </div>

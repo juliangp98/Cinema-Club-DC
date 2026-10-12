@@ -7,7 +7,7 @@ const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
 const standalone = () => window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone;
 const keyBytes = b64 => Uint8Array.from(atob((b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
 
-function PushDevice({ apiBase, onSettings }) {
+export function PushDevice({ apiBase, onSettings }) {
   const [key, setKey] = useState(null);
   const [sub, setSub] = useState(undefined);       // this device's subscription (null: none)
   const [busy, setBusy] = useState(false);
@@ -102,6 +102,7 @@ export default function NotifySettings({ apiBase }) {
   return (
     <div className="notify-settings">
       <div className="profile-section-label">Where alerts reach you</div>
+      <p className="notify-hint">Nothing is sent anywhere until you turn it on here.</p>
       <label className="notify-row">
         <input type="checkbox" checked disabled />
         <span><span className="notify-name">Site bell</span><span className="notify-hint">Always — every alert is kept here.</span></span>

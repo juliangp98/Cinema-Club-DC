@@ -83,6 +83,9 @@ def test_attendance_history():
         db.session.add(Attendance.query.filter_by(user_id=ANA, showtime_id=YESTERDAY2).first())
         Attendance.query.filter_by(user_id=ANA).delete(); db.session.commit()       # start fresh
     c = app.test_client()
+    asked = lambda: [p['discord_user_id'] for p in c.get('/api/internal/attendance/prompts', headers=H).get_json()]
+    check('"Did you make it?" DMs are opt-in: not asked before saying yes', '6601' not in asked())
+    client(ANA).put('/api/me/notifications', json={'types': {'attendance': True}})
     prompts = c.get('/api/internal/attendance/prompts', headers=H).get_json()
     mine = next((p for p in prompts if p['discord_user_id'] == '6601'), None)
     check('Discord member with unanswered screenings is listed', mine and [s['showtime_id'] for s in mine['screenings']] == [YESTERDAY2, YESTERDAY], prompts)

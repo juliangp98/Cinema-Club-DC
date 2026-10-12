@@ -3,7 +3,9 @@ sending them.
 
 Every alert is a Notification row: the bell shows them all. Where else one
 goes is decided when it's made, from the person's one notification setting:
-Discord DM (the bot sends those), email (sent here) and push. Alerts made
+Discord DM (the bot sends those), email (sent here) and push. All of those
+are opt-in: nothing leaves the site until the person says so — they're asked
+once, at the first moment it matters (`ask_once`). Alerts made
 during a scrape wait for the run to finish (`release`), so a person gets one
 DM / email per run listing everything new, not one per film.
 """
@@ -14,7 +16,7 @@ from datetime import datetime, timedelta
 TYPES = {
     'showings': ('A film on your watchlist is booked or announced', 'When a theatre books or announces it (not every new time in a run).'),
     'on_sale': ('Tickets go on sale', 'For announced films on your watchlist.'),
-    'attendance': ('"Did you make it?"', 'After screenings you said you were going to (Discord DM).'),
+    'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
 }
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
@@ -40,16 +42,32 @@ def available(user):
     return {'discord': bool(user.discord_user_id), 'email': bool(user.email), 'push': push}
 
 
+# Off until chosen: no DM, email or push, and no "Did you make it?" DMs.
+# Watchlist alerts still land in the site's bell (it never sends anything).
+DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False}
+ASKS = ('alerts', 'attendance')
+
+
 def prefs(user):
-    """{'channels': {discord, email, push}, 'types': {...}} — your choices,
-    with defaults for anything you haven't set: Discord accounts get DMs,
-    email-only accounts get email; every alert type is on."""
+    """{'channels': {discord, email, push}, 'types': {...}} — your choices;
+    anything you haven't chosen is off (types: see DEFAULT_TYPES)."""
     raw, can = _raw(user), available(user)
-    default = {'discord': can['discord'], 'email': can['email'] and not can['discord'], 'push': can['push']}
     chosen = raw.get('channels') or {}
-    channels = {c: bool(chosen.get(c, default[c])) and can[c] for c in CHANNELS}
-    types = {t: bool((raw.get('types') or {}).get(t, True)) for t in TYPES}
+    channels = {c: bool(chosen.get(c, False)) and can[c] for c in CHANNELS}
+    types = {t: bool((raw.get('types') or {}).get(t, DEFAULT_TYPES[t])) for t in TYPES}
     return {'channels': channels, 'types': types}
+
+
+def ask_once(user, key):
+    """True the first time something could notify this person about `key`
+    ('alerts': watchlist news; 'attendance': "Did you make it?" DMs) — the
+    moment to ask them. Remembered, so it's asked once; caller commits."""
+    raw = _raw(user)
+    if (raw.get('asked') or {}).get(key):
+        return False
+    raw.setdefault('asked', {})[key] = True
+    user.notify_prefs = json.dumps(raw)
+    return True
 
 
 def set_prefs(user, data):
@@ -67,7 +85,11 @@ def wants(user, kind):
 
 
 def wants_dm(user, kind):
+    """May the bot DM this person about `kind`? "Did you make it?" is its own
+    yes (it's only ever a DM); alerts follow the Discord DM channel."""
     p = prefs(user)
+    if kind == 'attendance':
+        return p['types']['attendance'] and bool(user.discord_user_id)
     return p['types'].get(kind, True) and p['channels']['discord']
 
 

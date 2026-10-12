@@ -19,7 +19,7 @@ def test_bot_attendance():
                          end_time=now - timedelta(days=days) + timedelta(hours=2), format_label='70mm' if m == mid else None)
             db.session.add(s); db.session.flush(); ids.append(s.id)
         for uid, name in (('6601', 'Ana'), ('6603', 'Cal')):
-            u = User(discord_user_id=uid, name=name, is_active=True); db.session.add(u); db.session.flush()
+            u = User(discord_user_id=uid, name=name, is_active=True, notify_prefs='{"types": {"attendance": true}}'); db.session.add(u); db.session.flush()
             db.session.add(GroupMembership(user_id=u.id, group_id=1, status='active'))
             for sid in ids: db.session.add(RSVP(user_id=u.id, showtime_id=sid, group_id=1, status='going'))
         db.session.commit()

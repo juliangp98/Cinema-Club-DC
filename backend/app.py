@@ -3324,12 +3324,17 @@ def rsvp():
         elif pref == 'ask':
             prompt = True
 
+    import notify
+    ask_attendance = status == 'going' and bool(user.discord_user_id) and notify.ask_once(user, 'attendance')
+    if ask_attendance:
+        db.session.commit()
     if not group_id:
-        return jsonify(public_showtimes([showtime], user)[0])
+        return jsonify({**public_showtimes([showtime], user)[0], 'attendance_prompt': ask_attendance})
     d = _with_attendance(user, [showtime], [
         showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0]
     if prompt and d.get('discord') and not d['discord']['my_share']:
         d['discord']['prompt'] = True
+    d['attendance_prompt'] = ask_attendance
     return jsonify(d)
 
 
@@ -5040,8 +5045,12 @@ def toggle_watchlist():
         prompt = pref == 'ask' and can_share(user, DISCORD_GROUP_ID) \
             and _active_membership(user, DISCORD_GROUP_ID) is not None
         watching = True
+    # The first watchlist add is when to ask how (if at all) to hear about it.
+    import notify
+    alert_prompt = watching and not user.is_guest and notify.ask_once(user, 'alerts')
     db.session.commit()
-    return jsonify({'movie_id': movie.id, 'watching': watching, 'discord_prompt': prompt})
+    return jsonify({'movie_id': movie.id, 'watching': watching, 'discord_prompt': prompt,
+                    'alert_prompt': alert_prompt})
 
 
 @app.route('/api/watchlist/<int:movie_id>/discord', methods=['PUT'])
@@ -5652,12 +5661,13 @@ def internal_digest_delivered():
     """Called once the weekly digest has been posted with these watchlist
     entries tagged: marks them notified (no re-tag for two weeks) and emails
     watchers the digest didn't name (not on Discord, or not shared) the same news."""
+    import notify
     ids = [i for i in (request.json or {}).get('watchlist_ids') or [] if isinstance(i, int)]
     now = _utcnow_naive()
     by_user = {}
     for w in (Watchlist.query.filter(Watchlist.id.in_(ids)).all() if ids else []):
         w.last_notified_at = now
-        if w.user and w.user.email and not watch_shared(w) and w.movie:
+        if w.user and w.user.email and not watch_shared(w) and w.movie and notify.prefs(w.user)['channels']['email']:
             by_user.setdefault(w.user.id, (w.user, []))[1].append(w.movie)
     db.session.commit()
 
@@ -5724,6 +5734,9 @@ def internal_rsvp():
         return err
     result = for_discord(showtime.to_dict(user_id=user.id, group_id=group_id))
     result['user'] = user.to_dict()
+    import notify
+    result['attendance_prompt'] = data.get('status') == 'going' and notify.ask_once(user, 'attendance')
+    db.session.commit()
     return jsonify(result)
 
 
@@ -6062,11 +6075,11 @@ def internal_watch():
     if not movie:
         return jsonify({'error': 'Movie not found'}), 404
 
-    # Added in the server itself (and announced there): the digest may mention it.
+    # Digest pings are opt-in too: your "watchlist" choice decides (asked below).
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
     if action == 'add':
         if not existing:
-            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id, share_discord=True))
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
         watching = True
     elif action == 'remove':
         if existing:
@@ -6077,10 +6090,13 @@ def internal_watch():
             db.session.delete(existing)
             watching = False
         else:
-            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id, share_discord=True))
+            db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
             watching = True
+    import notify
+    alert_prompt = watching and notify.ask_once(user, 'alerts')
     db.session.commit()
-    return jsonify({'movie_title': movie.title, 'watching': watching, 'user_name': user.name})
+    return jsonify({'movie_title': movie.title, 'watching': watching, 'user_name': user.name,
+                    'alert_prompt': alert_prompt, 'digest_choice': share_prefs(user)['watchlist']})
 
 
 @app.route('/api/internal/members')
@@ -6296,7 +6312,9 @@ def internal_notification_settings():
         return err
     if data.get('channels') or data.get('types'):
         notify.set_prefs(user, data)
-        db.session.commit()
+    if isinstance(data.get('digest_mentions'), bool):       # "mention me in the Monday digest"
+        set_share_pref(user, 'watchlist', 'always' if data['digest_mentions'] else 'never')
+    db.session.commit()
     return jsonify(_notify_settings(user))
 
 
@@ -6683,6 +6701,13 @@ def migrate():
         db.session.commit()
     except Exception:
         db.session.rollback()   # already added
+    # Opt-in notifications (Oct 2026): digest pings were turned on for every
+    # Discord member in R6a.1 and for every /watch add; clear those so each
+    # person is asked. A "No" stays, and so does "Always" chosen in settings.
+    if not db.session.get(BotSetting, 'optin_reset_done'):
+        db.session.execute(db.text("UPDATE watchlist SET share_discord = NULL WHERE share_discord = 1"))
+        db.session.add(BotSetting(key='optin_reset_done', value='1'))
+        db.session.commit()
     db.session.execute(db.text("UPDATE rsvp SET updated_at = created_at WHERE updated_at IS NULL"))
     # Pictures so far all came from Discord: remember them as such.
     db.session.execute(db.text("UPDATE user SET discord_avatar_url = avatar_url WHERE discord_avatar_url IS NULL "

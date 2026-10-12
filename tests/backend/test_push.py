@@ -64,7 +64,7 @@ def test_turning_push_on_and_getting_alerts(pushy):
     c = client(pushy['ana'])
     assert c.get('/api/push/key').json == {'key': 'PUBLICKEY'}
     s = c.post('/api/push/subscribe', json=SUB).json
-    assert s['available']['push'] is True and s['channels']['push'] is True and s['channels']['email'] is True
+    assert s['available']['push'] is True and s['channels']['push'] is True and s['channels']['email'] is False
     alert(pushy['ana'], 'STALKER')
     alert(pushy['ana'], 'MIRROR')
     notify.release()

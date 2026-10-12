@@ -55,11 +55,15 @@ def test_bot_accounts():
         check('from a DM with no account: told to use the server first', it.last()[2] == bot.NO_ACCOUNT_MSG, it.last())
         it = Interaction(zoe)
         await bot.rsvp.callback(it, showtime=sid)
-        check('in the server: RSVP posts publicly, no linking needed', it.last()[0] == 'followup' and it.last()[1] is False
-              and '<@9101> is going to' in it.last()[2], it.last())
+        post = next((x for x in it.log if x[0] == 'followup' and x[1] is False), None)
+        check('in the server: RSVP posts publicly, no linking needed', post and '<@9101> is going to' in post[2], it.log)
+        check('first Going: asked privately about "Did you make it?" DMs', it.last()[1] is True
+              and 'log whether you made it' in it.last()[2], it.last())
         it = Interaction(zoe)
         await bot.watch.callback(it, action=Choice(name='Add', value='add'), title=shows[0]['movie']['title'] if shows else 'SIRÂT')
-        check('/watch add works', 'is watching for' in (it.last()[2] or ''), it.last())
+        check('/watch add works', any('is watching for' in (x[2] or '') for x in it.log), it.log)
+        check('first watchlist add: asked privately how to hear about it', it.last()[1] is True
+              and 'books (or announces)' in it.last()[2], it.last())
         it = Interaction(zoe)
         await bot.watch.callback(it, action=Choice(name='Show', value='show'))
         emb = it.last()[3]

@@ -196,7 +196,8 @@ def test_bot_threads():
         print('--- card buttons ---')
         btn = await bot.ThreadRsvpButton.from_custom_id(None, None, {'status': 'going', 'sid': str(S1)})
         it = Interaction(member(1101, 'Ana')); await btn.callback(it)
-        check('Going on the card RSVPs privately', it.log[-1][1] and "You're going to **SIRÂT**" in it.log[-1][2], it.log[-1])
+        reply = next((x for x in it.log if len(x) > 2 and "You're going to" in (x[2] or '')), None)
+        check('Going on the card RSVPs privately', reply and reply[1] and "You're going to **SIRÂT**" in reply[2], it.log)
         with app.app_context():
             t_row = ShowtimeThread.query.filter_by(showtime_id=S1).first(); t_row.card_refreshed_at -= timedelta(minutes=5); db.session.commit()
         await bot.discussion_loop.coro()

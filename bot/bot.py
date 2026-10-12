@@ -1055,6 +1055,61 @@ class NotifyView(discord.ui.View):
         await interaction.response.edit_message(embed=embeds.notify_settings_embed(s), view=NotifyView(self.ident, s))
 
 
+class AskView(discord.ui.View):
+    """The one-time "how should we tell you?" question (opt-in notifications):
+    each button saves one yes; "No thanks" closes it. Only the asker sees it."""
+
+    def __init__(self, ident, choices):
+        super().__init__(timeout=900)
+        self.ident = ident
+        for label, change in choices:
+            b = discord.ui.Button(label=label, style=discord.ButtonStyle.success)
+            b.callback = self._save(b, change)
+            self.add_item(b)
+        done = discord.ui.Button(label='No thanks', style=discord.ButtonStyle.secondary)
+        done.callback = self._done
+        self.add_item(done)
+
+    def _save(self, button, change):
+        async def callback(interaction):
+            try:
+                await api.post('/api/internal/notifications/settings', {**self.ident, **change})
+            except Exception as e:
+                print(f'opt-in save failed: {e}')
+                await interaction.response.send_message("Couldn't save that — try `/notifications`.", ephemeral=True)
+                return
+            button.disabled, button.label = True, f'✓ {button.label}'
+            await interaction.response.edit_message(view=self)
+        return callback
+
+    async def _done(self, interaction):
+        await interaction.response.edit_message(
+            content='Got it. Change this any time with `/notifications`.', view=None)
+
+
+ASK_ALERTS = ('🔔 Want to hear when a theatre books (or announces) films on your watchlist? '
+              'Nothing is sent unless you choose. Every alert also shows in the bell on the site.')
+ASK_ATTENDANCE = ('🎟️ Want a DM after screenings you\'re going to, to log whether you made it? '
+                  'It keeps your history (and kernels) right. Nothing is sent unless you choose.')
+
+
+async def ask_after_watch(interaction, result):
+    """First watchlist add: ask how (if at all) to hear about watchlist news."""
+    if not result.get('alert_prompt'):
+        return
+    choices = [('DM me', {'channels': {'discord': True}})]
+    if result.get('digest_choice') == 'ask':
+        choices.append(('Mention me in the Monday digest', {'digest_mentions': True}))
+    await interaction.followup.send(ASK_ALERTS, view=AskView(discord_identity(interaction), choices), ephemeral=True)
+
+
+async def ask_after_going(interaction, result):
+    """First "Going": ask about "Did you make it?" DMs."""
+    if result.get('attendance_prompt'):
+        await interaction.followup.send(ASK_ATTENDANCE, ephemeral=True, view=AskView(
+            discord_identity(interaction), [('Yes, DM me', {'types': {'attendance': True}})]))
+
+
 @client.tree.command(name='notifications', description='What alerts you get (watchlist films playing…) and where')
 async def notifications_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -1466,6 +1521,7 @@ async def rsvp(interaction: discord.Interaction, date: str = None, end: str = No
         who = embeds.more_on_site(going[:12], on_site, max(0, len(going) - 12))
         lines.append(f"🍿 Going ({len(going) + on_site}): {who}")
     await interaction.followup.send('\n'.join(lines), view=discuss_view(int(showtime)))
+    await ask_after_going(interaction, result)
 
 
 @rsvp.autocomplete('date')
@@ -1607,6 +1663,7 @@ async def watch(interaction: discord.Interaction, action: app_commands.Choice[st
         # Public, engaging callout.
         await interaction.followup.send(
             f"{interaction.user.mention} is watching for **{result['movie_title']}** showtimes.")
+        await ask_after_watch(interaction, result)
     else:
         await interaction.followup.send(
             f"Removed **{result['movie_title']}** from your watchlist.", ephemeral=True)
@@ -2168,6 +2225,7 @@ class ThreadRsvpButton(discord.ui.DynamicItem[discord.ui.Button],
         await interaction.followup.send(
             f"🎟️ {verb} **{result['movie']['title']}** — {dt.strftime('%a %-m/%-d %-I:%M %p')}. "
             "Change it any time here or with `/rsvp`.", ephemeral=True)
+        await ask_after_going(interaction, result)
 
 
 @client.tree.command(name='discuss', description="Open a screening's discussion thread (and add a comment)")

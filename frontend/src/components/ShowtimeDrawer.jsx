@@ -7,6 +7,7 @@ import ReactionBar from "./ReactionBar";
 import ChatSection from "./ChatSection";
 import { useShell } from "../shell/AppShell";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
+import { WatchAlertPrompt } from "../ui/AlertPrompts";
 import Poster from "../ui/Poster";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
 
@@ -45,7 +46,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const [reactions, setReactions] = useState(primary.reactions || {});
   const shell = useShell();
   const [watching, setWatching] = useState(user ? null : false); // null until your watchlist loads
-  const [watchPrompt, setWatchPrompt] = useState(false);          // "mention you in the Discord digest?"
+  const [watchPrompt, setWatchPrompt] = useState(null);          // {alerts, digest}: what to ask after a watchlist add
   const [heroOk, setHeroOk] = useState(true);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
       if (r.ok) {
         const d = await r.json();
         setWatching(d.watching);
-        setWatchPrompt(!!d.discord_prompt);
+        setWatchPrompt(d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt } : d.discord_prompt ? { digest: true } : null);
       } else setWatching(!next);
     } catch {
       setWatching(!next);
@@ -143,7 +144,9 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
           )}
         </div>
         {watching && watchPrompt && (
-          <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(false)} />
+          (watchPrompt.alerts
+            ? <WatchAlertPrompt apiBase={apiBase} movieId={movie.id} digest={watchPrompt.digest} onDone={() => setWatchPrompt(null)} />
+            : <WatchDiscordPrompt apiBase={apiBase} movieId={movie.id} onDone={() => setWatchPrompt(null)} />)
         )}
 
         <div className="drawer-tickets">

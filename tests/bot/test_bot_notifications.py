@@ -84,12 +84,12 @@ def test_notifications_command_toggles_the_setting(bot_with_alerts):
     asyncio.run(bot.notifications_cmd.callback(it))
     kind, _, kw = it.last
     assert kw['ephemeral'] is True and kw['embed'].title == '🔔 Your notifications'
-    assert '✅ Discord DMs' in kw['embed'].fields[0].value and 'add an address' in kw['embed'].fields[0].value
+    assert '⬜ Discord DMs' in kw['embed'].fields[0].value and 'add an address' in kw['embed'].fields[0].value   # opt-in
     dm_button = next(i for i in items_of(kw['view']) if getattr(i, 'label', '').startswith('Discord DMs'))
-    assert dm_button.label == 'Discord DMs: on'
+    assert dm_button.label == 'Discord DMs: off'
     asyncio.run(dm_button.callback(it))
     _, _, kw = it.last
-    assert '⬜ Discord DMs' in kw['embed'].fields[0].value
+    assert '✅ Discord DMs' in kw['embed'].fields[0].value
     select = next(i for i in items_of(kw['view']) if isinstance(i, __import__('discord').ui.Select))
     select._values = ['showings']                                   # what Discord fills in on a pick
     asyncio.run(select.callback(it))

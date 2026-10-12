@@ -99,7 +99,8 @@ def test_bot_membership():
               and 'Bo' not in text and 'Cy' not in text, text)
         it = Interaction(8801, guild_id=900)
         await bot.rsvp.callback(it, showtime=str(SID), status=None)
-        check('/rsvp reply: same', 'Going (3): Ana · +2 on the site' in it.last[1], it.last[1])
+        reply = next((x[1] for x in it.log if x[0] == 'send' and 'Going (' in (x[1] or '')), '')
+        check('/rsvp reply: same', 'Going (3): Ana · +2 on the site' in reply, it.log)
 
         print('--- leaderboard ---')
         it = Interaction(8801); await bot.leaderboard.callback(it)
