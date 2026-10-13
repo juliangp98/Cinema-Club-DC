@@ -131,7 +131,7 @@ function Members({ group, apiBase, viewerId, onOpen }) {
 
 // Leave the club: your plans and history stay yours, but you stop seeing
 // the club. The server keeps a club from losing its only admin.
-function LeaveClub({ group, apiBase, userId, onLeft }) {
+export function LeaveClub({ group, apiBase, userId, onLeft }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   async function leave() {

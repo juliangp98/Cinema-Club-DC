@@ -38,7 +38,7 @@ const sameSearch = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.s
 
 // "🔔 Alert me": save this search; an alert comes when a theatre books a new
 // film that fits it. Pressed again: stop.
-function SaveSearch({ apiBase, groupId, query }) {
+export function SaveSearch({ apiBase, groupId, query }) {
   const [saved, setSaved] = useState(null);       // your saved searches (null: loading)
   const [note, setNote] = useState(null);
   const [ask, setAsk] = useState(false);

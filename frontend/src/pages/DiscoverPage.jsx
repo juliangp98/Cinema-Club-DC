@@ -267,7 +267,7 @@ export function Spotlights({ items, scope = "" }) {
 // to each), how far ahead it looks, and every theatre (the first chip goes
 // there too, so phones needn't swipe for it).
 const COVERAGE_SHOWN = 4;
-function Coverage({ apiBase, group }) {
+export function Coverage({ apiBase, group }) {
   const { data: theatres } = useJson(`${apiBase}/api/theatres`);
   if (!theatres) return null;
   const picked = group?.theatres?.length ? theatres.filter(t => group.theatres.includes(t.slug)) : null;

@@ -19,7 +19,7 @@ const Tour = lazyPage(() => import("./Tour"));                                 /
 // the activity bell, your menu), the bottom tab bar on phones, the profile
 // editor and the activity panel. Pages get at these through useShell()
 // instead of each building its own header.
-const ShellContext = createContext(null);
+export const ShellContext = createContext(null);
 export const useShell = () => useContext(ShellContext);
 
 // Discover is home (R3c). Visitors get the public pages; the Feed and Play

@@ -42,7 +42,7 @@ const ACTIVITY = {
 const DID = { went: "went", going: "is going", maybe: "might go", commented: "commented", reacted: "reacted" };
 const signed = n => (n > 0 ? `+${n}` : String(n));
 
-function KernelPanel({ people, allowance, error, busy, onToss }) {
+export function KernelPanel({ people, allowance, error, busy, onToss }) {
   return (
     <div className="kernel-panel">
       <p className="kernel-allowance">
