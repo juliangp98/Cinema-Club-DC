@@ -1454,6 +1454,7 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN short_name VARCHAR(12)",
         "ALTER TABLE 'group' ADD COLUMN trivia_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN trivia_discord BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN trivia_anytime BOOLEAN DEFAULT 0",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",
@@ -1497,6 +1498,7 @@ def migrate():
         "INSERT OR IGNORE INTO movie_alias (title, movie_id) SELECT title, id FROM movie"))
     db.session.commit()
     _migrate_poll_vote_ranked_constraint()
+    _migrate_trivia_slots()
     _migrate_user_email_nullable()
     _backfill_title_normalized()
 
@@ -1595,6 +1597,42 @@ def _migrate_poll_vote_ranked_constraint():
     db.session.execute(db.text("INSERT OR IGNORE INTO poll_vote_new SELECT * FROM poll_vote"))
     db.session.execute(db.text("DROP TABLE poll_vote"))
     db.session.execute(db.text("ALTER TABLE poll_vote_new RENAME TO poll_vote"))
+    db.session.commit()
+
+
+def _migrate_trivia_slots():
+    """R10d first kept one question per club per day; anytime questions need
+    UNIQUE(group_id, day, slot). Rebuild an older trivia_question, keeping its
+    rows as the club's daily questions."""
+    cols = [r[1] for r in db.session.execute(db.text("PRAGMA table_info(trivia_question)"))]
+    if not cols or 'slot' in cols:
+        return
+    db.session.execute(db.text("DROP TABLE IF EXISTS trivia_question_new"))
+    db.session.execute(db.text("""
+        CREATE TABLE trivia_question_new (
+            id INTEGER PRIMARY KEY,
+            group_id INTEGER NOT NULL REFERENCES 'group'(id),
+            day DATE NOT NULL,
+            slot VARCHAR(30) NOT NULL DEFAULT 'daily',
+            asked_by INTEGER REFERENCES user(id),
+            kind VARCHAR(20) NOT NULL,
+            prompt TEXT NOT NULL,
+            options_json TEXT NOT NULL,
+            answer INTEGER NOT NULL,
+            movie_id INTEGER REFERENCES movie(id),
+            ref VARCHAR(200),
+            discord_message_id VARCHAR(30),
+            created_at DATETIME,
+            UNIQUE (group_id, day, slot)
+        )
+    """))
+    db.session.execute(db.text("""
+        INSERT INTO trivia_question_new (id, group_id, day, slot, kind, prompt, options_json, answer, movie_id, ref,
+                                         discord_message_id, created_at)
+        SELECT id, group_id, day, 'daily', kind, prompt, options_json, answer, movie_id, ref, discord_message_id, created_at
+        FROM trivia_question"""))
+    db.session.execute(db.text("DROP TABLE trivia_question"))
+    db.session.execute(db.text("ALTER TABLE trivia_question_new RENAME TO trivia_question"))
     db.session.commit()
 
 

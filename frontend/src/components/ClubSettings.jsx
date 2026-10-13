@@ -129,23 +129,32 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         <div className="club-form-foot"><button className="btn btn-primary btn-sm">Save details</button></div>
       </form>
 
-      <SectionTitle>Daily trivia</SectionTitle>
+      <SectionTitle>Movie trivia</SectionTitle>
+      <p className="pv-hint">Questions made from the films on your calendar and classic movie quotes. Each part is off
+        until you turn it on, and nobody is ever sent anything.</p>
       <div className="club-form club-trivia">
         <label className="notify-row">
           <input type="checkbox" checked={!!group.trivia?.enabled}
-                 onChange={e => run(() => update({ trivia_enabled: e.target.checked }), e.target.checked ? "Trivia is on" : "Trivia is off")} />
-          <span><span className="notify-name">A movie trivia question every day</span>
-            <span className="notify-hint">Made from the films on your calendar and classic movie quotes. Members answer on the
-              club feed (and with /trivia in Discord); a right answer is worth 2 kernels. Nobody is sent anything.</span></span>
+                 onChange={e => run(() => update({ trivia_enabled: e.target.checked }), "Saved")} />
+          <span><span className="notify-name">Question of the day</span>
+            <span className="notify-hint">One question a day, the same for everyone, on the club feed (and /trivia in
+              Discord). A right answer is worth 2 kernels.</span></span>
         </label>
         {group.trivia?.enabled && group.discord && (
-          <label className="notify-row">
+          <label className="notify-row club-trivia-sub">
             <input type="checkbox" checked={!!group.trivia?.discord}
                    onChange={e => run(() => update({ trivia_discord: e.target.checked }), "Saved")} />
-            <span><span className="notify-name">Also post each day's question in Discord (#movies)</span>
+            <span><span className="notify-name">Also post it in Discord (#movies)</span>
               <span className="notify-hint">Around 11 AM, with A–D buttons; answers stay private.</span></span>
           </label>
         )}
+        <label className="notify-row">
+          <input type="checkbox" checked={!!group.trivia?.anytime}
+                 onChange={e => run(() => update({ trivia_anytime: e.target.checked }), "Saved")} />
+          <span><span className="notify-name">Play anytime</span>
+            <span className="notify-hint">Members can ask for extra questions whenever they like (on the feed, or /trivia
+              in Discord). +1 kernel for a right one, up to 5 a day — after that they're just for fun.</span></span>
+        </label>
       </div>
 
       <SectionTitle>Invite by email</SectionTitle>

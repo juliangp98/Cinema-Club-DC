@@ -1501,7 +1501,9 @@ a.feed-action { text-decoration: none; display: inline-flex; align-items: center
 .trivia-result, .trivia-error { margin: 0; font-size: var(--fs-sm); }
 .trivia-yesterday { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .trivia-off { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 1rem; }
+.trivia-card > .btn { align-self: flex-start; }
 .club-trivia { gap: 0.6rem; }
+.club-trivia-sub { margin-left: 1.6rem; }
 
 /* Kernels on a feed card (R10b): give or take for what members did. */
 .kernel-panel { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }

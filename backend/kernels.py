@@ -5,8 +5,8 @@
              going; trailblazer: +1 for each member who joined a screening you
              were going to first (up to +5); crew night: +3 each when 3+
              members checked in to the same screening
-  trivia     right answers to the club's daily trivia (trivia.py; off unless
-             the club turned it on)
+  trivia     right trivia answers (trivia.py; off unless the club turned it
+             on): +2 for the question of the day, +1 anytime (up to 5 a day)
   members    what other members gave you (or took) for your activity
 
 Everything but the gifts is worked out from the source tables, like poll
@@ -104,11 +104,11 @@ def breakdowns(user_ids, group_id=None):
     from app import calc_user_kernels
     user_ids = list(dict.fromkeys(user_ids))
     out_k, gifts = going_out(user_ids, group_id), from_members(user_ids, group_id)
-    right = trivia.correct_counts(user_ids, group_id)
+    quizzes = trivia.kernels_for(user_ids, group_id)
     result = {}
     for uid in user_ids:
         polls, correct = calc_user_kernels(uid, group_id=group_id)
-        go, quiz = sum(out_k[uid].values()), right.get(uid, 0) * trivia.TRIVIA_KERNELS
+        go, quiz = sum(out_k[uid].values()), quizzes.get(uid, 0)
         result[uid] = {'kernels': polls + go + quiz + gifts.get(uid, 0), 'correct': correct, 'polls': polls,
                        'going_out': go, 'trivia': quiz, 'members': gifts.get(uid, 0), 'detail': out_k[uid]}
     return result
@@ -125,7 +125,9 @@ def rules(group_id=None):
     group = db.session.get(Group, group_id) if group_id else None
     return {'went': WENT, 'planned': PLANNED, 'trailblazer_max': TRAIL_MAX, 'crew_min': CREW_MIN, 'crew': CREW,
             'give': GIVE_PER_WEEK, 'take': TAKE_PER_WEEK,
-            'trivia': trivia.TRIVIA_KERNELS if group and group.trivia_enabled else None}
+            'trivia': trivia.TRIVIA_KERNELS if group and group.trivia_enabled else None,
+            'trivia_anytime': {'each': trivia.ANYTIME_KERNELS, 'per_day': trivia.ANYTIME_DAILY_CAP}
+            if group and group.trivia_anytime else None}
 
 
 def breakdown(user_id, group_id=None):

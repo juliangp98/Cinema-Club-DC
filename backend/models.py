@@ -112,10 +112,12 @@ class Group(db.Model):
     photo_url = db.Column(db.String(200))
     emoji = db.Column(db.String(16))
     short_name = db.Column(db.String(12))
-    # Daily trivia (R10d): off until a club admin turns it on; posting each
-    # day's question in Discord is its own yes.
+    # Trivia (R10d), all off until a club admin turns it on: the question of
+    # the day (trivia_enabled), posting it in Discord (trivia_discord, its own
+    # yes), and extra questions whenever members ask (trivia_anytime).
     trivia_enabled = db.Column(db.Boolean, default=False)
     trivia_discord = db.Column(db.Boolean, default=False)
+    trivia_anytime = db.Column(db.Boolean, default=False)
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False, with_email=False):
@@ -132,7 +134,8 @@ class Group(db.Model):
             'emoji': self.emoji,
             'short_name': self.short_name or '',
             'discord': core.discord_group(self.id),        # the club's Discord server's group
-            'trivia': {'enabled': bool(self.trivia_enabled), 'discord': bool(self.trivia_enabled and self.trivia_discord)},
+            'trivia': {'enabled': bool(self.trivia_enabled), 'discord': bool(self.trivia_enabled and self.trivia_discord),
+                       'anytime': bool(self.trivia_anytime)},
         }
         if include_members:
             d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']
@@ -497,11 +500,15 @@ class KernelGift(db.Model):
 
 
 class TriviaQuestion(db.Model):
-    """A club's question of the day (R10d), made from the films and quotes we
-    have (see trivia.py). `answer` is the index of the right option."""
+    """A trivia question (R10d), made from the films and quotes we have (see
+    trivia.py): the club's question of the day (slot 'daily'), or one a member
+    asked for (asked_by; slot '<user id>:<n>'). `answer` is the right option's
+    index."""
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
     day = db.Column(db.Date, nullable=False)
+    slot = db.Column(db.String(30), nullable=False, default='daily')
+    asked_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     kind = db.Column(db.String(20), nullable=False)           # director | first | cast | tagline | quote
     prompt = db.Column(db.Text, nullable=False)
     options_json = db.Column(db.Text, nullable=False)
@@ -510,7 +517,7 @@ class TriviaQuestion(db.Model):
     ref = db.Column(db.String(200))                           # what it's about, so it isn't asked again soon
     discord_message_id = db.Column(db.String(30))
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
-    __table_args__ = (db.UniqueConstraint('group_id', 'day'),)
+    __table_args__ = (db.UniqueConstraint('group_id', 'day', 'slot'),)
 
 
 class TriviaAnswer(db.Model):

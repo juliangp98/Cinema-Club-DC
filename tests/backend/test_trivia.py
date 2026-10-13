@@ -70,7 +70,8 @@ def answer(c, who, q, choice):
 
 def test_trivia_starts_off(club):
     assert today(club) == {'enabled': False}
-    assert client(club['Bo']).get(f"/api/groups/{club['slug']}").json['trivia'] == {'enabled': False, 'discord': False}
+    assert client(club['Bo']).get(f"/api/groups/{club['slug']}").json['trivia'] == {'enabled': False, 'discord': False,
+                                                                                   'anytime': False}
     r = client(club['Bo']).post('/api/trivia/answer', json={'group_id': club['G'], 'question_id': 1, 'choice': 0})
     assert r.status_code == 400 and 'off' in r.json['error']
 
@@ -78,10 +79,10 @@ def test_trivia_starts_off(club):
 def test_only_club_admins_switch_it(club):
     assert client(club['Bo']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': True}).status_code == 403
     on = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_discord': True}).json
-    assert on['trivia'] == {'enabled': False, 'discord': False}                # Discord needs trivia on first
-    assert turn_on(club, discord=True)['trivia'] == {'enabled': True, 'discord': True}
+    assert on['trivia'] == {'enabled': False, 'discord': False, 'anytime': False}   # Discord needs the daily first
+    assert turn_on(club, discord=True)['trivia'] == {'enabled': True, 'discord': True, 'anytime': False}
     off = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': False}).json
-    assert off['trivia'] == {'enabled': False, 'discord': False}               # off turns the Discord post off too
+    assert off['trivia'] == {'enabled': False, 'discord': False, 'anytime': False}  # off turns the Discord post off too
 
 
 # ── the question of the day ──
@@ -204,3 +205,82 @@ def test_kernel_rules_mention_trivia_only_when_on(club):
     assert rules()['trivia'] is None
     turn_on(club)
     assert rules()['trivia'] == 2
+
+
+# ── anytime questions ──
+
+def another(c, who):
+    return client(c[who]).post('/api/trivia/another', json={'group_id': c['G']})
+
+
+def right_answer(qid):
+    from app import app, db, TriviaQuestion
+    with app.app_context():
+        return db.session.get(TriviaQuestion, qid).answer
+
+
+def anytime_on(c, on=True):
+    assert client(c['Ana']).put(f"/api/groups/{c['slug']}", json={'trivia_anytime': on}).json['trivia']['anytime'] is on
+
+
+def test_anytime_is_its_own_switch(club):
+    turn_on(club)
+    assert 'off' in another(club, 'Bo').json['error']                           # the daily alone doesn't allow extras
+    client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': False})
+    assert client(club['Bo']).put(f"/api/groups/{club['slug']}", json={'trivia_anytime': True}).status_code == 403
+    anytime_on(club)
+    t = today(club)
+    assert t['enabled'] and t['anytime'] and not t['daily'] and t['question'] is None
+    q = another(club, 'Bo').json
+    assert q['anytime'] and q['kernels'] == 1 and q['kernels_left_today'] == 5 and 'answer' not in q
+
+
+def test_anytime_questions_are_private_and_one_at_a_time(club):
+    turn_on(club)
+    anytime_on(club)
+    daily = today(club)['question']
+    q1 = another(club, 'Bo').json
+    assert another(club, 'Bo').json['id'] == q1['id']                           # no skipping to an easier one
+    assert today(club)['waiting']['id'] == q1['id']
+    assert "isn't yours" in answer(club, 'Ana', q1, 0).json['error']
+    r = answer(club, 'Bo', q1, right_answer(q1['id'])).json
+    assert r['mine']['correct'] and r['earned'] == 1 and r['anytime_on'] is True and r['kernels_left_today'] == 4
+    q2 = another(club, 'Bo').json
+    assert q2['id'] not in (q1['id'], daily['id']) and q2['prompt'] not in (q1['prompt'], daily['prompt'])
+    assert another(club, 'Vi').status_code == 400                               # read-only members don't play
+
+
+def test_anytime_kernels_stop_at_five_a_day(club):
+    import kernels
+    from app import app
+    turn_on(club)
+    anytime_on(club)
+    earned = []
+    for _ in range(7):
+        q = another(club, 'Bo').json
+        earned.append(answer(club, 'Bo', q, right_answer(q['id'])).json['earned'])
+    assert earned == [1, 1, 1, 1, 1, 0, 0]                                      # then just for fun
+    daily = today(club)['question']
+    answer(club, 'Bo', daily, right_answer(daily['id']))
+    with app.app_context():
+        assert kernels.breakdown(club['Bo'], club['G'])['trivia'] == 5 + 2
+
+
+def test_trivia_tables_from_before_anytime_are_rebuilt():
+    from app import app, db, migrate, TriviaQuestion
+    setup_db()
+    with app.app_context():
+        db.session.execute(db.text("DROP TABLE trivia_question"))
+        db.session.execute(db.text("""CREATE TABLE trivia_question (id INTEGER PRIMARY KEY, group_id INTEGER NOT NULL,
+            day DATE NOT NULL, kind VARCHAR(20) NOT NULL, prompt TEXT NOT NULL, options_json TEXT NOT NULL,
+            answer INTEGER NOT NULL, movie_id INTEGER, ref VARCHAR(200), discord_message_id VARCHAR(30),
+            created_at DATETIME, UNIQUE (group_id, day))"""))
+        db.session.execute(db.text("""INSERT INTO trivia_question (id, group_id, day, kind, prompt, options_json, answer)
+            VALUES (7, 1, '2026-10-12', 'quote', 'Q?', '["a","b","c","d"]', 2)"""))
+        db.session.commit()
+        migrate()
+        old = db.session.get(TriviaQuestion, 7)
+        assert old.slot == 'daily' and old.answer == 2 and old.asked_by is None
+        db.session.add(TriviaQuestion(group_id=1, day=old.day, slot='5:1', asked_by=5, kind='quote', prompt='Q2?',
+                                      options_json='["a","b","c","d"]', answer=0))
+        db.session.commit()                                                      # a second question the same day fits now

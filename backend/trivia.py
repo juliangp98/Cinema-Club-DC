@@ -1,15 +1,23 @@
-"""Daily trivia (R10d): one question a day for each club that turned it on
-(off by default — a club admin switches it on; posting it in Discord is a
-second switch). Questions come from what we already know, so the answer is
-always right: the films (who directed it, who's in it, which came first,
-whose tagline — favoring films on the club's calendar) and the bot's quote
-collection. One try each; a right answer is worth TRIVIA_KERNELS (kernels.py).
+"""Trivia (R10d), all off until a club admin turns it on:
+
+  question of the day   one a day for the club, the same for everyone
+                        (group.trivia_enabled; posting it in Discord is
+                        group.trivia_discord, a second yes); right = +2
+  anytime               extra questions whenever a member asks
+                        (group.trivia_anytime), private to them, one
+                        unanswered at a time; right = +1, at most 5 a day
+
+Questions come from what we already know, so the answer is always right:
+the films (who directed it, who's in it, which came first, whose tagline —
+favoring films on the club's calendar) and the bot's quote collection.
+One try each.
 """
 import json
 import random
 from datetime import datetime, timedelta
 
-TRIVIA_KERNELS = 2
+TRIVIA_KERNELS = 2                     # a right answer to the question of the day
+ANYTIME_KERNELS, ANYTIME_DAILY_CAP = 1, 5   # anytime questions: +1 each, at most 5 kernels a day
 REPEAT_AFTER = timedelta(days=90)      # the same film / quote isn't asked again for this long
 CALENDAR_DAYS = 21                     # "on the calendar": playing at the club's theatres this soon
 FAVOR_CALENDAR = 0.7
@@ -126,14 +134,17 @@ def _quote(rng, films, on_calendar, recent, quotes):
 BUILDERS = (_director, _cast_q, _first, _tagline, _quote)
 
 
-def make_question(group, day):
-    """Today's question for a club (not saved): the same club and day always
-    give the same question; nothing about the same film or quote twice in
-    REPEAT_AFTER."""
+def make_question(group, day, rng=None, recent=None):
+    """A question for a club (not saved). The question of the day: the same
+    club and day always give the same one, and nothing about the same film or
+    quote as the club's other recent daily questions (REPEAT_AFTER). Anytime
+    questions pass their own `rng` and `recent`."""
     from app import Movie, Quote, Showtime, TriviaQuestion, _group_showtime_query
-    rng = random.Random(f'{group.id}:{day.isoformat()}')
-    recent = {q.ref for q in TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id,
-                                                         TriviaQuestion.day >= day - REPEAT_AFTER)}
+    rng = rng or random.Random(f'{group.id}:{day.isoformat()}')
+    if recent is None:
+        recent = {q.ref for q in TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id,
+                                                             TriviaQuestion.slot == 'daily',
+                                                             TriviaQuestion.day >= day - REPEAT_AFTER)}
     now = datetime.now()
     on_calendar = {mid for (mid,) in _group_showtime_query(group).with_entities(Showtime.movie_id).filter(
         Showtime.start_time >= now, Showtime.start_time < now + timedelta(days=CALENDAR_DAYS)).distinct()}
@@ -156,30 +167,79 @@ def question_for(group, day=None):
     if not group or not group.trivia_enabled:
         return None
     day = day or today()
-    q = TriviaQuestion.query.filter_by(group_id=group.id, day=day).first()
+    q = TriviaQuestion.query.filter_by(group_id=group.id, day=day, slot='daily').first()
     if q:
         return q
     made = make_question(group, day)
     if not made:
         return None
-    q = TriviaQuestion(group_id=group.id, day=day, kind=made['kind'], prompt=made['prompt'],
-                       options_json=json.dumps(made['options']), answer=made['answer'],
-                       movie_id=made['movie_id'], ref=made['ref'])
-    db.session.add(q)
+    q = _save(group, day, 'daily', made)
     try:
         db.session.commit()
     except IntegrityError:                     # someone else asked at the same moment
         db.session.rollback()
-        q = TriviaQuestion.query.filter_by(group_id=group.id, day=day).first()
+        q = TriviaQuestion.query.filter_by(group_id=group.id, day=day, slot='daily').first()
     return q
+
+
+def _save(group, day, slot, made, asked_by=None):
+    from app import db, TriviaQuestion
+    q = TriviaQuestion(group_id=group.id, day=day, slot=slot, asked_by=asked_by, kind=made['kind'],
+                       prompt=made['prompt'], options_json=json.dumps(made['options']), answer=made['answer'],
+                       movie_id=made['movie_id'], ref=made['ref'])
+    db.session.add(q)
+    return q
+
+
+def waiting_anytime(group, user):
+    """The anytime question this member asked for and hasn't answered yet."""
+    from app import TriviaAnswer, TriviaQuestion
+    answered = TriviaAnswer.query.filter(TriviaAnswer.user_id == user.id).with_entities(TriviaAnswer.question_id)
+    return (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.asked_by == user.id,
+                                        TriviaQuestion.day == today(), ~TriviaQuestion.id.in_(answered))
+            .order_by(TriviaQuestion.id.desc()).first())
+
+
+def another(group, user):
+    """An anytime question for `user` (R10d): their unanswered one if there is
+    one (no skipping to an easier one), else a new one about something they
+    haven't been asked lately. Returns (question, error)."""
+    from sqlalchemy.exc import IntegrityError
+    from app import db, TriviaQuestion, require_role
+    if not group or not group.trivia_anytime:
+        return None, "Anytime trivia is off for this club."
+    _, err = require_role(user, group.id, 'member')
+    if err:
+        return None, "Only club members can play."
+    waiting = waiting_anytime(group, user)
+    if waiting:
+        return waiting, None
+    day = today()
+    mine = TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day >= day - REPEAT_AFTER,
+                                       (TriviaQuestion.asked_by == user.id) | (TriviaQuestion.slot == 'daily')).all()
+    n = sum(1 for q in mine if q.asked_by == user.id and q.day == day) + 1
+    made = make_question(group, day, rng=random.Random(f'{group.id}:{user.id}:{day.isoformat()}:{n}'),
+                         recent={q.ref for q in mine})
+    if not made:
+        return None, "We're out of questions for now — try again tomorrow."
+    q = _save(group, day, f'{user.id}:{n}', made, asked_by=user.id)
+    try:
+        db.session.commit()
+    except IntegrityError:                     # a double tap
+        db.session.rollback()
+        return waiting_anytime(group, user), None
+    return q, None
 
 
 def as_dict(q, user=None, reveal=False):
     """A question for showing: the right answer, the tally and the film only
     once you've answered (or it's an earlier day's)."""
     from app import db, Movie, TriviaAnswer
-    out = {'id': q.id, 'day': q.day.isoformat(), 'kind': q.kind, 'prompt': q.prompt,
-           'options': json.loads(q.options_json), 'kernels': TRIVIA_KERNELS}
+    anytime = q.slot != 'daily'
+    out = {'id': q.id, 'day': q.day.isoformat(), 'kind': q.kind, 'prompt': q.prompt, 'anytime': anytime,
+           'options': json.loads(q.options_json), 'kernels': ANYTIME_KERNELS if anytime else TRIVIA_KERNELS}
+    if anytime and user:
+        out['kernels_left_today'] = max(0, ANYTIME_DAILY_CAP - _anytime_today(user.id, q.group_id))
     mine = TriviaAnswer.query.filter_by(question_id=q.id, user_id=user.id).first() if user else None
     if mine:
         out['mine'] = {'choice': mine.choice, 'correct': mine.correct}
@@ -194,53 +254,87 @@ def as_dict(q, user=None, reveal=False):
 
 
 def today_for(group, user):
-    """{'enabled', 'question', 'yesterday'} for the trivia card / /trivia."""
+    """For the trivia card / /trivia: {'enabled' (either kind is on), 'daily'
+    and 'anytime' (which are), 'question' (the question of the day),
+    'yesterday' (with its answer), 'waiting' (your unanswered anytime one)}."""
     from app import TriviaQuestion
-    if not group or not group.trivia_enabled:
+    daily, anytime = bool(group and group.trivia_enabled), bool(group and group.trivia_anytime)
+    if not (daily or anytime):
         return {'enabled': False}
-    q = question_for(group)
-    prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day < today())
-            .order_by(TriviaQuestion.day.desc()).first())
-    return {'enabled': True, 'question': as_dict(q, user) if q else None,
-            'yesterday': as_dict(prev, user, reveal=True) if prev and prev.day == today() - timedelta(days=1) else None}
+    out = {'enabled': True, 'daily': daily, 'anytime': anytime, 'question': None, 'yesterday': None, 'waiting': None}
+    if daily:
+        q = question_for(group)
+        prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.slot == 'daily',
+                                            TriviaQuestion.day < today())
+                .order_by(TriviaQuestion.day.desc()).first())
+        out['question'] = as_dict(q, user) if q else None
+        out['yesterday'] = as_dict(prev, user, reveal=True) if prev and prev.day == today() - timedelta(days=1) else None
+    if anytime and user:
+        w = waiting_anytime(group, user)
+        out['waiting'] = as_dict(w, user) if w else None
+    return out
 
 
 def answer(group, user, question_id, choice, source='site'):
     """Record `user`'s one answer to today's question. Returns (result, error)."""
     from sqlalchemy.exc import IntegrityError
     from app import db, TriviaAnswer, TriviaQuestion, require_role
-    if not group or not group.trivia_enabled:
+    q = db.session.get(TriviaQuestion, question_id) if isinstance(question_id, int) else None
+    if not group or not (group.trivia_anytime if q and q.slot != 'daily' else group.trivia_enabled):
         return None, "Trivia is off for this club."
     _, err = require_role(user, group.id, 'member')
     if err:
         return None, "Only club members can answer."
-    q = db.session.get(TriviaQuestion, question_id) if isinstance(question_id, int) else None
-    if not q or q.group_id != group.id:
-        return None, "That question isn't this club's."
+    if not q or q.group_id != group.id or (q.asked_by and q.asked_by != user.id):
+        return None, "That question isn't yours to answer."
     if q.day != today():
         return None, "That was an earlier day's question — try today's."
     if not isinstance(choice, int) or not 0 <= choice < len(json.loads(q.options_json)):
         return None, 'Pick one of the answers.'
     if TriviaAnswer.query.filter_by(question_id=q.id, user_id=user.id).first():
-        return None, 'You already answered today’s question.'
-    db.session.add(TriviaAnswer(question_id=q.id, user_id=user.id, choice=choice, correct=choice == q.answer,
-                                source=source))
+        return None, 'You already answered that one.'
+    right = choice == q.answer
+    if not right:
+        earned = 0
+    elif q.slot == 'daily':
+        earned = TRIVIA_KERNELS
+    else:
+        earned = max(0, min(ANYTIME_KERNELS, ANYTIME_DAILY_CAP - _anytime_today(user.id, group.id)))
+    db.session.add(TriviaAnswer(question_id=q.id, user_id=user.id, choice=choice, correct=right, source=source))
     try:
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return None, 'You already answered today’s question.'
-    return as_dict(q, user), None
+        return None, 'You already answered that one.'
+    return {**as_dict(q, user), 'earned': earned, 'anytime_on': bool(group.trivia_anytime)}, None
 
 
-def correct_counts(user_ids, group_id=None):
-    """{uid: right answers} (for kernels)."""
+def kernels_for(user_ids, group_id=None):
+    """{uid: trivia kernels}: +2 per right answer to a question of the day,
+    +1 per right anytime answer up to ANYTIME_DAILY_CAP a day (per club)."""
     from app import db, TriviaAnswer, TriviaQuestion
     if not user_ids:
         return {}
-    q = (db.session.query(TriviaAnswer.user_id, db.func.count(TriviaAnswer.id))
+    q = (db.session.query(TriviaAnswer.user_id, TriviaQuestion.group_id, TriviaQuestion.day, TriviaQuestion.slot)
          .join(TriviaQuestion, TriviaAnswer.question_id == TriviaQuestion.id)
          .filter(TriviaAnswer.user_id.in_(list(user_ids)), TriviaAnswer.correct.is_(True)))
     if group_id:
         q = q.filter(TriviaQuestion.group_id == group_id)
-    return dict(q.group_by(TriviaAnswer.user_id).all())
+    out, anytime = {}, {}
+    for uid, gid, day, slot in q:
+        if slot == 'daily':
+            out[uid] = out.get(uid, 0) + TRIVIA_KERNELS
+        else:
+            anytime[(uid, gid, day)] = anytime.get((uid, gid, day), 0) + ANYTIME_KERNELS
+    for (uid, _, _), k in anytime.items():
+        out[uid] = out.get(uid, 0) + min(k, ANYTIME_DAILY_CAP)
+    return out
+
+
+def _anytime_today(user_id, group_id):
+    """Kernels from anytime questions today (toward the daily cap)."""
+    from app import TriviaAnswer, TriviaQuestion
+    n = (TriviaAnswer.query.join(TriviaQuestion, TriviaAnswer.question_id == TriviaQuestion.id)
+         .filter(TriviaAnswer.user_id == user_id, TriviaAnswer.correct.is_(True), TriviaQuestion.group_id == group_id,
+                 TriviaQuestion.slot != 'daily', TriviaQuestion.day == today()).count())
+    return min(n * ANYTIME_KERNELS, ANYTIME_DAILY_CAP)

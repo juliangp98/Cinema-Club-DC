@@ -52,7 +52,7 @@ def test_answering_privately_once(bot):
     it = FakeInteraction(uid=9601, name='ana')
     run(bot.trivia_cmd.callback(it))
     _, _, kw = it.last
-    assert kw['ephemeral'] is True and kw['embed'].title == '🧠 Daily trivia'
+    assert kw['ephemeral'] is True and kw['embed'].title == '🧠 Question of the day'
     buttons = items_of(kw['view'])
     assert [b.label for b in buttons] == ['A', 'B', 'C', 'D']
     assert all(re.fullmatch(r'trivia:\d+:[0-3]', b.custom_id) for b in buttons)
@@ -93,7 +93,7 @@ def test_the_daily_post_needs_both_yeses_and_goes_out_once(bot, monkeypatch):
     switch(bot, trivia_discord=True)
     run(bot.trivia_loop.coro())
     run(bot.trivia_loop.coro())
-    assert len(sent) == 1 and sent[0][0].title == '🧠 Daily trivia' and len(items_of(sent[0][1])) == 4
+    assert len(sent) == 1 and sent[0][0].title == '🧠 Question of the day' and len(items_of(sent[0][1])) == 4
 
 
 def test_kernels_explains_trivia_when_its_on(bot):
@@ -101,4 +101,46 @@ def test_kernels_explains_trivia_when_its_on(bot):
     it = FakeInteraction(uid=9601, name='ana')
     run(bot.kernels_cmd.callback(it))
     how = {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
-    assert 'Daily trivia: **+2**' in how
+    assert 'Trivia question of the day: **+2**' in how and 'Anytime' not in how
+    switch(bot, trivia_anytime=True)
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.kernels_cmd.callback(it))
+    assert 'Anytime trivia: **+1** each, up to 5 a day' in {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
+
+
+def press(bot, custom_id, template):
+    async def go():
+        m = re.fullmatch(template.__discord_ui_compiled_template__, custom_id)
+        btn = await template.from_custom_id(None, None, m)
+        it = FakeInteraction(uid=9601, name='ana')
+        await btn.callback(it)
+        return it
+    return run(go())
+
+
+def test_anytime_questions_in_discord(bot):
+    switch(bot, trivia_enabled=True, trivia_anytime=True)
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.trivia_cmd.callback(it))
+    daily = items_of(it.last[2]['view'])
+    answered = press(bot, daily[0].custom_id, bot.TriviaButton)                 # today's first…
+    more = items_of(answered.last[2]['view'])
+    assert [b.custom_id for b in more] == ['trivia:more']                       # …then "🎲 Another one"
+    got = press(bot, 'trivia:more', bot.TriviaMoreButton)
+    _, _, kw = got.last
+    assert kw['ephemeral'] is True and kw['embed'].title == '🎲 Anytime trivia' and len(items_of(kw['view'])) == 4
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.trivia_cmd.callback(it))
+    assert it.last[2]['embed'].title == '🎲 Anytime trivia'                     # /trivia hands back the one you're on
+    assert items_of(it.last[2]['view'])[0].custom_id == items_of(kw['view'])[0].custom_id
+
+
+def test_without_anytime_trivia_waits_for_tomorrow(bot):
+    switch(bot, trivia_enabled=True)
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.trivia_cmd.callback(it))
+    answered = press(bot, items_of(it.last[2]['view'])[0].custom_id, bot.TriviaButton)
+    assert 'view' not in answered.last[2]                                       # no "Another one"
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.trivia_cmd.callback(it))
+    assert 'Anytime questions are off' in it.last[1]

@@ -738,7 +738,7 @@ HELP_SECTIONS = [
         ('/vote', 'your private ballot'),
         ('/leaderboard', 'season kernel standings 🍿'),
         ('/kernels', 'your kernels, where they came from, and how to earn more'),
-        ('/trivia', "today's movie trivia question, if your club has trivia on"),
+        ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -817,7 +817,9 @@ def kernels_embed(k):
         f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
         f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
         '• Right picks in scored polls',
-        *([f"• Daily trivia: **+{r['trivia']}** for a right answer (`/trivia`)"] if r.get('trivia') else []),
+        *([f"• Trivia question of the day: **+{r['trivia']}** for a right answer (`/trivia`)"] if r.get('trivia') else []),
+        *([f"• Anytime trivia: **+{r['trivia_anytime']['each']}** each, up to {r['trivia_anytime']['per_day']} a day"]
+          if r.get('trivia_anytime') else []),
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
@@ -836,7 +838,10 @@ def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
         embed.add_field(name='Yesterday', inline=False, value=(
             f"{yesterday['prompt'][:300]} → **{yesterday['options'][yesterday['answer']]}**"
             f" ({st.get('correct', 0)} of {st.get('answered', 0)} got it)")[:1024])
-    embed.set_footer(text=f"One try each · +{q.get('kernels', 2)} 🍿 for a right answer · your answer stays private")
+    left = q.get('kernels_left_today')
+    worth = (f"+{q.get('kernels', 2)} 🍿 for a right answer" if left is None or left > 0
+             else "just for fun (today's anytime kernels are used up)")
+    embed.set_footer(text=f"One try · {worth} · your answer stays private")
     return embed
 
 
@@ -844,8 +849,11 @@ def trivia_result(q):
     """What you see after answering: right or not, the answer, and the tally."""
     right = q['options'][q['answer']]
     st = q.get('stats') or {}
-    head = (f"✅ Right — **{right}**! +{q.get('kernels', 2)} 🍿" if q['mine']['correct']
+    earned = q.get('earned', q.get('kernels', 2))
+    head = (f"✅ Right — **{right}**!" + (f" +{earned} 🍿" if earned else '') if q['mine']['correct']
             else f"❌ Not quite — it was **{right}**.")
+    if q.get('anytime'):
+        return head
     return f"{head}\n-# {st.get('correct', 0)} of {st.get('answered', 0)} got it so far. New question tomorrow."
 
 

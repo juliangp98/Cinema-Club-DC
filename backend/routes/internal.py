@@ -1286,6 +1286,21 @@ def internal_trivia_answer():
     return jsonify(result)
 
 
+@app.route('/api/internal/trivia/another', methods=['POST'])
+@require_internal
+def internal_trivia_another():
+    """/trivia or "🎲 Another one" in Discord: an anytime question for this member."""
+    import trivia
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    q, error = trivia.another(db.session.get(Group, _as_int(data.get('group_id')) or 0), user)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(trivia.as_dict(q, user))
+
+
 @app.route('/api/internal/trivia/post')
 @require_internal
 def internal_trivia_post():
@@ -1299,7 +1314,8 @@ def internal_trivia_post():
     q = trivia.question_for(group)
     if not q or q.discord_message_id:
         return jsonify({'post': None})
-    prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day < q.day)
+    prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.slot == 'daily',
+                                        TriviaQuestion.day < q.day)
             .order_by(TriviaQuestion.day.desc()).first())
     return jsonify({'post': trivia.as_dict(q),
                     'yesterday': trivia.as_dict(prev, reveal=True) if prev and prev.day == q.day - timedelta(days=1) else None})

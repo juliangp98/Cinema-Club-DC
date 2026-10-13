@@ -331,8 +331,9 @@ def group_leaderboard(group_id):
 @app.route('/api/trivia/today')
 @require_auth
 def trivia_today():
-    """The club's question of the day (if the club turned trivia on), your
-    answer if you've given one, and yesterday's with its answer."""
+    """Trivia for the card: the club's question of the day (if it's on), your
+    answer if you've given one, yesterday's with its answer, and your
+    unanswered anytime question (if anytime is on)."""
     import trivia
     group_id = request.args.get('group_id', type=int)
     err = require_group_member(group_id)
@@ -341,10 +342,27 @@ def trivia_today():
     return jsonify(trivia.today_for(db.session.get(Group, group_id), current_user()))
 
 
+@app.route('/api/trivia/another', methods=['POST'])
+@require_auth
+def trivia_another():
+    """{group_id}: an anytime question for you (if the club has them on) —
+    your unanswered one if you have one."""
+    import trivia
+    group_id = _as_int((request.json or {}).get('group_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    user = current_user()
+    q, error = trivia.another(db.session.get(Group, group_id), user)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(trivia.as_dict(q, user))
+
+
 @app.route('/api/trivia/answer', methods=['POST'])
 @require_auth
 def trivia_answer():
-    """{group_id, question_id, choice}: your one answer to today's question."""
+    """{group_id, question_id, choice}: your one answer to a question."""
     import trivia
     data = request.json or {}
     group_id = _as_int(data.get('group_id'))
