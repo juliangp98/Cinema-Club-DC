@@ -5,15 +5,17 @@ Safe to re-run, and it never triggers Discord announcements.
 
 Unmatched films are retried at most weekly (the scraper does the same); pass
 --force to retry all of them now. --refresh re-downloads TMDB/OMDb details for
-films already matched (repairs details a venue overwrote before Oct 2026; about
-two API calls per film).
+matched films that haven't had them since R13 (Oct 2026: OMDb's genres and the
+original language) — re-run it to pick up where a cut-short run stopped;
+--refresh --all redoes every matched film. About two API calls per film (OMDb's
+free tier allows 1,000 a day).
 
 Usage:
     # Local
-    cd backend && ./venv/bin/python backfill_enrichment.py [--force] [--refresh]
+    cd backend && ./venv/bin/python backfill_enrichment.py [--force] [--refresh [--all]]
 
     # Inside the production container
-    sudo docker exec cinemaclub-backend python backfill_enrichment.py [--force] [--refresh]
+    sudo docker exec cinemaclub-backend python backfill_enrichment.py [--force] [--refresh [--all]]
 """
 
 import argparse
@@ -62,11 +64,17 @@ def lookup_unmatched(force=False):
         print(f"Matched {matched} of {len(movies)}.")
 
 
-def refresh_matched():
-    """Re-apply TMDB/OMDb details to every matched film."""
+def refresh_matched(everything=False):
+    """Re-apply TMDB/OMDb details to matched films: those not refreshed since
+    R13 added the original language (a refresh cut short — e.g. by failed
+    lookups — picks up where it stopped), or with `everything`, all of them."""
     with app.app_context():
-        movies = Movie.query.filter(Movie.tmdb_id.isnot(None)).order_by(Movie.id).all()
-        print(f"Refreshing details for {len(movies)} matched films…")
+        q = Movie.query.filter(Movie.tmdb_id.isnot(None))
+        if not everything:
+            q = q.filter(Movie.original_language.is_(None))
+        movies = q.order_by(Movie.id).all()
+        print(f"Refreshing details for {len(movies)} matched films"
+              + ("…" if everything else " not refreshed yet (--all for every one)…"))
         refreshed = 0
         for i, movie in enumerate(movies, 1):
             data = enrich_by_tmdb_id(movie.tmdb_id, movie.title)
@@ -85,14 +93,15 @@ def main():
     parser.add_argument('--force', action='store_true',
                         help='retry every unmatched film, ignoring the weekly retry window')
     parser.add_argument('--refresh', action='store_true',
-                        help='re-download details for films already matched')
+                        help='re-download details for matched films not refreshed yet')
+    parser.add_argument('--all', action='store_true', help='with --refresh: every matched film')
     args = parser.parse_args()
 
     print('Cleaning up the catalog…')
     _report(consolidate_catalog())
     lookup_unmatched(force=args.force)
     if args.refresh:
-        refresh_matched()
+        refresh_matched(everything=args.all)
     print('Merging films matched in this run…')
     _report(consolidate_catalog())
 

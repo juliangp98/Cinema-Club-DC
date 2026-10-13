@@ -42,6 +42,27 @@ def _warn_once(key, message):
         print(message)
 
 
+def _make_http():
+    """One connection pool for every TMDB / OMDb call. Reused (keep-alive)
+    connections mean a DNS lookup per host instead of per request — the NAS's
+    router resolver drops some lookups when a backfill fires thousands — and a
+    failed connection (a lookup that didn't resolve, a reset) or a 429/5xx is
+    retried a few times with a short backoff instead of skipping the film."""
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    retry = Retry(total=3, connect=3, read=1, status=3, backoff_factor=1,
+                  status_forcelist=(429, 500, 502, 503, 504), allowed_methods=frozenset({'GET'}),
+                  respect_retry_after_header=True, raise_on_status=False)
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=retry, pool_maxsize=4)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    return session
+
+
+_http = _make_http()
+
+
 def _tmdb_headers():
     return {'Authorization': f'Bearer {_tmdb_token()}', 'Accept': 'application/json'}
 
@@ -95,7 +116,7 @@ def search_tmdb(title, year=None):
         return None
 
     def search(params):
-        r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(), params=params, timeout=10)
+        r = _http.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(), params=params, timeout=10)
         r.raise_for_status()
         return r.json().get('results', [])
 
@@ -119,7 +140,7 @@ def tmdb_people(query, limit=8):
     if not _tmdb_token() or len((query or '').strip()) < 2:
         return []
     try:
-        r = requests.get(f'{TMDB_BASE}/search/person', headers=_tmdb_headers(),
+        r = _http.get(f'{TMDB_BASE}/search/person', headers=_tmdb_headers(),
                          params={'query': query.strip(), 'include_adult': 'false'}, timeout=8)
         r.raise_for_status()
         return [{'name': x['name'], 'kind': TMDB_DEPARTMENTS[x.get('known_for_department')]}
@@ -136,7 +157,7 @@ def tmdb_search_list(query, limit=8):
     if not _tmdb_token() or not (query or '').strip():
         return []
     try:
-        r = requests.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(),
+        r = _http.get(f'{TMDB_BASE}/search/movie', headers=_tmdb_headers(),
                          params={'query': query.strip(), 'include_adult': 'false'}, timeout=8)
         r.raise_for_status()
         out = []
@@ -154,7 +175,7 @@ def tmdb_search_list(query, limit=8):
 def tmdb_details(tmdb_id):
     """Full metadata for one TMDB film (credits + videos in the same call)."""
     try:
-        r2 = requests.get(
+        r2 = _http.get(
             f'{TMDB_BASE}/movie/{tmdb_id}',
             headers=_tmdb_headers(),
             params={'append_to_response': 'credits,videos'},
@@ -250,7 +271,7 @@ def enrich_from_omdb(title, year=None, imdb_id=None):
             if year:
                 params['y'] = year
 
-        r = requests.get('http://www.omdbapi.com/', params=params, timeout=10)
+        r = _http.get('http://www.omdbapi.com/', params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
 
