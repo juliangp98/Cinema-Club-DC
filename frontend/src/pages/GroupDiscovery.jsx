@@ -184,11 +184,11 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
           </form>
 
           {loadingPublic && publicGroups.length === 0 ? (
-            <p className="group-empty" style={{ opacity: 0.5 }}>Loading...</p>
+            <p className="group-empty loading">Loading…</p>
           ) : publicGroups.length === 0 ? (
             <p className="group-empty">No groups found{query ? ` for "${query}"` : ""}.</p>
           ) : (
-            <div className="group-cards" style={{ marginTop: "0.75rem" }}>
+            <div className="group-cards spaced">
               {publicGroups.map(g => (
                 <div key={g.id} className="group-card">
                   <ClubBadge group={g} size={40} />
@@ -273,11 +273,11 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                 Public (searchable by anyone)
               </label>
               {allTheatres.length > 0 && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <label className="group-create-checkbox" style={{ marginBottom: "0.3rem" }}>
+                <div className="group-create-theatres">
+                  <label className="group-create-checkbox">
                     Theatres
                   </label>
-                  <div className="theatre-filters" style={{ justifyContent: "flex-start" }}>
+                  <div className="theatre-filters">
                     {allTheatres.map(t => (
                       <button
                         key={t.slug}

@@ -1,4 +1,4 @@
-import Sheet from "./Sheet";
+import Sheet, { SheetTitle } from "./Sheet";
 
 // The one Filters sheet, shared by Browse and the Calendar: same filters,
 // same URL parameter names (the server applies them the same way too).
@@ -48,7 +48,7 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
   return (
     <Sheet label="Filters" onClose={onClose}>
       <div className="filters">
-        <h2 className="ui-section-title"><span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Filters</span></h2>
+        <SheetTitle>Filters</SheetTitle>
         {search}
         {Object.keys(byRegion).length > 0 && (
           <fieldset><legend>Where</legend>

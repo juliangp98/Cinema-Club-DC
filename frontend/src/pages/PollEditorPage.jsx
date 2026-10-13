@@ -129,15 +129,15 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
         <div className="pv-scope">
           <span className="pv-label">Based on</span>
           <Segmented label="Based on" options={SCOPES} value={scope} onChange={setScope} />
-          <span className="pv-hint">{scope === "playing" ? "Options come from films playing at the club's theatres." : "Any films — not tied to what's playing."}</span>
+          <span className="ui-hint">{scope === "playing" ? "Options come from films playing at the club's theatres." : "Any films — not tied to what's playing."}</span>
         </div>
         <div className="pv-examples">
           {EXAMPLES.map(x => <button key={x} type="button" className="chip" onClick={() => setAsk(x)}>{x}</button>)}
           <button type="button" className="chip" onClick={oscars}>🏆 Oscars template</button>
         </div>
-        {drafting && <p className="pv-hint">The AI is drafting it{scope === "playing" ? " from what's playing" : ""}, which takes a few seconds.</p>}
+        {drafting && <p className="ui-hint">The AI is drafting it{scope === "playing" ? " from what's playing" : ""}, which takes a few seconds.</p>}
         {draftError && <p className="share-error">{draftError}</p>}
-        {draftId && !drafting && <p className="pv-hint">Drafted. Edit anything below, then create it.</p>}
+        {draftId && !drafting && <p className="ui-hint">Drafted. Edit anything below, then create it.</p>}
         {notes && <p className="pv-note">⚠️ {notes}</p>}
       </form>
 
@@ -157,7 +157,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
             <Segmented label="Scoring" options={MODES[form.poll_type]} value={form.scoring_mode} onChange={v => v && set({ scoring_mode: v })} />
           </div>
         </div>
-        <p className="pv-hint">
+        <p className="ui-hint">
           {form.poll_type === "prediction" ? "Has right answers you'll mark later; correct picks earn 🍿." : "Opinions: no right answers."}
           {" "}{SCORING_LABELS[form.scoring_mode]}.
         </p>

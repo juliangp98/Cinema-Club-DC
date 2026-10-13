@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
+import Panel from "../ui/Panel";
 import { EditIcon, LogoutIcon, CompassIcon, HelpIcon, TheatreIcon } from "../ui/icons";
 import { ClubBadge } from "../ui/Avatar";
 import { WatchlistTab, GoingTab, HistoryTab } from "../components/UserProfileDrawer";
@@ -30,14 +31,11 @@ export default function MePage({ user, apiBase, groupId }) {
       <PageHeader title="Me" />
 
       {user.is_guest && (
-        <section className="join-club">
-          <div>
-            <span className="deco join-club-title">Keep your profile</span>
-            <p>This guest profile lives only in this browser and only you can see it. Add an email or Discord to keep your
-               plans and watchlist on every device — and to join a club.</p>
-          </div>
-          <button className="btn btn-primary" onClick={() => navigate("/signin?next=%2Fme")}>Keep it</button>
-        </section>
+        <Panel tone="callout" title="Keep your profile"
+               actions={<button className="btn btn-primary" onClick={() => navigate("/signin?next=%2Fme")}>Keep it</button>}>
+          <p>This guest profile lives only in this browser and only you can see it. Add an email or Discord to keep your
+             plans and watchlist on every device — and to join a club.</p>
+        </Panel>
       )}
 
       <section className="me-card">
@@ -70,15 +68,15 @@ export default function MePage({ user, apiBase, groupId }) {
       </div>
 
       {!user.is_guest && (
-        <div style={{ marginTop: "2rem" }}>
+        <div className="me-block">
           <SectionTitle>In your calendar</SectionTitle>
-          <p className="pv-hint">Subscribe once and your plans stay in sync with Google, Apple or Outlook Calendar.</p>
+          <p className="ui-hint">Subscribe once and your plans stay in sync with Google, Apple or Outlook Calendar.</p>
           <CalendarLinks apiBase={apiBase} />
         </div>
       )}
 
       {!user.is_guest && groupId && (<>
-      <div style={{ marginTop: "2rem" }}>
+      <div className="me-block">
         <SectionTitle>Your club</SectionTitle>
       </div>
       <div className="me-links">
@@ -95,14 +93,14 @@ export default function MePage({ user, apiBase, groupId }) {
       </div>
       </>)}
       {!user.is_guest && !groupId && (
-        <div className="me-links" style={{ marginTop: "2rem" }}>
+        <div className="me-links">
           <button className="me-link" onClick={() => navigate("/groups")}>
             <CompassIcon /><span>Find a club<small>See who's going, plan screenings, vote in polls</small></span>
           </button>
         </div>
       )}
 
-      <div className="me-links" style={{ marginTop: "1rem" }}>
+      <div className="me-links tight">
         {!user.is_guest && (
           <button className="me-link" onClick={() => startTour?.()}>
             <CompassIcon /><span>Take the tour<small>A quick look around the site</small></span>

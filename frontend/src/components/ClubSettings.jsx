@@ -90,7 +90,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
                  placeholder={initialsOf(group.name)} />
           <button className="btn btn-sm" disabled={shortName === (group.short_name || "")}>Save</button>
         </div>
-        <p className="pv-hint">Shown in the top bar when there isn't room for the full name. Blank: {initialsOf(group.name)}.</p>
+        <p className="ui-hint">Shown in the top bar when there isn't room for the full name. Blank: {initialsOf(group.name)}.</p>
       </form>
 
       <SectionTitle>Details</SectionTitle>
@@ -124,14 +124,14 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
       </form>
 
       <SectionTitle>Movie trivia</SectionTitle>
-      <p className="pv-hint">Questions made from the films on your calendar and classic movie quotes. Each part is off
+      <p className="ui-hint">Questions made from the films on your calendar and classic movie quotes. Each part is off
         until you turn it on, and nobody is ever sent anything.</p>
       <div className="club-form club-trivia">
         <label className="notify-row">
           <input type="checkbox" checked={!!group.trivia?.enabled}
                  onChange={e => run(() => update({ trivia_enabled: e.target.checked }), "Saved")} />
           <span><span className="notify-name">Question of the day</span>
-            <span className="notify-hint">One question a day, the same for everyone, on the club feed (and /trivia in
+            <span className="ui-hint">One question a day, the same for everyone, on the club feed (and /trivia in
               Discord). A right answer is worth 2 kernels.</span></span>
         </label>
         {group.trivia?.enabled && group.discord && (
@@ -139,14 +139,14 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
             <input type="checkbox" checked={!!group.trivia?.discord}
                    onChange={e => run(() => update({ trivia_discord: e.target.checked }), "Saved")} />
             <span><span className="notify-name">Also post it in Discord (#movies)</span>
-              <span className="notify-hint">Around 11 AM, with A–D buttons; answers stay private.</span></span>
+              <span className="ui-hint">Around 11 AM, with A–D buttons; answers stay private.</span></span>
           </label>
         )}
         <label className="notify-row">
           <input type="checkbox" checked={!!group.trivia?.anytime}
                  onChange={e => run(() => update({ trivia_anytime: e.target.checked }), "Saved")} />
           <span><span className="notify-name">Play anytime</span>
-            <span className="notify-hint">Members can ask for extra questions whenever they like (on the feed, or /trivia
+            <span className="ui-hint">Members can ask for extra questions whenever they like (on the feed, or /trivia
               in Discord). +1 kernel for a right one, up to 5 a day — after that they're just for fun.</span></span>
         </label>
       </div>
@@ -157,7 +157,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
           <input type="checkbox" checked={!!group.bingo?.enabled}
                  onChange={e => run(() => update({ bingo_enabled: e.target.checked }), "Saved")} />
           <span><span className="notify-name">A bingo card every month</span>
-            <span className="notify-hint">One 3×3 card for the whole club (the middle's free) that fills in by itself from
+            <span className="ui-hint">One 3×3 card for the whole club (the middle's free) that fills in by itself from
               check-ins: on film, before 1960, a late show, a theatre you'd never been to… Only squares this month's
               calendar can fill. First line +5 kernels, the full card +15. Nobody is sent anything.</span></span>
         </label>
@@ -169,7 +169,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
           <input type="checkbox" checked={!!group.notes?.enabled}
                  onChange={e => run(() => update({ notes_enabled: e.target.checked }), "Saved")} />
           <span><span className="notify-name">Quick notes about each screening</span>
-            <span className="notify-hint">Members who checked in can tag the night: gorgeous print, sound trouble, packed
+            <span className="ui-hint">Members who checked in can tag the night: gorgeous print, sound trouble, packed
               house, great Q&amp;A… Shown on the screening, in the feed and on theatre pages (to members only). Nobody is
               sent anything.</span></span>
         </label>
@@ -182,7 +182,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         <button className="btn btn-sm">Invite</button>
       </form>
       {invite && (
-        <p className="pv-hint">{invite.message}{invite.invite_url && <> · Link: <code className="club-code">{invite.invite_url}</code></>}</p>
+        <p className="ui-hint">{invite.message}{invite.invite_url && <> · Link: <code className="club-code">{invite.invite_url}</code></>}</p>
       )}
 
       {pending.length > 0 && (
@@ -204,7 +204,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
       )}
 
       <SectionTitle>Members and roles ({active.length})</SectionTitle>
-      <p className="pv-hint">{ROLES.map(r => `${r.label}: ${r.hint}`).join(" · ")}</p>
+      <p className="ui-hint">{ROLES.map(r => `${r.label}: ${r.hint}`).join(" · ")}</p>
       <ul className="club-rows">
         {active.map(m => (
           <li key={m.id} className="club-row">
@@ -236,7 +236,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
       <div className="club-danger">
         <div>
           <strong>Delete this club</strong>
-          <p className="pv-hint">Removes its members, RSVPs, comments, reactions and polls. This can't be undone.</p>
+          <p className="ui-hint">Removes its members, RSVPs, comments, reactions and polls. This can't be undone.</p>
         </div>
         <button className="btn btn-sm btn-danger" onClick={deleteClub}>Delete club</button>
       </div>

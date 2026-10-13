@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getJson, send } from "../api";
 import PageHeader from "../ui/PageHeader";
-import Sheet from "../ui/Sheet";
+import Sheet, { SheetTitle } from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
 import { Segmented } from "../ui/TicketRow";
 import { PollDiscord } from "../ui/DiscordShare";
@@ -19,7 +19,7 @@ function Choices({ cat, mode, vote, onPick, onRank, onConfidence, status }) {
   const ranked = vote?.ranked || [];
   return (
     <div className="pv-choices">
-      {mode === "ranked" && <p className="pv-hint">Pick up to 3, in order. Tap again to remove.</p>}
+      {mode === "ranked" && <p className="ui-hint">Pick up to 3, in order. Tap again to remove.</p>}
       {cat.options.map(opt => {
         const rank = mode === "ranked" ? ranked.indexOf(opt.id) + 1 : 0;
         const on = mode === "ranked" ? rank > 0 : vote?.option_id === opt.id;
@@ -357,9 +357,11 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   return (
     <div className="page narrow polls">
       <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }}
-                  subtitle={`${STATUS[poll.status] || poll.status} · ${TYPE_LABELS[poll.poll_type] || "Poll"} · ${SCORING_LABELS[mode]} · ${totalCategories} ${totalCategories === 1 ? "category" : "categories"}`} />
+                  meta={[{ label: STATUS[poll.status] || poll.status, gold: poll.status === "open" },
+                         { label: TYPE_LABELS[poll.poll_type] || "Poll" }, { label: SCORING_LABELS[mode] },
+                         { label: `${totalCategories} ${totalCategories === 1 ? "category" : "categories"}` }]} />
       {poll.description && <p className="pv-desc">{poll.description}</p>}
-      {readOnly && poll.status === "open" && <p className="pv-hint">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
+      {readOnly && poll.status === "open" && <p className="ui-hint">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
 
       {isAdmin && (
         <section className="pv-manage" aria-label="Manage this poll">
@@ -377,7 +379,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
             <button className="btn btn-sm btn-ghost" onClick={openSettings}>Settings</button>
           </div>
           {poll.status !== "scored" && mode !== "none" && (
-            <p className="pv-hint">Mark each category's winner on the Results tab, then finalize to award 🍿.</p>
+            <p className="ui-hint">Mark each category's winner on the Results tab, then finalize to award 🍿.</p>
           )}
           {poll.discord && <PollDiscord poll={poll} apiBase={apiBase} onChange={fetchPollQuiet} />}
         </section>
@@ -441,7 +443,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
             return (
               <article key={cat.id} className="pv-cat">
                 <h2 className="pv-cat-title"><span>{i + 1}</span>{cat.title}</h2>
-                {splitHidden && <p className="pv-hint">Pick yours to see how everyone voted.</p>}
+                {splitHidden && <p className="ui-hint">Pick yours to see how everyone voted.</p>}
                 <div className="pv-bars">
                   {cat.options.map(opt => {
                     const count = dist[opt.id] || 0;
@@ -502,7 +504,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
       {showSettings && (
         <Sheet label="Poll settings" onClose={() => setShowSettings(false)} className="share-sheet">
           <div className="share-sheet-body">
-            <h2 className="ui-section-title"><span className="deco share-sheet-title">Poll settings</span></h2>
+            <SheetTitle>Poll settings</SheetTitle>
             <label className="share-label" htmlFor="ps-title">Title</label>
             <input id="ps-title" className="share-input" value={editTitle} maxLength={200} onChange={e => setEditTitle(e.target.value)} />
             <label className="share-label" htmlFor="ps-desc">Description</label>

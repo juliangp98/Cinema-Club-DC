@@ -129,8 +129,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
           <RatingBadges movie={movie} />
           {watching !== null && (
             <button
-              className={`btn btn-sm${watching ? " btn-primary" : ""}`}
-              style={{ marginLeft: "auto" }}
+              className={`btn btn-sm drawer-watch${watching ? " btn-primary" : ""}`}
               onClick={toggleWatch}
               title={watching ? "On your watchlist — the digest tells you when it's playing" : "Add to watchlist"}
             >

@@ -35,7 +35,7 @@ export default function GroupSwitcher({ groups, activeGroupId, setGroupId }) {
           {groups.map(g => (
             <MenuItem key={g.id} active={g.id === activeGroupId} onSelect={() => setGroupId(g.id)}>
               <ClubBadge group={g} size={22} />
-              <span style={{ flex: 1 }}>{g.name}</span>
+              <span className="group-switcher-name">{g.name}</span>
               {g.role === "admin" && <span className="chip">admin</span>}
             </MenuItem>
           ))}

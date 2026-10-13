@@ -1,7 +1,6 @@
 /* ── Polls (R6a): list, editor, ballot ─────────────────────────────────── */
 .pv-empty { color: var(--muted); padding: 0.5rem 0 1.25rem; }
-.pv-empty a, .pv-hint a { color: var(--amber); }
-.pv-hint { font-size: var(--fs-xs); color: var(--muted); margin: 0.35rem 0; }
+.pv-empty a { color: var(--amber); }
 .pv-note { font-size: var(--fs-sm); color: var(--amber); margin-top: 0.4rem; }
 .pv-label { display: block; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.6rem 0 0.35rem; }
 .pv-desc { color: var(--cream); margin: -0.5rem 0 1rem; }
@@ -37,7 +36,7 @@
 .pv-ask-row .share-input { flex: 1; }
 .pv-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-top: 0.6rem; }
 .pv-scope .pv-label { margin: 0; }
-.pv-scope .pv-hint { margin: 0; }
+.pv-scope .ui-hint { margin: 0; }
 .pv-examples { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
 .pv-examples .chip { cursor: pointer; background: none; font-family: var(--font-body); font-size: var(--fs-xs); }
 .pv-form { display: flex; flex-direction: column; }

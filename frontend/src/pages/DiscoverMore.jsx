@@ -49,7 +49,8 @@ export function SpotlightsPage({ apiBase, groupId }) {
   return (
     <div className="page discover-more">
       <PageHeader title="Spotlights" back={{ to: "/", label: "Discover" }}
-                  subtitle={`Directors and stars with several films playing in the next 30 days${label ? ` ${label}` : ""}. Pick one to see them all.`} />
+                  meta={[data && { icon: "🎬", label: `${all.length} ${all.length === 1 ? "director or star" : "directors and stars"} with several films` },
+                         { icon: "📅", label: "Next 30 days" }]} />
       {bar}
       <div className="more-scope" role="group" aria-label="Who">
         {[["all", "Everyone"], ["director", "Directors"], ["actor", "Actors"]].map(([k, name]) => (
@@ -78,7 +79,8 @@ export function DoublesPage({ apiBase, groupId }) {
   return (
     <div className="page discover-more">
       <PageHeader title="Double features" back={{ to: "/", label: "Discover" }}
-                  subtitle={`Two films, one theatre, one evening${data ? ` — ${n} double bill${n === 1 ? "" : "s"}` : ""} in the next six weeks${label ? ` ${label}` : ""}.`} />
+                  meta={[data && { icon: "🎞️", label: `${n} double bill${n === 1 ? "" : "s"} · two films, one theatre, one evening` },
+                         { icon: "📅", label: "Next 6 weeks" }]} />
       {bar}
       {!data ? (error ? <LoadError what="the double features" onRetry={reload} /> : <Loading context="discover" />)
         : !n ? <p className="pv-empty">No double bills {label || "coming up"} yet — theatres add showings every week.</p>

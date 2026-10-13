@@ -1,5 +1,7 @@
 /* Discover + Browse (site refresh R3) */
 .discover-empty { color: var(--muted); padding: 2rem 0; text-align: center; }
+/* Which theatres Discover covers, under the search (R12) */
+.ui-page-meta.discover-coverage { margin: 0.65rem 0 1.25rem; }
 
 .discover-top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem; margin-bottom: 2rem; }
 .surprise, .moods {
@@ -103,7 +105,6 @@
 }
 
 /* ── This week in the club (R3c) ───────────────────────────────────────── */
-.discover .attendance-prompt { margin: 0 0 1rem; }
 .club-week { margin-bottom: 1.5rem; }
 .club-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
 .club-week-title { color: var(--amber); font-size: var(--fs-lg); }

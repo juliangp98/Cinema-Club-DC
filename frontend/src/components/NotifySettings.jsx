@@ -66,8 +66,8 @@ export function PushDevice({ apiBase, onSettings }) {
   }
   return (
     <div className="notify-push">
-      {body && <div className="notify-hint">{body}</div>}
-      {msg && <div className="notify-hint" role="status">{msg}</div>}
+      {body && <div className="ui-hint">{body}</div>}
+      {msg && <div className="ui-hint" role="status">{msg}</div>}
     </div>
   );
 }
@@ -96,22 +96,22 @@ export default function NotifySettings({ apiBase }) {
     if (ok) setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
   }
 
-  if (failed) return <p className="notify-hint">Couldn't load your notification settings — try again in a bit.</p>;
+  if (failed) return <p className="ui-hint">Couldn't load your notification settings — try again in a bit.</p>;
   if (!s) return null;
   return (
     <div className="notify-settings">
       <div className="profile-section-label">Where alerts reach you</div>
-      <p className="notify-hint">Nothing is sent anywhere until you turn it on here.</p>
+      <p className="ui-hint">Nothing is sent anywhere until you turn it on here.</p>
       <label className="notify-row">
         <input type="checkbox" checked disabled />
-        <span><span className="notify-name">Site bell</span><span className="notify-hint">Always — every alert is kept here.</span></span>
+        <span><span className="notify-name">Site bell</span><span className="ui-hint">Always — every alert is kept here.</span></span>
       </label>
       {CHANNELS.filter(([key]) => key !== "push" || s.push_ready).map(([key, name, missing]) => (
         <div key={key}>
           <label className={`notify-row${s.available[key] ? "" : " off"}`}>
             <input type="checkbox" checked={s.channels[key]} disabled={!s.available[key]}
                    onChange={e => save({ channels: { [key]: e.target.checked } })} />
-            <span><span className="notify-name">{name}</span>{!s.available[key] && <span className="notify-hint">{missing}</span>}</span>
+            <span><span className="notify-name">{name}</span>{!s.available[key] && <span className="ui-hint">{missing}</span>}</span>
           </label>
           {key === "push" && <PushDevice apiBase={apiBase} onSettings={setS} />}
         </div>
@@ -120,7 +120,7 @@ export default function NotifySettings({ apiBase }) {
       {s.types_info.map(t => (
         <label key={t.key} className="notify-row">
           <input type="checkbox" checked={s.types[t.key]} onChange={e => save({ types: { [t.key]: e.target.checked } })} />
-          <span><span className="notify-name">{t.label}</span><span className="notify-hint">{t.hint}</span></span>
+          <span><span className="notify-name">{t.label}</span><span className="ui-hint">{t.hint}</span></span>
         </label>
       ))}
       <div className="profile-section-label">Saved searches</div>
@@ -129,7 +129,7 @@ export default function NotifySettings({ apiBase }) {
           <Link to={x.path} className="notify-name">{x.label}</Link>
           <button type="button" className="linkish" onClick={() => removeSearch(x.id)}>Remove</button>
         </div>
-      )) : <p className="notify-hint">None yet. On Browse, pick some filters and tap 🔔 Alert me.</p>}
+      )) : <p className="ui-hint">None yet. On Browse, pick some filters and tap 🔔 Alert me.</p>}
     </div>
   );
 }

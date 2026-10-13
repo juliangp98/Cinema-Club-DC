@@ -53,7 +53,7 @@ export default function CalendarLinks({ apiBase, clubId }) {
           </div>
         </div>
       ))}
-      <p className="pv-hint">Anyone with a link can see what's on it, so keep it to yourself. "New link" turns the old one off.</p>
+      <p className="ui-hint">Anyone with a link can see what's on it, so keep it to yourself. "New link" turns the old one off.</p>
       {error && <p className="share-error">{error}</p>}
     </div>
   );

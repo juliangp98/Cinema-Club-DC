@@ -148,7 +148,7 @@ function LeaveClub({ group, apiBase, userId, onLeft }) {
   return (
     <div className="club-leave">
       <button type="button" className="btn btn-sm btn-ghost club-leave-btn" disabled={busy} onClick={leave}>Leave this club</button>
-      {error && <p className="pv-hint" role="status">{error}</p>}
+      {error && <p className="ui-hint" role="status">{error}</p>}
     </div>
   );
 }
@@ -174,7 +174,7 @@ function Leaderboard({ group, apiBase, viewerId, onOpen }) {
   }
   return (
     <>
-      <p className="pv-hint">Kernels from scored polls, going out (check in after a screening, be first to go, crew nights),
+      <p className="ui-hint">Kernels from scored polls, going out (check in after a screening, be first to go, crew nights),
         trivia and bingo (when they're on) and what members give each other. Ties: correct picks, then screenings attended.</p>
       <ol className="club-rows">
         {rows.map((r, i) => (

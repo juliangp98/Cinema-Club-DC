@@ -47,7 +47,7 @@ function KernelPanel({ people, allowance, error, busy, onToss }) {
     <div className="kernel-panel">
       <p className="kernel-allowance">
         This week you have <strong>{allowance.give_left}</strong> to give · <strong>{allowance.take_left}</strong> to take
-        <span className="kernel-hint"> — up to 3 each per screening (or take 1). Resets Monday.</span>
+        <span className="ui-hint"> — up to 3 each per screening (or take 1). Resets Monday.</span>
       </p>
       <ul className="kernel-rows">
         {people.map(p => (

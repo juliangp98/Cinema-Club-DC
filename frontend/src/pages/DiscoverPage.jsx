@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import PageHeader, { SectionTitle } from "../ui/PageHeader";
+import PageHeader, { PageMeta, SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import Loading, { LoadError } from "../ui/Loading";
+import Panel from "../ui/Panel";
 import { useJson, getJson, send, attend } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
@@ -262,19 +263,35 @@ export function Spotlights({ items, scope = "" }) {
   );
 }
 
+// What Discover covers, under the search (R12): the club's theatres (one tap
+// to each), how far ahead it looks, and every theatre (the first chip goes
+// there too, so phones needn't swipe for it).
+const COVERAGE_SHOWN = 4;
+function Coverage({ apiBase, group }) {
+  const { data: theatres } = useJson(`${apiBase}/api/theatres`);
+  if (!theatres) return null;
+  const picked = group?.theatres?.length ? theatres.filter(t => group.theatres.includes(t.slug)) : null;
+  const rest = picked ? picked.length - COVERAGE_SHOWN : 0;
+  const items = picked ? [
+    { key: "n", icon: "🎭", label: `The club's ${picked.length} theatre${picked.length === 1 ? "" : "s"}`, gold: true, to: "/theatres" },
+    ...picked.slice(0, COVERAGE_SHOWN).map(t => ({ key: t.slug, node: <TheatreLink theatre={t} short /> })),
+    rest > 0 && { key: "rest", label: `+${rest} more`, to: "/theatres", title: picked.slice(COVERAGE_SHOWN).map(t => t.name).join(", ") },
+  ] : [{ key: "n", icon: "🎭", label: `${group ? "All " : ""}${theatres.length} DC-area theatres`, gold: true, to: "/theatres" }];
+  return <PageMeta className="discover-coverage" label="What Discover covers"
+                   items={[...items, { key: "when", icon: "📅", label: "Next 2 weeks" },
+                           { key: "all", label: "All theatres →", to: "/theatres", more: true }]} />;
+}
+
 // Visitors (and members without a club) get this instead of the club strip.
 function JoinClub({ user }) {
   return (
-    <section className="join-club">
-      <div>
-        <span className="deco join-club-title">{user ? "Find your club" : "Better with a club"}</span>
-        <p>
-          Clubs see who's going to what, plan screenings together, vote in polls and talk films — on the site and in Discord.
-          {user ? " Join one to see it here." : " Sign in to join one; browsing what's playing is open to everyone."}
-        </p>
-      </div>
-      <Link className="btn btn-primary" to={user ? "/groups" : "/signin?next=%2Fgroups"}>{user ? "Browse clubs" : "Sign in"}</Link>
-    </section>
+    <Panel tone="callout" title={user ? "Find your club" : "Better with a club"}
+           actions={<Link className="btn btn-primary" to={user ? "/groups" : "/signin?next=%2Fgroups"}>{user ? "Browse clubs" : "Sign in"}</Link>}>
+      <p>
+        Clubs see who's going to what, plan screenings together, vote in polls and talk films — on the site and in Discord.
+        {user ? " Join one to see it here." : " Sign in to join one; browsing what's playing is open to everyone."}
+      </p>
+    </Panel>
   );
 }
 
@@ -303,28 +320,25 @@ function BringPlans({ apiBase, groupId, user, clubName, onShared }) {
   }
   const toggle = id => setPicked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
-    <section className="join-club bring-plans" aria-label="Share your plans">
-      <div>
-        <span className="deco join-club-title">Share your plans with {clubName || "the club"}?</span>
-        <p>Only you can see these right now. Shared ones show who's going in the club. (Club members can already see your watchlist.)</p>
-        <ul className="bring-plans-list">
-          {items.map(i => (
-            <li key={i.showtime_id}>
-              <label>
-                <input type="checkbox" checked={picked.has(i.showtime_id)} onChange={() => toggle(i.showtime_id)} />
-                <span><strong>{i.title}</strong> · {dayLabel(i.start_time)} {timeLabel(i.start_time)} · {i.theatre}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="bring-plans-actions">
-        <button className="btn btn-primary" onClick={share} disabled={busy || !picked.size}>
-          Share {picked.size || ""} with the club
-        </button>
-        <button className="btn btn-ghost" onClick={done}>Keep them private</button>
-      </div>
-    </section>
+    <Panel tone="callout" className="bring-plans" aria-label="Share your plans" title={`Share your plans with ${clubName || "the club"}?`}
+           actions={<>
+             <button className="btn btn-primary" onClick={share} disabled={busy || !picked.size}>
+               Share {picked.size || ""} with the club
+             </button>
+             <button className="btn btn-ghost" onClick={done}>Keep them private</button>
+           </>}>
+      <p>Only you can see these right now. Shared ones show who's going in the club. (Club members can already see your watchlist.)</p>
+      <ul className="bring-plans-list">
+        {items.map(i => (
+          <li key={i.showtime_id}>
+            <label>
+              <input type="checkbox" checked={picked.has(i.showtime_id)} onChange={() => toggle(i.showtime_id)} />
+              <span><strong>{i.title}</strong> · {dayLabel(i.start_time)} {timeLabel(i.start_time)} · {i.theatre}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
@@ -356,9 +370,9 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
 
   return (
     <div className="page discover">
-      <PageHeader title="Discover" subtitle={<>What's playing across{" "}
-        <Link to="/theatres">{groupId ? "the club's theatres" : "every DC-area theatre we track"}</Link> in the next two weeks.</>} />
+      <PageHeader title="Discover" />
       <SearchBox apiBase={apiBase} groupId={groupId} onSearch={q => q && navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
+      <Coverage apiBase={apiBase} group={groupId ? shell.group : null} />
 
       {groupId && shell.canParticipate && user && (
         <BringPlans apiBase={apiBase} groupId={groupId} user={user} clubName={shell.group?.name} onShared={refresh} />

@@ -88,7 +88,7 @@ export default function HelpPage() {
 
   return (
     <div className="page narrow help-page">
-      <PageHeader title="Help" subtitle="How everything works, and answers to common questions." />
+      <PageHeader title="Help" />
       <div className="help-tools">
         <input type="search" className="share-input help-search" placeholder="Search help (kernels, Discord, alerts…)"
                aria-label="Search help" value={q} onChange={e => setQ(e.target.value)} />

@@ -8,6 +8,11 @@ import { createPortal } from "react-dom";
 // activity panel); Escape closes only the top one.
 const openSheets = [];
 
+// A sheet's own title (Filters, Edit profile, Poll settings…).
+export function SheetTitle({ children }) {
+  return <h2 className="ui-section-title ui-sheet-title"><span className="deco">{children}</span></h2>;
+}
+
 export default function Sheet({ onClose, label, children, className = "" }) {
   const panelRef = useRef(null);
   const drag = useRef(null);

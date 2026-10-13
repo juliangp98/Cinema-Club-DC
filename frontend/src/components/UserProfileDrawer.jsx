@@ -222,15 +222,11 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
     <Sheet onClose={onClose} label={user ? user.name : "Profile"} className="drawer">
 
         {loading && (
-          <div className="drawer-content" style={{ textAlign: "center", paddingTop: "3rem" }}>
-            <span style={{ color: "var(--muted)" }}>Loading profile…</span>
-          </div>
+          <div className="drawer-content drawer-state">Loading profile…</div>
         )}
 
         {error && (
-          <div className="drawer-content" style={{ textAlign: "center", paddingTop: "3rem" }}>
-            <span style={{ color: "var(--red)" }}>{error}</span>
-          </div>
+          <div className="drawer-content drawer-state error" role="alert">{error}</div>
         )}
 
         {!loading && !error && user && (
@@ -254,9 +250,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
             <div className="user-profile-section">
               <div className="drawer-section-label">Favorite Genres</div>
               {genres.length === 0 ? (
-                <div style={{ color: "var(--muted)", fontSize: "0.92rem" }}>
-                  No genres selected yet.
-                </div>
+                <p className="ui-hint">No genres selected yet.</p>
               ) : (
                 <div className="genre-chips readonly">
                   {genres.map((g) => (

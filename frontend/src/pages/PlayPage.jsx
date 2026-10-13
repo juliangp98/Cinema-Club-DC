@@ -27,7 +27,7 @@ function Polls({ summary, role }) {
             </li>
           ))}
         </ul>
-      ) : <p className="pv-hint">No open polls right now.</p>}
+      ) : <p className="ui-hint">No open polls right now.</p>}
       <p className="play-links">
         <Link to="/polls">All polls and results →</Link>
         {(role === "organizer" || role === "admin") && <> · <Link to="/polls/new">Make a poll</Link></>}
@@ -55,8 +55,8 @@ function Kernels({ apiBase, groupId, viewerId }) {
     <div className="play-kernels">
       <div className="play-kernels-total">
         <span className="rail-big">🍿 {k.kernels}</span>
-        <span className="rail-quiet">{PARTS.filter(([key]) => !["trivia", "bingo"].includes(key) || k[key]).map(([key, label]) => `${label} ${k[key]}`).join(" · ")}</span>
-        <span className="rail-quiet">This week: {k.allowance.give_left} to give · {k.allowance.take_left} to take (on the feed's 🍿 Kernels buttons)</span>
+        <span className="ui-hint">{PARTS.filter(([key]) => !["trivia", "bingo"].includes(key) || k[key]).map(([key, label]) => `${label} ${k[key]}`).join(" · ")}</span>
+        <span className="ui-hint">This week: {k.allowance.give_left} to give · {k.allowance.take_left} to take (on the feed's 🍿 Kernels buttons)</span>
       </div>
       <details className="play-earn">
         <summary>How to earn kernels</summary>

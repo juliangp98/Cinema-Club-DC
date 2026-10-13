@@ -5,6 +5,7 @@ import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
 import Avatar from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
+import { SheetTitle } from "../ui/Sheet";
 import NotifySettings from "./NotifySettings";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
@@ -134,7 +135,7 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
       <label className="notify-row">
         <input type="checkbox" checked={s.ratings} onChange={e => call("PUT", { ratings: e.target.checked })} />
         <span><span className="notify-name">Show my star ratings with my check-ins</span>
-          <span className="notify-hint">In the club feed, with a link to your review.</span></span>
+          <span className="ui-hint">In the club feed, with a link to your review.</span></span>
       </label>
       {msg && <p className="profile-sharing-hint" role="status">{msg}</p>}
       <button type="button" className="linkish" disabled={busy} onClick={() => call("DELETE")}>Disconnect Letterboxd</button>
@@ -200,9 +201,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
 
   return (
     <div className="profile-menu">
-      <h2 className="ui-section-title" style={{ marginBottom: "1rem" }}>
-        <span className="deco" style={{ fontSize: "1.3rem", color: "var(--amber)" }}>Edit profile</span>
-      </h2>
+      <SheetTitle>Edit profile</SheetTitle>
       <div className="profile-menu-header">
         <Avatar user={{ ...user, name, avatar_color: avatarColor }} size={56} />
         <div className="profile-header-info">

@@ -29,7 +29,9 @@ export function TheatresPage({ apiBase }) {
   const tonight = list.reduce((n, t) => n + t.preview.tonight, 0);
   return (
     <div className="page theatres">
-      <PageHeader title="Theatres" subtitle={`${list.length} DC-area theatres${tonight ? ` · ${tonight} showings tonight` : ""}. Pick one for its rare finds, double bills and everything on.`} />
+      <PageHeader title="Theatres" meta={[{ icon: "🎭", label: `${list.length} DC-area theatres` },
+                                          tonight > 0 && { icon: "🌙", label: `${tonight} showing${tonight === 1 ? "" : "s"} tonight`, gold: true, to: "/calendar" },
+                                          { label: "Browse everything on →", to: "/browse?when=week", more: true }]} />
       {order.map(region => (
         <section key={region} className="theatres-region">
           <SectionTitle>{region}</SectionTitle>
@@ -115,8 +117,9 @@ export function TheatrePage({ apiBase, groupId }) {
   return (
     <div className="page theatre-page" style={{ "--tcolor": t.color }}>
       <PageHeader title={t.name} back={{ to: "/theatres", label: "Theatres" }}
-                  subtitle={[t.region, t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "Nothing scheduled right now"]
-                    .filter(Boolean).join(" · ")} />
+                  meta={[t.region && { icon: "📍", label: t.region },
+                         { icon: "🎬", label: t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "Nothing scheduled right now" },
+                         t.films > 0 && { label: "Browse them →", to: `/browse?theatres=${t.slug}&when=month`, more: true }]} />
 
       <div className="theatre-info">
         <div className="theatre-where">

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import Panel from "./Panel";
 
 // What there is to play today (R10 Play), from /api/play: the feed's side
 // rail on wide screens, and one row of chips on phones (and the Club page),
@@ -23,24 +24,22 @@ export function GamesRail({ summary }) {
   ].filter(Boolean);
   return (
     <div className="games-rail-inner">
-      <div className="rail-section">
-        <div className="rail-head">To do</div>
+      <Panel as="div" tone="tile" title="To do" kicker>
         {todo.length ? <ul className="rail-list">{todo.map(l => <li key={l.key}>{l}</li>)}</ul>
-          : <p className="rail-quiet">You're all caught up{trivia?.anytime ? " — " : "."}
+          : <p className="ui-hint">You're all caught up{trivia?.anytime ? " — " : "."}
               {trivia?.anytime && <Link to="/play#trivia">play an anytime question</Link>}</p>}
-      </div>
+      </Panel>
       {bingo && (
-        <Link to="/play#bingo" className="rail-section rail-bingo">
-          <span className="rail-bingo-text"><span className="rail-head">Bingo · {bingo.month_label}</span>
+        <Panel as={Link} to="/play#bingo" tone="tile" className="rail-bingo">
+          <span className="rail-bingo-text"><span className="ui-panel-title kicker">Bingo · {bingo.month_label}</span>
             <span className="rail-big">{bingo.filled}/8{bingo.full ? " 🎉🎉" : bingo.line ? " 🎉" : ""}</span></span>
           <MiniBingo cells={bingo.cells} />
-        </Link>
+        </Panel>
       )}
-      <Link to="/play#kernels" className="rail-section">
-        <span className="rail-head">Your kernels</span>
+      <Panel as={Link} to="/play#kernels" tone="tile" title="Your kernels" kicker>
         <span className="rail-big">🍿 {kernels.kernels}</span>
-        <span className="rail-quiet">{kernels.allowance.give_left} to give · {kernels.allowance.take_left} to take this week</span>
-      </Link>
+        <span className="ui-hint">{kernels.allowance.give_left} to give · {kernels.allowance.take_left} to take this week</span>
+      </Panel>
       <Link to="/play" className="btn btn-sm rail-play">Go to Play →</Link>
     </div>
   );

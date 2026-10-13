@@ -44,7 +44,9 @@ export default function PollsPage({ apiBase, activeGroupId }) {
 
   return (
     <div className="page narrow polls">
-      <PageHeader title="Polls" subtitle={shell?.group ? `${shell.group.name}'s predictions and votes` : undefined}
+      <PageHeader title="Polls" meta={shell?.group && [{ icon: "👥", label: shell.group.name, to: "/club" },
+                                                     polls && { icon: "🗳️", label: `${open.length} open`, gold: open.length > 0 },
+                                                     polls && past.length > 0 && { label: `${past.length} closed` }]}
                   actions={canRun && <Link className="btn btn-primary" to="/polls/new">＋ New poll</Link>} />
 
       {failed && <p className="pv-empty">Couldn't load polls right now.</p>}

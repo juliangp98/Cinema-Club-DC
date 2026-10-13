@@ -37,7 +37,7 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
   return (
     <div className="share-prompt alert-ask" role="group" aria-label="How to get alerts">
       <p className="alert-ask-q">{question}</p>
-      <p className="notify-hint">They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise.</p>
+      <p className="ui-hint">They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise.</p>
       <div className="alert-ask-ways">
         {ways.map(([k, label]) => (
           <label key={k} className="notify-row">
@@ -56,7 +56,7 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
       <div className="alert-ask-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onDone?.()}>Not now</button>
-        <span className="notify-hint">Change it any time: 🔔 → Notification settings.</span>
+        <span className="ui-hint">Change it any time: 🔔 → Notification settings.</span>
       </div>
     </div>
   );

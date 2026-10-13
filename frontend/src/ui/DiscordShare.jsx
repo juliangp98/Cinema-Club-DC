@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Sheet from "./Sheet";
+import Sheet, { SheetTitle } from "./Sheet";
 import { dayDateAt } from "../dates";
 import { send } from "../api";
 
@@ -77,7 +77,7 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
   return (
     <Sheet label="Ask who's in" onClose={onClose} className="share-sheet">
       <div className="share-sheet-body">
-        <h2 className="ui-section-title"><span className="deco share-sheet-title">Who's in?</span></h2>
+        <SheetTitle>Who's in?</SheetTitle>
         <p className="share-sheet-lead">
           Posts a card for <strong>{showtime.movie?.title}</strong> in #movies with Going and Maybe buttons. Its list
           stays current as people answer, here or there. Nobody gets pinged.

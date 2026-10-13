@@ -345,7 +345,8 @@ export default function Calendar({ user, apiBase, groupId }) {
 
   return (
     <div className={`page calendar view-${view}`}>
-      <PageHeader title={title} subtitle={loading ? "Loading…" : `${filmCount} film${filmCount === 1 ? "" : "s"} · ${rangeLabel}`} />
+      <PageHeader title={title} meta={[{ icon: "🎬", label: loading ? "Loading…" : `${filmCount} film${filmCount === 1 ? "" : "s"}` },
+                                       !loading && filmCount > 0 && { label: "Browse them →", to: browseLink, more: true }]} />
 
       <div className="cal-bar">
         <Segmented label="View" options={VIEWS} value={view} onChange={v => v && setView(v)} />

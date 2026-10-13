@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { numericDay } from "../dates";
 import { getJson, send } from "../api";
+import Panel from "../ui/Panel";
 import { stars } from "../ui/stars";
 import { ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
 
@@ -29,13 +30,8 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
 
   if (hidden || (!items.length && !logged)) return null;
   return (
-    <section className="attendance-prompt" aria-label="Did you make it?">
-      <div className="attendance-prompt-head">
-        <span className="attendance-prompt-title">🎬 Did you make it?</span>
-        <button className="attendance-prompt-close" onClick={() => setHidden(true)} aria-label="Hide for now">
-          &times;
-        </button>
-      </div>
+    <Panel tone="go" className="attendance-prompt" aria-label="Did you make it?" title="🎬 Did you make it?" kicker
+           aside={<button className="attendance-prompt-close" onClick={() => setHidden(true)} aria-label="Hide for now">&times;</button>}>
       {logged && (
         <div className="attendance-prompt-done">
           🍿 Logged <strong>{logged.title}</strong> to your watch history.{" "}
@@ -66,12 +62,12 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
           <span>Check me in from my Letterboxd diary:</span>
           <Segmented label="Check me in from my Letterboxd diary" value={diaryChoice || "ask"}
                      options={ASK_ALWAYS_NEVER}
-                     onChange={async v => {
+                     onChange={v => {
                        if (!v) return;
                        send(`${apiBase}/api/me/letterboxd`, "PUT", { checkin: v }).then(() => setDiaryChoice(v), () => {});
                      }} />
         </div>
       )}
-    </section>
+    </Panel>
   );
 }

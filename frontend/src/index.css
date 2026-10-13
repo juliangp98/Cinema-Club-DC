@@ -350,17 +350,7 @@ input { font-family: inherit; }
 .btn.att-opt-went.selected   { border-color: var(--green);   color: var(--green);   background: rgba(111, 191, 152,0.14); }
 .btn.att-opt-missed.selected { border-color: var(--red); color: var(--red); background: rgba(224, 105, 78,0.14); }
 
-/* "Did you make it?" card above the calendar */
-.attendance-prompt {
-  margin: 0.75rem 1rem 0;
-  padding: 0.75rem 1rem;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--green);
-  border-radius: var(--radius);
-}
-.attendance-prompt-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
-.attendance-prompt-title { font-size: var(--fs-sm); letter-spacing: 0.06em; text-transform: uppercase; color: var(--cream); }
+/* "Did you make it?" (a Panel, tone "go") */
 .attendance-prompt-close { color: var(--muted); font-size: var(--fs-lg); line-height: 1; }
 .attendance-prompt-close:hover { color: var(--cream); }
 .attendance-prompt-done { font-size: var(--fs-sm); color: var(--cream); margin-bottom: 0.5rem; }
@@ -522,6 +512,15 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border-radius: var(--radius);
   padding: 0.1rem 0.35rem;
 }
+.drawer-watch { margin-left: auto; }
+.drawer-state { text-align: center; padding-top: 3rem; color: var(--muted); }
+.drawer-state.error { color: var(--red); }
+.group-switcher-name { flex: 1; }
+.group-empty.loading { opacity: 0.5; }
+.group-cards.spaced { margin-top: 0.75rem; }
+.group-create-theatres { margin-top: 0.5rem; }
+.group-create-theatres .group-create-checkbox { margin-bottom: 0.3rem; }
+.group-create-theatres .theatre-filters { justify-content: flex-start; }
 .drawer-ratings-row {
   display: flex;
   flex-wrap: wrap;
@@ -1471,16 +1470,9 @@ a.feed-action { text-decoration: none; display: inline-flex; align-items: center
   .games-rail { display: block; position: sticky; top: 5rem; }
 }
 .games-rail-inner { display: flex; flex-direction: column; gap: 0.75rem; }
-.rail-section {
-  display: flex; flex-direction: column; gap: 0.3rem; padding: 0.75rem 0.85rem; border: 1px solid var(--border);
-  border-radius: var(--radius); color: inherit; text-decoration: none;
-}
-a.rail-section:hover { border-color: var(--amber-dim); }
-.rail-head { font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .rail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; font-size: var(--fs-sm); }
 .rail-big { font-size: var(--fs-lg); font-weight: 700; color: var(--cream); }
-.rail-quiet { font-size: var(--fs-xs); color: var(--muted); margin: 0; }
-.rail-bingo { flex-direction: row; align-items: center; justify-content: space-between; }
+.ui-panel.rail-bingo { flex-direction: row; align-items: center; justify-content: space-between; }
 .rail-bingo-text { display: flex; flex-direction: column; gap: 0.2rem; }
 .rail-play { align-self: flex-start; }
 .mini-bingo { display: grid; grid-template-columns: repeat(3, 12px); gap: 3px; }
@@ -1501,15 +1493,6 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .club-games { margin: 0 0 1rem; }
 .feed-full .feed-main { padding-left: 0; padding-right: 0; }
 .feed-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
-.feed-polls {
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.9rem; margin: 0 0 1rem;
-  background: var(--gold-wash);
-}
-.feed-polls-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
-.feed-polls-nudge { font-size: var(--fs-sm); color: var(--amber); }
-.feed-polls-all { margin-left: auto; font-size: var(--fs-sm); }
-.feed-polls-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.feed-polls-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 .feed-divider {
   display: flex; align-items: center; gap: 0.75rem; margin: 0.25rem 0 0.75rem;
   font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber);
@@ -1525,12 +1508,6 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .feed-notes { color: var(--cream); }
 
 /* Daily trivia (R10d) */
-.trivia-card {
-  border: 1px solid var(--amber-dim); border-radius: var(--radius); padding: 0.8rem 0.9rem; margin: 0 0 1rem;
-  display: flex; flex-direction: column; gap: 0.55rem;
-}
-.trivia-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
-.trivia-hint { font-size: var(--fs-xs); color: var(--muted); }
 .trivia-q { margin: 0; font-size: var(--fs-md); }
 .trivia-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
 @media (max-width: 520px) { .trivia-options { grid-template-columns: 1fr; } }
@@ -1544,14 +1521,8 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .trivia-option.wrong { border-color: var(--red); opacity: 0.85; }
 .trivia-letter { font-weight: 700; color: var(--amber); margin-right: 0.25rem; }
 .trivia-result, .trivia-error { margin: 0; font-size: var(--fs-sm); }
-.trivia-yesterday { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
-.trivia-off { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 1rem; }
 .trivia-card > .btn { align-self: flex-start; }
 /* Repertory bingo (R10e) */
-.bingo-card {
-  border: 1px solid var(--amber-dim); border-radius: var(--radius); padding: 0.8rem 0.9rem; margin: 0 0 1rem;
-  display: flex; flex-direction: column; gap: 0.55rem;
-}
 .bingo-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
 .bingo-cell {
   border: 1px solid var(--border); border-radius: var(--radius); padding: 0.45rem 0.4rem; min-height: 5.2rem;
@@ -1563,14 +1534,12 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .bingo-label { font-size: var(--fs-xs); font-weight: 600; }
 .bingo-sub { font-size: 0.68rem; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .bingo-cell.done .bingo-sub { color: var(--green); }
-.bingo-club { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .club-trivia { gap: 0.6rem; }
 .club-trivia-sub { margin-left: 1.6rem; }
 
 /* Kernels on a feed card (R10b): give or take for what members did. */
 .kernel-panel { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .kernel-allowance { margin: 0; font-size: var(--fs-sm); color: var(--cream); }
-.kernel-hint { color: var(--muted); }
 .kernel-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .kernel-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: var(--fs-sm); }
 .kernel-who { flex: 1 1 10rem; min-width: 0; }
