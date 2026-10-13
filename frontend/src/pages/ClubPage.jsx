@@ -142,7 +142,8 @@ function Leaderboard({ group, apiBase, viewerId, onOpen }) {
   }
   return (
     <>
-      <p className="pv-hint">Kernels from scored polls, then screenings attended.</p>
+      <p className="pv-hint">Kernels from scored polls, going out (check in after a screening, be first to go, crew nights)
+        and what members give each other. Ties: correct picks, then screenings attended.</p>
       <ol className="club-rows">
         {rows.map((r, i) => (
           <li key={r.user.id}>
@@ -152,6 +153,9 @@ function Leaderboard({ group, apiBase, viewerId, onOpen }) {
               <span className="club-row-name">{r.user.name}</span>
               <span className="club-score">
                 <strong>🍿 {r.kernels}</strong>
+                {r.breakdown && (
+                  <small>polls {r.breakdown.polls} · going out {r.breakdown.going_out} · members {r.breakdown.members}</small>
+                )}
                 <small>{r.correct} correct · {r.attendance} attended</small>
               </span>
             </button>

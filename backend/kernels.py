@@ -1,0 +1,200 @@
+"""Kernels 🍿 (R10b): one total per member, from three places —
+
+  polls      picks in scored polls (app.vote_kernels)
+  going_out  checking in to a screening (+5), +2 more if you'd said you were
+             going; trailblazer: +1 for each member who joined a screening you
+             were going to first (up to +5); crew night: +3 each when 3+
+             members checked in to the same screening
+  members    what other members gave you (or took) for your activity
+
+Everything but the gifts is worked out from the source tables, like poll
+kernels, so un-RSVPing or changing a check-in changes the count with it.
+Gifts live in KernelGift, one row per giver, recipient, screening and week.
+
+Check-ins are personal (not per club), so "went" counts in every club, as
+the leaderboard's attendance always has; RSVP-based kernels count in the club
+the RSVP was made in.
+"""
+from datetime import datetime, timedelta
+
+WENT, PLANNED = 5, 2
+TRAIL_EACH, TRAIL_MAX = 1, 5
+CREW_MIN, CREW = 3, 3
+GIVE_PER_WEEK, TAKE_PER_WEEK = 10, 3       # each member's weekly allowance
+GIVE_PER_CARD, TAKE_PER_CARD = 3, 1        # per person, per screening, per week
+MAX_TAKEN_PER_WEEK = 5                     # the most anyone loses to takes in a week
+ACTIVITY = ('went', 'going', 'maybe', 'commented', 'reacted')
+
+
+def week_start(now=None):
+    """The Monday a give or take counts against (allowances reset then)."""
+    d = (now or datetime.now()).date()
+    return d - timedelta(days=d.weekday())
+
+
+def _groups_of(user_ids):
+    from app import GroupMembership
+    return sorted({m.group_id for m in GroupMembership.query.filter(GroupMembership.user_id.in_(list(user_ids)),
+                                                                  GroupMembership.status == 'active')})
+
+
+def going_out(user_ids, group_id=None):
+    """{uid: {'went', 'planned', 'trailblazer', 'crew'}} — kernels from going
+    to screenings, in one club (or overall: each screening counted once)."""
+    from app import Attendance, GroupMembership, RSVP
+    out = {u: {'went': 0, 'planned': 0, 'trailblazer': 0, 'crew': 0} for u in user_ids}
+    if not out:
+        return out
+    answers = Attendance.query.filter(Attendance.user_id.in_(list(out)), Attendance.status.isnot(None)).all()
+    went = {(a.user_id, a.showtime_id) for a in answers if a.status == 'went'}
+    missed = {(a.user_id, a.showtime_id) for a in answers if a.status == 'missed'}
+    for uid, _ in went:
+        out[uid]['went'] += WENT
+    q = RSVP.query.filter(RSVP.user_id.in_(list(out)), RSVP.status == 'going')
+    if group_id:
+        q = q.filter(RSVP.group_id == group_id)
+    for uid, _ in {(r.user_id, r.showtime_id) for r in q} & went:
+        out[uid]['planned'] += PLANNED
+
+    trail, crew = {}, {}                     # (uid, showtime) -> kernels; a screening counts once overall
+    for gid in ([group_id] if group_id else _groups_of(out)):
+        members = {m.user_id for m in GroupMembership.query.filter_by(group_id=gid, status='active')}
+        if not members:
+            continue
+        going = {}
+        for r in RSVP.query.filter(RSVP.group_id == gid, RSVP.status == 'going').order_by(RSVP.created_at, RSVP.id):
+            if r.user_id in members:
+                going.setdefault(r.showtime_id, []).append(r.user_id)
+        for sid, uids in going.items():
+            lead = uids[0]
+            if lead in out and len(uids) > 1 and (lead, sid) not in missed:
+                trail[(lead, sid)] = max(trail.get((lead, sid), 0), min(TRAIL_MAX, (len(uids) - 1) * TRAIL_EACH))
+        checked_in = {}
+        for a in Attendance.query.filter(Attendance.user_id.in_(list(members)), Attendance.status == 'went'):
+            checked_in.setdefault(a.showtime_id, set()).add(a.user_id)
+        for sid, uids in checked_in.items():
+            if len(uids) >= CREW_MIN:
+                for uid in uids & set(out):
+                    crew[(uid, sid)] = CREW
+    for (uid, _), k in trail.items():
+        out[uid]['trailblazer'] += k
+    for (uid, _), k in crew.items():
+        out[uid]['crew'] += k
+    return out
+
+
+def from_members(user_ids, group_id=None):
+    """{uid: net kernels other members gave (minus took)}."""
+    from app import db, KernelGift
+    if not user_ids:
+        return {}
+    q = (db.session.query(KernelGift.recipient_id, db.func.sum(KernelGift.amount))
+         .filter(KernelGift.recipient_id.in_(list(user_ids))))
+    if group_id:
+        q = q.filter(KernelGift.group_id == group_id)
+    return {uid: int(n or 0) for uid, n in q.group_by(KernelGift.recipient_id)}
+
+
+def breakdowns(user_ids, group_id=None):
+    """{uid: {kernels, correct, polls, going_out, members, detail}} — `kernels`
+    is the one total; the rest say where it came from."""
+    from app import calc_user_kernels
+    user_ids = list(dict.fromkeys(user_ids))
+    out_k, gifts = going_out(user_ids, group_id), from_members(user_ids, group_id)
+    result = {}
+    for uid in user_ids:
+        polls, correct = calc_user_kernels(uid, group_id=group_id)
+        go = sum(out_k[uid].values())
+        result[uid] = {'kernels': polls + go + gifts.get(uid, 0), 'correct': correct, 'polls': polls,
+                       'going_out': go, 'members': gifts.get(uid, 0), 'detail': out_k[uid]}
+    return result
+
+
+def breakdown(user_id, group_id=None):
+    return breakdowns([user_id], group_id)[user_id]
+
+
+# ─── Giving and taking ────────────────────────────────────────────────────────
+
+def card_people(group_id, showtime_id):
+    """{uid: what they did} — the club's members with activity on a screening
+    (the people you can give kernels to, or take from, on its card)."""
+    from app import Attendance, GroupMembership, Message, RSVP, Reaction
+    from routes.social import _went_visible_in
+    members = {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
+    did = {}
+    went = [a for a in Attendance.query.filter_by(showtime_id=showtime_id, status='went') if a.user_id in members]
+    for a in _went_visible_in(group_id, went):
+        did.setdefault(a.user_id, 'went')
+    for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.showtime_id == showtime_id,
+                               RSVP.status.in_(('going', 'maybe'))):
+        did.setdefault(r.user_id, r.status)
+    for m in Message.query.filter_by(group_id=group_id, showtime_id=showtime_id):
+        did.setdefault(m.user_id, 'commented')
+    for r in Reaction.query.filter_by(group_id=group_id, showtime_id=showtime_id):
+        did.setdefault(r.user_id, 'reacted')
+    return {uid: d for uid, d in did.items() if uid in members}
+
+
+def allowance(giver_id, now=None):
+    """What's left of this week's allowance: {give_left, take_left, resets}."""
+    from app import KernelGift
+    rows = KernelGift.query.filter_by(giver_id=giver_id, week=week_start(now)).all()
+    given = sum(max(r.amount, 0) for r in rows)
+    taken = sum(max(-r.amount, 0) for r in rows)
+    return {'give_left': max(0, GIVE_PER_WEEK - given), 'take_left': max(0, TAKE_PER_WEEK - taken),
+            'resets': (week_start(now) + timedelta(days=7)).isoformat()}
+
+
+def card_kernels(group_id, showtime_id, viewer_id, now=None):
+    """{'net': {uid: kernels from members on this screening}, 'mine': {uid:
+    what you've given (or taken) this week}}."""
+    from app import KernelGift
+    net, mine = {}, {}
+    for g in KernelGift.query.filter_by(group_id=group_id, showtime_id=showtime_id):
+        net[g.recipient_id] = net.get(g.recipient_id, 0) + g.amount
+        if g.giver_id == viewer_id and g.week == week_start(now):
+            mine[g.recipient_id] = g.amount
+    return {'net': net, 'mine': mine}
+
+
+def toss(giver, recipient_id, group_id, showtime_id, delta, now=None):
+    """Give (+1) or take (−1) a kernel for someone's activity on a screening,
+    or undo one. Returns (KernelGift, error)."""
+    from app import db, GroupMembership, KernelGift, _utcnow_naive
+    if delta not in (1, -1):
+        return None, 'Give or take one kernel at a time.'
+    if giver.is_guest:
+        return None, 'Make an account to give kernels.'
+    if recipient_id == giver.id:
+        return None, "You can't give yourself kernels."
+    if not GroupMembership.query.filter_by(user_id=giver.id, group_id=group_id, status='active').first():
+        return None, 'Not a club member.'
+    if recipient_id not in card_people(group_id, showtime_id):
+        return None, "They haven't done anything on this screening yet."
+    week = week_start(now)
+    row = KernelGift.query.filter_by(giver_id=giver.id, recipient_id=recipient_id, group_id=group_id,
+                                     showtime_id=showtime_id, week=week).first()
+    before = row.amount if row else 0
+    after = before + delta
+    if after > GIVE_PER_CARD:
+        return None, f'Up to {GIVE_PER_CARD} kernels per person per screening.'
+    if after < -TAKE_PER_CARD:
+        return None, f'You can only take {TAKE_PER_CARD} per person per screening.'
+    left = allowance(giver.id, now)
+    if after > 0 and after > before and left['give_left'] < 1:
+        return None, f"You've given all {GIVE_PER_WEEK} this week — more on Monday."
+    if after < 0 and after < before:
+        if left['take_left'] < 1:
+            return None, f"You've taken all {TAKE_PER_WEEK} this week — more on Monday."
+        lost = sum(max(-r.amount, 0) for r in KernelGift.query.filter_by(recipient_id=recipient_id, week=week))
+        if lost >= MAX_TAKEN_PER_WEEK:
+            return None, "They've lost enough kernels this week."
+        if breakdown(recipient_id, group_id)['kernels'] < 1:
+            return None, "They don't have any kernels to take."
+    if not row:
+        row = KernelGift(giver_id=giver.id, recipient_id=recipient_id, group_id=group_id,
+                         showtime_id=showtime_id, week=week, amount=0)
+        db.session.add(row)
+    row.amount, row.updated_at = after, _utcnow_naive()
+    return row, None

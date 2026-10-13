@@ -219,7 +219,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
     ])
       .then(([userData, kernelData]) => {
         setUser(userData);
-        if (kernelData) setKernels(kernelData.kernels);
+        if (kernelData) setKernels(kernelData);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -251,7 +251,12 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
               <div className="user-profile-name">{user.name}</div>
               <div className="user-profile-email">{accountLabel(user)}</div>
               {kernels !== null && (
-                <div className="profile-kernels-pill">🍿 {kernels} kernel{kernels !== 1 ? "s" : ""}</div>
+                <div className="profile-kernels-pill">🍿 {kernels.kernels} kernel{kernels.kernels !== 1 ? "s" : ""}</div>
+              )}
+              {kernels?.breakdown && (
+                <small className="profile-kernels-parts">
+                  polls {kernels.breakdown.polls} · going out {kernels.breakdown.going_out} · from members {kernels.breakdown.members}
+                </small>
               )}
             </div>
 

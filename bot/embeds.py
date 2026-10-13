@@ -237,6 +237,8 @@ def profile_embed(profile, own=False):
         embed.add_field(name='Letterboxd', value=f"[{handle}](https://letterboxd.com/{handle}/)")
     embed.add_field(name='Watchlist', value=f"{profile['watchlist_count']} films")
     embed.add_field(name='Going to', value=f"{profile['upcoming_rsvps']} upcoming")
+    if profile.get('kernels'):
+        embed.add_field(name='Kernels', value=f"🍿 {profile['kernels']['kernels']} ({kernel_parts(profile['kernels'])})")
     avatar = _image_url(u.get('avatar_url'))
     if avatar:
         embed.set_thumbnail(url=avatar)
@@ -729,12 +731,13 @@ HELP_SECTIONS = [
         ('/whosgoing', 'who\'s RSVP\'d this week'),
         ('/discuss', 'open a screening\'s thread (and comment)'),
         ('/watch', 'add to, remove from, or show a watchlist'),
-        ('/notifications', 'what alerts you get (watchlist films playing…) and where'),
+        ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
-    ('🗳️ Polls', [
+    ('🗳️ Polls & kernels', [
         ('/polls', 'what\'s open right now'),
         ('/vote', 'your private ballot'),
         ('/leaderboard', 'season kernel standings 🍿'),
+        ('/kernels', 'your kernels, where they came from, and how to earn more'),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -788,6 +791,31 @@ def notify_settings_embed(s):
     embed.add_field(name=f'Saved searches ({len(searches)})', inline=False, value=(
         '\n'.join(f"• [{x['label']}]({SITE_URL}{x['path']})" for x in searches)[:1000] if searches
         else '*None yet — on the site, Browse with some filters and tap 🔔 Alert me.*'))
+    return embed
+
+
+def kernel_parts(k):
+    """'polls 12 · going out 20 · members 3' — where someone's kernels came from."""
+    return ' · '.join(f'{label} {k[key]}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
+                                                              ('members', 'from members')))
+
+
+def kernels_embed(k):
+    """/kernels: your total, where it came from, this week's allowance, and how to earn more."""
+    d, r, a = k['detail'], k['rules'], k['allowance']
+    embed = discord.Embed(title=f"🍿 Your kernels: {k['kernels']}", colour=AMBER, url=f'{SITE_URL}/club?tab=leaderboard',
+                          description=kernel_parts(k))
+    embed.add_field(name='Going out', inline=False, value=(
+        f"Checked in +{d['went']} · planned it +{d['planned']} · trailblazer +{d['trailblazer']} · crew nights +{d['crew']}"))
+    embed.add_field(name='This week', inline=False, value=(
+        f"{a['give_left']} to give · {a['take_left']} to take — on the club feed at {SITE_URL}/club (resets Monday)"))
+    embed.add_field(name='How to earn', inline=False, value='\n'.join([
+        f"• Check in after a screening: **+{r['went']}** (+{r['planned']} more if you'd said you were going)",
+        f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
+        f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
+        '• Right picks in scored polls',
+        f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
+    ]))
     return embed
 
 

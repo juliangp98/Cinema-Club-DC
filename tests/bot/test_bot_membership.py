@@ -59,8 +59,8 @@ def present():
 @pytest.fixture
 def bot():
     """The club: Ana (8801, in the server), Bo (site only), Cy (8803, linked
-    but not in the server), all going to OMEGA FILM. Bo won a scored poll
-    (first on the leaderboard), Ana second."""
+    but not in the server), all going to OMEGA FILM (Bo said so first). Bo
+    won a scored poll (first on the leaderboard), Ana second."""
     from app import app, db, User, GroupMembership, Showtime, Movie, Theatre, RSVP, Poll, PollCategory, PollOption, PollVote
     setup_db()
     with app.app_context():
@@ -77,7 +77,7 @@ def bot():
                      start_time=(datetime.now() + timedelta(days=2)).replace(hour=20, minute=0, second=0, microsecond=0))
         db.session.add(s)
         db.session.flush()
-        for u in (ana, bo, cy):
+        for u in (bo, ana, cy):                                # Bo first: the trailblazer kernels are his too
             db.session.add(GroupMembership(user_id=u.id, group_id=1, status='active'))
             db.session.add(RSVP(user_id=u.id, showtime_id=s.id, group_id=1, status='going'))
         p = Poll(group_id=1, created_by=ana.id, title='Omega poll', poll_type='prediction', scoring_mode='single', status='scored')

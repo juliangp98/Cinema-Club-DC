@@ -140,7 +140,7 @@ def email_signin_link(to_email, link_url, purpose):
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BotSetting, DiscordDeletion, DiscordPost, DiscordServerMember,
-    Group, GroupMembership, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
+    Group, GroupMembership, KernelGift, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
     PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, SavedSearch, SavedSearchHit,
     ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, User, Watchlist)
 
@@ -1212,17 +1212,21 @@ def calc_user_kernels(user_id, group_id=None):
 
 
 def build_leaderboard(group):
+    """The club's standings: one kernel total each (polls + going out + from
+    members, R10b), with where it came from; ties by correct picks, then
+    screenings attended."""
+    import kernels
+    members = [m for m in group.memberships if m.status == 'active' and m.user]
+    counts = kernels.breakdowns([m.user_id for m in members], group.id)
     rows = []
-    for m in group.memberships:
-        if m.status != 'active' or not m.user:
-            continue
-        kernels, correct = calc_user_kernels(m.user_id, group_id=group.id)
-        attendance = len(attended_showtime_ids(m.user_id, {group.id}))
+    for m in members:
+        k = counts[m.user_id]
         rows.append({
             'user': m.user.public_dict(),
-            'kernels': kernels,
-            'correct': correct,
-            'attendance': attendance,
+            'kernels': k['kernels'],
+            'correct': k['correct'],
+            'attendance': len(attended_showtime_ids(m.user_id, {group.id})),
+            'breakdown': {'polls': k['polls'], 'going_out': k['going_out'], 'members': k['members']},
         })
     rows.sort(key=lambda r: (-r['kernels'], -r['correct'], -r['attendance']))
     return rows

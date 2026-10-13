@@ -5,7 +5,7 @@ and the models are imported from app."""
 import json as _json
 from app import (DiscordPost, Group, GroupMembership, Poll, PollCategory, PollDraft, PollOption, PollVote,
     _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes, build_leaderboard,
-    build_poll, calc_user_kernels, can_share, current_user, datetime, db, jsonify, os, poll_scores,
+    build_poll, can_share, current_user, datetime, db, jsonify, os, poll_scores,
     post_dict, queue_poll_post, request, require_auth, require_group_member, require_role, role_at_least,
     share_prefs, timezone)
 
@@ -305,9 +305,12 @@ def poll_leaderboard(poll_id):
 @app.route('/api/users/<int:user_id>/kernels', methods=['GET'])
 @require_auth
 def user_kernels(user_id):
-    """Get total popcorn kernels earned across all scored polls."""
-    total, _ = calc_user_kernels(user_id)
-    return jsonify({'user_id': user_id, 'kernels': total})
+    """Someone's kernels across their clubs (R10b): the total, and where it
+    came from (polls · going out · from members)."""
+    import kernels
+    k = kernels.breakdown(user_id)
+    return jsonify({'user_id': user_id, 'kernels': k['kernels'],
+                    'breakdown': {'polls': k['polls'], 'going_out': k['going_out'], 'members': k['members']}})
 
 
 @app.route('/api/groups/<int:group_id>/leaderboard')

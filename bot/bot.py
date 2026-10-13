@@ -3277,14 +3277,30 @@ async def leaderboard(interaction: discord.Interaction):
     lines = []
     for r in rows[:10]:                       # real places: members on the site keep theirs
         badge = medals[r['place'] - 1] if r['place'] <= 3 else f"{r['place']}."
-        lines.append(f"{badge} **{r['user']['name']}** — 🍿 {r['kernels']} "
-                     f"({r['correct']} correct · {r['attendance']} movies attended)")
+        parts = f" ({embeds.kernel_parts(r['breakdown'])})" if r.get('breakdown') else ''
+        lines.append(f"{badge} **{r['user']['name']}** — 🍿 {r['kernels']}{parts}")
     embed = discord.Embed(title='🍿 Kernel Leaderboard', description='\n'.join(lines),
                           colour=embeds.AMBER, url=f'{SITE_URL}/leaderboard')
     if board.get('hidden'):
         n = board['hidden']
         embed.set_footer(text=f"+{n} member{'s' if n != 1 else ''} on the site — full standings at {SITE_URL}/leaderboard")
     await interaction.followup.send(embed=embed)
+
+
+@client.tree.command(name='kernels', description='Your kernels 🍿 — where they came from, and how to earn more')
+async def kernels_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        k = await api.get('/api/internal/kernels', **discord_identity(interaction))
+    except ApiError as e:
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Kernel lookup failed ({e.status}).',
+                                        ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/kernels failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    await interaction.followup.send(embed=embeds.kernels_embed(k), ephemeral=True)
 
 
 DIGEST_COOLDOWN_SEC = 30 * 60

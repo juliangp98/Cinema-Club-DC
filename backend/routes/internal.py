@@ -11,7 +11,7 @@ from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, 
     PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User,
     Watchlist, _active_membership, _ai, _as_int, _draft_poll, _group_showtime_query, _notify_settings,
     _screening_item, _update_profile_fields, _utcnow_naive, announce_new_poll, app, apply_rsvp, apply_votes,
-    attended_showtime_ids, build_leaderboard, build_poll, calc_user_kernels, compare_members, datetime, db,
+    attended_showtime_ids, build_leaderboard, build_poll, compare_members, datetime, db,
     follow_discord_avatar, history_items, jsonify, merge_users, movie_for_tmdb, on_discord,
     pending_attendance, poll_scores, post_dict, present_user_ids, public_showtimes, random, render_post,
     request, require_role, screening_card, secrets, set_attendance, set_share_pref, share_prefs,
@@ -403,8 +403,9 @@ def internal_chat_context():
             'bio': (user.bio or '')[:300],
         })
 
-        kernels, correct = calc_user_kernels(user.id, group_id=group.id if group else None)
-        standing = {'kernels': kernels, 'correct_picks': correct}
+        import kernels
+        k = kernels.breakdown(user.id, group.id if group else None)
+        standing = {'kernels': k['kernels'], 'correct_picks': k['correct']}
         if group:
             board = build_leaderboard(group)
             standing['of'] = len(board)
@@ -1087,7 +1088,7 @@ def internal_leaderboard():
     shown_ids = present_user_ids()
     board = build_leaderboard(group)
     rows = [{'place': i + 1, 'user': {'name': r['user']['name']},
-             **{k: r[k] for k in ('kernels', 'correct', 'attendance')}}
+             **{k: r[k] for k in ('kernels', 'correct', 'attendance', 'breakdown')}}
             for i, r in enumerate(board) if r['user']['id'] in shown_ids]
     return jsonify({'rows': rows, 'hidden': len(board) - len(rows)})
 
@@ -1204,7 +1205,9 @@ def internal_watchlist():
 
 
 def _profile_payload(user):
+    import kernels
     now = datetime.now()
+    k = kernels.breakdown(user.id)
     upcoming = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
                 .filter(RSVP.user_id == user.id, RSVP.status == 'going', Showtime.start_time > now)
                 .count())
@@ -1215,6 +1218,7 @@ def _profile_payload(user):
         'watchlist_count': Watchlist.query.filter_by(user_id=user.id).count(),
         'upcoming_rsvps': upcoming,
         'site_account': user.email is not None,
+        'kernels': {key: k[key] for key in ('kernels', 'polls', 'going_out', 'members')},
     }
 
 
@@ -1233,6 +1237,23 @@ def internal_profile():
         if err:
             return err
     return jsonify(_profile_payload(user))
+
+
+@app.route('/api/internal/kernels')
+@require_internal
+def internal_kernels():
+    """/kernels: your kernels in the club, where they came from, and what's
+    left of this week's allowance to give and take (on the site)."""
+    import kernels
+    user, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    group_id = request.args.get('group_id', type=int)
+    k = kernels.breakdown(user.id, group_id)
+    return jsonify({**k, 'allowance': kernels.allowance(user.id),
+                    'rules': {'went': kernels.WENT, 'planned': kernels.PLANNED, 'trailblazer_max': kernels.TRAIL_MAX,
+                              'crew_min': kernels.CREW_MIN, 'crew': kernels.CREW, 'give': kernels.GIVE_PER_WEEK,
+                              'take': kernels.TAKE_PER_WEEK}})
 
 
 @app.route('/api/internal/profile', methods=['POST'])

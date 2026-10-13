@@ -29,7 +29,44 @@ const ACTIVITY = {
   went: () => "went",
   comment: () => "commented",
   reaction: a => `reacted ${a.detail}`,
+  kernels: (a, you, viewerId) => {
+    const to = a.detail.to.id === viewerId ? "you" : a.detail.to.name;
+    return a.detail.amount > 0 ? `gave ${to} ${a.detail.amount} 🍿` : `took ${-a.detail.amount} 🍿 from ${to}`;
+  },
 };
+
+// Kernels members give each other for what they did on a screening (R10b).
+const DID = { went: "went", going: "is going", maybe: "might go", commented: "commented", reacted: "reacted" };
+const signed = n => (n > 0 ? `+${n}` : String(n));
+
+function KernelPanel({ people, allowance, error, busy, onToss }) {
+  return (
+    <div className="kernel-panel">
+      <p className="kernel-allowance">
+        This week you have <strong>{allowance.give_left}</strong> to give · <strong>{allowance.take_left}</strong> to take
+        <span className="kernel-hint"> — up to 3 each per screening (or take 1). Resets Monday.</span>
+      </p>
+      <ul className="kernel-rows">
+        {people.map(p => (
+          <li key={p.user.id} className="kernel-row">
+            <span className="kernel-who"><strong>{p.user.name}</strong> {DID[p.did]}</span>
+            <span className="kernel-net" title="Kernels from members for this screening">🍿 {signed(p.net)}</span>
+            <span className="kernel-buttons" role="group" aria-label={`Kernels for ${p.user.name}`}>
+              <button type="button" className="kernel-btn" onClick={() => onToss(p.user.id, -1)}
+                      disabled={busy || p.mine <= -1 || (p.mine <= 0 && allowance.take_left < 1)}
+                      aria-label={p.mine > 0 ? `Give ${p.user.name} one less kernel` : `Take a kernel from ${p.user.name}`}>−</button>
+              <span className="kernel-mine" aria-live="polite">{p.mine ? `${signed(p.mine)} from you` : "0 from you"}</span>
+              <button type="button" className="kernel-btn" onClick={() => onToss(p.user.id, 1)}
+                      disabled={busy || p.mine >= 3 || (p.mine >= 0 && allowance.give_left < 1)}
+                      aria-label={p.mine < 0 ? `Give back the kernel you took from ${p.user.name}` : `Give ${p.user.name} a kernel`}>+</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="kernel-error" role="status">{error}</p>}
+    </div>
+  );
+}
 
 function Avatars({ users, onViewProfile, max = 5 }) {
   return (
@@ -59,7 +96,12 @@ function CardHead({ at, children }) {
   );
 }
 
-function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, onOpen, onViewProfile, onReactions }) {
+function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, onOpen, onViewProfile, onReactions,
+                        allowance, onToss }) {
+  const [kernelsOpen, setKernelsOpen] = useState(false);
+  const [kernelError, setKernelError] = useState(null);
+  const [kernelBusy, setKernelBusy] = useState(false);     // one give/take at a time, so answers land in order
+  const kernelPeople = card.kernels?.people || [];
   const s = card.showtime;
   const past = new Date(s.start_time) < new Date();
   const going = s.attendees || [];
@@ -93,7 +135,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {people.length > 0 && <Avatars users={people} onViewProfile={onViewProfile} />}
           {latest && (
             <div className="feed-activity">
-              {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId)}
+              {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId, viewerId)}
             </div>
           )}
         </div>
@@ -125,10 +167,25 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
         </>
       )}
 
+      {kernelsOpen && kernelPeople.length > 0 && allowance && (
+        <KernelPanel people={kernelPeople} allowance={allowance} error={kernelError} busy={kernelBusy}
+                     onToss={async (uid, delta) => {
+                       setKernelBusy(true);
+                       setKernelError(await onToss(card.showtime.id, uid, delta));
+                       setKernelBusy(false);
+                     }} />
+      )}
+
       <div className="feed-actions">
         <button type="button" className="feed-action" onClick={onToggle} aria-expanded={expanded}>
           {expanded ? "Hide discussion" : `💬 Discuss${s.message_count ? ` (${s.message_count})` : ""}`}
         </button>
+        {kernelPeople.length > 0 && allowance && (
+          <button type="button" className="feed-action" aria-expanded={kernelsOpen}
+                  onClick={() => { setKernelsOpen(o => !o); setKernelError(null); }}>
+            🍿 Kernels
+          </button>
+        )}
         <button type="button" className="feed-action" onClick={onOpen}>Open screening</button>
         {s.discord_thread_url && (
           <a className="feed-action" href={s.discord_thread_url} target="_blank" rel="noreferrer">In Discord ↗</a>
@@ -235,6 +292,7 @@ export default function Feed({ user, apiBase, groupId }) {
   const [expanded, setExpanded] = useState(null);     // one open discussion at a time
   const [selected, setSelected] = useState(null);     // showtimes for the drawer
   const [profileUserId, setProfileUserId] = useState(null);
+  const [allowance, setAllowance] = useState(null);   // this week's kernels to give / take
   const loadedRef = useRef(0);
   const groupRef = useRef(groupId);   // responses for a group we've left are dropped
   groupRef.current = groupId;
@@ -258,6 +316,7 @@ export default function Feed({ user, apiBase, groupId }) {
       loadedRef.current = all.length;
       setNextOffset(results[results.length - 1].next_offset);
       setDays(results[0].days);
+      setAllowance(results[0].allowance || null);
       setError(false);
     } catch {
       if (forGroup === groupRef.current) setError(true);
@@ -332,6 +391,21 @@ export default function Feed({ user, apiBase, groupId }) {
     return true;
   }
 
+  // Give (+1) or take (−1) a kernel; returns an error message, or null.
+  async function toss(showtimeId, userId, delta) {
+    const r = await fetch(`${apiBase}/api/kernels/toss`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ group_id: groupId, showtime_id: showtimeId, user_id: userId, delta }),
+    }).catch(() => null);
+    const d = await r?.json().catch(() => null);
+    if (!r?.ok || !d) return d?.error || "Couldn't do that — try again in a bit.";
+    setAllowance(d.allowance);
+    setCards(prev => prev.map(c => (c.showtime?.id !== showtimeId ? c : {
+      ...c, kernels: { ...c.kernels, people: c.kernels.people.map(p => (p.user.id === userId ? { ...p, mine: d.mine, net: d.net } : p)) },
+    })));
+    return null;
+  }
+
   function renderCard(card) {
     const common = { card, viewerId: user.id, onViewProfile: setProfileUserId };
     switch (card.type) {
@@ -346,6 +420,8 @@ export default function Feed({ user, apiBase, groupId }) {
             onToggle={() => toggleDiscussion(card.key)}
             onOpen={() => setSelected([card.showtime])}
             onReactions={reactions => patchShowtime(card.showtime.id, { reactions })}
+            allowance={allowance}
+            onToss={toss}
           />
         );
       case "watchlist":

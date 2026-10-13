@@ -475,6 +475,22 @@ class PushSubscription(db.Model):
     user = db.relationship('User', lazy=True)
 
 
+class KernelGift(db.Model):
+    """Kernels a member gave (amount > 0) or took (< 0) for another member's
+    activity at a screening (R10b) — one row per giver, recipient, screening,
+    club and week, so the per-card and weekly limits are easy to hold."""
+    id = db.Column(db.Integer, primary_key=True)
+    giver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), nullable=False)
+    week = db.Column(db.Date, nullable=False)              # the Monday it counts against
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    updated_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    __table_args__ = (db.UniqueConstraint('giver_id', 'recipient_id', 'group_id', 'showtime_id', 'week'),)
+
+
 class SavedSearch(db.Model):
     """A Browse search someone wants alerts for (R10a): when a theatre books a
     film that fits it, they get an alert (see notify.alert_saved_searches).

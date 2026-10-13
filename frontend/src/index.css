@@ -689,6 +689,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.profile-kernels-parts { display: block; margin-top: 0.3rem; font-size: var(--fs-xs); color: var(--muted); }
 .profile-kernels-pill {
   display: inline-flex;
   align-items: center;
@@ -1455,6 +1456,24 @@ button.feed-title:hover { color: var(--amber); }
 .chat-delete:hover { color: var(--red); }
 @media (hover: none) { .chat-delete { opacity: 1; } }
 a.feed-action { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Kernels on a feed card (R10b): give or take for what members did. */
+.kernel-panel { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.kernel-allowance { margin: 0; font-size: var(--fs-sm); color: var(--cream); }
+.kernel-hint { color: var(--muted); }
+.kernel-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.kernel-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: var(--fs-sm); }
+.kernel-who { flex: 1 1 10rem; min-width: 0; }
+.kernel-net { color: var(--amber); font-weight: 600; min-width: 3.2rem; }
+.kernel-buttons { display: inline-flex; align-items: center; gap: 0.35rem; }
+.kernel-mine { font-size: var(--fs-xs); color: var(--muted); min-width: 4.6rem; text-align: center; }
+.kernel-btn {
+  width: 2rem; height: 2rem; border-radius: 999px; border: 1px solid var(--border);
+  background: none; color: var(--cream); font-size: var(--fs-md); line-height: 1; cursor: pointer;
+}
+.kernel-btn:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+.kernel-btn:disabled { opacity: 0.35; cursor: default; }
+.kernel-error { margin: 0; font-size: var(--fs-sm); color: var(--amber); }
 
 /* Scrollbars: thin, dark, gold on hover (Windows' defaults are white). */
 ::-webkit-scrollbar { width: 11px; height: 11px; }

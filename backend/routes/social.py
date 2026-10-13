@@ -2,7 +2,7 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
-from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, GroupMembership, Message, Movie,
+from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
@@ -65,6 +65,11 @@ def feed_events(group_id, since):
             ev.append(('went', f's{a.showtime_id}', a.answered_at, a.user_id, None))
         for w in Watchlist.query.filter(Watchlist.user_id.in_(member_ids), Watchlist.created_at >= since):
             ev.append(('watch', f'w{w.movie_id}', w.created_at, w.user_id, None))
+    for g in KernelGift.query.filter(KernelGift.group_id == group_id, KernelGift.amount != 0,
+                                     KernelGift.updated_at >= since):
+        if g.recipient_id in member_ids:
+            ev.append(('kernels', f's{g.showtime_id}', g.updated_at, g.giver_id,
+                       {'to': g.recipient_id, 'amount': g.amount}))
     for m in GroupMembership.query.filter(GroupMembership.group_id == group_id, GroupMembership.status == 'active',
                                           GroupMembership.joined_at >= since):
         ev.append(('joined', f'j{m.joined_at.date().isoformat()}', m.joined_at, m.user_id, None))
@@ -101,14 +106,32 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
             .order_by(Message.created_at.desc()).first())
     activity, seen = [], set()
     for kind, _, at, uid, detail in events:
-        if (uid, kind) in seen or uid not in users:
+        to = detail['to'] if kind == 'kernels' else None
+        if (uid, kind, to) in seen or uid not in users or (to and to not in users):
             continue
-        seen.add((uid, kind))
+        seen.add((uid, kind, to))
+        if kind == 'kernels':
+            detail = {'to': _feed_user(users[to]), 'amount': detail['amount']}
         activity.append({'kind': kind, 'user': _feed_user(users[uid]), 'detail': detail, 'at': utc_iso(at)})
     return {'type': 'screening', 'showtime': showtime, 'went': [_feed_user(u) for u in went],
             'latest_comment': {'user': _feed_user(last.user), 'body': last.body[:280],
                                'at': utc_iso(last.created_at)} if last else None,
-            'activity': activity[:4]}
+            'activity': activity[:4], 'kernels': _card_kernels(viewer, group_id, sid)}
+
+
+def _card_kernels(viewer, group_id, sid):
+    """Who on this screening can get kernels from the viewer (R10b): each
+    member with activity here (not you), what they did, their kernels from
+    members on it, and what you've given them this week."""
+    import kernels
+    people = kernels.card_people(group_id, sid)
+    people.pop(viewer.id, None)
+    if not people:
+        return {'people': []}
+    counts = kernels.card_kernels(group_id, sid, viewer.id)
+    users = {u.id: u for u in User.query.filter(User.id.in_(list(people)))}
+    return {'people': [{'user': _feed_user(users[uid]), 'did': did, 'net': counts['net'].get(uid, 0),
+                        'mine': counts['mine'].get(uid, 0)} for uid, did in people.items() if uid in users]}
 
 
 def _feed_watchlist(viewer, movie_id, events, users, member_ids):
@@ -140,7 +163,8 @@ def _feed_poll(viewer, poll_id):
 
 
 def hydrate_feed(viewer, group_id, skeletons, member_ids):
-    uids = {e[3] for c in skeletons for e in c['events']}
+    uids = {e[3] for c in skeletons for e in c['events']} | \
+        {e[4]['to'] for c in skeletons for e in c['events'] if e[0] == 'kernels'}
     users = {u.id: u for u in User.query.filter(User.id.in_(uids))} if uids else {}
     out = []
     for c in skeletons:
@@ -171,8 +195,59 @@ def feed():
     skeletons, member_ids = feed_skeletons(group_id)
     page = skeletons[offset:offset + FEED_PAGE]
     more = len(skeletons) > offset + FEED_PAGE
-    return jsonify({'cards': hydrate_feed(current_user(), group_id, page, member_ids),
-                    'next_offset': offset + FEED_PAGE if more else None, 'days': FEED_DAYS})
+    import kernels
+    viewer = current_user()
+    return jsonify({'cards': hydrate_feed(viewer, group_id, page, member_ids),
+                    'next_offset': offset + FEED_PAGE if more else None, 'days': FEED_DAYS,
+                    'allowance': kernels.allowance(viewer.id)})
+
+
+@app.route('/api/kernels/toss', methods=['POST'])
+@require_auth
+def toss_kernel():
+    """Give (+1) or take (−1) a kernel for a member's activity on a screening
+    (R10b): {group_id, showtime_id, user_id, delta}. The opposite undoes one."""
+    import kernels
+    data = request.json or {}
+    group_id, showtime_id, user_id = (_as_int(data.get(k)) for k in ('group_id', 'showtime_id', 'user_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    from sqlalchemy.exc import IntegrityError
+    viewer = current_user()
+    for attempt in (1, 2):                  # two quick taps can both create the week's row: retry once
+        row, error = kernels.toss(viewer, user_id, group_id, showtime_id, _as_int(data.get('delta')))
+        if error:
+            return jsonify({'error': error}), 400
+        try:
+            db.session.commit()
+            break
+        except IntegrityError:
+            db.session.rollback()
+            if attempt == 2:
+                return jsonify({'error': 'Try that again.'}), 409
+    counts = kernels.card_kernels(group_id, showtime_id, viewer.id)
+    return jsonify({'user_id': user_id, 'mine': row.amount, 'net': counts['net'].get(user_id, 0),
+                    'allowance': kernels.allowance(viewer.id)})
+
+
+@app.route('/api/kernels')
+@require_auth
+def my_kernels():
+    """Your kernels (in a club with ?group_id=, else across them) and what's
+    left of this week's allowance to give and take."""
+    import kernels
+    group_id = request.args.get('group_id', type=int)
+    if group_id:
+        err = require_group_member(group_id)
+        if err:
+            return err
+    viewer = current_user()
+    k = kernels.breakdown(viewer.id, group_id)
+    return jsonify({**k, 'allowance': kernels.allowance(viewer.id),
+                    'rules': {'went': kernels.WENT, 'planned': kernels.PLANNED, 'trailblazer_max': kernels.TRAIL_MAX,
+                              'crew_min': kernels.CREW_MIN, 'crew': kernels.CREW, 'give': kernels.GIVE_PER_WEEK,
+                              'take': kernels.TAKE_PER_WEEK}})
 
 
 @app.route('/api/club/week')
