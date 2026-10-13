@@ -61,3 +61,18 @@ def test_trivia_and_bingo_once_theyre_on(club):
                            'answered': True, 'correct': True}
     assert s['todo'] == 1 and s['kernels']['trivia'] == 2 and s['kernels']['kernels'] == 2
     assert json.dumps(s)                                                        # plain JSON all the way down
+
+
+def test_open_polls_read_the_same_on_play_and_the_club_week(club):
+    """One open-polls helper behind Play, the rail and Discover's club week."""
+    from app import app, db, PollCategory
+    with app.app_context():
+        cat = PollCategory.query.filter_by(poll_id=club['poll']).first()
+        cat_id, opt_id = cat.id, cat.options[0].id
+
+    def week(who='Bo'):
+        return client(club[who]).get('/api/club/week', query_string={'group_id': club['G']}).json['polls']
+    assert week() == summary(club).json['polls'] == [{'id': club['poll'], 'title': 'Best of fall', 'you_voted': False}]
+    client(club['Bo']).post(f"/api/polls/{club['poll']}/vote", json={'votes': [{'category_id': cat_id, 'option_id': opt_id}]})
+    assert week()[0]['you_voted'] and summary(club).json['polls'][0]['you_voted'] and summary(club).json['todo'] == 0
+    assert not week('Ana')[0]['you_voted']                                      # per person

@@ -130,7 +130,7 @@ def progress(card, user_id):
     """Where a member is on a card: {squares: [(key, showtime, when) or None
     for the free middle], filled, line_at, full_at, kernels}. A square is
     filled by the first check-in (in the order they were made) that fits."""
-    from app import Attendance, GroupMembership, RSVP, Showtime, Watchlist
+    from app import Attendance, RSVP, Showtime, Watchlist, member_ids
     start, end = month_bounds(card.month)
     rows = (Attendance.query.join(Showtime, Attendance.showtime_id == Showtime.id)
             .filter(Attendance.user_id == user_id, Attendance.status == 'went',
@@ -146,7 +146,7 @@ def progress(card, user_id):
         for a in rows:
             days.setdefault(a.showtime.start_time.date(), []).append(a)
         wanted = ({w.movie_id for w in Watchlist.query.filter_by(user_id=user_id)} if 'watchlist' in keys else set())
-        members = ({m.user_id for m in GroupMembership.query.filter_by(group_id=card.group_id, status='active')}
+        members = (member_ids(card.group_id)
                    if {'crew', 'trailblazer'} & set(keys) else set())
         seen_theatres = set(earlier)
         for a in rows:

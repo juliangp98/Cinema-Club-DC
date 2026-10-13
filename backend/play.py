@@ -10,7 +10,7 @@ def summary(group, user):
     import bingo
     import kernels
     import trivia
-    from app import Poll, PollVote
+    from app import open_polls
     out = {'trivia': None, 'bingo': None}
 
     t = trivia.today_for(group, user)
@@ -27,13 +27,7 @@ def summary(group, user):
                         'line': bool(p['line_at']), 'full': bool(p['full_at']),
                         'cells': [i == bingo.FREE or bool(cell and cell[1]) for i, cell in enumerate(p['squares'])]}
 
-    polls = []
-    for poll in Poll.query.filter_by(group_id=group.id, status='open').order_by(Poll.created_at.desc()).limit(5):
-        cat_ids = [c.id for c in poll.categories]
-        voted = bool(cat_ids) and PollVote.query.filter(PollVote.category_id.in_(cat_ids),
-                                                        PollVote.user_id == user.id).first() is not None
-        polls.append({'id': poll.id, 'title': poll.title, 'you_voted': voted})
-    out['polls'] = polls
+    polls = out['polls'] = open_polls(group.id, user.id, 5)
 
     k = kernels.breakdown(user.id, group.id)
     out['kernels'] = {'kernels': k['kernels'], **{part: k[part] for part in kernels.PARTS},

@@ -130,7 +130,7 @@ def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of
     """{movie_id: Film} for the group's showings in [start, end] that pass the
     screening-level filters, with club interest (members' watchlists, RSVPs)."""
     from sqlalchemy.orm import contains_eager
-    from app import (db, Showtime, Watchlist, RSVP, GroupMembership, _group_showtime_query,
+    from app import (db, Showtime, Watchlist, RSVP, member_ids, _group_showtime_query,
                      rarity, EVENT_WORDS)
     rows = (_group_showtime_query(group)
             .options(contains_eager(Showtime.movie), contains_eager(Showtime.theatre))
@@ -156,7 +156,7 @@ def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of
                 films[w.movie_id].you_want = True
         return films
 
-    members = {m.user_id for m in GroupMembership.query.filter_by(group_id=group.id, status='active')}
+    members = member_ids(group.id)
     for mid, n in (db.session.query(Watchlist.movie_id, db.func.count())
                    .filter(Watchlist.movie_id.in_(films), Watchlist.user_id.in_(members))
                    .group_by(Watchlist.movie_id)):

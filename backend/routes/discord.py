@@ -3,7 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
-from app import (DiscordPost, GroupMembership, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
+from app import (DiscordPost, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
     _as_int, _live_post, _parse_post_at, app, current_user, datetime, db, discord_group, jsonify, on_discord,
     post_dict, queue_poll_post, queue_rsvp_share, request, require_auth, require_role, role_at_least,
     set_share_pref, share_prefs, unshare_rsvp)
@@ -13,7 +13,7 @@ def _can_manage_post(user, p):
     """Whoever shared it, an organizer for poll posts, or an admin."""
     if p.user_id == user.id:
         return True
-    m = GroupMembership.query.filter_by(user_id=user.id, group_id=p.group_id, status='active').first()
+    m = _active_membership(user, p.group_id)
     return role_at_least(m, 'organizer' if p.kind in ('poll', 'poll_results') else 'admin')
 
 

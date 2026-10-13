@@ -189,3 +189,19 @@ def test_diaries_are_read_every_few_hours(club):
         db.session.get(User, club['Ana']).letterboxd_synced_at = datetime.utcnow() - timedelta(hours=4)
         db.session.commit()
     assert letterboxd.sync_due() == 1 and club['calls'] == ['ana']
+
+
+def test_the_discord_dm_mentions_the_diary_too(club):
+    """The bot's "Did you make it?" DM carries the same hint as the site."""
+    from app import app, db, User
+    from helpers import H, patch_bot_api
+    with app.app_context():
+        ana = db.session.get(User, club['Ana'])
+        ana.discord_user_id, ana.notify_prefs = '7701', '{"types": {"attendance": true}}'
+        db.session.commit()
+    connect(club)
+    [ask] = client().get('/api/internal/attendance/prompts', headers=H).json
+    hints = {s['title']: s['letterboxd'] for s in ask['screenings']}
+    assert hints['VERTIGO'] == {'rating': 4.5, 'link': 'https://letterboxd.com/ana/film/1/'}
+    text = patch_bot_api().attendance_text(ask['screenings'])
+    assert text.count('📓 in your Letterboxd diary') == 2 and 'VERTIGO' in text

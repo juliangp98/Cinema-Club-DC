@@ -161,3 +161,17 @@ def test_an_empty_calendar_still_makes_a_full_card(club):
     turn_on(club)
     c = card(club, 'Bo')
     assert len(c['squares']) == 9 and c['squares'][4]['key'] == 'free' and len({s['key'] for s in c['squares']}) == 9
+
+
+def test_bingo_makes_the_monday_recap(club):
+    """A line or a full card last week is in that week's recap."""
+    from app import app, db, User
+    from routes.social import _feed_recap
+    with app.app_context():
+        users = {u.id: u for u in User.query.filter(User.id.in_([club['Bo'], club['Cy']]))}
+        at = datetime.utcnow() - timedelta(days=3)
+        events = [('bingo', 'b2026-10', at, club['Bo'], 'line'), ('bingo', 'b2026-10', at, club['Bo'], 'full'),
+                  ('bingo', 'b2026-10', at, club['Out'], 'line')]                # not in the club: left out
+        r = _feed_recap(club['G'], '2026-10-05', events, users)
+        assert [u['name'] for u in r['recap']['bingo']] == ['Bo']
+        assert _feed_recap(club['G'], '2026-10-05', [], users) is None           # a quiet week: no card

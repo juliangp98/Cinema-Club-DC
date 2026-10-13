@@ -3,8 +3,8 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import json as _json
-from app import (DiscordPost, Group, GroupMembership, Poll, PollCategory, PollDraft, PollOption, PollVote,
-    _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes, build_leaderboard,
+from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote,
+    _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes, build_leaderboard,
     build_poll, can_share, current_user, datetime, db, jsonify, os, poll_scores,
     post_dict, queue_poll_post, request, require_auth, require_group_member, require_role, role_at_least,
     share_prefs, timezone)
@@ -19,10 +19,7 @@ def poll_posts_changed(poll_id):
 def _require_group_member(group_id):
     """Return (user, membership) or abort with JSON error."""
     user = current_user()
-    membership = GroupMembership.query.filter_by(
-        user_id=user.id, group_id=group_id, status='active'
-    ).first()
-    return user, membership
+    return user, _active_membership(user, group_id)
 
 
 @app.route('/api/groups/<int:group_id>/polls', methods=['GET'])

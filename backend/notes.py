@@ -20,15 +20,10 @@ TAGS = {                     # key: (emoji, label)
 THEATRE_DAYS = 180
 
 
-def _members(group_id):
-    from app import GroupMembership
-    return {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
-
-
 def counts(group_id, showtime_ids, member_ids=None):
     """{showtime_id: {tag: count}} from the club's members' notes."""
-    from app import ScreeningNote
-    member_ids = member_ids if member_ids is not None else _members(group_id)
+    from app import ScreeningNote, member_ids as members_of
+    member_ids = member_ids if member_ids is not None else members_of(group_id)
     out = {}
     if not showtime_ids or not member_ids:
         return out
@@ -104,11 +99,11 @@ def theatre(group, theatre_id, now=None, recent=4):
     """What the club's members say about a theatre's screenings lately:
     {'screenings': n, 'tags': [{key, emoji, label, count, heads_up}] (used
     ones, most first), 'recent': [{screening, tags}] (the latest noted)}."""
-    from app import db, ScreeningNote, Showtime, _screening_item
+    from app import db, ScreeningNote, Showtime, _screening_item, member_ids
     if not group or not group.notes_enabled:
         return None
     now = now or datetime.now()
-    members = _members(group.id)
+    members = member_ids(group.id)
     if not members:
         return {'screenings': 0, 'tags': []}
     rows = (db.session.query(ScreeningNote.tag, ScreeningNote.showtime_id)

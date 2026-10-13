@@ -211,6 +211,11 @@ def _active_membership(user, group_id):
     return GroupMembership.query.filter_by(user_id=user.id, group_id=group_id, status='active').first()
 
 
+def member_ids(group_id):
+    """The user ids of a club's active members."""
+    return {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
+
+
 def _as_int(value):
     try:
         return int(value)
@@ -907,6 +912,21 @@ def attended_showtime_ids(user_id, group_ids=None):
     return ids
 
 
+def went_visible_in(group_id, rows):
+    """Check-ins aren't per group, so a "went" shows in a group's feed only if the
+    RSVP was made there, or there was no RSVP anywhere (logged directly) — a
+    check-in never reveals plans made in another group."""
+    if not rows:
+        return []
+    pairs = {(r.user_id, r.showtime_id) for r in rows}
+    rsvp_groups = {}
+    for r in RSVP.query.filter(RSVP.user_id.in_({p[0] for p in pairs}),
+                               RSVP.showtime_id.in_({p[1] for p in pairs})):
+        rsvp_groups.setdefault((r.user_id, r.showtime_id), set()).add(r.group_id)
+    return [r for r in rows if (r.user_id, r.showtime_id) not in rsvp_groups
+            or group_id in rsvp_groups[(r.user_id, r.showtime_id)]]
+
+
 def _screening_item(s, status=None):
     return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label,
@@ -1167,6 +1187,18 @@ def apply_votes(user, poll, votes_data, clear=()):
     db.session.add_all(rows)
     db.session.commit()
     return len(rows)
+
+
+def open_polls(group_id, user_id, limit):
+    """A club's open polls, newest first, and whether `user_id` has voted in
+    each: [{id, title, you_voted}]."""
+    polls = Poll.query.filter_by(group_id=group_id, status='open').order_by(Poll.created_at.desc()).limit(limit).all()
+    cats = {}
+    for c in PollCategory.query.filter(PollCategory.poll_id.in_([p.id for p in polls])) if polls else []:
+        cats[c.id] = c.poll_id
+    voted = {cats[v.category_id] for v in PollVote.query.filter(PollVote.category_id.in_(list(cats)),
+                                                                PollVote.user_id == user_id)} if cats else set()
+    return [{'id': p.id, 'title': p.title, 'you_voted': p.id in voted} for p in polls]
 
 
 def vote_kernels(scoring_mode, vote, correct_option_id):

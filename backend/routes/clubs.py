@@ -411,7 +411,7 @@ def group_members(slug):
     if not group:
         return jsonify({'error': 'Group not found'}), 404
 
-    membership = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id, status='active').first()
+    membership = _active_membership(user, group.id)
     if not membership:
         return jsonify({'error': 'Not a member'}), 403
 

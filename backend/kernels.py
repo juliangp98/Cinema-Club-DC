@@ -45,7 +45,7 @@ def _groups_of(user_ids):
 def going_out(user_ids, group_id=None):
     """{uid: {'went', 'planned', 'trailblazer', 'crew'}} — kernels from going
     to screenings, in one club (or overall: each screening counted once)."""
-    from app import Attendance, GroupMembership, RSVP
+    from app import Attendance, RSVP, member_ids
     out = {u: {'went': 0, 'planned': 0, 'trailblazer': 0, 'crew': 0} for u in user_ids}
     if not out:
         return out
@@ -62,7 +62,7 @@ def going_out(user_ids, group_id=None):
 
     trail, crew = {}, {}                     # (uid, showtime) -> kernels; a screening counts once overall
     for gid in ([group_id] if group_id else _groups_of(out)):
-        members = {m.user_id for m in GroupMembership.query.filter_by(group_id=gid, status='active')}
+        members = member_ids(gid)
         if not members:
             continue
         going = {}
@@ -147,12 +147,11 @@ def breakdown(user_id, group_id=None):
 def card_people(group_id, showtime_id):
     """{uid: what they did} — the club's members with activity on a screening
     (the people you can give kernels to, or take from, on its card)."""
-    from app import Attendance, GroupMembership, Message, RSVP, Reaction
-    from routes.social import _went_visible_in
-    members = {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
+    from app import Attendance, Message, RSVP, Reaction, member_ids, went_visible_in
+    members = member_ids(group_id)
     did = {}
     went = [a for a in Attendance.query.filter_by(showtime_id=showtime_id, status='went') if a.user_id in members]
-    for a in _went_visible_in(group_id, went):
+    for a in went_visible_in(group_id, went):
         did.setdefault(a.user_id, 'went')
     for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.showtime_id == showtime_id,
                                RSVP.status.in_(('going', 'maybe'))):
@@ -189,14 +188,14 @@ def card_kernels(group_id, showtime_id, viewer_id, now=None):
 def toss(giver, recipient_id, group_id, showtime_id, delta, now=None):
     """Give (+1) or take (−1) a kernel for someone's activity on a screening,
     or undo one. Returns (KernelGift, error)."""
-    from app import db, GroupMembership, KernelGift, _utcnow_naive
+    from app import db, KernelGift, _active_membership, _utcnow_naive
     if delta not in (1, -1):
         return None, 'Give or take one kernel at a time.'
     if giver.is_guest:
         return None, 'Make an account to give kernels.'
     if recipient_id == giver.id:
         return None, "You can't give yourself kernels."
-    if not GroupMembership.query.filter_by(user_id=giver.id, group_id=group_id, status='active').first():
+    if not _active_membership(giver, group_id):
         return None, 'Not a club member.'
     if recipient_id not in card_people(group_id, showtime_id):
         return None, "They haven't done anything on this screening yet."

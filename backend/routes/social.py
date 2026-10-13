@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
-    _screening_item, _utcnow_naive, _with_attendance, app, can_share, current_user, datetime, db, face,
+    _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
     share_prefs, timedelta, timezone, utc_iso)
 
@@ -32,24 +32,9 @@ def _feed_user(u):
     return {'id': u.id, 'name': u.name, **face(u), 'discord_only': u.email is None}
 
 
-def _went_visible_in(group_id, rows):
-    """Check-ins aren't per group, so a "went" shows in a group's feed only if the
-    RSVP was made there, or there was no RSVP anywhere (logged directly) — a
-    check-in never reveals plans made in another group."""
-    if not rows:
-        return []
-    pairs = {(r.user_id, r.showtime_id) for r in rows}
-    rsvp_groups = {}
-    for r in RSVP.query.filter(RSVP.user_id.in_({p[0] for p in pairs}),
-                               RSVP.showtime_id.in_({p[1] for p in pairs})):
-        rsvp_groups.setdefault((r.user_id, r.showtime_id), set()).add(r.group_id)
-    return [r for r in rows if (r.user_id, r.showtime_id) not in rsvp_groups
-            or group_id in rsvp_groups[(r.user_id, r.showtime_id)]]
-
-
 def feed_events(group_id, since):
     """(kind, card_key, at, user_id, detail) for the group's activity since `since`."""
-    member_ids = {m.user_id for m in GroupMembership.query.filter_by(group_id=group_id, status='active')}
+    members = member_ids(group_id)
     ev = []
     for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.status.in_(('going', 'maybe')),
                                RSVP.updated_at >= since):
@@ -58,34 +43,34 @@ def feed_events(group_id, since):
         ev.append(('comment', f's{m.showtime_id}', m.created_at, m.user_id, None))
     for r in Reaction.query.filter(Reaction.group_id == group_id, Reaction.created_at >= since):
         ev.append(('reaction', f's{r.showtime_id}', r.created_at, r.user_id, r.emoji))
-    if member_ids:
-        went = Attendance.query.filter(Attendance.user_id.in_(member_ids), Attendance.status == 'went',
+    if members:
+        went = Attendance.query.filter(Attendance.user_id.in_(members), Attendance.status == 'went',
                                        Attendance.answered_at >= since).all()
-        for a in _went_visible_in(group_id, went):
+        for a in went_visible_in(group_id, went):
             ev.append(('went', f's{a.showtime_id}', a.answered_at, a.user_id, None))
-        for w in Watchlist.query.filter(Watchlist.user_id.in_(member_ids), Watchlist.created_at >= since):
+        for w in Watchlist.query.filter(Watchlist.user_id.in_(members), Watchlist.created_at >= since):
             ev.append(('watch', f'w{w.movie_id}', w.created_at, w.user_id, None))
     for g in KernelGift.query.filter(KernelGift.group_id == group_id, KernelGift.amount != 0,
                                      KernelGift.updated_at >= since):
-        if g.recipient_id in member_ids:
+        if g.recipient_id in members:
             ev.append(('kernels', f's{g.showtime_id}', g.updated_at, g.giver_id,
                        {'to': g.recipient_id, 'amount': g.amount}))
     for m in GroupMembership.query.filter(GroupMembership.group_id == group_id, GroupMembership.status == 'active',
                                           GroupMembership.joined_at >= since):
         ev.append(('joined', f'j{m.joined_at.date().isoformat()}', m.joined_at, m.user_id, None))
     group = db.session.get(Group, group_id)
-    if group and group.bingo_enabled and member_ids:          # repertory bingo (R10e)
+    if group and group.bingo_enabled and members:          # repertory bingo (R10e)
         import bingo
-        ev += bingo.feed_events(group_id, member_ids, since)
+        ev += bingo.feed_events(group_id, members, since)
     if group and group.notes_enabled:                         # screening notes (R10f)
         import notes
-        ev += notes.feed_events(group_id, member_ids, since)
-    ev = [e for e in ev if e[3] in member_ids]   # people who've since left drop out
+        ev += notes.feed_events(group_id, members, since)
+    ev = [e for e in ev if e[3] in members]   # people who've since left drop out
     for p in Poll.query.filter_by(group_id=group_id):
         for kind, at in (('poll_opened', p.created_at), ('poll_closed', p.closed_at), ('poll_scored', p.scored_at)):
             if at and at >= since:
                 ev.append((kind, f'p{p.id}', at, p.created_by, None))
-    return ev, member_ids
+    return ev, members
 
 
 FEED_TYPES = {                 # ?type= on the feed page
@@ -202,7 +187,7 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
     showtime = _with_attendance(viewer, [s], [
         s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=viewer.favorite_genres)], group_id)[0]
     went_rows = [a for a in Attendance.query.filter_by(showtime_id=sid, status='went') if a.user_id in member_ids]
-    went_ids = [a.user_id for a in _went_visible_in(group_id, went_rows)]
+    went_ids = [a.user_id for a in went_visible_in(group_id, went_rows)]
     went = User.query.filter(User.id.in_(went_ids)).all() if went_ids else []
     last = (Message.query.filter_by(showtime_id=sid, group_id=group_id)
             .order_by(Message.created_at.desc()).first())
@@ -408,13 +393,6 @@ def club_week():
         by_show.setdefault(s.id, (s, []))[1].append(r.user)
     plans = sorted(by_show.values(), key=lambda x: (-len(x[1]), x[0].start_time))[:4]
 
-    polls = Poll.query.filter_by(group_id=group_id, status='open').order_by(Poll.created_at.desc()).limit(3).all()
-    open_polls = []
-    for p in polls:
-        cat_ids = [c.id for c in p.categories]
-        voted = bool(cat_ids) and PollVote.query.filter(PollVote.category_id.in_(cat_ids),
-                                                        PollVote.user_id == viewer.id).first() is not None
-        open_polls.append({'id': p.id, 'title': p.title, 'you_voted': voted})
 
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
     recent = (Message.query.filter(Message.group_id == group_id, Message.user_id != viewer.id,
@@ -427,7 +405,7 @@ def club_week():
                    'theatre': s.theatre.short_name or s.theatre.name,
                    'going': [_brief_user(u) for u in users], 'you_going': any(u.id == viewer.id for u in users)}
                   for s, users in plans],
-        'polls': open_polls,
+        'polls': open_polls(group_id, viewer.id, 3),
         'comments': {'count': recent.count(),
                      'latest': {'showtime_id': latest.showtime_id, 'movie': db.session.get(Showtime, latest.showtime_id).movie.title,
                                 'user': latest.user.name, 'body': latest.body[:140]} if latest else None},

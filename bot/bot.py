@@ -762,6 +762,46 @@ def read_only(err):
     return isinstance(err, ApiError) and err.status == 403 and 'read_only' in (err.body or '')
 
 
+UNREACHABLE_MSG = "Couldn't reach the server — try again in a bit."
+GONE_MSG = "That screening isn't on the calendar anymore."
+
+
+def api_error_text(e):
+    """The server's own words for a refused request, if it gave any."""
+    try:
+        return json.loads(e.body).get('error') or f"That didn't work ({e.status})."
+    except (ValueError, TypeError, AttributeError):
+        return f"That didn't work ({e.status})."
+
+
+def api_failure(e, fallback=None, missing=None):
+    """The one wording for a failed internal API call: the server couldn't be
+    reached; use the club's server first (no account yet); you're read-only;
+    `missing` for a 404 when given; else `fallback` ({status} filled in) or
+    the server's own words."""
+    if not isinstance(e, ApiError):
+        return UNREACHABLE_MSG
+    if no_account(e):
+        return NO_ACCOUNT_MSG
+    if read_only(e):
+        return READ_ONLY_MSG
+    if missing and e.status == 404:
+        return missing
+    return fallback.replace('{status}', str(e.status)) if fallback else api_error_text(e)
+
+
+async def reply_failure(interaction, e, what, fallback=None, missing=None, ephemeral=True):
+    """Say an internal call failed (api_failure's wording) — as the reply, or
+    a follow-up after a defer — logging anything the server didn't refuse."""
+    if not isinstance(e, ApiError):
+        print(f'{what} failed: {e}')
+    msg = api_failure(e, fallback, missing)
+    if interaction.response.is_done():
+        await interaction.followup.send(msg, ephemeral=ephemeral)
+    else:
+        await interaction.response.send_message(msg, ephemeral=ephemeral)
+
+
 # ─── Announce loop ────────────────────────────────────────────────────────────
 
 @tasks.loop(seconds=60)
@@ -890,15 +930,8 @@ class AttendanceButton(discord.ui.DynamicItem[discord.ui.Button],
         try:
             result = await api.post('/api/internal/attendance', {
                 **discord_identity(interaction), 'showtime_id': self.showtime_id, 'status': self.status})
-        except ApiError as e:
-            msg = (NO_ACCOUNT_MSG if no_account(e) else "That screening isn't on the calendar anymore."
-                   if e.status == 404 else f"Couldn't save that ({e.status}).")
-            await interaction.response.send_message(msg, ephemeral=True)
-            return
         except Exception as e:
-            print(f'attendance answer failed: {e}')
-            await interaction.response.send_message("Couldn't reach the server — try again in a bit.",
-                                                    ephemeral=True)
+            await reply_failure(interaction, e, 'attendance answer', "Couldn't save that ({status}).", GONE_MSG)
             return
         await interaction.response.edit_message(
             view=answered_view(interaction.message, self.showtime_id, self.status, result))
@@ -1131,13 +1164,8 @@ async def notifications_cmd(interaction: discord.Interaction):
     ident = discord_identity(interaction)
     try:
         s = await api.post('/api/internal/notifications/settings', ident)
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Settings lookup failed ({e.status}).',
-                                        ephemeral=True)
-        return
     except Exception as e:
-        print(f'/notifications failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/notifications', 'Settings lookup failed ({status}).')
         return
     await interaction.followup.send(embed=embeds.notify_settings_embed(s), view=NotifyView(ident, s), ephemeral=True)
 
@@ -1386,9 +1414,7 @@ async def link(interaction: discord.Interaction, code: str):
               f'Linking failed ({e.status}).'
         await interaction.followup.send(msg, ephemeral=True)
     except Exception as e:
-        print(f'/link failed: {e}')
-        await interaction.followup.send(
-            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/link')
 
 
 @client.tree.command(name='wisdom', description='Receive a random piece of cinematic wisdom 🎬')
@@ -1510,18 +1536,11 @@ async def rsvp(interaction: discord.Interaction, date: str = None, end: str = No
         result = await api.post('/api/internal/rsvp', {
             **discord_identity(interaction), 'showtime_id': int(showtime), 'status': status_value,
         })
-    except ApiError as e:
-        msg = NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e) else \
-            "That screening isn't on the calendar anymore." if e.status == 404 else f'RSVP failed ({e.status}).'
-        await interaction.followup.send(msg, ephemeral=True)
-        return
     except ValueError:
         await interaction.followup.send('Pick a screening from the list.', ephemeral=True)
         return
     except Exception as e:
-        print(f'/rsvp failed: {e}')
-        await interaction.followup.send(
-            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/rsvp', 'RSVP failed ({status}).', GONE_MSG)
         return
 
     dt = datetime.fromisoformat(result['start_time'])
@@ -1638,14 +1657,8 @@ async def watch(interaction: discord.Interaction, action: app_commands.Choice[st
             start_iso, end_iso, window_label = resolve_window(0, date, end)
         try:
             data = await fetch_my_watchlist(interaction, member_id, start_iso, end_iso)
-        except ApiError as e:
-            msg = NO_ACCOUNT_MSG if no_account(e) else f'Watchlist lookup failed ({e.status}).'
-            await interaction.followup.send(msg, ephemeral=eph)
-            return
         except Exception as e:
-            print(f'/watch show failed: {e}')
-            await interaction.followup.send(
-                "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=eph)
+            await reply_failure(interaction, e, '/watch show', 'Watchlist lookup failed ({status}).', ephemeral=eph)
             return
         await interaction.followup.send(
             embed=embeds.watchlist_embed(data.get('items', []), data.get('owner', 'Someone'),
@@ -1661,17 +1674,9 @@ async def watch(interaction: discord.Interaction, action: app_commands.Choice[st
         result = await api.post('/api/internal/watch', {
             **discord_identity(interaction), 'title': title, 'action': act,
         })
-    except ApiError as e:
-        if no_account(e):
-            await interaction.followup.send(NO_ACCOUNT_MSG, ephemeral=eph)
-        else:
-            await interaction.followup.send(
-                f"Couldn't find **{title}** — try `/movie` to check what's tracked.", ephemeral=eph)
-        return
     except Exception as e:
-        print(f'/watch failed: {e}')
-        await interaction.followup.send(
-            "Couldn't reach the Cinema Club server just now — try again in a bit.", ephemeral=eph)
+        await reply_failure(interaction, e, '/watch', f"Couldn't find **{title}** — try `/movie` to check what's tracked.",
+                            ephemeral=eph)
         return
 
     if result['watching']:
@@ -1800,16 +1805,13 @@ async def profile(interaction: discord.Interaction, member: discord.User = None)
         ident = discord_identity(interaction)
         data = await api.get('/api/internal/profile', **ident)
     except ApiError as e:
-        if e.status == 404:
-            msg = (f"{member.display_name} hasn't used Cinema Club yet." if member and member.id != interaction.user.id
-                   else NO_ACCOUNT_MSG)
+        if e.status == 404 and member and member.id != interaction.user.id:     # about them, not you
+            await interaction.followup.send(f"{member.display_name} hasn't used Cinema Club yet.", ephemeral=True)
         else:
-            msg = f'Profile lookup failed ({e.status}).'
-        await interaction.followup.send(msg, ephemeral=True)
+            await reply_failure(interaction, e, '/profile', 'Profile lookup failed ({status}).', NO_ACCOUNT_MSG)
         return
     except Exception as e:
-        print(f'/profile failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/profile')
         return
     await interaction.followup.send(embed=embeds.profile_embed(data, own=True),
                                     view=ProfileView(ident, data), ephemeral=True)
@@ -1826,14 +1828,11 @@ async def history(interaction: discord.Interaction, member: discord.User = None)
                                  group_id=DEFAULT_GROUP_ID)
         else:
             data = await api.get('/api/internal/history', **discord_identity(interaction))
-    except ApiError as e:
-        msg = (f"{member.display_name} hasn't been to anything with the club yet." if other and e.status == 404
-               else NO_ACCOUNT_MSG if no_account(e) else f'History lookup failed ({e.status}).')
-        await interaction.followup.send(msg)
-        return
     except Exception as e:
-        print(f'/history failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.")
+        if other and isinstance(e, ApiError) and e.status == 404:                # about them, not you
+            await interaction.followup.send(f"{member.display_name} hasn't been to anything with the club yet.")
+        else:
+            await reply_failure(interaction, e, '/history', 'History lookup failed ({status}).', ephemeral=False)
         return
     await interaction.followup.send(embed=embeds.history_embed(data))
 
@@ -1850,12 +1849,11 @@ async def compare(interaction: discord.Interaction, member: discord.User):
                              member_discord_id=str(member.id))
     except ApiError as e:
         msg = (f"{member.display_name} hasn't used Cinema Club yet." if 'unknown_member' in (e.body or '')
-               else NO_ACCOUNT_MSG if no_account(e) else f'Compare failed ({e.status}).')
+               else api_failure(e, 'Compare failed ({status}).'))
         await interaction.followup.send(msg, ephemeral=True)
         return
     except Exception as e:
-        print(f'/compare failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/compare')
         return
     await interaction.followup.send(embed=embeds.compare_embed(data), ephemeral=True)
 
@@ -2144,12 +2142,10 @@ async def open_discussion(interaction, showtime_id, comment=None):
                     'discord_message_id': str(sent.id), 'body': comment, 'source': 'discord_bot'})
             except ApiError as e:
                 await (await get_webhook()).delete_message(sent.id, thread=thread)
-                await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e) else
-                                                f"Couldn't save your comment ({e.status}).", ephemeral=True)
+                await interaction.followup.send(api_failure(e, "Couldn't save your comment ({status})."), ephemeral=True)
                 return
     except ApiError as e:
-        msg = ("That screening isn't on the calendar anymore." if e.status == 404
-               else f"Couldn't open the discussion ({e.status}).")
+        msg = GONE_MSG if e.status == 404 else f"Couldn't open the discussion ({e.status})."
         await interaction.followup.send(msg, ephemeral=True)
         return
     except discord.Forbidden as e:
@@ -2226,14 +2222,8 @@ class ThreadRsvpButton(discord.ui.DynamicItem[discord.ui.Button],
         try:
             result = await api.post('/api/internal/rsvp', {
                 **discord_identity(interaction), 'showtime_id': self.showtime_id, 'status': self.status})
-        except ApiError as e:
-            msg = (NO_ACCOUNT_MSG if no_account(e) else READ_ONLY_MSG if read_only(e)
-                   else "That screening isn't on the calendar anymore." if e.status == 404 else f'RSVP failed ({e.status}).')
-            await interaction.followup.send(msg, ephemeral=True)
-            return
         except Exception as e:
-            print(f'thread RSVP failed: {e}')
-            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, 'thread RSVP', 'RSVP failed ({status}).', GONE_MSG)
             return
         dt = datetime.fromisoformat(result['start_time'])
         verb = "You're going to" if self.status == 'going' else 'You might go to'
@@ -2393,11 +2383,7 @@ def _vote_error(err):
         return "That poll belongs to a group you're not in."
     if 'poll_not_found' in body:
         return 'That poll was deleted.'
-    if no_account(err):
-        return NO_ACCOUNT_MSG
-    if read_only(err):
-        return READ_ONLY_MSG
-    return f"Couldn't load that poll ({err.status})."
+    return api_failure(err, "Couldn't load that poll ({status}).")
 
 
 async def handle_vote(interaction, act, pid, idx, arg, page, values):
@@ -2470,8 +2456,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
         await interaction.followup.send(_vote_error(e), ephemeral=True)
         return
     except Exception as e:
-        print(f'/vote failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/vote')
         return
 
     # Single-pick polls move on to the next unanswered category; confidence and
@@ -2514,8 +2499,7 @@ async def vote(interaction: discord.Interaction, poll: str = None):
         try:
             open_polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID)
         except Exception as e:
-            print(f'/vote list failed: {e}')
-            await interaction.response.send_message("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, '/vote list')
             return
         if not open_polls:
             await interaction.response.send_message(
@@ -2702,8 +2686,7 @@ async def send_film_details(interaction, movie_id):
                             start=now.isoformat(timespec='seconds'),
                             end=(now + timedelta(days=30)).isoformat(timespec='seconds'), limit=60)
     except Exception as e:
-        print(f'film details failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, 'film details')
         return
     if not sts:
         await interaction.followup.send('No upcoming showings for that one anymore.', ephemeral=True)
@@ -2751,8 +2734,7 @@ async def find(interaction: discord.Interaction, type: str = None, when: app_com
         result = await api.get('/api/internal/discover/find', **viewer_args(interaction), type=type,
                                when=when.value if when else None, where=where, q=search, limit=8)
     except Exception as e:
-        print(f'/find failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/find')
         return
     await interaction.followup.send(embed=embeds.find_embed(result), view=find_view(result))
 
@@ -2816,8 +2798,7 @@ class SpinButton(discord.ui.DynamicItem[discord.ui.Button], template=SURPRISE_ID
             await interaction.response.send_message(msg, ephemeral=True)
             return
         except Exception as e:
-            print(f'spin failed: {e}')
-            await interaction.response.send_message("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, 'spin')
             return
         await interaction.response.edit_message(
             embed=embeds.surprise_embed(pick, self.when, spun_by=interaction.user.display_name),
@@ -2851,8 +2832,7 @@ async def surprise(interaction: discord.Interaction, when: app_commands.Choice[s
         await interaction.followup.send(msg, ephemeral=True)
         return
     except Exception as e:
-        print(f'/surprise failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/surprise')
         return
     await interaction.followup.send(
         embed=embeds.surprise_embed(pick, w, spun_by=interaction.user.display_name),
@@ -2905,7 +2885,7 @@ class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'po
             body = e.body or ''
             msg = ("Already created — see it with `/polls`." if 'already_created' in body
                    else "Only organizers and admins can create polls." if e.status == 403
-                   else NO_ACCOUNT_MSG if no_account(e) else f"Couldn't create it ({e.status}).")
+                   else api_failure(e, "Couldn't create it ({status})."))
             await interaction.followup.send(msg, ephemeral=True)
             return
         await interaction.followup.send(
@@ -2934,12 +2914,11 @@ async def poll_make(interaction: discord.Interaction, request: app_commands.Rang
             msg = None
         if e.status == 403:
             msg = 'Only organizers and admins can make polls — ask an admin for the Organizer role.'
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else msg or f"Couldn't draft that ({e.status}).",
+        await interaction.followup.send(msg if e.status == 403 else api_failure(e, msg or "Couldn't draft that ({status})."),
                                         ephemeral=True)
         return
     except Exception as e:
-        print(f'/poll make failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/poll make')
         return
     view = discord.ui.View(timeout=None)
     view.add_item(DraftCreateButton(d['id']))
@@ -3000,13 +2979,11 @@ class QuoteModal(discord.ui.Modal):
         except ApiError as e:
             body = _api_error_json(e)
             msg = (f"That line is already in the list (#{body.get('id')})." if body.get('error') == 'duplicate'
-                   else NO_ACCOUNT_MSG if no_account(e) else body.get('error') or f"Couldn't save that ({e.status}).")
+                   else api_failure(e, body.get('error') or "Couldn't save that ({status})."))
             await interaction.response.send_message(msg, ephemeral=True)
             return
         except Exception as e:
-            print(f'/quote save failed: {e}')
-            await interaction.response.send_message("Couldn't reach the server — try again in a bit.",
-                                                    ephemeral=True)
+            await reply_failure(interaction, e, '/quote save')
             return
         invalidate_quotes()
         verb = 'Updated' if self.existing else 'Added'
@@ -3043,14 +3020,11 @@ async def quote_remove(interaction: discord.Interaction, quote: str):
     except ApiError as e:
         body = _api_error_json(e)
         msg = (f"Only {body.get('added_by')} or a server admin can remove that one." if e.status == 403
-               else NO_ACCOUNT_MSG if no_account(e)
-               else "That quote isn't in the list anymore." if e.status == 404
-               else f"Couldn't remove it ({e.status}).")
+               else api_failure(e, "Couldn't remove it ({status}).", "That quote isn't in the list anymore."))
         await interaction.followup.send(msg, ephemeral=True)
         return
     except Exception as e:
-        print(f'/quote remove failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/quote remove')
         return
     invalidate_quotes()
     await interaction.followup.send(f"Removed quote #{result['removed']}.", ephemeral=True)
@@ -3063,8 +3037,7 @@ async def quote_find(interaction: discord.Interaction, search: str):
     try:
         rows = await api.get('/api/internal/quotes', q=search, limit=11)
     except Exception as e:
-        print(f'/quote find failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/quote find')
         return
     if not rows:
         await interaction.followup.send(f'No quotes match **{search}**.', ephemeral=True)
@@ -3121,8 +3094,7 @@ async def alerts(interaction: discord.Interaction,
         try:
             enabled = (await fetch_alerts()).get('enabled', [])
         except Exception as e:
-            print(f'/alerts show failed: {e}')
-            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, '/alerts show')
             return
         if enabled:
             msg = (f"🔔 New showtimes are announced here for **{', '.join(t['name'] for t in enabled)}**.\n"
@@ -3148,8 +3120,7 @@ async def alerts(interaction: discord.Interaction,
         await interaction.followup.send(msg, ephemeral=True)
         return
     except Exception as e:
-        print(f'/alerts {act} failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, f'/alerts {act}')
         return
 
     name = result['theatre_name']
@@ -3296,13 +3267,8 @@ async def kernels_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     try:
         k = await api.get('/api/internal/kernels', **discord_identity(interaction))
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Kernel lookup failed ({e.status}).',
-                                        ephemeral=True)
-        return
     except Exception as e:
-        print(f'/kernels failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/kernels', 'Kernel lookup failed ({status}).')
         return
     await interaction.followup.send(embed=embeds.kernels_embed(k), ephemeral=True)
 
@@ -3325,23 +3291,11 @@ async def send_another(interaction):
     """An anytime question, privately (after a defer)."""
     try:
         q = await api.post('/api/internal/trivia/another', discord_identity(interaction))
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
-        return
     except Exception as e:
-        print(f'trivia another failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, 'trivia another')
         return
     await interaction.followup.send(embed=embeds.trivia_embed(q, title='🎲 Anytime trivia'), view=trivia_view(q),
                                     ephemeral=True)
-
-
-def api_error_text(e):
-    """The server's own words for a refused request, if it gave any."""
-    try:
-        return json.loads(e.body).get('error') or f"That didn't work ({e.status})."
-    except (ValueError, TypeError, AttributeError):
-        return f"That didn't work ({e.status})."
 
 
 class TriviaMoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:more'):
@@ -3382,12 +3336,8 @@ class TriviaButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:
         try:
             q = await api.post('/api/internal/trivia/answer', {**discord_identity(interaction),
                                                                 'question_id': self.question_id, 'choice': self.choice})
-        except ApiError as e:
-            await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
-            return
         except Exception as e:
-            print(f'trivia answer failed: {e}')
-            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, 'trivia answer')
             return
         if q.get('anytime_on'):
             await interaction.followup.send(embeds.trivia_result(q), view=trivia_more_view(), ephemeral=True)
@@ -3406,13 +3356,8 @@ async def trivia_flow(interaction):
     then your waiting anytime one, then a new one."""
     try:
         t = await api.get('/api/internal/trivia/today', **discord_identity(interaction))
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Trivia lookup failed ({e.status}).',
-                                        ephemeral=True)
-        return
     except Exception as e:
-        print(f'/trivia failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/trivia', 'Trivia lookup failed ({status}).')
         return
     daily = t.get('question')
     if not t.get('enabled'):
@@ -3444,12 +3389,8 @@ async def bingo_flow(interaction):
     """/bingo (and My bingo card on /play), after a defer."""
     try:
         b = await api.get('/api/internal/bingo', **discord_identity(interaction))
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
-        return
     except Exception as e:
-        print(f'/bingo failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/bingo')
         return
     if not b.get('enabled'):
         await interaction.followup.send(
@@ -3493,12 +3434,8 @@ async def play_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     try:
         p = await api.get('/api/internal/play', **discord_identity(interaction))
-    except ApiError as e:
-        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
-        return
     except Exception as e:
-        print(f'/play failed: {e}')
-        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        await reply_failure(interaction, e, '/play')
         return
     await interaction.followup.send(embed=embeds.play_embed(p), view=play_view(p), ephemeral=True)
 
@@ -3540,8 +3477,7 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
         try:
             digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
         except Exception as e:
-            print(f'/digest preview failed: {e}')
-            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            await reply_failure(interaction, e, '/digest preview')
             return
         _, embed, _, plans = embeds.digest_message(digest)
         await interaction.followup.send(embed=embed, view=plans_view(plans), ephemeral=True)
