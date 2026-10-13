@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 // The welcome tour (R11): a few slides with the essentials, then a spotlight
-// on the real navigation for the rest. New accounts (and everyone once, the
+// on the real navigation for the rest — each step opens the page it points
+// at (`page`), and the tour ends back where it started. New accounts (and everyone once, the
 // first time it shipped) see it on their own; anyone can replay it from the
 // account menu, the Me page or Help. Steps for things you can't use yet (no
 // club) or that aren't on screen (phones show fewer tabs) are skipped.
@@ -20,21 +21,21 @@ const SLIDES = [
 ];
 
 const STEPS = [
-  { target: "nav:/", title: "Discover",
+  { target: "nav:/", page: "/", title: "Discover",
     body: "What's worth seeing: rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
-  { target: "nav:/calendar", title: "Calendar",
+  { target: "nav:/calendar", page: "/calendar", title: "Calendar",
     body: "Every showtime at your club's theatres. Filter by theatre, format or time; tap one to RSVP, see who's going, or add it to your own calendar." },
-  { target: "nav:/feed", title: "Feed", club: true,
+  { target: "nav:/feed", page: "/feed", title: "Feed", club: true,
     body: "What the club's up to — plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
-  { target: "nav:/play", title: "Play", club: true,
+  { target: "nav:/play", page: "/play", title: "Play", club: true,
     body: "Polls, plus trivia and bingo when your club turns them on — with your kernels and the leaderboard." },
-  { target: "nav:/theatres", title: "Theatres",
+  { target: "nav:/theatres", page: "/theatres", title: "Theatres",
     body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
   { target: ".topbar-groupmenu", title: "Your clubs", club: true,
     body: "In more than one club? Switch here — the calendar, feed and games follow." },
   { target: ".topbar-bell", title: "The bell",
     body: "Club activity and your alerts. Alerts are opt-in: watchlist a film, or tap 🔔 Alert me on a Browse search, to hear when a theatre books it." },
-  { target: "account", title: "You",
+  { target: "account", page: "/me", title: "You",
     body: "Your profile and lists: link Discord, connect Letterboxd, choose your notifications. Replay this tour, or find Help, here any time." },
 ];
 
@@ -52,14 +53,29 @@ function findTarget(target) {
   return visible(el) ? el : null;
 }
 
-const PAD = 6;
+const PAD = 6;     // room around the target…
+const EDGE = 6;    // …but the gold outline (2px, 2px out) always stays on screen
+
+// The hole around a target: PAD each side where there's room, less near the
+// screen's edges, so the outline is never cut off. Targets in a bar (the top
+// bar, the phone tab bar) all get that bar's height — menu links, the club
+// switcher, the bell and the avatar look alike.
+export function holeFor(rect, vw, vh, bar = null) {
+  const clamp = (lo, hi, min, max) => [Math.max(lo, min), Math.min(hi, max)];
+  const [left, right] = clamp(rect.left - PAD, rect.right + PAD, EDGE, vw - EDGE);
+  const [top, bottom] = bar ? [Math.max(bar.top, 0) + EDGE, Math.min(bar.bottom, vh) - EDGE]   // the outline stays in the bar
+    : clamp(rect.top - PAD, rect.bottom + PAD, EDGE, vh - EDGE);
+  return { top, left, width: right - left, height: bottom - top };
+}
 
 function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
   const [rect, setRect] = useState(null);
+  const [bar, setBar] = useState(null);
   const nextRef = useRef(null);
   const measure = useCallback(() => {
     const el = findTarget(step.target);
     setRect(el ? el.getBoundingClientRect() : null);
+    setBar(el?.closest(".topbar, .tabbar")?.getBoundingClientRect() || null);
   }, [step]);
   useLayoutEffect(() => {
     measure();
@@ -71,14 +87,14 @@ function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
   if (!rect) return null;
 
   const vw = window.innerWidth, vh = window.innerHeight;
+  const hole = holeFor(rect, vw, vh, bar);
   const width = Math.min(340, vw - 32);
   const below = rect.bottom + 12 + 190 < vh;
   const left = Math.min(Math.max(16, rect.left + rect.width / 2 - width / 2), vw - width - 16);
-  const card = below ? { top: rect.bottom + PAD + 10, left, width } : { bottom: vh - rect.top + PAD + 10, left, width };
+  const card = below ? { top: hole.top + hole.height + 10, left, width } : { bottom: vh - hole.top + 10, left, width };
   return (
     <>
-      <div className="tour-hole" aria-hidden="true"
-           style={{ top: rect.top - PAD, left: rect.left - PAD, width: rect.width + PAD * 2, height: rect.height + PAD * 2 }} />
+      <div className="tour-hole" aria-hidden="true" style={hole} />
       <div className="tour-card" style={card} role="dialog" aria-modal="true" aria-labelledby="tour-step-title">
         <div className="tour-count">{index + 1} of {count}</div>
         <h2 id="tour-step-title" className="tour-title">{step.title}</h2>
@@ -124,11 +140,25 @@ function Slides({ slides, index, onNext, onBack, onSkip, onTour }) {
   );
 }
 
-export default function Tour({ inClub, onFinish }) {
+export default function Tour({ inClub, onFinish: finished }) {
   const slides = SLIDES.filter(s => !s.club || inClub);
   const [phase, setPhase] = useState("slides");
   const [i, setI] = useState(0);
   const [steps, setSteps] = useState([]);
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const [start] = useState(pathname + search);            // where to come back to
+  const toured = useRef(false);
+  const onFinish = useCallback(() => {
+    if (toured.current) navigate(start, { replace: true });
+    finished();
+  }, [finished, navigate, start]);
+  const step = phase === "spotlight" ? steps[i] : null;
+  useEffect(() => {
+    if (!step?.page) return;
+    toured.current = true;
+    navigate(step.page, { replace: true });
+  }, [step, navigate]);
 
   const startSpotlight = () => {
     const on = STEPS.filter(s => (!s.club || inClub) && findTarget(s.target));
