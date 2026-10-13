@@ -1442,8 +1442,10 @@ def internal_attendance_prompts():
             continue
         pending = pending_attendance(user, include_prompted=False)[:5]
         if pending:
+            import letterboxd
+            hints = letterboxd.suggestions(user, [s.id for s in pending])
             out.append({'discord_user_id': user.discord_user_id, 'name': user.name,
-                        'screenings': [_screening_item(s) for s in pending]})
+                        'screenings': [{**_screening_item(s), 'letterboxd': hints.get(s.id)} for s in pending]})
     return jsonify(out)
 
 

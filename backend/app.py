@@ -139,11 +139,11 @@ def email_signin_link(to_email, link_url, purpose):
         </div>""")
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
-    ActivityEvent, Announcement, Attendance, BotSetting, DiscordDeletion, DiscordPost, DiscordServerMember,
-    BingoCard, Group, GroupMembership, KernelGift, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
-    PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, SavedSearch, SavedSearchHit,
-    ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer, TriviaQuestion, User,
-    Watchlist)
+    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
+    DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
+    Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction,
+    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer,
+    TriviaQuestion, User, Watchlist)
 
 
 
@@ -360,8 +360,10 @@ def _update_profile_fields(user, data):
         picked = {g.strip().lower() for g in raw}
         user.favorite_genres = ','.join(g for g in GENRE_LIST if g in picked)
     if 'letterboxd_username' in data:
-        handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60]
-        user.letterboxd_username = handle or None
+        handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60] or None
+        if user.letterboxd_sync and (handle or '').lower() != (user.letterboxd_username or '').lower():
+            user.letterboxd_sync = False            # a different diary: connect it again (R10f)
+        user.letterboxd_username = handle
 
 
 def _with_attendance(user, showtimes, dicts, group_id=None):
@@ -1456,6 +1458,10 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN trivia_discord BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN trivia_anytime BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN bingo_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN letterboxd_sync BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN letterboxd_checkin VARCHAR(10) DEFAULT 'ask'",
+        "ALTER TABLE user ADD COLUMN letterboxd_ratings BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN letterboxd_synced_at DATETIME",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",

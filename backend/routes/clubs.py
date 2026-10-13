@@ -548,6 +548,27 @@ def bring_plans(group_id):
     return jsonify({'moved': moved})
 
 
+@app.route('/api/groups/<slug>/members/<int:uid>/letterboxd', methods=['DELETE'])
+@require_auth
+def clear_member_letterboxd(slug, uid):
+    """A club admin clears a member's Letterboxd diary link (R10f) — for when
+    someone connected a diary that isn't theirs."""
+    from app import LetterboxdEntry, User
+    group = Group.query.filter_by(slug=slug).first()
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    _, err = require_role(current_user(), group.id, 'admin')
+    if err:
+        return err
+    if not GroupMembership.query.filter_by(user_id=uid, group_id=group.id, status='active').first():
+        return jsonify({'error': 'Member not found'}), 404
+    member = db.session.get(User, uid)
+    member.letterboxd_sync, member.letterboxd_ratings, member.letterboxd_username = False, False, None
+    LetterboxdEntry.query.filter_by(user_id=uid).delete()
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 @app.route('/api/groups/<slug>/members/<int:uid>/role', methods=['PUT'])
 @require_auth
 def set_member_role(slug, uid):

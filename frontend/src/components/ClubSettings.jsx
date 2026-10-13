@@ -203,7 +203,15 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         {active.map(m => (
           <li key={m.id} className="club-row">
             <Avatar user={m.user} size={34} onClick={() => onViewProfile(m.user.id)} />
-            <span className="club-row-name">{m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}</span>
+            <span className="club-row-name">{m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}
+              {m.user.letterboxd_connected && (
+                <small className="club-row-sub">📓 Letterboxd @{m.user.letterboxd_username} ·{" "}
+                  <button type="button" className="linkish" onClick={() => {
+                    if (window.confirm(`Clear ${m.user.name}'s Letterboxd link? (For when someone connected a diary that isn't theirs.)`))
+                      run(() => memberAction(`${m.user.id}/letterboxd`, "DELETE"), "Cleared");
+                  }}>Clear</button></small>
+              )}
+            </span>
             <span className="club-row-actions">
               <select className="share-input club-role-select" value={m.role || "member"} aria-label={`${m.user.name}'s role`}
                       onChange={e => run(() => memberAction(`${m.user.id}/role`, "PUT", { role: e.target.value }), "Role updated")}>

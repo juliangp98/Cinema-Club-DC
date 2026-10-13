@@ -57,8 +57,13 @@ def rsvp():
 @app.route('/api/attendance/pending')
 @require_auth
 def attendance_pending():
-    """The signed-in member's "Did you make it?" list."""
-    return jsonify([_screening_item(s) for s in pending_attendance(current_user())])
+    """The signed-in member's "Did you make it?" list — each with what their
+    Letterboxd diary says, when they connected it and chose "ask" (R10f)."""
+    import letterboxd
+    user = current_user()
+    shows = pending_attendance(user)
+    hints = letterboxd.suggestions(user, [s.id for s in shows])
+    return jsonify([{**_screening_item(s), 'letterboxd': hints.get(s.id)} for s in shows])
 
 
 @app.route('/api/attendance', methods=['POST'])

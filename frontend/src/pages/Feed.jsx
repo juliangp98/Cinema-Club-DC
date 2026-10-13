@@ -9,6 +9,7 @@ import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import { ago, dayDateTime } from "../dates";
 import { rsvp, attend } from "../api";
+import { stars } from "../ui/stars";
 
 const timeAgo = ago, formatWhen = dayDateTime;
 
@@ -136,6 +137,15 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {latest && (
             <div className="feed-activity">
               {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId, viewerId)}
+            </div>
+          )}
+          {card.letterboxd?.length > 0 && (
+            <div className="feed-activity feed-diary">
+              📓 {card.letterboxd.map((r, i) => (
+                <span key={r.user.id}>{i > 0 && " · "}{r.user.id === viewerId ? "You" : r.user.name}{" "}
+                  {r.link ? <a href={r.link} target="_blank" rel="noreferrer">{stars(r.rating) || "on Letterboxd"}</a> : stars(r.rating)}
+                </span>
+              ))}
             </div>
           )}
         </div>

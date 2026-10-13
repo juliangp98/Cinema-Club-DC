@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { numericDay } from "../dates";
+import { stars } from "../ui/stars";
+import { Segmented } from "../ui/TicketRow";
 
 const formatDay = numericDay;
 
@@ -10,6 +12,7 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
   const [items, setItems] = useState([]);
   const [logged, setLogged] = useState(null);   // the screening just marked "went"
   const [hidden, setHidden] = useState(false);
+  const [diaryChoice, setDiaryChoice] = useState(null);   // just changed here
 
   useEffect(() => {
     fetch(`${apiBase}/api/attendance/pending`, { credentials: "include" })
@@ -46,6 +49,11 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
           <span className="attendance-item-text">
             <strong>{item.title}</strong> · {formatDay(item.start_time)} · {item.theatre}
             {item.format_label ? ` · ${item.format_label}` : ""}
+            {item.letterboxd && (
+              <span className="attendance-diary">
+                📓 In your Letterboxd diary{item.letterboxd.rating ? ` · ${stars(item.letterboxd.rating)}` : ""}
+              </span>
+            )}
           </span>
           <div className="attendance-item-actions">
             <button className="btn btn-sm att-opt-went" onClick={() => answer(item, "went")}>Went</button>
@@ -53,6 +61,21 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
           </div>
         </div>
       ))}
+      {(items.some(i => i.letterboxd) || diaryChoice) && (
+        <div className="attendance-diary-choice">
+          <span>Check me in from my Letterboxd diary:</span>
+          <Segmented label="Check me in from my Letterboxd diary" value={diaryChoice || "ask"}
+                     options={[{ status: "ask", label: "Ask me" }, { status: "always", label: "Always" }, { status: "never", label: "Never" }]}
+                     onChange={async v => {
+                       if (!v) return;
+                       const r = await fetch(`${apiBase}/api/me/letterboxd`, {
+                         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ checkin: v }),
+                       }).catch(() => null);
+                       if (r?.ok) setDiaryChoice(v);
+                     }} />
+        </div>
+      )}
     </section>
   );
 }

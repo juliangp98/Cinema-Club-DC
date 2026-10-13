@@ -123,6 +123,11 @@ if __name__ == '__main__':
         print(f"Saved-search alerts: {notify.alert_saved_searches()}")
     except Exception as e:
         print(f"  ERROR checking saved searches: {e}")
+    try:                                   # connected Letterboxd diaries that are due (R10f)
+        import letterboxd
+        print(f"Letterboxd diaries read: {letterboxd.sync_due()}")
+    except Exception as e:
+        print(f"  ERROR reading Letterboxd diaries: {e}")
     try:                                   # this run's alerts go out together (R8)
         import notify
         print(f"Alert emails sent: {notify.release()}")

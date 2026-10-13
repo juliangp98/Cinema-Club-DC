@@ -74,6 +74,85 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
   );
 }
 
+const DIARY_CHOICES = [
+  { status: "ask", label: "Ask me" },
+  { status: "always", label: "Always" },
+  { status: "never", label: "Never" },
+];
+
+// Your Letterboxd diary (R10f): connect it by username (we check the diary
+// exists); then choose what a diary entry for a screening you were going to
+// does, and whether your ratings show with your check-ins. Off until you
+// connect; disconnecting forgets what was read.
+function LetterboxdSection({ user, apiBase, onUpdate }) {
+  const [s, setS] = useState(null);
+  const [name, setName] = useState(user.letterboxd_username || "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  useEffect(() => {
+    fetch(`${apiBase}/api/me/letterboxd`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null)).then(setS).catch(() => setS(null));
+  }, [apiBase]);
+  if (!s || user.is_guest) return null;
+
+  async function call(method, body, path = "") {
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch(`${apiBase}/api/me/letterboxd${path}`, {
+      method, credentials: "include", headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    }).catch(() => null);
+    const d = await r?.json().catch(() => null);
+    setBusy(false);
+    if (!r?.ok) { setMsg(d?.error || "Couldn't do that — try again."); return null; }
+    setS(d);
+    onUpdate?.({ ...user, letterboxd_username: d.username, letterboxd_connected: d.connected });
+    return d;
+  }
+
+  if (!s.connected) {
+    return (
+      <div className="profile-sharing">
+        <div className="profile-section-label">Letterboxd</div>
+        <p className="profile-sharing-hint">Connect your diary and screenings you log there can count as check-ins here
+          — you choose how. We only read your public diary feed.</p>
+        <form className="profile-lb-connect" onSubmit={e => { e.preventDefault(); call("POST", { username: name }); }}>
+          <input className="profile-input" value={name} onChange={e => setName(e.target.value)} maxLength={60}
+                 placeholder="Your Letterboxd username" aria-label="Letterboxd username" />
+          <button className="btn btn-sm" disabled={busy || !name.trim()}>{busy ? "Checking…" : "Connect"}</button>
+        </form>
+        {msg && <p className="profile-sharing-hint" role="status">{msg}</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="profile-sharing">
+      <div className="profile-section-label">Letterboxd</div>
+      <p className="profile-sharing-hint">
+        📓 Connected to <a href={`https://letterboxd.com/${s.username}/`} target="_blank" rel="noreferrer">@{s.username}</a>
+        {s.synced_at && ` · read ${new Date(s.synced_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
+        {" · "}<button type="button" className="linkish" disabled={busy} onClick={() => call("POST", null, "/sync")}>Read it now</button>
+      </p>
+      <div className="profile-sharing-row">
+        <div>
+          <div className="profile-sharing-kind">Check me in from my diary</div>
+          <div className="profile-sharing-hint">When your diary has a film you said you were going to (that day or the next).
+            Ask = your "Did you make it?" prompt says so.</div>
+        </div>
+        <Segmented label="Check me in from my diary" options={DIARY_CHOICES} value={s.checkin}
+                   onChange={v => v && call("PUT", { checkin: v })} />
+      </div>
+      <label className="notify-row">
+        <input type="checkbox" checked={s.ratings} onChange={e => call("PUT", { ratings: e.target.checked })} />
+        <span><span className="notify-name">Show my star ratings with my check-ins</span>
+          <span className="notify-hint">In the club feed, with a link to your review.</span></span>
+      </label>
+      {msg && <p className="profile-sharing-hint" role="status">{msg}</p>}
+      <button type="button" className="linkish" disabled={busy} onClick={() => call("DELETE")}>Disconnect Letterboxd</button>
+    </div>
+  );
+}
+
 // The profile editor (name, color, genres, bio, Letterboxd, Discord and what
 // to share there). Shown in a Sheet from the account menu or the Me page.
 export default function ProfileEditor({ user, apiBase, onUpdate }) {
@@ -89,7 +168,6 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
   const [linkCode, setLinkCode] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [discordOAuth, setDiscordOAuth] = useState(false);
-  const [letterboxd, setLetterboxd] = useState(user.letterboxd_username || "");
 
   // "Connect Discord" uses Discord sign-in when the site has it configured;
   // otherwise fall back to the /link code.
@@ -126,7 +204,6 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
           bio,
           avatar_color: avatarColor,
           favorite_genres: genres.join(","),
-          letterboxd_username: letterboxd.trim(),
         }),
       });
       if (r.ok) {
@@ -215,14 +292,6 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         placeholder="Tell the group about yourself..."
       />
 
-      <input
-        className="profile-input"
-        value={letterboxd}
-        onChange={e => { setLetterboxd(e.target.value); setSaved(false); }}
-        maxLength={60}
-        placeholder="Letterboxd username (optional)"
-      />
-
       <div className="profile-actions">
         <button className="btn btn-primary btn-block" onClick={handleSave} disabled={saving}>
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
@@ -266,6 +335,9 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
       </div>
 
       <SharingPrefs user={user} apiBase={apiBase} onUpdate={onUpdate} />
+
+      <hr className="profile-divider" />
+      <LetterboxdSection user={user} apiBase={apiBase} onUpdate={onUpdate} />
 
       <hr className="profile-divider" />
       <div className="profile-section-label profile-notify-title">Notifications</div>

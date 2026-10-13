@@ -39,6 +39,13 @@ class User(db.Model):
     discord_link_code = db.Column(db.String(12))
     discord_link_code_expires = db.Column(db.DateTime)
     letterboxd_username = db.Column(db.String(60))
+    # Letterboxd diary sync (R10f), off until you connect it: what a diary
+    # entry matching a screening you were going to does ('ask' | 'always' |
+    # 'never'), and whether your ratings show with your check-ins.
+    letterboxd_sync = db.Column(db.Boolean, default=False)
+    letterboxd_checkin = db.Column(db.String(10), default='ask')
+    letterboxd_ratings = db.Column(db.Boolean, default=False)
+    letterboxd_synced_at = db.Column(db.DateTime)
     # R8: where your alerts reach you and which ones you get (see notify.py);
     # JSON of only what you changed — the rest follows your account's defaults.
     notify_prefs = db.Column(db.Text)
@@ -61,6 +68,7 @@ class User(db.Model):
             'discord_username': self.discord_username or '',
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
+            'letterboxd_connected': bool(self.letterboxd_sync),      # diary sync on (R10f)
             'share_prefs': core.share_prefs(self),
             'is_guest': bool(self.is_guest),
         }
@@ -500,6 +508,27 @@ class KernelGift(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     updated_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('giver_id', 'recipient_id', 'group_id', 'showtime_id', 'week'),)
+
+
+class LetterboxdEntry(db.Model):
+    """A diary entry read from a member's Letterboxd feed (R10f) — kept so it
+    isn't read twice, and (when it matched a screening) for the "Did you make
+    it?" hint and the rating shown with the check-in. status: 'checked_in' |
+    'suggested' | 'ignored' | 'already' (answered before) | 'unmatched'."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    guid = db.Column(db.String(80), nullable=False)
+    watched_on = db.Column(db.Date, nullable=False)
+    title = db.Column(db.String(200))
+    year = db.Column(db.Integer)
+    tmdb_id = db.Column(db.Integer)
+    rating = db.Column(db.Float)
+    rewatch = db.Column(db.Boolean, default=False)
+    link = db.Column(db.String(300))
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), index=True)
+    status = db.Column(db.String(12), nullable=False, default='unmatched')
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
 
 
 class BingoCard(db.Model):

@@ -485,6 +485,10 @@ a.share-state { color: var(--green); }
 
 .profile-sharing { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.7rem; }
 .profile-sharing-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.profile-lb-connect { display: flex; gap: 0.5rem; align-items: center; }
+.profile-lb-connect .profile-input { margin: 0; flex: 1; }
+.attendance-diary { display: block; font-size: var(--fs-xs); color: var(--green); margin-top: 0.15rem; }
+.attendance-diary-choice { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--muted); margin-top: 0.5rem; }
 .profile-sharing-kind { font-size: var(--fs-sm); color: var(--cream); font-weight: 500; }
 .profile-sharing-hint { font-size: var(--fs-xs); color: var(--muted); max-width: 30ch; }
 .profile-sharing > .profile-sharing-hint { max-width: none; }

@@ -132,3 +132,64 @@ def user_compare(user_id):
     if me.id == target.id:
         return jsonify({'error': 'Pick someone else to compare with'}), 400
     return jsonify(compare_members(me, target, groups))
+
+
+# ─── Letterboxd diary sync (R10f) ─────────────────────────────────────────────
+
+@app.route('/api/me/letterboxd', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@require_auth
+def my_letterboxd():
+    """Your Letterboxd diary link. POST {username} connects it (the diary feed
+    must exist; one site account per username) and reads it once; PUT
+    {checkin: ask|always|never, ratings: bool} changes your choices; DELETE
+    disconnects it (and forgets the username and what was read)."""
+    import letterboxd
+    from app import LetterboxdEntry
+    user = current_user()
+    if request.method == 'POST':
+        if user.is_guest:
+            return jsonify({'error': 'Make an account to connect Letterboxd.'}), 403
+        name = letterboxd.clean_username((request.json or {}).get('username'))
+        if not name:
+            return jsonify({'error': 'Enter your Letterboxd username (letters, numbers and _).'}), 400
+        taken = User.query.filter(User.id != user.id, User.letterboxd_sync.is_(True),
+                                  db.func.lower(User.letterboxd_username) == name.lower()).first()
+        if taken:
+            return jsonify({'error': 'That Letterboxd account is already connected to another member. '
+                                     'If it\'s yours, ask a club admin to clear it.'}), 409
+        entries, error = letterboxd.fetch(name)
+        if error == 'not_found':
+            return jsonify({'error': f'There\'s no Letterboxd member called "{name}".'}), 400
+        if error:
+            return jsonify({'error': "Couldn't reach Letterboxd — try again in a bit."}), 502
+        if (user.letterboxd_username or '').lower() != name.lower():
+            LetterboxdEntry.query.filter_by(user_id=user.id).delete()
+        user.letterboxd_username, user.letterboxd_sync = name, True
+        db.session.commit()
+        letterboxd.sync(user, entries)
+    elif request.method == 'PUT':
+        data = request.json or {}
+        if data.get('checkin') in letterboxd.CHOICES:
+            user.letterboxd_checkin = data['checkin']
+        if isinstance(data.get('ratings'), bool):
+            user.letterboxd_ratings = data['ratings']
+        db.session.commit()
+    elif request.method == 'DELETE':
+        user.letterboxd_sync, user.letterboxd_ratings, user.letterboxd_username = False, False, None
+        LetterboxdEntry.query.filter_by(user_id=user.id).delete()
+        db.session.commit()
+    return jsonify(letterboxd.status(user))
+
+
+@app.route('/api/me/letterboxd/sync', methods=['POST'])
+@require_auth
+def sync_my_letterboxd():
+    """Read your diary now (it's read every few hours anyway)."""
+    import letterboxd
+    user = current_user()
+    if not user.letterboxd_sync:
+        return jsonify({'error': 'Connect your Letterboxd diary first.'}), 400
+    result = letterboxd.sync(user)
+    if 'error' in result:
+        return jsonify({'error': "Couldn't read your diary just now — try again in a bit."}), 502
+    return jsonify({**letterboxd.status(user), **result})

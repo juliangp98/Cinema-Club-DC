@@ -215,7 +215,16 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
     return {'type': 'screening', 'showtime': showtime, 'went': [_feed_user(u) for u in went],
             'latest_comment': {'user': _feed_user(last.user), 'body': last.body[:280],
                                'at': utc_iso(last.created_at)} if last else None,
-            'activity': activity[:4], 'kernels': _card_kernels(viewer, group_id, sid)}
+            'activity': activity[:4], 'kernels': _card_kernels(viewer, group_id, sid),
+            'letterboxd': _letterboxd_ratings(went, sid)}
+
+
+def _letterboxd_ratings(went, sid):
+    """Ratings members who went chose to show with their check-ins (R10f)."""
+    import letterboxd
+    rated = letterboxd.ratings([u.id for u in went], sid)
+    by_id = {u.id: u for u in went}
+    return [{'user': _feed_user(by_id[uid]), **r} for uid, r in rated.items()]
 
 
 def _card_kernels(viewer, group_id, sid):

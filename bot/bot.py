@@ -917,7 +917,8 @@ def attendance_text(screenings):
     lines = []
     for s in screenings:
         fmt = f" · {s['format_label']}" if s.get('format_label') else ''
-        lines.append(f"• **{s['title']}** — {_when_short(s['start_time'])} @ {s['theatre']}{fmt}")
+        diary = ' · 📓 in your Letterboxd diary' if s.get('letterboxd') else ''
+        lines.append(f"• **{s['title']}** — {_when_short(s['start_time'])} @ {s['theatre']}{fmt}{diary}")
     return ("🎬 **Did you make it?** You were going to:\n" + '\n'.join(lines) +
             "\nTap below — it keeps your watch history (and the leaderboard) honest.")
 

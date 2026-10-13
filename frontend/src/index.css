@@ -1519,6 +1519,7 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .feed-recap { border-color: var(--amber-dim); }
 .recap-lines { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
 .club-feed-more { margin: 0.5rem 0 0; text-align: right; font-size: var(--fs-sm); }
+.feed-diary a { color: var(--amber); }
 
 /* Daily trivia (R10d) */
 .trivia-card {
