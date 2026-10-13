@@ -27,6 +27,7 @@ def commands():
 
 def test_help_is_a_private_guide(help_embed):
     assert help_embed.get('ephemeral') is True and help_embed['embed'].title.startswith('🍿 CinemaBot')
+    assert help_embed['embed'].url.endswith('/help') and 'Full guide' in help_embed['embed'].description   # the site's guide
 
 
 def test_help_lists_exactly_the_member_commands():

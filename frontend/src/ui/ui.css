@@ -626,3 +626,39 @@ a.share-state { color: var(--green); }
 }
 .theatre-link:hover { border-color: var(--tcolor, var(--amber)); color: var(--amber); }
 .theatre-link-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tcolor, var(--amber)); flex-shrink: 0; }
+
+/* The welcome tour (R11): slides, then a spotlight on the real navigation. */
+.tour-layer { position: fixed; inset: 0; z-index: 300; }
+.tour-layer.tour-slides { background: rgba(10, 4, 6, 0.72); }
+.tour-slide-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.tour-card {
+  position: fixed; background: var(--bg2); border: 1px solid var(--amber-dim); border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem; color: var(--cream); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.tour-slide { position: relative; width: min(420px, 100%); text-align: center; padding: 1.5rem 1.4rem 1.1rem; }
+.tour-slide-emoji { font-size: 2.6rem; line-height: 1; margin-bottom: 0.6rem; }
+.tour-title { margin: 0 0 0.4rem; font-family: var(--font-serif); font-size: var(--fs-lg); color: var(--amber); }
+.tour-body { margin: 0; font-size: var(--fs-sm); line-height: 1.55; }
+.tour-count { font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.25rem; }
+.tour-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.tour-spacer { flex: 1; }
+.tour-dots { display: flex; justify-content: center; gap: 0.35rem; margin-top: 1rem; }
+.tour-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
+.tour-dots span.on { background: var(--amber); }
+.tour-help { margin: 0.75rem 0 0; font-size: var(--fs-xs); color: var(--muted); }
+.tour-hole {
+  position: fixed; border-radius: var(--radius); box-shadow: 0 0 0 9999px rgba(10, 4, 6, 0.72);
+  outline: 2px solid var(--amber); outline-offset: 2px; pointer-events: none; transition: all 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } }
+
+/* Help (R11) */
+.help-tools { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.9rem; }
+.help-search { flex: 1; margin: 0; }
+.help-toc { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.5rem; }
+.help-toc .chip { text-decoration: none; }
+.help-section { margin-bottom: 1.75rem; scroll-margin-top: 5rem; }
+.help-title { font-family: var(--font-serif); font-size: var(--fs-lg); color: var(--amber); margin: 0 0 0.6rem; }
+.help-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 0.45rem; background: var(--bg3); }
+.help-item summary { cursor: pointer; font-weight: 600; color: var(--cream); }
+.help-item p { margin: 0.5rem 0 0.15rem; font-size: var(--fs-sm); line-height: 1.6; color: var(--cream); }

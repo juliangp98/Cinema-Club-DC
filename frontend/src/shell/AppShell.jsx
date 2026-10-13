@@ -6,13 +6,14 @@ import Sheet from "../ui/Sheet";
 import Loading from "../ui/Loading";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { CalendarIcon, CompassIcon, FeedIcon, PlayIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, FeedIcon, HelpIcon, PlayIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
 import { clearCache } from "../api";
 
 const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
+const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -46,6 +47,22 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const NAV = !user || user.is_guest ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
   const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
   const [editing, setEditing] = useState(false);
+  const [touring, setTouring] = useState(false);
+
+  // The welcome tour (R11): on its own once per account (new ones, and
+  // everyone the first time it shipped); replayable from the menu and Help.
+  useEffect(() => {
+    if (!user || user.is_guest || user.tour_seen !== false || pathname.startsWith("/auth")) return undefined;
+    const t = setTimeout(() => setTouring(true), 900);
+    return () => clearTimeout(t);
+  }, [user?.id, user?.tour_seen]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const finishTour = useCallback(() => {
+    setTouring(false);
+    if (user && user.tour_seen === false) {
+      fetch(`${apiBase}/api/me/tour`, { method: "POST", credentials: "include" }).catch(() => {});
+      setUser({ ...user, tour_seen: true });
+    }
+  }, [user, apiBase, setUser]);
 
   // A visitor's first RSVP / watchlist add / reaction makes a private guest
   // profile (R5b); returns the signed-in user either way, or null if refused.
@@ -81,7 +98,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
-                  editProfile: () => setEditing(true),
+                  editProfile: () => setEditing(true), startTour: () => setTouring(true),
                   openActivity: () => activity.open("club") };
 
   return (
@@ -109,6 +126,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             <MenuItem onSelect={() => navigate("/me")}><UserIcon /> {user.is_guest ? "Your plans & watchlist" : <>Your profile &amp; lists</>}</MenuItem>
             {user.is_guest && <MenuItem onSelect={() => navigate("/signin?next=%2Fme")}><EditIcon /> Keep your profile</MenuItem>}
             <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
+            {!user.is_guest && <MenuItem onSelect={() => setTouring(true)}><CompassIcon /> Take the tour</MenuItem>}
+            <MenuItem onSelect={() => navigate("/help")}><HelpIcon /> Help</MenuItem>
             <MenuDivider />
             <MenuItem danger onSelect={logout}><LogoutIcon /> Sign out</MenuItem>
           </Menu>}
@@ -127,6 +146,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         </nav>
 
         <InstallPrompt />
+
+        {touring && <Suspense fallback={null}><Tour inClub={!!groupId} onFinish={finishTour} /></Suspense>}
 
         {activity.isOpen && (
           <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} activity={activity} />

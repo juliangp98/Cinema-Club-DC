@@ -81,7 +81,13 @@ export default function ClubPage({ user, apiBase }) {
             <p className="club-feed-more"><Link to="/feed">See the full feed →</Link></p>
           </>
         )}
-        {tab === "members" && <Members group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />}
+        {tab === "members" && (
+          <>
+            <Members group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />
+            <LeaveClub group={group} apiBase={apiBase} userId={user.id}
+                       onLeft={async () => { await shell.refreshGroups?.(); navigate("/", { replace: true }); }} />
+          </>
+        )}
         {tab === "leaderboard" && <Leaderboard group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />}
         {tab === "settings" && isAdmin && (
           <ClubSettings group={group} apiBase={apiBase} viewerId={user.id} onViewProfile={setProfileUserId}
@@ -135,6 +141,30 @@ function Members({ group, apiBase, viewerId, onOpen }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// Leave the club: your plans and history stay yours, but you stop seeing
+// the club. The server keeps a club from losing its only admin.
+function LeaveClub({ group, apiBase, userId, onLeft }) {
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function leave() {
+    if (!window.confirm(`Leave ${group.name}? You'll stop seeing its plans, feed and games. You can ask to join again later.`)) return;
+    setBusy(true);
+    setError(null);
+    const r = await fetch(`${apiBase}/api/groups/${group.slug}/members/${userId}`, { method: "DELETE", credentials: "include" })
+      .catch(() => null);
+    const d = await r?.json().catch(() => null);
+    setBusy(false);
+    if (r?.ok) onLeft();
+    else setError(d?.error || "Couldn't leave right now — try again.");
+  }
+  return (
+    <div className="club-leave">
+      <button type="button" className="btn btn-sm btn-ghost club-leave-btn" disabled={busy} onClick={leave}>Leave this club</button>
+      {error && <p className="pv-hint" role="status">{error}</p>}
+    </div>
   );
 }
 

@@ -1463,6 +1463,7 @@ def migrate():
         "ALTER TABLE user ADD COLUMN letterboxd_ratings BOOLEAN DEFAULT 0",
         "ALTER TABLE user ADD COLUMN letterboxd_synced_at DATETIME",
         "ALTER TABLE 'group' ADD COLUMN notes_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN tour_seen_at DATETIME",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",

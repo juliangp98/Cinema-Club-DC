@@ -46,6 +46,7 @@ class User(db.Model):
     letterboxd_checkin = db.Column(db.String(10), default='ask')
     letterboxd_ratings = db.Column(db.Boolean, default=False)
     letterboxd_synced_at = db.Column(db.DateTime)
+    tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
     # R8: where your alerts reach you and which ones you get (see notify.py);
     # JSON of only what you changed — the rest follows your account's defaults.
     notify_prefs = db.Column(db.Text)
@@ -71,11 +72,12 @@ class User(db.Model):
             'letterboxd_connected': bool(self.letterboxd_sync),      # diary sync on (R10f)
             'share_prefs': core.share_prefs(self),
             'is_guest': bool(self.is_guest),
+            'tour_seen': self.tour_seen_at is not None,
         }
 
     # What other members see: no email (unless they're an admin of a club you
     # share), and none of your private settings.
-    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind')
+    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen')
 
     def public_dict(self, with_email=False):
         d = {k: v for k, v in self.to_dict().items() if k not in self.PRIVATE}

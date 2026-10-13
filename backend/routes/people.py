@@ -193,3 +193,16 @@ def sync_my_letterboxd():
     if 'error' in result:
         return jsonify({'error': "Couldn't read your diary just now — try again in a bit."}), 502
     return jsonify({**letterboxd.status(user), **result})
+
+
+@app.route('/api/me/tour', methods=['POST'])
+@require_auth
+def finish_tour():
+    """The welcome tour was finished or skipped (R11): don't show it again
+    on its own (it can always be replayed)."""
+    from app import _utcnow_naive
+    user = current_user()
+    if not user.tour_seen_at:
+        user.tour_seen_at = _utcnow_naive()
+        db.session.commit()
+    return jsonify({'tour_seen': True})

@@ -917,8 +917,9 @@ def trivia_result(q):
 
 def help_embed():
     """/help: the main commands, grouped, one line each."""
-    embed = discord.Embed(title='🍿 CinemaBot — quick guide', colour=AMBER, url=SITE_URL,
-                          description='No setup needed: commands work as soon as you use them here.')
+    embed = discord.Embed(title='🍿 CinemaBot — quick guide', colour=AMBER, url=f'{SITE_URL}/help',
+                          description='No setup needed: commands work as soon as you use them here.\n'
+                                      f'📖 **Full guide** — how everything works, on the site and here: {SITE_URL}/help')
     for name, rows in HELP_SECTIONS:
         embed.add_field(name=name, inline=False, value='\n'.join(f'`{cmd}` — {what}' for cmd, what in rows))
     embed.set_footer(text=f'Everything else (calendar, Discover, your lists) → {SITE_URL}')

@@ -12,6 +12,10 @@ export const FeedIcon = () => (
   <svg {...base}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1.2" /><circle cx="4.5" cy="12" r="1.2" />
     <circle cx="4.5" cy="18" r="1.2" /></svg>
 );
+export const HelpIcon = () => (
+  <svg {...base}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.2-2.5 3.8" />
+    <circle cx="12" cy="17.2" r="0.6" /></svg>
+);
 export const PlayIcon = () => (
   <svg {...base}><rect x="2.5" y="7" width="19" height="11" rx="5.5" /><path d="M7.5 10.5v4M5.5 12.5h4" />
     <circle cx="15.5" cy="11.5" r="0.9" /><circle cx="17.8" cy="13.8" r="0.9" /></svg>

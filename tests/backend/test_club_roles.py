@@ -119,6 +119,15 @@ def test_the_last_admin_stays_until_theres_another(club):
     assert as_(club, 'olly').put(role_of('vi'), json={'role': 'viewer'}).status_code == 200    # the new admin manages roles
 
 
+def test_members_can_leave_but_not_remove_others(club):
+    mo = as_(club, 'mo')
+    assert mo.delete(f"/api/groups/role-club/members/{club['vi']}").status_code == 403          # only admins remove others
+    assert mo.delete(f"/api/groups/role-club/members/{club['mo']}").status_code == 200          # leaving
+    assert all(g['slug'] != 'role-club' for g in mo.get('/api/groups').json)
+    names = [m['user']['name'] for m in as_(club, 'ada').get('/api/groups/role-club/members').json]
+    assert names and 'Mo' not in names and 'mo' not in names
+
+
 def test_the_same_rules_through_the_bot(club):
     from app import app
     G, S1 = club['group'], club['s1']

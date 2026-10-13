@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
-import { EditIcon, LogoutIcon, CompassIcon, TheatreIcon } from "../ui/icons";
+import { EditIcon, LogoutIcon, CompassIcon, HelpIcon, TheatreIcon } from "../ui/icons";
 import { ClubBadge } from "../ui/Avatar";
 import { WatchlistTab, GoingTab, HistoryTab } from "../components/UserProfileDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
@@ -16,7 +16,7 @@ const TABS = ["Watchlist", "Going", "History"];
 // "Me": your profile, your lists, and your group's pages — one place to find
 // what used to hide in the avatar and group dropdowns.
 export default function MePage({ user, apiBase, groupId }) {
-  const { editProfile, logout, group } = useShell();
+  const { editProfile, logout, group, startTour } = useShell();
   const navigate = useNavigate();
   const [tab, setTab] = useState("Watchlist");
   const [profileUserId, setProfileUserId] = useState(null);
@@ -101,6 +101,17 @@ export default function MePage({ user, apiBase, groupId }) {
           </button>
         </div>
       )}
+
+      <div className="me-links" style={{ marginTop: "1rem" }}>
+        {!user.is_guest && (
+          <button className="me-link" onClick={() => startTour?.()}>
+            <CompassIcon /><span>Take the tour<small>A quick look around the site</small></span>
+          </button>
+        )}
+        <button className="me-link" onClick={() => navigate("/help")}>
+          <HelpIcon /><span>Help<small>How everything works, and answers to common questions</small></span>
+        </button>
+      </div>
 
       {sheet}
       {profileUserId && (

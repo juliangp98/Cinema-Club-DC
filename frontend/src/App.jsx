@@ -18,6 +18,7 @@ const FilmPage = lazyPage(() => import("./pages/FilmPage"));
 const BrowsePage = lazyPage(() => import("./pages/BrowsePage"));
 const FeedPage = lazyPage(() => import("./pages/FeedPage"));
 const PlayPage = lazyPage(() => import("./pages/PlayPage"));
+const HelpPage = lazyPage(() => import("./pages/HelpPage"));
 const TheatresPage = lazyPage(() => import("./pages/Theatres"), "TheatresPage");
 const TheatrePage = lazyPage(() => import("./pages/Theatres"), "TheatrePage");
 const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "SpotlightsPage");
@@ -203,6 +204,7 @@ export default function App() {
             </RequireSignIn>} />
           <Route path="/feed" element={
             <RequireSignIn user={user}><FeedPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/help" element={<HelpPage />} />
           <Route path="/play" element={
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/club" element={

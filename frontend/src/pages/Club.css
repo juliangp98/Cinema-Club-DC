@@ -49,3 +49,6 @@
   .club-hero .ui-club-badge { width: 64px !important; height: 64px !important; }
   .club-row-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
+
+.club-leave { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.club-leave-btn { color: var(--red); }
