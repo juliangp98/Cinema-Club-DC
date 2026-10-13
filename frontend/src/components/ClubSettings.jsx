@@ -169,6 +169,18 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         </label>
       </div>
 
+      <SectionTitle>Screening notes</SectionTitle>
+      <div className="club-form club-trivia">
+        <label className="notify-row">
+          <input type="checkbox" checked={!!group.notes?.enabled}
+                 onChange={e => run(() => update({ notes_enabled: e.target.checked }), "Saved")} />
+          <span><span className="notify-name">Quick notes about each screening</span>
+            <span className="notify-hint">Members who checked in can tag the night: gorgeous print, sound trouble, packed
+              house, great Q&amp;A… Shown on the screening, in the feed and on theatre pages (to members only). Nobody is
+              sent anything.</span></span>
+        </label>
+      </div>
+
       <SectionTitle>Invite by email</SectionTitle>
       <form className="club-inline" onSubmit={sendInvite}>
         <input className="share-input" type="email" placeholder="friend@example.com" value={inviteEmail}

@@ -4,6 +4,7 @@ import Sheet from "../ui/Sheet";
 import TicketRow from "../ui/TicketRow";
 import Avatar from "../ui/Avatar";
 import ReactionBar from "./ReactionBar";
+import ScreeningNotes from "../ui/ScreeningNotes";
 import ChatSection from "./ChatSection";
 import { useShell } from "../shell/AppShell";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
@@ -154,6 +155,9 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             All showings &amp; film details →
           </Link>
         </div>
+
+        {club && <ScreeningNotes apiBase={apiBase} groupId={groupId}
+                                 showtimeId={(showtimes.find(s => s.user_attendance === "went") || primary).id} />}
 
         {(going.length > 0 || maybes.length > 0) && (
           <Collapsible title="Who's going" count={going.length + maybes.length} defaultOpen>

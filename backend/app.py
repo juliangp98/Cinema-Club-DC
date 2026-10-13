@@ -142,7 +142,7 @@ from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
     DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
     Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction,
-    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer,
+    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer,
     TriviaQuestion, User, Watchlist)
 
 
@@ -1462,6 +1462,7 @@ def migrate():
         "ALTER TABLE user ADD COLUMN letterboxd_checkin VARCHAR(10) DEFAULT 'ask'",
         "ALTER TABLE user ADD COLUMN letterboxd_ratings BOOLEAN DEFAULT 0",
         "ALTER TABLE user ADD COLUMN letterboxd_synced_at DATETIME",
+        "ALTER TABLE 'group' ADD COLUMN notes_enabled BOOLEAN DEFAULT 0",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",

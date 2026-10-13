@@ -77,6 +77,9 @@ def feed_events(group_id, since):
     if group and group.bingo_enabled and member_ids:          # repertory bingo (R10e)
         import bingo
         ev += bingo.feed_events(group_id, member_ids, since)
+    if group and group.notes_enabled:                         # screening notes (R10f)
+        import notes
+        ev += notes.feed_events(group_id, member_ids, since)
     ev = [e for e in ev if e[3] in member_ids]   # people who've since left drop out
     for p in Poll.query.filter_by(group_id=group_id):
         for kind, at in (('poll_opened', p.created_at), ('poll_closed', p.closed_at), ('poll_scored', p.scored_at)):
@@ -216,7 +219,12 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
             'latest_comment': {'user': _feed_user(last.user), 'body': last.body[:280],
                                'at': utc_iso(last.created_at)} if last else None,
             'activity': activity[:4], 'kernels': _card_kernels(viewer, group_id, sid),
-            'letterboxd': _letterboxd_ratings(went, sid)}
+            'letterboxd': _letterboxd_ratings(went, sid), 'notes': _card_notes(group_id, sid, member_ids)}
+
+
+def _card_notes(group_id, sid, member_ids):
+    import notes
+    return notes.card(db.session.get(Group, group_id), sid, member_ids)
 
 
 def _letterboxd_ratings(went, sid):
@@ -313,6 +321,26 @@ def feed():
     return jsonify({'cards': hydrate_feed(viewer, group_id, page, member_ids),
                     'next_offset': offset + FEED_PAGE if more else None, 'days': FEED_DAYS,
                     'allowance': kernels.allowance(viewer.id)})
+
+
+@app.route('/api/notes', methods=['GET', 'POST'])
+@require_auth
+def screening_notes():
+    """A screening's notes (R10f): GET ?showtime_id=&group_id=; POST {group_id,
+    showtime_id, tag} adds or removes one of yours (once you've checked in)."""
+    import notes
+    data = (request.json or {}) if request.method == 'POST' else request.args
+    group_id, showtime_id = _as_int(data.get('group_id')), _as_int(data.get('showtime_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    group, user = db.session.get(Group, group_id), current_user()
+    if request.method == 'GET':
+        return jsonify(notes.view(group, user, showtime_id))
+    result, error = notes.toggle(group, user, showtime_id, data.get('tag'))
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(result)
 
 
 @app.route('/api/kernels/toss', methods=['POST'])

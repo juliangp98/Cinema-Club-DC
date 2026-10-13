@@ -10,6 +10,7 @@ import TheatreLink from "../ui/TheatreLink";
 import { ago, dayDateTime } from "../dates";
 import { rsvp, attend } from "../api";
 import { stars } from "../ui/stars";
+import { NOTE_TAGS } from "../ui/ScreeningNotes";
 
 const timeAgo = ago, formatWhen = dayDateTime;
 
@@ -30,6 +31,7 @@ const ACTIVITY = {
   went: () => "went",
   comment: () => "commented",
   reaction: a => `reacted ${a.detail}`,
+  note: a => `noted ${NOTE_TAGS[a.detail]?.[0] || ""} ${NOTE_TAGS[a.detail]?.[1] || "the screening"}`,
   kernels: (a, you, viewerId) => {
     const to = a.detail.to.id === viewerId ? "you" : a.detail.to.name;
     return a.detail.amount > 0 ? `gave ${to} ${a.detail.amount} 🍿` : `took ${-a.detail.amount} 🍿 from ${to}`;
@@ -137,6 +139,11 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {latest && (
             <div className="feed-activity">
               {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId, viewerId)}
+            </div>
+          )}
+          {card.notes?.length > 0 && (
+            <div className="feed-activity feed-notes">
+              {card.notes.slice(0, 4).map(t => `${t.emoji} ${t.label}${t.count > 1 ? ` ×${t.count}` : ""}`).join(" · ")}
             </div>
           )}
           {card.letterboxd?.length > 0 && (

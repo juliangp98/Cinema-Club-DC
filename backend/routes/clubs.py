@@ -312,6 +312,8 @@ def update_group(slug):
         group.trivia_anytime = data['trivia_anytime']
     if isinstance(data.get('bingo_enabled'), bool):           # repertory bingo (R10e), off by default
         group.bingo_enabled = data['bingo_enabled']
+    if isinstance(data.get('notes_enabled'), bool):           # screening notes (R10f), off by default
+        group.notes_enabled = data['notes_enabled']
 
     db.session.commit()
     return jsonify(group.to_dict())

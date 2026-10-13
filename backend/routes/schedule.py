@@ -26,6 +26,22 @@ def _theatre_summary(t, now):
             'showings': q.count(), 'next': nxt.start_time.isoformat() if nxt else None}
 
 
+@app.route('/api/theatres/<slug>/notes')
+@require_auth
+def theatre_notes(slug):
+    """What the club's members say about this theatre's screenings lately
+    (screening notes, R10f) — only for members of a club that has them on."""
+    import notes
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    theatre = Theatre.query.filter_by(slug=slug).first()
+    if not theatre:
+        return jsonify({'error': 'Theatre not found'}), 404
+    return jsonify(notes.theatre(db.session.get(Group, group_id), theatre.id) or {'enabled': False})
+
+
 @app.route('/api/theatres/<slug>')
 def get_theatre(slug):
     """A theatre's page (R7a, public): where it is, its area, and how much is

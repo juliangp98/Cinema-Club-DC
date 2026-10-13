@@ -1520,6 +1520,10 @@ a.rail-section:hover { border-color: var(--amber-dim); }
 .recap-lines { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
 .club-feed-more { margin: 0.5rem 0 0; text-align: right; font-size: var(--fs-sm); }
 .feed-diary a { color: var(--amber); }
+.screening-notes { margin: 0.25rem 0 1rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.screening-notes-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.theatre-notes { font-size: var(--fs-sm); color: var(--cream); margin: 0 0 1rem; }
+.feed-notes { color: var(--cream); }
 
 /* Daily trivia (R10d) */
 .trivia-card {

@@ -6,6 +6,7 @@ import Loading, { LoadError } from "../ui/Loading";
 import { Shelf, DoubleFeatures, Spotlights, Announced, LAYOUT } from "./DiscoverPage";
 import { useJson } from "../api";
 import { groupParam } from "../scope";
+import { TheatreNotes } from "../ui/ScreeningNotes";
 import "./DiscoverPage.css";
 import "./Theatres.css";
 import { dayShortTime } from "../dates";
@@ -140,6 +141,8 @@ export function TheatrePage({ apiBase, groupId }) {
           </figure>
         )}
       </div>
+
+      <TheatreNotes apiBase={apiBase} groupId={groupId} slug={slug} />
 
       {!d && !disc.error && <Loading context="theatre" />}
       {disc.error && !d && <LoadError what={`what's on at ${t.short_name}`} onRetry={disc.reload} />}

@@ -128,6 +128,8 @@ class Group(db.Model):
     trivia_anytime = db.Column(db.Boolean, default=False)
     # Repertory bingo (R10e): a monthly card for the club, off until an admin turns it on.
     bingo_enabled = db.Column(db.Boolean, default=False)
+    # Screening notes (R10f): tags about the screening itself, off until an admin turns them on.
+    notes_enabled = db.Column(db.Boolean, default=False)
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False, with_email=False):
@@ -147,6 +149,7 @@ class Group(db.Model):
             'trivia': {'enabled': bool(self.trivia_enabled), 'discord': bool(self.trivia_enabled and self.trivia_discord),
                        'anytime': bool(self.trivia_anytime)},
             'bingo': {'enabled': bool(self.bingo_enabled)},
+            'notes': {'enabled': bool(self.notes_enabled)},
         }
         if include_members:
             d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']
@@ -529,6 +532,17 @@ class LetterboxdEntry(db.Model):
     status = db.Column(db.String(12), nullable=False, default='unmatched')
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
+
+
+class ScreeningNote(db.Model):
+    """A quick tag about a screening from someone who checked in (R10f): the
+    print, the sound, the crowd… (see notes.py)."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), nullable=False, index=True)
+    tag = db.Column(db.String(20), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    __table_args__ = (db.UniqueConstraint('user_id', 'showtime_id', 'tag'),)
 
 
 class BingoCard(db.Model):
