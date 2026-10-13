@@ -1,10 +1,10 @@
-"""Your alerts (the bell), the notification setting, web push.
+"""Your alerts (the bell), the notification setting, saved searches, web push.
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
-from app import (Notification, PushSubscription, _notify_settings, _utcnow_naive, app, current_user, db,
-    jsonify, request, require_auth)
+from app import (Notification, PushSubscription, SavedSearch, _notify_settings, _utcnow_naive, app, current_user,
+    db, jsonify, request, require_auth)
 
 
 @app.route('/api/notifications')
@@ -40,6 +40,39 @@ def notifications_read():
 def push_key():
     """The public half of the push key pair (None: push isn't set up)."""
     return jsonify({'key': core.VAPID_PUBLIC_KEY or None})
+
+
+@app.route('/api/searches', methods=['GET', 'POST'])
+@require_auth
+def saved_searches():
+    """Your saved searches (R10a); POST {params, group_id} saves one — alerts
+    come when a theatre books a film that fits it."""
+    import notify
+    user = current_user()
+    if request.method == 'POST':
+        if user.is_guest:
+            return jsonify({'error': 'Make an account to get alerts.'}), 403
+        data = request.json or {}
+        group_id = data.get('group_id') if isinstance(data.get('group_id'), int) else None
+        s, now_fitting, error = notify.save_search(user, data.get('params') or {}, group_id)
+        if error:
+            return jsonify({'error': error}), 400
+        alert_prompt = notify.ask_once(user, 'alerts')
+        db.session.commit()
+        return jsonify({'search': notify.search_dict(s), 'fitting_now': now_fitting, 'alert_prompt': alert_prompt})
+    return jsonify([notify.search_dict(s) for s in
+                    SavedSearch.query.filter_by(user_id=user.id).order_by(SavedSearch.created_at)])
+
+
+@app.route('/api/searches/<int:search_id>', methods=['DELETE'])
+@require_auth
+def delete_saved_search(search_id):
+    s = SavedSearch.query.filter_by(id=search_id, user_id=current_user().id).first()
+    if not s:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(s)
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/api/push/subscribe', methods=['POST'])

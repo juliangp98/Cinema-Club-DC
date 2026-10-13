@@ -119,8 +119,8 @@ function ForYou({ apiBase, onSeen, onClose }) {
       {settings && <NotifySettings apiBase={apiBase} />}
       {items === null ? null : !items.length ? (
         <p className="feed-empty">
-          No alerts yet. Add films to your watchlist — even ones that aren't playing — and you'll hear here
-          (and by Discord or email, as you choose) when a theatre books them.
+          No alerts yet. Add films to your watchlist — even ones that aren't playing — or tap 🔔 Alert me on a
+          Browse search, and you'll hear here (and by Discord or email, as you choose) when a theatre books one.
         </p>
       ) : (
         <ul className="alerts-list">

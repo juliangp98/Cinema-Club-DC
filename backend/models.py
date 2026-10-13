@@ -475,13 +475,39 @@ class PushSubscription(db.Model):
     user = db.relationship('User', lazy=True)
 
 
+class SavedSearch(db.Model):
+    """A Browse search someone wants alerts for (R10a): when a theatre books a
+    film that fits it, they get an alert (see notify.alert_saved_searches).
+    `params_json`: the filters (notify.search_params), never a date window."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'))    # the club's theatres; None = every theatre
+    params_json = db.Column(db.Text, nullable=False)
+    label = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    user = db.relationship('User', lazy=True)
+    hits = db.relationship('SavedSearchHit', lazy=True, cascade='all, delete-orphan', backref='search')
+
+
+class SavedSearchHit(db.Model):
+    """A film already fitting a saved search at a theatre, so it alerts once.
+    Forgotten when the film has been gone a few days (a later booking alerts
+    again)."""
+    id = db.Column(db.Integer, primary_key=True)
+    search_id = db.Column(db.Integer, db.ForeignKey('saved_search.id'), nullable=False, index=True)
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), nullable=False)
+    theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'), nullable=False)
+    seen_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    __table_args__ = (db.UniqueConstraint('search_id', 'movie_id', 'theatre_id'),)
+
+
 class Notification(db.Model):
     """A personal alert (R8), e.g. a film on your watchlist got showings. Kept
     for the bell; also sent by Discord DM / email (and push) as your
     notification setting says, bundled per scrape run (see notify.py)."""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    kind = db.Column(db.String(20), nullable=False)       # 'showings' | 'announced' | 'on_sale'
+    kind = db.Column(db.String(20), nullable=False)       # 'showings' | 'announced' | 'on_sale' | 'search'
     movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'))
     theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'))
     payload_json = db.Column(db.Text)

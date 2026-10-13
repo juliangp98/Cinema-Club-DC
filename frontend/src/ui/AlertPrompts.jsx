@@ -13,9 +13,11 @@ const put = (apiBase, path, body) => fetch(`${apiBase}${path}`, {
 export const watchPromptOf = d => (d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt }
   : d.discord_prompt ? { digest: true } : null);
 
-// After a first watchlist add: how (if at all) to hear when a theatre books
-// one. `digest`: also offer the Monday digest mention in the club's Discord.
-export function WatchAlertPrompt({ apiBase, movieId, digest, onDone }) {
+// After a first watchlist add (or saved search): how (if at all) to hear when
+// a theatre books one. `digest`: also offer the Monday digest mention in the
+// club's Discord. `question`: what's being asked about.
+export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
+  question = "Want to hear when a theatre books (or announces) films on your watchlist?" }) {
   const [s, setS] = useState(null);
   const [pick, setPick] = useState({ discord: false, email: false, mention: false });
   const [busy, setBusy] = useState(false);
@@ -35,8 +37,8 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone }) {
     onDone?.();
   }
   return (
-    <div className="share-prompt alert-ask" role="group" aria-label="Watchlist alerts">
-      <p className="alert-ask-q">Want to hear when a theatre books (or announces) films on your watchlist?</p>
+    <div className="share-prompt alert-ask" role="group" aria-label="How to get alerts">
+      <p className="alert-ask-q">{question}</p>
       <p className="notify-hint">They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise.</p>
       <div className="alert-ask-ways">
         {ways.map(([k, label]) => (

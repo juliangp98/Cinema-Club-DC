@@ -17,6 +17,7 @@ TYPES = {
     'showings': ('A film on your watchlist is booked or announced', 'When a theatre books or announces it (not every new time in a run).'),
     'on_sale': ('Tickets go on sale', 'For announced films on your watchlist.'),
     'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
+    'searches': ('A film fits a search you saved', 'When a theatre books a film that fits one of your saved searches.'),
 }
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
@@ -44,7 +45,7 @@ def available(user):
 
 # Off until chosen: no DM, email or push, and no "Did you make it?" DMs.
 # Watchlist alerts still land in the site's bell (it never sends anything).
-DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False}
+DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True}
 ASKS = ('alerts', 'attendance')
 
 
@@ -171,6 +172,149 @@ def alert_on_sale(theatre, new_future):
     return ids
 
 
+# ─── Saved searches (R10a) ────────────────────────────────────────────────────
+# Any Browse search can be saved; after each scrape run every saved search is
+# run over the coming months, and a film that newly fits it (at a theatre)
+# makes one alert. What fits when it's saved counts as seen, so saving never
+# sets off a burst of alerts.
+
+SEARCH_KEYS = ('theatres', 'regions', 'genres', 'decade', 'format', 'time', 'rarity', 'runtime', 'mood', 'shelf',
+               'q', 'person')                 # Browse's filters, minus the time window, "the club" and sort
+SEARCH_LISTS = ('theatres', 'regions', 'genres', 'format')
+SEARCH_AHEAD = timedelta(days=90)
+MAX_SEARCHES = 10
+_EXTRA_LABELS = {('format', 'big'): 'Big screen', ('time', 'matinee'): 'Matinees', ('time', 'evening'): 'Evenings',
+                 ('time', 'late'): 'Late nights', ('rarity', 'rare'): 'Rare', ('rarity', 'repertory'): 'Repertory',
+                 ('rarity', 'wide'): 'Wide releases', ('runtime', 'short'): 'Under 95 min',
+                 ('runtime', 'long'): 'Over 2½ hours'}
+
+
+def search_params(params):
+    """A search's filters, tidied so the same search always looks the same
+    (lists lowercased and sorted, blanks dropped, no window or sort)."""
+    out = {}
+    for k in SEARCH_KEYS:
+        v = str((params or {}).get(k) or '').strip()
+        if k in SEARCH_LISTS:
+            v = ','.join(sorted({x.strip().lower() for x in v.split(',') if x.strip()}))
+        if v:
+            out[k] = v[:80]
+    return out
+
+
+def search_label(params):
+    """'On film · Horror · AFI' — a saved search in words."""
+    import discover
+    from app import Theatre
+    p = dict(params)
+    if p.get('theatres'):
+        names = {t.slug: t.short_name or t.name for t in Theatre.query.filter(Theatre.slug.in_(p['theatres'].split(',')))}
+        p['_theatre_label'] = ', '.join(names.get(s, s) for s in p['theatres'].split(','))
+    label = discover.describe(p, when=False)
+    extra = [_EXTRA_LABELS[(k, p[k])] for k in ('format', 'time', 'rarity', 'runtime') if (k, p.get(k)) in _EXTRA_LABELS]
+    return ' · '.join(b for b in [label, *extra] if b)[:200] or 'Everything new'
+
+
+def search_dict(s):
+    import discover
+    params = json.loads(s.params_json)
+    return {'id': s.id, 'label': s.label, 'params': params, 'group_id': s.group_id,
+            'path': discover.browse_path({**params, 'when': 'month'})}
+
+
+def _search_group(s):
+    """The club whose theatres a search covers — if the person's still in it."""
+    from app import db, Group, GroupMembership
+    if not s.group_id or not GroupMembership.query.filter_by(user_id=s.user_id, group_id=s.group_id,
+                                                              status='active').first():
+        return None
+    return db.session.get(Group, s.group_id)
+
+
+def search_matches(s, now=None):
+    """{(movie_id, theatre_id): [showtimes]} — what fits a saved search over
+    the coming months."""
+    import discover
+    now = now or datetime.now()
+    params = {**json.loads(s.params_json), 'from': now.isoformat(), 'to': (now + SEARCH_AHEAD).date().isoformat()}
+    films = discover.select(_search_group(s), s.user, params, now)[0]
+    out = {}
+    for f in films:
+        for show in f.shows:
+            out.setdefault((f.movie.id, show.theatre_id), []).append(show)
+    return out
+
+
+def seed_search(s, now=None):
+    """Mark what fits a new saved search as seen. Returns how many films."""
+    from app import db, SavedSearchHit
+    matches = search_matches(s, now)
+    for movie_id, theatre_id in matches:
+        db.session.add(SavedSearchHit(search_id=s.id, movie_id=movie_id, theatre_id=theatre_id))
+    return len({m for m, _ in matches})
+
+
+def save_search(user, params, group_id=None, now=None):
+    """Save a search for `user` (the caller commits). Returns (search,
+    films fitting it now, error) — the same search saved twice is one."""
+    from app import db, GroupMembership, SavedSearch
+    p = search_params(params)
+    if not p:
+        return None, 0, 'Pick at least one filter first.'
+    if group_id and not GroupMembership.query.filter_by(user_id=user.id, group_id=group_id, status='active').first():
+        group_id = None
+    raw = json.dumps(p, sort_keys=True)
+    same = SavedSearch.query.filter_by(user_id=user.id, group_id=group_id, params_json=raw).first()
+    if same:
+        return same, len({m for m, _ in search_matches(same, now)}), None
+    if SavedSearch.query.filter_by(user_id=user.id).count() >= MAX_SEARCHES:
+        return None, 0, f'You can save up to {MAX_SEARCHES} searches — remove one first.'
+    s = SavedSearch(user_id=user.id, group_id=group_id, params_json=raw, label=search_label(p))
+    db.session.add(s)
+    db.session.flush()
+    return s, seed_search(s, now), None
+
+
+def alert_saved_searches(now=None):
+    """After a scrape run: one alert per film that newly fits someone's saved
+    search, per theatre (not when they've just been told about it — by their
+    watchlist or another of their searches). Returns how many alerts."""
+    from app import app, db, Notification, SavedSearch, SavedSearchHit
+    utc = _now()
+    made = 0
+    with app.app_context():
+        told = {(n.user_id, n.movie_id, n.theatre_id) for n in Notification.query.filter(
+            Notification.kind.in_(('showings', 'on_sale', 'search')), Notification.created_at > utc - REALERT_AFTER)}
+        for s in SavedSearch.query.order_by(SavedSearch.id).all():
+            user = s.user
+            if not user or not user.is_active or user.is_guest:
+                continue
+            matches = search_matches(s, now)
+            hits = {(h.movie_id, h.theatre_id): h for h in s.hits}
+            for key, h in hits.items():
+                if key in matches:
+                    h.seen_at = utc
+                elif h.seen_at < utc - REALERT_AFTER:          # gone for days: a new booking is news again
+                    db.session.delete(h)
+            for (movie_id, theatre_id), shows in matches.items():
+                if (movie_id, theatre_id) in hits:
+                    continue
+                db.session.add(SavedSearchHit(search_id=s.id, movie_id=movie_id, theatre_id=theatre_id, seen_at=utc))
+                if (user.id, movie_id, theatre_id) in told or not wants(user, 'searches'):
+                    continue
+                told.add((user.id, movie_id, theatre_id))
+                shows = sorted(shows, key=lambda x: x.start_time)
+                m, theatre = shows[0].movie, shows[0].theatre
+                _make(db, Notification, user, 'search', movie_id, theatre_id, {
+                    'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url,
+                    'theatre': theatre.name, 'theatre_slug': theatre.slug, 'first': shows[0].start_time.isoformat(),
+                    'count': len(shows), 'formats': sorted({x.format_label for x in shows if x.format_label})[:3],
+                    'search': s.label, 'search_id': s.id})
+                made += 1
+        db.session.commit()
+    return made
+
+
 # ─── Showing them ─────────────────────────────────────────────────────────────
 
 def _when(iso):
@@ -196,7 +340,22 @@ def describe(n):
         day = datetime.fromisoformat(p['date']).strftime('%a, %b %-d') if p.get('date') else None
         bits = [p.get('theatre'), day, 'tickets not on sale yet']
         return {'headline': f'{title} is coming', 'detail': ' · '.join(b for b in bits if b), 'link': link}
+    if n.kind == 'search':
+        more = p.get('count', 1) - 1
+        bits = [f"Fits “{p['search']}”" if p.get('search') else None, p.get('theatre'),
+                _when(p['first']) if p.get('first') else None, f'+{more} more' if more > 0 else None,
+                ' · '.join(p.get('formats') or []) or None]
+        return {'headline': f'New: {title}', 'detail': ' · '.join(b for b in bits if b), 'link': link}
     return {'headline': title, 'detail': '', 'link': link}
+
+
+WATCHLIST_KINDS = ('showings', 'on_sale', 'announced')
+
+
+def bundle_title(ns):
+    """What several alerts at once are called."""
+    return (f'{len(ns)} updates on your watchlist' if all(n.kind in WATCHLIST_KINDS for n in ns)
+            else f'{len(ns)} new alerts')
 
 
 def item(n):
@@ -244,7 +403,7 @@ def send_emails(now=None):
             f'<li style="margin-bottom:10px;"><a href="{FRONTEND_URL}{d["link"]}" style="color:#e8a838;font-weight:bold;">'
             f'{esc(d["headline"])}</a><br><span style="color:#666;">{esc(d["detail"])}</span></li>'
             for d in map(describe, ns))
-        subject = describe(ns[0])['headline'] if len(ns) == 1 else f'{len(ns)} updates on your watchlist'
+        subject = describe(ns[0])['headline'] if len(ns) == 1 else bundle_title(ns)
         send_email(user.email, subject,
                    f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
                    <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2><ul style="padding-left:18px;">{rows}</ul>
@@ -293,7 +452,7 @@ def send_pushes(now=None):
     for ns in by_user.values():
         first = describe(ns[0])
         message = ({'title': first['headline'], 'body': first['detail'], 'url': first['link']} if len(ns) == 1 else
-                   {'title': f'{len(ns)} updates on your watchlist',
+                   {'title': bundle_title(ns),
                     'body': ' · '.join(describe(n)['headline'] for n in ns[:4]), 'url': '/?alerts=1'})
         push_to(ns[0].user, {**message, 'tag': f'alerts-{ns[-1].id}'})
         for n in ns:
@@ -303,7 +462,8 @@ def send_pushes(now=None):
 
 
 def pending_dms(now=None):
-    """[{discord_user_id, ids, items: [{headline, detail, url, poster_url}]}] for the bot."""
+    """[{discord_user_id, ids, title, items: [{headline, detail, url, poster_url}]}] for the bot
+    (`title`: what several at once are called)."""
     from app import Notification, FRONTEND_URL
     now = now or _now()
     pending = Notification.query.filter(_ready(Notification, now), Notification.discord_at.is_(None),
@@ -313,6 +473,7 @@ def pending_dms(now=None):
         if n.user and n.user.discord_user_id:
             by_user.setdefault(n.user.discord_user_id, []).append(n)
     return [{'discord_user_id': uid, 'ids': [n.id for n in ns],
+             'title': bundle_title(ns),
              'items': [{**{k: v for k, v in describe(n).items() if k != 'link'},
                         'url': FRONTEND_URL + describe(n)['link'], 'poster_url': item(n)['poster_url']} for n in ns]}
             for uid, ns in by_user.items()]

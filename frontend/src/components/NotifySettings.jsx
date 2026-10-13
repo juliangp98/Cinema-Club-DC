@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 // Push on this device (R8d): needs the browser's permission and, on iPhone,
 // the site added to the Home Screen.
@@ -96,6 +97,10 @@ export default function NotifySettings({ apiBase }) {
     }).catch(() => null);
     if (r?.ok) setS(await r.json());
   }
+  async function removeSearch(id) {
+    const r = await fetch(`${apiBase}/api/searches/${id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
+    if (r?.ok) setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
+  }
 
   if (failed) return <p className="notify-hint">Couldn't load your notification settings — try again in a bit.</p>;
   if (!s) return null;
@@ -124,6 +129,13 @@ export default function NotifySettings({ apiBase }) {
           <span><span className="notify-name">{t.label}</span><span className="notify-hint">{t.hint}</span></span>
         </label>
       ))}
+      <div className="profile-section-label">Saved searches</div>
+      {s.searches?.length ? s.searches.map(x => (
+        <div key={x.id} className="notify-row notify-search">
+          <Link to={x.path} className="notify-name">{x.label}</Link>
+          <button type="button" className="linkish" onClick={() => removeSearch(x.id)}>Remove</button>
+        </div>
+      )) : <p className="notify-hint">None yet. On Browse, pick some filters and tap 🔔 Alert me.</p>}
     </div>
   );
 }

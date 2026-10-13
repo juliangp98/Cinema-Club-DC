@@ -718,8 +718,9 @@ def browse_path(params):
     return '/browse?' + urlencode([(k, params[k]) for k in BROWSE_KEYS if params.get(k)])
 
 
-def describe(params, title=None):
-    """Short human label: 'Rare gems · Horror · This weekend · Virginia'."""
+def describe(params, title=None, when=True):
+    """Short human label: 'Rare gems · Horror · This weekend · Virginia'
+    (without the time window when `when` is False: a saved search's label)."""
     bits = [title or SHELF_TITLES.get(params.get('shelf')) or MOODS.get(params.get('mood'), {}).get('label')]
     if params.get('shelf') and params.get('mood') and not title:          # both named: say both
         bits.append(MOODS.get(params['mood'], {}).get('label'))
@@ -735,7 +736,8 @@ def describe(params, title=None):
         bits.append(f"“{params['q']}”")
     if params.get('person') and not title:
         bits.append(params['person'])
-    bits.append(WHEN.get(params.get('when') or 'week'))
+    if when:
+        bits.append(WHEN.get(params.get('when') or 'week'))
     if params.get('regions'):
         bits.append(' + '.join(REGION_KEYS.get(r, r) for r in params['regions'].split(',')))
     if params.get('theatres'):

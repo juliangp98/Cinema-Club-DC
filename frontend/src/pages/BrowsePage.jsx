@@ -7,6 +7,7 @@ import FilterSheet, { FILTER_LABEL as LABEL, listOf } from "../ui/FilterSheet";
 import Menu, { MenuItem } from "../ui/Menu";
 import "./DiscoverPage.css";
 import Loading, { LoadError } from "../ui/Loading";
+import { WatchAlertPrompt } from "../ui/AlertPrompts";
 import { useJson, getJson } from "../api";
 import { groupParam } from "../scope";
 
@@ -20,8 +21,71 @@ const WHEN = [["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "Thi
               ["week", "7 days"], ["2weeks", "2 weeks"], ["month", "30 days"]];
 const SORTS = [["soonest", "Soonest"], ["rarest", "Rarest"], ["wanted", "Most wanted"], ["critics", "Top rated"], ["title", "A–Z"]];
 
+// What a saved search keeps (R10a): the filters, not the time window, "the
+// club" or the sort — tidied the way the server tidies them, so the button
+// knows whether this exact search is already saved.
+const SEARCH_KEYS = ["theatres", "regions", "genres", "decade", "format", "time", "rarity", "runtime", "mood", "shelf", "q", "person"];
+function searchOf(query) {
+  const out = {};
+  for (const k of SEARCH_KEYS) {
+    let v = String(query[k] || "").trim();
+    if (MULTI.has(k)) v = [...new Set(listOf(v).map(x => x.trim().toLowerCase()).filter(Boolean))].sort().join(",");
+    if (v) out[k] = v.slice(0, 80);
+  }
+  return out;
+}
+const sameSearch = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
-export default function BrowsePage({ apiBase, groupId }) {
+// "🔔 Alert me": save this search; an alert comes when a theatre books a new
+// film that fits it. Pressed again: stop.
+function SaveSearch({ apiBase, groupId, query }) {
+  const [saved, setSaved] = useState(null);       // your saved searches (null: loading)
+  const [note, setNote] = useState(null);
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    getJson(`${apiBase}/api/searches`).then(setSaved).catch(() => setSaved([]));
+  }, [apiBase]);
+  const search = searchOf(query);
+  if (!saved || !Object.keys(search).length) return null;
+  const mine = saved.find(s => sameSearch(s.params, search) && (s.group_id ?? null) === (groupId ?? null));
+
+  async function toggle() {
+    setBusy(true);
+    setNote(null);
+    if (mine) {
+      const r = await fetch(`${apiBase}/api/searches/${mine.id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
+      if (r?.ok) { setSaved(saved.filter(s => s.id !== mine.id)); setNote("Alerts off for this search."); }
+    } else {
+      const r = await fetch(`${apiBase}/api/searches`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ params: search, group_id: groupId || null }),
+      }).catch(() => null);
+      const d = await r?.json().catch(() => null);
+      if (r?.ok && d) {
+        setSaved([...saved, d.search]);
+        setNote(`Saved. We'll tell you when a theatre books a new film that fits${d.fitting_now
+          ? ` (${d.fitting_now} already ${d.fitting_now === 1 ? "does" : "do"})` : ""}.`);
+        setAsk(!!d.alert_prompt);
+      } else setNote(d?.error || "Couldn't save that — try again in a bit.");
+    }
+    setBusy(false);
+  }
+  return (
+    <>
+      <button type="button" className={`btn btn-sm${mine ? " btn-primary" : ""}`} aria-pressed={!!mine} disabled={busy}
+              onClick={toggle} title={mine ? "Stop alerts for this search" : "Get an alert when a new film fits this search"}>
+        {mine ? "🔔 Alerts on" : "🔔 Alert me"}
+      </button>
+      {note && <p className="browse-save-note" role="status">{note}</p>}
+      {ask && <div className="browse-save-note"><WatchAlertPrompt apiBase={apiBase} onDone={() => setAsk(false)}
+                question="Want to hear when a new film fits this search?" /></div>}
+    </>
+  );
+}
+
+
+export default function BrowsePage({ apiBase, groupId, user }) {
   const [params, setParams] = useSearchParams();
   const searchNote = useLocation().state?.searchNote;     // what ✨ AI search read the request as
   const [theatreNames, setTheatreNames] = useState({});
@@ -129,6 +193,7 @@ export default function BrowsePage({ apiBase, groupId }) {
             <MenuItem key={k} active={query.sort === k} onSelect={() => set("sort", k)}>{label}</MenuItem>
           ))}
         </Menu>
+        {user && !user.is_guest && <SaveSearch apiBase={apiBase} groupId={groupId} query={query} />}
         <span className="browse-count">
           {loading ? "Loading…" : `${meta?.total ?? 0} film${meta?.total === 1 ? "" : "s"} · ${whenLabel}`}
         </span>

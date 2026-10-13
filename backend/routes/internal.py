@@ -8,7 +8,7 @@ import json as _json
 from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, BotSetting, DIGEST_CAPS,
     DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, GENRE_LIST, Group, GroupMembership,
     INTERNAL_API_TOKEN, IntegrityError, Message, Movie, Notification, PLAN_MIN_WATCHERS, Poll, PollCategory,
-    PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User,
+    PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User,
     Watchlist, _active_membership, _ai, _as_int, _draft_poll, _group_showtime_query, _notify_settings,
     _screening_item, _update_profile_fields, _utcnow_naive, announce_new_poll, app, apply_rsvp, apply_votes,
     attended_showtime_ids, build_leaderboard, build_poll, calc_user_kernels, compare_members, datetime, db,
@@ -1357,6 +1357,8 @@ def internal_notification_settings():
         notify.set_prefs(user, data)
     if isinstance(data.get('digest_mentions'), bool):       # "mention me in the Monday digest"
         set_share_pref(user, 'watchlist', 'always' if data['digest_mentions'] else 'never')
+    if isinstance(data.get('remove_search'), int):           # "stop alerts for" a saved search
+        SavedSearch.query.filter_by(id=data['remove_search'], user_id=user.id).delete()
     db.session.commit()
     return jsonify(_notify_settings(user))
 

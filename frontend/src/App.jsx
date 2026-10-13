@@ -191,7 +191,7 @@ export default function App() {
           <Route path="/discover" element={<Navigate to="/" replace />} />
           <Route path="/discover/spotlights" element={<SpotlightsPage apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/discover/doubles" element={<DoublesPage apiBase={API_BASE} groupId={scopeGroupId} />} />
-          <Route path="/browse" element={<BrowsePage apiBase={API_BASE} groupId={scopeGroupId} />} />
+          <Route path="/browse" element={<BrowsePage apiBase={API_BASE} groupId={scopeGroupId} user={user} />} />
           <Route path="/theatres" element={<TheatresPage apiBase={API_BASE} />} />
           <Route path="/theatres/:slug" element={<TheatrePage apiBase={API_BASE} groupId={scopeGroupId} />} />
           <Route path="/me" element={<RequireSignIn user={user}><MePage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />

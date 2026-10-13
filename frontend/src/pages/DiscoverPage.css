@@ -77,6 +77,7 @@
 .browse-when, .browse-active { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.85rem; }
 .browse-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
 .browse-count { color: var(--muted); font-size: var(--fs-sm); margin-left: auto; }
+.browse-save-note { order: 10; width: 100%; margin: 0.15rem 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .browse-active .chip { cursor: pointer; background: none; font-family: var(--font-body); }
 .poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1.25rem 0.9rem; }
 .poster-grid .poster-card { width: auto; }

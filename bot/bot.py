@@ -995,7 +995,7 @@ async def notify_loop():
     for p in pending:
         try:
             user = await client.fetch_user(int(p['discord_user_id']))
-            await user.send(embed=embeds.alerts_embed(p['items']))
+            await user.send(embed=embeds.alerts_embed(p['items'], p.get('title')))
         except discord.Forbidden:
             pass                                   # DMs closed: the bell has it
         except Exception as e:
@@ -1034,10 +1034,21 @@ class NotifyView(discord.ui.View):
                                            for t in settings['types_info']])
         types.callback = self._types(types, [t['key'] for t in settings['types_info']])
         self.add_item(types)
+        if settings.get('searches'):
+            stop = discord.ui.Select(placeholder='Stop alerts for a saved search…', row=2,
+                                     options=[discord.SelectOption(label=x['label'][:100], value=str(x['id']))
+                                              for x in settings['searches'][:25]])
+            stop.callback = self._stop(stop)
+            self.add_item(stop)
 
     def _toggle(self, key, value):
         async def callback(interaction):
             await self.save(interaction, {'channels': {key: value}})
+        return callback
+
+    def _stop(self, select):
+        async def callback(interaction):
+            await self.save(interaction, {'remove_search': int(select.values[0])})
         return callback
 
     def _types(self, select, keys):
@@ -1110,7 +1121,7 @@ async def ask_after_going(interaction, result):
             discord_identity(interaction), [('Yes, DM me', {'types': {'attendance': True}})]))
 
 
-@client.tree.command(name='notifications', description='What alerts you get (watchlist films playing…) and where')
+@client.tree.command(name='notifications', description='What alerts you get (watchlist, saved searches…) and where')
 async def notifications_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     ident = discord_identity(interaction)

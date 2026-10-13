@@ -141,8 +141,8 @@ def email_signin_link(to_email, link_url, purpose):
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BotSetting, DiscordDeletion, DiscordPost, DiscordServerMember,
     Group, GroupMembership, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
-    PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, ScrapeEvent, ScrapeRun,
-    SharedRsvp, Showtime, ShowtimeThread, Theatre, User, Watchlist)
+    PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, SavedSearch, SavedSearchHit,
+    ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, User, Watchlist)
 
 
 
@@ -993,7 +993,9 @@ def next_showings(movie_ids):
 def _notify_settings(user):
     import notify
     return {**notify.prefs(user), 'available': notify.available(user), 'push_ready': bool(VAPID_PUBLIC_KEY),
-            'types_info': [{'key': k, 'label': label, 'hint': hint} for k, (label, hint) in notify.TYPES.items()]}
+            'types_info': [{'key': k, 'label': label, 'hint': hint} for k, (label, hint) in notify.TYPES.items()],
+            'searches': [notify.search_dict(s) for s in
+                         SavedSearch.query.filter_by(user_id=user.id).order_by(SavedSearch.created_at)]}
 
 
 def compare_members(me, other, group_ids):

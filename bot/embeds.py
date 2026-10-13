@@ -752,10 +752,12 @@ HELP_SECTIONS = [
 ]
 
 
-def alerts_embed(items):
-    """Your alerts (R8), bundled: everything new for you from one scrape run."""
+def alerts_embed(items, title=None):
+    """Your alerts (R8), bundled: everything new for you from one scrape run
+    (`title`: what the server calls several at once)."""
     one = len(items) == 1
-    embed = discord.Embed(title=f"🔔 {items[0]['headline']}" if one else f'🔔 {len(items)} updates on your watchlist',
+    many = title or f'{len(items)} updates on your watchlist'
+    embed = discord.Embed(title=f"🔔 {items[0]['headline']}" if one else f'🔔 {many}',
                           colour=AMBER, url=items[0]['url'] if one else SITE_URL)
     if one:
         embed.description = items[0]['detail']
@@ -782,6 +784,10 @@ def notify_settings_embed(s):
     embed.add_field(name='Where', value='\n'.join(where), inline=False)
     embed.add_field(name='What', inline=False, value='\n'.join(
         f"{'✅' if s['types'][t['key']] else '⬜'} {t['label']}" for t in s['types_info']))
+    searches = s.get('searches') or []
+    embed.add_field(name=f'Saved searches ({len(searches)})', inline=False, value=(
+        '\n'.join(f"• [{x['label']}]({SITE_URL}{x['path']})" for x in searches)[:1000] if searches
+        else '*None yet — on the site, Browse with some filters and tap 🔔 Alert me.*'))
     return embed
 
 

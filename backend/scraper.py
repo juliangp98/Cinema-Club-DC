@@ -118,6 +118,11 @@ if __name__ == '__main__':
         configs = enabled_configs()
 
     run(configs)
+    try:                                   # films newly fitting someone's saved search (R10a)
+        import notify
+        print(f"Saved-search alerts: {notify.alert_saved_searches()}")
+    except Exception as e:
+        print(f"  ERROR checking saved searches: {e}")
     try:                                   # this run's alerts go out together (R8)
         import notify
         print(f"Alert emails sent: {notify.release()}")

@@ -96,3 +96,41 @@ def test_notifications_command_toggles_the_setting(bot_with_alerts):
     _, _, kw = it.last
     assert '✅ A film on your watchlist is booked or announced' in kw['embed'].fields[1].value
     assert '⬜ Tickets go on sale' in kw['embed'].fields[1].value
+
+
+def test_notifications_lists_saved_searches_and_stops_one(bot_with_alerts):
+    import discord
+    from app import app, User
+    bot, _ = bot_with_alerts
+    with app.app_context():
+        ana = User.query.filter_by(discord_user_id='7101').first().id
+    for params in ({'format': 'film'}, {'genres': 'horror'}):
+        client(ana).post('/api/searches', json={'params': params})
+    it = FakeInteraction(uid=7101, name='ana')
+    asyncio.run(bot.notifications_cmd.callback(it))
+    _, _, kw = it.last
+    field = next(f for f in kw['embed'].fields if f.name.startswith('Saved searches'))
+    assert field.name == 'Saved searches (2)' and '• [On film](' in field.value and '/browse?' in field.value
+    stop = next(i for i in items_of(kw['view']) if isinstance(i, discord.ui.Select) and i.placeholder.startswith('Stop'))
+    assert [o.label for o in stop.options] == ['On film', 'Horror']
+    stop._values = [stop.options[0].value]
+    asyncio.run(stop.callback(it))
+    _, _, kw = it.last
+    assert next(f for f in kw['embed'].fields if f.name.startswith('Saved searches')).name == 'Saved searches (1)'
+    assert [s['label'] for s in client(ana).get('/api/searches').json] == ['Horror']
+
+
+def test_a_mixed_bundle_is_called_new_alerts(bot_with_alerts):
+    import bot as B
+    from app import app, db, Notification
+    bot, users = bot_with_alerts
+    with app.app_context():
+        n = Notification.query.filter_by(user_id=Notification.query.first().user_id).first()
+        n.kind = 'search'
+        db.session.commit()
+    try:
+        at_hour(bot, 9)
+        asyncio.run(bot.notify_loop.coro())
+        assert users[7101].sent[0].title == '🔔 2 new alerts'
+    finally:
+        B.datetime = datetime
