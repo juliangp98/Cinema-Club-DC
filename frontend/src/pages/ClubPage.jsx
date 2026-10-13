@@ -12,8 +12,8 @@ import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { roleLabel } from "../roles";
 import TheatreLink from "../ui/TheatreLink";
-import TriviaCard from "../ui/TriviaCard";
-import BingoCard from "../ui/BingoCard";
+import { GamesStrip } from "../ui/GamesSummary";
+import { useJson as useSharedJson } from "../api";
 import "./Club.css";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -73,8 +73,7 @@ export default function ClubPage({ user, apiBase }) {
           <>
             <ClubWeek apiBase={apiBase} groupId={group.id} viewerId={user.id} onOpenShowtime={openShowtime}
                       onOpenActivity={shell.openActivity} />
-            <TriviaCard apiBase={apiBase} groupId={group.id} role={shell.role} />
-            <BingoCard apiBase={apiBase} groupId={group.id} role={shell.role} />
+            <ClubGames apiBase={apiBase} groupId={group.id} />
             <SectionTitle>In your calendar</SectionTitle>
             <CalendarLinks apiBase={apiBase} clubId={group.id} />
             <SectionTitle>Recent activity</SectionTitle>
@@ -136,6 +135,19 @@ function Members({ group, apiBase, viewerId, onOpen }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+// The club's games in one row (R10 Play): today's trivia, bingo, polls to
+// vote in, your kernels — each opens on the Play page.
+function ClubGames({ apiBase, groupId }) {
+  const { data } = useSharedJson(`${apiBase}/api/play?group_id=${groupId}`);
+  if (!data) return null;
+  return (
+    <>
+      <SectionTitle action={<Link to="/play">Play →</Link>}>Games</SectionTitle>
+      <GamesStrip summary={data} className="club-games" />
+    </>
   );
 }
 

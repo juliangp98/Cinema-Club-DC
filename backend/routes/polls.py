@@ -389,3 +389,18 @@ def bingo_card():
     if err:
         return err
     return jsonify(bingo.view(db.session.get(Group, group_id), current_user()))
+
+
+# ─── Play (R10) ───────────────────────────────────────────────────────────────
+
+@app.route('/api/play')
+@require_auth
+def play_summary():
+    """What there is to play today: trivia, bingo, polls waiting for your vote,
+    your kernels (for the feed's rail and strip, the Club page and Play)."""
+    import play
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    return jsonify(play.summary(db.session.get(Group, group_id), current_user()))

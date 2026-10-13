@@ -6,7 +6,7 @@ import Sheet from "../ui/Sheet";
 import Loading from "../ui/Loading";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { CalendarIcon, CompassIcon, FeedIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, FeedIcon, PlayIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
@@ -21,18 +21,20 @@ const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // 
 const ShellContext = createContext(null);
 export const useShell = () => useContext(ShellContext);
 
-// Discover is home (R3c). Visitors get the public pages; the Feed and Polls
-// need a club, Clubs is for finding one (R5a). Phones show five tabs, so for
-// club members the Feed (R10c) takes Polls' place there — Polls stays in the
-// account menu, the feed's open-polls strip and Discover's club strip.
+// Discover is home (R3c). Visitors get the public pages; the Feed and Play
+// need a club, Clubs is for finding one (R5a). Play (R10) is the games' home —
+// trivia, bingo, polls (/polls lives under it), kernels. Phones show five
+// tabs, so for club members Theatres steps off the tab bar there (every
+// theatre name links to its page, and Discover and the Me page link to all).
 const PUBLIC_NAV = [
   { to: "/", label: "Discover", icon: CompassIcon, end: true, also: "/browse" },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/theatres", label: "Theatres", icon: TheatreIcon },
 ];
 const FEED = { to: "/feed", label: "Feed", icon: FeedIcon };
-const CLUB_NAV = [PUBLIC_NAV[0], PUBLIC_NAV[1], FEED, PUBLIC_NAV[2], { to: "/polls", label: "Polls", icon: PollIcon }];
-const CLUB_TABS = CLUB_NAV.filter(n => n.to !== "/polls");
+const PLAY = { to: "/play", label: "Play", icon: PlayIcon, also: "/polls" };
+const CLUB_NAV = [PUBLIC_NAV[0], PUBLIC_NAV[1], FEED, PLAY, PUBLIC_NAV[2]];
+const CLUB_TABS = CLUB_NAV.filter(n => n.to !== "/theatres");
 const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: UsersIcon }];
 
 const linkClass = (base, also, pathname) => ({ isActive }) =>
@@ -106,7 +108,6 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             <MenuLabel>{user.name} · {accountLabel(user)}</MenuLabel>
             <MenuItem onSelect={() => navigate("/me")}><UserIcon /> {user.is_guest ? "Your plans & watchlist" : <>Your profile &amp; lists</>}</MenuItem>
             {user.is_guest && <MenuItem onSelect={() => navigate("/signin?next=%2Fme")}><EditIcon /> Keep your profile</MenuItem>}
-            {NAV === CLUB_NAV && <MenuItem onSelect={() => navigate("/polls")}><PollIcon /> Polls</MenuItem>}
             <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
             <MenuDivider />
             <MenuItem danger onSelect={logout}><LogoutIcon /> Sign out</MenuItem>

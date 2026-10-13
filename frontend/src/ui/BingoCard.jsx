@@ -5,13 +5,13 @@ import { dayDateTime } from "../dates";
 // Repertory bingo (R10e): this month's club card, filled in from your
 // check-ins — only once a club admin turns bingo on (admins see where to do
 // that; everyone else sees nothing).
-export default function BingoCard({ apiBase, groupId, role }) {
+export default function BingoCard({ apiBase, groupId, role, offNote = false }) {
   const { data } = useJson(`${apiBase}/api/bingo?group_id=${groupId}`);
   if (!data) return null;
   if (!data.enabled) {
     return role === "admin" ? (
       <p className="trivia-off">🎱 Repertory bingo is off for the club. <Link to="/club?tab=settings">Turn it on in Club settings</Link></p>
-    ) : null;
+    ) : offNote ? <p className="trivia-off">🎱 Repertory bingo isn't on in this club yet — a club admin can turn it on.</p> : null;
   }
   const status = data.full ? "🎉 Full card!" : data.line ? "🎉 Bingo! Now fill the whole card" : `${data.filled} of 8 — any line of 3 is bingo`;
   return (

@@ -12,6 +12,10 @@ export const FeedIcon = () => (
   <svg {...base}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1.2" /><circle cx="4.5" cy="12" r="1.2" />
     <circle cx="4.5" cy="18" r="1.2" /></svg>
 );
+export const PlayIcon = () => (
+  <svg {...base}><rect x="2.5" y="7" width="19" height="11" rx="5.5" /><path d="M7.5 10.5v4M5.5 12.5h4" />
+    <circle cx="15.5" cy="11.5" r="0.9" /><circle cx="17.8" cy="13.8" r="0.9" /></svg>
+);
 export const PollIcon = () => (
   <svg {...base}><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
 );

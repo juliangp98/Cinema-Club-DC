@@ -111,6 +111,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(FindPickSelect, SpinButton)       # /find and /surprise
         self.add_dynamic_items(DraftCreateButton)                 # /poll make
         self.add_dynamic_items(TriviaButton, TriviaMoreButton)    # trivia (R10d)
+        self.add_dynamic_items(PlayButton)                        # /play (R10)
         announce_loop.start()
         share_loop.start()
         digest_loop.start()
@@ -3396,6 +3397,12 @@ class TriviaButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:
 @client.tree.command(name='trivia', description='A movie trivia question — today\'s, or another anytime (if your club has trivia on)')
 async def trivia_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
+    await trivia_flow(interaction)
+
+
+async def trivia_flow(interaction):
+    """/trivia (and Play trivia on /play), after a defer: today's question,
+    then your waiting anytime one, then a new one."""
     try:
         t = await api.get('/api/internal/trivia/today', **discord_identity(interaction))
     except ApiError as e:
@@ -3429,6 +3436,11 @@ async def trivia_cmd(interaction: discord.Interaction):
 @client.tree.command(name='bingo', description="This month's repertory bingo card (if your club has bingo on)")
 async def bingo_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
+    await bingo_flow(interaction)
+
+
+async def bingo_flow(interaction):
+    """/bingo (and My bingo card on /play), after a defer."""
     try:
         b = await api.get('/api/internal/bingo', **discord_identity(interaction))
     except ApiError as e:
@@ -3443,6 +3455,51 @@ async def bingo_cmd(interaction: discord.Interaction):
             "Bingo is off for this club — a club admin can turn it on in Club settings on the site.", ephemeral=True)
         return
     await interaction.followup.send(embed=embeds.bingo_embed(b), ephemeral=True)
+
+
+# ─── Play (R10) ───────────────────────────────────────────────────────────────
+
+class PlayButton(discord.ui.DynamicItem[discord.ui.Button], template=r'play:(?P<what>trivia|bingo)'):
+    """🧠 Play trivia / 🎱 My bingo card under /play."""
+    def __init__(self, what):
+        super().__init__(discord.ui.Button(label='🧠 Play trivia' if what == 'trivia' else '🎱 My bingo card',
+                                           style=discord.ButtonStyle.primary if what == 'trivia'
+                                           else discord.ButtonStyle.secondary, custom_id=f'play:{what}'))
+        self.what = what
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['what'])
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await (trivia_flow if self.what == 'trivia' else bingo_flow)(interaction)
+
+
+def play_view(p):
+    view = discord.ui.View(timeout=None)
+    if p.get('trivia'):
+        view.add_item(PlayButton('trivia'))
+    if p.get('bingo'):
+        view.add_item(PlayButton('bingo'))
+    for poll in [x for x in p.get('polls', []) if not x['you_voted']][:3]:
+        view.add_item(VoteButton('open', poll['id'], label=f"🗳️ Vote: {poll['title']}"))
+    return view
+
+
+@client.tree.command(name='play', description='Your day in the club: trivia, bingo, polls to vote in, your kernels')
+async def play_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        p = await api.get('/api/internal/play', **discord_identity(interaction))
+    except ApiError as e:
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/play failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    await interaction.followup.send(embed=embeds.play_embed(p), view=play_view(p), ephemeral=True)
 
 
 @tasks.loop(minutes=15)

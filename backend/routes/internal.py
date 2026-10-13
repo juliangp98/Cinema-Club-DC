@@ -1301,6 +1301,20 @@ def internal_trivia_another():
     return jsonify(trivia.as_dict(q, user))
 
 
+@app.route('/api/internal/play')
+@require_internal
+def internal_play():
+    """/play: this member's day in the club — trivia, bingo, polls, kernels."""
+    import play
+    user, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    return jsonify({'club': group.name, **play.summary(group, user)})
+
+
 @app.route('/api/internal/bingo')
 @require_internal
 def internal_bingo():

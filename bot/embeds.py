@@ -739,6 +739,7 @@ HELP_SECTIONS = [
         ('/leaderboard', 'season kernel standings 🍿'),
         ('/kernels', 'your kernels, where they came from, and how to earn more'),
         ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
+        ('/play', 'your day in the club: trivia, bingo, polls to vote in, kernels'),
         ('/bingo', "this month's repertory bingo card (if your club has bingo on)"),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
@@ -846,6 +847,38 @@ def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
     worth = (f"+{q.get('kernels', 2)} 🍿 for a right answer" if left is None or left > 0
              else "just for fun (today's anytime kernels are used up)")
     embed.set_footer(text=f"One try · {worth} · your answer stays private")
+    return embed
+
+
+def play_embed(p):
+    """/play: your day in the club — trivia, bingo, polls waiting for your
+    vote, your kernels (games the club has off are left out)."""
+    lines = []
+    t = p.get('trivia')
+    if t:
+        if t['to_answer']:
+            lines.append("🧠 **Today's trivia question is waiting** — one try")
+        elif t['answered']:
+            lines.append(f"🧠 Today's question: {'✅ you got it' if t['correct'] else '❌ missed'}"
+                         + (' · more anytime' if t['anytime'] else ' · a new one tomorrow'))
+        elif t['anytime']:
+            lines.append('🎲 Anytime trivia is on — play a question whenever you like')
+    b = p.get('bingo')
+    if b:
+        grid = '\n'.join(' '.join('🟩' if b['cells'][r * 3 + c] else '⬛' for c in range(3)) for r in range(3))
+        lines.append(f"🎱 Bingo · {b['month_label']}: **{b['filled']}/8**"
+                     + (' — 🎉 full card!' if b['full'] else ' — 🎉 bingo!' if b['line'] else '') + f"\n{grid}")
+    waiting = [x for x in p.get('polls', []) if not x['you_voted']]
+    if waiting:
+        lines.append('🗳️ Waiting for your vote: ' + ', '.join(f"**{x['title']}**" for x in waiting[:3]))
+    elif p.get('polls'):
+        lines.append("🗳️ You've voted in every open poll")
+    k = p['kernels']
+    lines.append(f"🍿 **{k['kernels']}** kernels ({kernel_parts(k)}) · {k['allowance']['give_left']} to give, "
+                 f"{k['allowance']['take_left']} to take this week")
+    embed = discord.Embed(title=f"🎮 Your day at {p.get('club') or 'the club'}", colour=AMBER, url=f'{SITE_URL}/play',
+                          description='\n\n'.join(lines))
+    embed.set_footer(text=f'Everything is on the site too: {SITE_URL}/play')
     return embed
 
 

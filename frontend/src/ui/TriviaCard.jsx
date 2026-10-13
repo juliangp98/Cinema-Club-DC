@@ -8,7 +8,7 @@ import { useJson } from "../api";
 // answer shows once you've answered.
 const LETTERS = "ABCD";
 
-export default function TriviaCard({ apiBase, groupId, role }) {
+export default function TriviaCard({ apiBase, groupId, role, offNote = false }) {
   const { data, reload } = useJson(`${apiBase}/api/trivia/today?group_id=${groupId}`);
   const [shown, setShown] = useState(null);          // a question answered or asked for since loading
   const [error, setError] = useState(null);
@@ -17,7 +17,7 @@ export default function TriviaCard({ apiBase, groupId, role }) {
   if (!data.enabled) {
     return role === "admin" ? (
       <p className="trivia-off">🧠 Movie trivia is off for the club. <Link to="/club?tab=settings">Turn it on in Club settings</Link></p>
-    ) : null;
+    ) : offNote ? <p className="trivia-off">🧠 Movie trivia isn't on in this club yet — a club admin can turn it on.</p> : null;
   }
   const daily = data.question;
   const q = shown || (daily && !daily.mine ? daily : data.waiting || daily);

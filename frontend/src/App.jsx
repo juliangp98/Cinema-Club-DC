@@ -17,6 +17,7 @@ const MePage = lazyPage(() => import("./pages/MePage"));
 const FilmPage = lazyPage(() => import("./pages/FilmPage"));
 const BrowsePage = lazyPage(() => import("./pages/BrowsePage"));
 const FeedPage = lazyPage(() => import("./pages/FeedPage"));
+const PlayPage = lazyPage(() => import("./pages/PlayPage"));
 const TheatresPage = lazyPage(() => import("./pages/Theatres"), "TheatresPage");
 const TheatrePage = lazyPage(() => import("./pages/Theatres"), "TheatrePage");
 const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "SpotlightsPage");
@@ -202,6 +203,8 @@ export default function App() {
             </RequireSignIn>} />
           <Route path="/feed" element={
             <RequireSignIn user={user}><FeedPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/play" element={
+            <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/club" element={
             <RequireSignIn user={user}><ClubPage user={user} apiBase={API_BASE} /></RequireSignIn>} />
           {/* The Club page has the old Members and Leaderboard pages as tabs (R6b). */}
