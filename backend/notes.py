@@ -97,10 +97,14 @@ def feed_events(group_id, member_ids, since):
                                                 ScreeningNote.created_at >= since)]
 
 
-def theatre(group, theatre_id, now=None):
+HEADS_UP = ('worn', 'sound_trouble', 'projection')    # notes that warn rather than praise
+
+
+def theatre(group, theatre_id, now=None, recent=4):
     """What the club's members say about a theatre's screenings lately:
-    {'screenings': n, 'tags': [{key, emoji, label, count}] (used ones, most first)}."""
-    from app import db, ScreeningNote, Showtime
+    {'screenings': n, 'tags': [{key, emoji, label, count, heads_up}] (used
+    ones, most first), 'recent': [{screening, tags}] (the latest noted)}."""
+    from app import db, ScreeningNote, Showtime, _screening_item
     if not group or not group.notes_enabled:
         return None
     now = now or datetime.now()
@@ -111,8 +115,16 @@ def theatre(group, theatre_id, now=None):
             .join(Showtime, ScreeningNote.showtime_id == Showtime.id)
             .filter(Showtime.theatre_id == theatre_id, Showtime.start_time >= now - timedelta(days=THEATRE_DAYS),
                     ScreeningNote.user_id.in_(list(members))).all())
-    tally = {}
-    for tag, _ in rows:
+    tally, per_show = {}, {}
+    for tag, sid in rows:
         tally[tag] = tally.get(tag, 0) + 1
-    return {'screenings': len({sid for _, sid in rows}),
-            'tags': sorted([t for t in tag_list(tally) if t['count']], key=lambda t: -t['count'])}
+        per_show.setdefault(sid, {}).setdefault(tag, 0)
+        per_show[sid][tag] += 1
+    shows = (Showtime.query.filter(Showtime.id.in_(list(per_show))).order_by(Showtime.start_time.desc()).limit(recent).all()
+             if per_show else [])
+    return {'screenings': len(per_show),
+            'tags': sorted([{**t, 'heads_up': t['key'] in HEADS_UP} for t in tag_list(tally) if t['count']],
+                           key=lambda t: -t['count']),
+            'recent': [{'screening': _screening_item(sh),
+                        'tags': sorted([t for t in tag_list(per_show[sh.id]) if t['count']], key=lambda t: -t['count'])}
+                       for sh in shows]}

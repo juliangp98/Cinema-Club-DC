@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useJson } from "../api";
+import { SectionTitle } from "./PageHeader";
+import Poster from "./Poster";
+import { dayDate } from "../dates";
 
 // Screening notes (R10f): quick tags about the screening itself from members
 // who checked in — only once a club admin turns notes on. The same tags as
@@ -47,14 +51,48 @@ export default function ScreeningNotes({ apiBase, groupId, showtimeId }) {
   );
 }
 
-// On a theatre page: what the club's members say about its screenings lately.
+// On a theatre page: what the club's members say about its screenings
+// lately — a tile per note (heads-up ones marked), and the screenings they
+// noted most recently.
 export function TheatreNotes({ apiBase, groupId, slug }) {
   const { data } = useJson(groupId ? `${apiBase}/api/theatres/${slug}/notes?group_id=${groupId}` : null);
   if (!data?.tags?.length) return null;
+  const top = Math.max(...data.tags.map(t => t.count));
   return (
-    <p className="theatre-notes">
-      <strong>What the club says</strong> ({data.screenings} screening{data.screenings === 1 ? "" : "s"} lately):{" "}
-      {data.tags.slice(0, 5).map(t => `${t.emoji} ${t.label} ×${t.count}`).join(" · ")}
-    </p>
+    <section className="shelf theatre-notes" aria-labelledby="theatre-notes-title">
+      <SectionTitle action={<span className="theatre-notes-span">{data.screenings} screening{data.screenings === 1 ? "" : "s"} · last 6 months</span>}>
+        <span id="theatre-notes-title">What the club says</span>
+      </SectionTitle>
+      <p className="shelf-blurb">From members who checked in here — the print, the sound, the crowd.</p>
+      <ul className="note-tiles">
+        {data.tags.map(t => (
+          <li key={t.key} className={`note-tile${t.heads_up ? " heads-up" : ""}`}>
+            <span className="note-tile-emoji" aria-hidden="true">{t.emoji}</span>
+            <span className="note-tile-label">{t.label}{t.heads_up && <span className="note-tile-flag">Heads-up</span>}</span>
+            <span className="note-tile-count">×{t.count}</span>
+            <span className="note-tile-bar" aria-hidden="true"><span style={{ width: `${Math.round((t.count / top) * 100)}%` }} /></span>
+          </li>
+        ))}
+      </ul>
+      {data.recent?.length > 0 && (
+        <>
+          <div className="note-recent-head">Lately</div>
+          <ul className="note-recent">
+            {data.recent.map(r => (
+              <li key={r.screening.showtime_id}>
+                <Link to={`/calendar?showtime=${r.screening.showtime_id}`} className="note-recent-item">
+                  <Poster movie={{ title: r.screening.title, poster_url: r.screening.poster_url }} className="note-recent-poster" />
+                  <span className="note-recent-text">
+                    <span className="note-recent-title">{r.screening.title}</span>
+                    <span className="note-recent-when">{dayDate(r.screening.start_time)}{r.screening.format_label ? ` · ${r.screening.format_label}` : ""}</span>
+                    <span className="note-recent-tags">{r.tags.slice(0, 3).map(t => `${t.emoji} ${t.label}`).join(" · ")}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }

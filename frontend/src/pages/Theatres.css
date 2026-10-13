@@ -35,3 +35,36 @@
 @media (max-width: 767px) {
   .theatre-info { grid-template-columns: 1fr; }
 }
+
+/* What the club says (screening notes, R10f): a tile per note, in the theatre's color. */
+.theatre-notes-span { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.note-tiles { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 0.6rem; }
+.note-tile {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.35rem 0.55rem;
+  padding: 0.7rem 0.8rem; background: var(--bg3); border: 1px solid var(--border);
+  border-top: 3px solid var(--tcolor, var(--amber)); border-radius: var(--radius-lg);
+}
+.note-tile-emoji { font-size: 1.35rem; line-height: 1; }
+.note-tile-label { font-size: var(--fs-sm); font-weight: 600; color: var(--cream); min-width: 0; }
+.note-tile-count { font-size: var(--fs-sm); font-weight: 700; color: var(--amber); }
+.note-tile-bar { grid-column: 1 / -1; height: 4px; border-radius: var(--radius-pill); background: var(--border); overflow: hidden; }
+.note-tile-bar span { display: block; height: 100%; background: var(--tcolor, var(--amber)); border-radius: inherit; }
+.note-tile.heads-up { border-top-color: var(--red); border-style: dashed; border-top-style: solid; }
+.note-tile-flag {
+  display: block; width: fit-content; margin-top: 0.15rem; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--red);
+}
+.note-tile.heads-up .note-tile-count { color: var(--red); }
+.note-tile.heads-up .note-tile-bar span { background: var(--red); }
+.note-recent-head { margin: 1rem 0 0.5rem; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.note-recent { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 0.6rem; }
+.note-recent-item {
+  display: flex; gap: 0.7rem; align-items: center; padding: 0.55rem; color: inherit; text-decoration: none;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); transition: border-color 0.15s;
+}
+.note-recent-item:hover { border-color: var(--tcolor, var(--amber)); }
+.note-recent-poster { width: 46px; aspect-ratio: 2 / 3; border-radius: var(--radius-sm); flex-shrink: 0; }
+.note-recent-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.note-recent-title { font-family: var(--font-serif); font-weight: 700; color: var(--cream); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-recent-when { font-size: var(--fs-xs); color: var(--muted); }
+.note-recent-tags { font-size: var(--fs-xs); color: var(--cream); }

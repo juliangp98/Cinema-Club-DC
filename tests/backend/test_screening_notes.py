@@ -104,4 +104,10 @@ def test_theatre_pages_sum_up_what_members_say(club):
     note(club, 'Bo', 'print')
     t = client(club['Ana']).get(url, query_string={'group_id': club['G']}).json
     assert t['screenings'] == 1 and [(x['key'], x['count']) for x in t['tags']] == [('print', 2), ('sound', 1)]
+    assert not any(x['heads_up'] for x in t['tags'])
+    [r] = t['recent']
+    assert r['screening']['title'] == 'NOTED FILM' and [(x['key'], x['count']) for x in r['tags']] == [('print', 2), ('sound', 1)]
+    note(club, 'Ana', 'sound_trouble')
+    t = client(club['Ana']).get(url, query_string={'group_id': club['G']}).json
+    assert {x['key']: x['heads_up'] for x in t['tags']}['sound_trouble'] is True
     assert client(club['Out']).get(url, query_string={'group_id': club['G']}).status_code == 403
