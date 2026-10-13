@@ -3263,6 +3263,17 @@ async def leaderboard(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed)
 
 
+@client.tree.command(name='foryou', description="Films picked for you: Your taste, your watchlist, what you've seen")
+async def foryou_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        result = await api.get('/api/internal/foryou', **discord_identity(interaction), limit=6)
+    except Exception as e:
+        await reply_failure(interaction, e, '/foryou')
+        return
+    await interaction.followup.send(embed=embeds.foryou_embed(result), view=find_view(result), ephemeral=True)
+
+
 @client.tree.command(name='kernels', description='Your kernels 🍿 — where they came from, and how to earn more')
 async def kernels_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)

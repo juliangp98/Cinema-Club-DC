@@ -1046,6 +1046,7 @@ def compare_members(me, other, group_ids):
         'they_go_you_want': items(p for sid, p in theirs.items() if sid not in mine and p[0].movie_id in my_wl),
         'you_go_they_want': items(p for sid, p in mine.items() if sid not in theirs and p[0].movie_id in their_wl),
         'seen_together': [_screening_item(s, 'went') for s in seen_rows],
+        'taste': __import__('taste').match(me, other),           # R13, only if they show their taste
     }
 
 

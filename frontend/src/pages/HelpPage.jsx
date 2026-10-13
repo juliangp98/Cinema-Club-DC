@@ -38,6 +38,9 @@ const SECTIONS = [
     ["What's “For you”?", "A row near the top of Discover (and “For you here” on each theatre's page) with films playing in the next two weeks that fit your taste — each says why: a favorite director, a genre you love, on 35mm, at a theatre you like. It also learns from what you watchlist, plan, see and rate well on Letterboxd. Films you've already seen are left out. Theatres shows how many are for you at each one."],
     ["A pick isn't for me — can I get rid of it?", "Tap “Not for me” under it: it's gone from For you. You'll find it under Not for me in Your taste if you change your mind."],
     ["What does “Not into” do?", "Films in a genre you're not into rank lower — they only show up when something else about them is a strong fit (say, a favorite director's)."],
+    ["Will I hear when a favorite's film is booked?", "Yes — when a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in the 🔔 bell (by DM, email or push too only if you've turned those on). Switch it off under Notification settings → A favorite's film is booked."],
+    ["What's taste match?", "If someone shows their taste, their profile (and Compare, and /compare in Discord) shows how alike your tastes are, and what you both love."],
+    ["Can I see my picks in Discord?", "Yes — /foryou shows your For you picks privately, with why each one is there."],
     ["Which genres are there?", "The ones TMDB and IMDb use for films — action to western, plus film noir, musical, biography and sport — so what you pick matches how every film is labelled."],
   ] },
   { id: "club", title: "Your club", items: [
@@ -55,14 +58,14 @@ const SECTIONS = [
   ] },
   { id: "alerts", title: "Notifications and alerts", items: [
     ["Will you email or message me?", "Not unless you say so. Nothing is emailed, sent by Discord DM or pushed until you turn that on in the bell → Notification settings (or Edit profile). Alerts always land in the 🔔 bell on the site."],
-    ["What can I get alerts about?", "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits a search you saved, and (Discord members) a “Did you make it?” DM after screenings."],
+    ["What can I get alerts about?", "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits a search you saved, a favorite's film being booked (from Your taste), and (Discord members) a “Did you make it?” DM after screenings."],
     ["How do I save a search?", "On Browse, pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage saved searches in the bell → Notification settings."],
     ["Can I get notifications on my phone?", "Yes — in Notification settings, turn on push for this device. On iPhone, add the site to your Home Screen first."],
   ] },
   { id: "discord", title: "Discord", items: [
     ["How do I link Discord?", "Edit profile → Connect Discord (or sign in with Discord). Linking puts your site and Discord activity together."],
     ["What shows up in the club's Discord?", "Only what you choose. In Edit profile → Sharing to Discord, pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you. Only members who've linked Discord and are in the club's server ever appear there."],
-    ["What can the bot do?", "Type /help in Discord for the list. Favorites: /showtimes, /movie, /find, /rsvp, /watch, /vote, /play, /trivia, /bingo and /kernels — replies to you are private unless they're meant for the channel."],
+    ["What can the bot do?", "Type /help in Discord for the list. Favorites: /showtimes, /movie, /foryou, /find, /rsvp, /watch, /vote, /play, /trivia, /bingo and /kernels — replies to you are private unless they're meant for the channel."],
   ] },
   { id: "letterboxd", title: "Letterboxd", items: [
     ["How do I connect Letterboxd?", "Edit profile → Letterboxd → enter your username. We read your public diary feed every few hours — nothing else, and we never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."],

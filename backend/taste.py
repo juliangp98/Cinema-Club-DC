@@ -393,3 +393,27 @@ def for_you(films, user, ctx):
     p = ctx.get('taste') if ctx else profile(user)
     scored = [(f, score(f, p, ctx)) for f in films]
     return [(f, s[1]) for f, s in sorted(((f, s) for f, s in scored if s), key=lambda x: (-x[1][0], x[0].next.start_time))]
+
+
+
+# ─── Taste match (profiles, Compare, /compare) ────────────────────────────────
+
+MATCH_WEIGHTS = {'genre': 1, 'way': 1, 'theatre': 1, 'avoid': 0.5, 'movie': 2, **{k: 2 for k in PEOPLE}}
+
+
+def match(me, other):
+    """How alike two people's tastes are — only when `other` shows theirs:
+    {'score': 0–100, 'shared': [labels]}, else None."""
+    if not other or not other.taste_public or not me or me.id == other.id:
+        return None
+    def picks(u):
+        return {(i.kind, i.key): i.label for i in items(u) if i.kind in MATCH_WEIGHTS}
+    a, b = picks(me), picks(other)
+    if not a or not b:
+        return {'score': None, 'shared': []}
+    weight = lambda keys: sum(MATCH_WEIGHTS[k[0]] for k in keys)
+    both = a.keys() & b.keys()
+    score = round(100 * weight(both) / weight(a.keys() | b.keys()))
+    order = ('movie', *PEOPLE, 'genre', 'way', 'theatre', 'avoid')
+    shared = [('Not into ' if k[0] == 'avoid' else '') + a[k] for k in sorted(both, key=lambda k: (order.index(k[0]), a[k]))]
+    return {'score': score, 'shared': shared}

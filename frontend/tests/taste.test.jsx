@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TasteEditor from "../src/components/TasteEditor";
-import TasteChips from "../src/ui/TasteChips";
+import TasteChips, { TasteMatch } from "../src/ui/TasteChips";
 import { mockApi, renderPage, reply } from "./support";
 
 // Your taste (R13): genres you love or aren't into, ways to watch, favorite
@@ -100,4 +100,13 @@ test("someone's taste at a glance", () => {
     ["Horror", "🎞️ On film prints", "📍 AFI Silver", "🎬 VERTIGO", "Agnès Varda · director"]);
   const { container: none } = renderPage(<TasteChips taste={{ genres: [] }} empty={<p>Nothing yet</p>} />);
   expect(none).toHaveTextContent("Nothing yet");
+});
+
+test("taste match: a score and what you share, only when there is one", () => {
+  const { container } = renderPage(<TasteMatch match={{ score: 40, shared: ["Agnès Varda", "Drama"] }} />);
+  expect(screen.getByText("🎨 Taste match 40%")).toHaveClass("chip", "gold");
+  expect(screen.getByText("You both love Agnès Varda, Drama")).toHaveClass("ui-hint");
+  const { container: hidden } = renderPage(<TasteMatch match={{ score: null, shared: [] }} />);
+  expect(hidden).toBeEmptyDOMElement();
+  expect(container).not.toBeEmptyDOMElement();
 });

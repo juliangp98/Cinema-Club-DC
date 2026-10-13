@@ -409,8 +409,10 @@ def sync_to_db(cfg, scraped_movies):
         import notify
         on_sale = notify.alert_on_sale(theatre, new_future)     # announced films whose tickets are up
         if prev_max_date is not None:        # a venue's first-ever scrape isn't "just booked"
-            notify.alert_new_showings(theatre, [s for s in new_future if s.movie_id not in on_sale],
-                                      {s.movie_id for s in prev_future if not s.is_cancelled})
+            had = {s.movie_id for s in prev_future if not s.is_cancelled}
+            booked = [s for s in new_future if s.movie_id not in on_sale]
+            notify.alert_new_showings(theatre, booked, had)
+            notify.alert_favorites(theatre, booked, had)          # Your taste (R13), after the watchlist's
 
         db.session.commit()
         print(f"  Synced {len(scraped_movies)} movies for {cfg.slug} "

@@ -91,6 +91,7 @@ a.chip { text-decoration: none; }
 .taste-editor section { display: flex; flex-direction: column; gap: 0.45rem; }
 .taste-editor .profile-section-label { margin: 0; }
 .taste-public { margin-top: 0.25rem; }
+.taste-match { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.6rem; }
 a.chip:hover { border-color: var(--amber); color: var(--amber); }
 
 /* ── Hints: the one muted small line (R12) ─────────────────────────────── */

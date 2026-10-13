@@ -93,6 +93,7 @@ def get_user_profile(user_id):
     if target.taste_public:
         import taste
         out['taste'] = taste.summary(target)
+        out['taste_match'] = taste.match(me, target)
     return jsonify(out)
 
 

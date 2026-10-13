@@ -5,7 +5,7 @@ import Sheet from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
 import { fullDate, dayDateTime } from "../dates";
 import { attend, getJson } from "../api";
-import TasteChips from "../ui/TasteChips";
+import TasteChips, { TasteMatch } from "../ui/TasteChips";
 
 const formatDate = fullDate, formatWhen = dayDateTime;
 
@@ -171,15 +171,16 @@ function CompareTab({ userId, apiBase, onOpen }) {
     ["Seen together", data.seen_together.map(i => (
       <ScreeningRow key={`s${i.showtime_id}`} item={i} onOpen={onOpen} />))],
   ].filter(([, rows]) => rows.length);
+  const match = data.taste?.score != null && <TasteMatch match={data.taste} />;
   if (!sections.length) {
-    return <div className="list-empty">Nothing lines up yet — add films to your watchlist or RSVP to a screening.</div>;
+    return <>{match}<div className="list-empty">Nothing lines up yet — add films to your watchlist or RSVP to a screening.</div></>;
   }
-  return sections.map(([title, rows]) => (
+  return <>{match}{sections.map(([title, rows]) => (
     <div key={title} className="compare-section">
       <div className="compare-section-title">{title} <span className="compare-count">{rows.length}</span></div>
       <ul className="list-rows">{rows}</ul>
     </div>
-  ));
+  ))}</>;
 }
 
 export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, onAttendanceChange, onOpenShowtime }) {
@@ -247,6 +248,7 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
             {user.taste && (
               <div className="user-profile-section">
                 <div className="drawer-section-label">Taste</div>
+                <TasteMatch match={user.taste_match} />
                 <TasteChips taste={user.taste} empty={<p className="ui-hint">Nothing picked yet.</p>} />
               </div>
             )}

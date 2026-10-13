@@ -507,6 +507,21 @@ def internal_discover_find():
                     'browse_path': discover.browse_path(params)})
 
 
+@app.route('/api/internal/foryou')
+@require_internal
+def internal_foryou():
+    """/foryou: the caller's For you picks (R13) in the club, with reasons."""
+    import discover
+    user, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    params = {'shelf': 'for-you', 'when': '2weeks'}
+    result = discover.browse(group, user, params, limit=max(1, min(request.args.get('limit', 6, type=int), 10)))
+    return jsonify({'films': result['films'], 'total': result['total'], 'taste_set': taste.is_set(user),
+                    'browse_path': discover.browse_path(params)})
+
+
 @app.route('/api/internal/discover/surprise')
 @require_internal
 def internal_discover_surprise():

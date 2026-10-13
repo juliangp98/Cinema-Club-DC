@@ -25,3 +25,15 @@ export default function TasteChips({ taste, empty = null }) {
     </ul>
   );
 }
+
+// How alike your taste is to someone's (R13) — only when they show theirs:
+// {score: 0–100 | null, shared: [labels]}.
+export function TasteMatch({ match }) {
+  if (!match || match.score == null) return null;
+  return (
+    <div className="taste-match">
+      <span className="chip gold">🎨 Taste match {match.score}%</span>
+      {match.shared.length > 0 && <span className="ui-hint">You both love {match.shared.slice(0, 6).join(", ")}</span>}
+    </div>
+  );
+}

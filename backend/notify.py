@@ -18,6 +18,7 @@ TYPES = {
     'on_sale': ('Tickets go on sale', 'For announced films on your watchlist.'),
     'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
     'searches': ('A film fits a search you saved', 'When a theatre books a film that fits one of your saved searches.'),
+    'favorites': ('A favorite’s film is booked', 'When a theatre books one of your favorite films, or one by a director, actor or writer in Your taste.'),
 }
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
@@ -45,7 +46,7 @@ def available(user):
 
 # Off until chosen: no DM, email or push, and no "Did you make it?" DMs.
 # Watchlist alerts still land in the site's bell (it never sends anything).
-DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True}
+DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True}
 ASKS = ('alerts', 'attendance')
 
 
@@ -127,6 +128,49 @@ def alert_new_showings(theatre, new_future, had_upcoming):
             'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url,
             'theatre': theatre.name, 'theatre_slug': theatre.slug,
             'first': shows[0].start_time.isoformat(), 'count': len(shows), 'formats': formats[:3]})
+        made += 1
+    return made
+
+
+def alert_favorites(theatre, new_future, had_upcoming):
+    """R13: like alert_new_showings, for Your taste — a theatre just booked a
+    favorite film of someone's, or one by a person they love. Not when the
+    watchlist alert already told them (same film, same theatre)."""
+    import taste
+    from app import db, Notification, TasteItem
+    booked = {}
+    for s in new_future:
+        if s.movie_id not in had_upcoming:
+            booked.setdefault(s.movie_id, []).append(s)
+    if not booked:
+        return 0
+    told = {(n.user_id, n.movie_id) for n in Notification.query.filter(
+        Notification.kind.in_(('showings', 'favorite')), Notification.theatre_id == theatre.id,
+        Notification.movie_id.in_(booked), Notification.created_at > _now() - REALERT_AFTER)}
+    because = {}                                  # (user, movie) -> why
+    for i in TasteItem.query.filter(TasteItem.kind == 'movie', TasteItem.movie_id.in_(booked)):
+        because.setdefault((i.user_id, i.movie_id), 'a favorite of yours')
+    credits = {}                                  # movie -> {(person, role): name} — one person can hold several roles
+    for mid, shows in booked.items():
+        credits[mid] = {(key, kind): label for key, label, kind in taste._people_of(shows[0].movie)}
+    keys = {k for c in credits.values() for k, _ in c}
+    for i in TasteItem.query.filter(TasteItem.kind.in_(taste.PEOPLE), TasteItem.key.in_(keys)) if keys else []:
+        for mid, c in credits.items():
+            if (i.key, i.kind) in c:
+                because.setdefault((i.user_id, mid), f'{c[(i.key, i.kind)]} ({i.kind})')
+    made = 0
+    for (uid, mid), why in because.items():
+        if (uid, mid) in told:
+            continue
+        user = db.session.get(__import__('app').User, uid)
+        if not user or not user.is_active or not wants(user, 'favorites'):
+            continue
+        shows = sorted(booked[mid], key=lambda s: s.start_time)
+        m = shows[0].movie
+        _make(db, Notification, user, 'favorite', mid, theatre.id, {
+            'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url, 'because': why,
+            'theatre': theatre.name, 'theatre_slug': theatre.slug, 'first': shows[0].start_time.isoformat(),
+            'count': len(shows), 'formats': sorted({s.format_label for s in shows if s.format_label})[:3]})
         made += 1
     return made
 
@@ -346,6 +390,12 @@ def describe(n):
                 _when(p['first']) if p.get('first') else None, f'+{more} more' if more > 0 else None,
                 ' · '.join(p.get('formats') or []) or None]
         return {'headline': f'New: {title}', 'detail': ' · '.join(b for b in bits if b), 'link': link}
+    if n.kind == 'favorite':
+        more = p.get('count', 1) - 1
+        bits = [f"Because you love {p['because']}" if p.get('because') and p['because'] != 'a favorite of yours'
+                else 'A favorite of yours', p.get('theatre'), _when(p['first']) if p.get('first') else None,
+                f'+{more} more' if more > 0 else None]
+        return {'headline': f'{title} is playing', 'detail': ' · '.join(b for b in bits if b), 'link': link}
     return {'headline': title, 'detail': '', 'link': link}
 
 

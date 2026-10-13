@@ -268,6 +268,11 @@ def compare_embed(data, limit=5):
     ]
     for title, lines in sections:
         _add_field(embed, title[:256], lines, limit=limit)
+    t = data.get('taste')                                    # R13: only when they show their taste
+    if t and t.get('score') is not None:
+        shared = ', '.join(t['shared'][:6])
+        embed.add_field(name=f"🎨 Taste match: {t['score']}%", inline=False,
+                        value=f"You both love {shared}"[:1024] if shared else 'Nothing in common yet.')
     if not embed.fields:
         embed.description = "Nothing lines up yet — add films with `/watch` and RSVP with `/rsvp`."
     embed.set_footer(text='Open their profile on the site → Compare for the full picture')
@@ -619,6 +624,30 @@ def find_embed(result):
     return embed
 
 
+def foryou_embed(result):
+    """/foryou (R13): your For you picks, each with why — the site's shelf."""
+    films, total = result['films'], result['total']
+    embed = discord.Embed(title='✨ For you', colour=AMBER, url=f"{SITE_URL}{result['browse_path']}")
+    if not films:
+        embed.description = ("Nothing for you in the next two weeks yet — theatres add films every week."
+                             if result.get('taste_set') else
+                             "Tell us what you like and this fills with films for you: pick genres with `/profile`, "
+                             f"or set favorite films, people and theatres in Edit profile → Your taste on the site ({SITE_URL}).")
+        return embed
+    lines = []
+    for c in films:
+        m = c['movie']
+        why = ' · '.join(_reasons(c))
+        lines.append(f"**[{_film_title(m)}]({SITE_URL}/films/{m['id']})**\n{_next_line(c)}" + (f"\n*{why}*" if why else ''))
+    embed.description = '\n\n'.join(lines)[:4000]
+    thumb = _image_url(films[0]['movie'].get('poster_url'))
+    if thumb:
+        embed.set_thumbnail(url=thumb)
+    embed.set_footer(text=f"{total} for you in the next two weeks" + (f" · showing {len(films)}" if total > len(films) else '')
+                          + ' · pick one below for showtimes')
+    return embed
+
+
 SURPRISE_WHEN = {'tonight': 'tonight', 'tomorrow': 'tomorrow', 'weekend': 'this weekend',
                  'week': 'this week', '2weeks': 'in the next two weeks', 'month': 'this month'}
 
@@ -723,6 +752,7 @@ HELP_SECTIONS = [
     ('🎬 Find something to see', [
         ('/showtimes', "what's playing (pick days, a date or a theatre)"),
         ('/movie', 'a film\'s details and showtimes'),
+        ('/foryou', 'films picked for you from Your taste and what you\'ve seen'),
         ('/find', 'a kind of film: rare, arthouse, a mood, a genre…'),
         ('/surprise', 'one random pick (spin again for another)'),
         ('@CinemaBot', 'ask for a rec, or just talk movies'),
