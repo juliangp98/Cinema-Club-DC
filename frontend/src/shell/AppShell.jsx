@@ -6,7 +6,7 @@ import Sheet from "../ui/Sheet";
 import Loading from "../ui/Loading";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
-import { CalendarIcon, CompassIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
+import { CalendarIcon, CompassIcon, FeedIcon, PollIcon, UserIcon, UsersIcon, EditIcon, LogoutIcon, TheatreIcon } from "../ui/icons";
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
@@ -21,14 +21,18 @@ const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // 
 const ShellContext = createContext(null);
 export const useShell = () => useContext(ShellContext);
 
-// Discover is home (R3c); the old Feed lives in the activity panel. Visitors
-// get the public pages; Polls needs a club, Clubs is for finding one (R5a).
+// Discover is home (R3c). Visitors get the public pages; the Feed and Polls
+// need a club, Clubs is for finding one (R5a). Phones show five tabs, so for
+// club members the Feed (R10c) takes Polls' place there — Polls stays in the
+// account menu, the feed's open-polls strip and Discover's club strip.
 const PUBLIC_NAV = [
   { to: "/", label: "Discover", icon: CompassIcon, end: true, also: "/browse" },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/theatres", label: "Theatres", icon: TheatreIcon },
 ];
-const CLUB_NAV = [...PUBLIC_NAV, { to: "/polls", label: "Polls", icon: PollIcon }];
+const FEED = { to: "/feed", label: "Feed", icon: FeedIcon };
+const CLUB_NAV = [PUBLIC_NAV[0], PUBLIC_NAV[1], FEED, PUBLIC_NAV[2], { to: "/polls", label: "Polls", icon: PollIcon }];
+const CLUB_TABS = CLUB_NAV.filter(n => n.to !== "/polls");
 const NO_CLUB_NAV = [...PUBLIC_NAV, { to: "/groups", label: "Clubs", icon: UsersIcon }];
 
 const linkClass = (base, also, pathname) => ({ isActive }) =>
@@ -102,6 +106,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             <MenuLabel>{user.name} · {accountLabel(user)}</MenuLabel>
             <MenuItem onSelect={() => navigate("/me")}><UserIcon /> {user.is_guest ? "Your plans & watchlist" : <>Your profile &amp; lists</>}</MenuItem>
             {user.is_guest && <MenuItem onSelect={() => navigate("/signin?next=%2Fme")}><EditIcon /> Keep your profile</MenuItem>}
+            {NAV === CLUB_NAV && <MenuItem onSelect={() => navigate("/polls")}><PollIcon /> Polls</MenuItem>}
             <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
             <MenuDivider />
             <MenuItem danger onSelect={logout}><LogoutIcon /> Sign out</MenuItem>
@@ -113,7 +118,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         </main>
 
         <nav className="tabbar" aria-label="Main">
-          {[...NAV, user ? { to: "/me", label: "Me", icon: UserIcon } : { to: signInLink, label: "Sign in", icon: UserIcon }].map(({ to, label, icon: Icon, end, also }) => (
+          {[...(NAV === CLUB_NAV ? CLUB_TABS : NAV), user ? { to: "/me", label: "Me", icon: UserIcon } : { to: signInLink, label: "Sign in", icon: UserIcon }].map(({ to, label, icon: Icon, end, also }) => (
             <NavLink key={to} to={to} end={end} className={linkClass("tabbar-link", also, pathname)}>
               <Icon />{label}
             </NavLink>

@@ -1457,6 +1457,29 @@ button.feed-title:hover { color: var(--amber); }
 @media (hover: none) { .chat-delete { opacity: 1; } }
 a.feed-action { text-decoration: none; display: inline-flex; align-items: center; }
 
+/* The feed page (R10c) */
+.page.feed-full { max-width: 680px; }        /* one column: header, polls, filters and cards line up */
+.feed-full .feed-main { padding-left: 0; padding-right: 0; }
+.feed-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+.feed-polls {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.9rem; margin: 0 0 1rem;
+  background: var(--gold-wash);
+}
+.feed-polls-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.feed-polls-nudge { font-size: var(--fs-sm); color: var(--amber); }
+.feed-polls-all { margin-left: auto; font-size: var(--fs-sm); }
+.feed-polls-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.feed-polls-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.feed-divider {
+  display: flex; align-items: center; gap: 0.75rem; margin: 0.25rem 0 0.75rem;
+  font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber);
+}
+.feed-divider::before, .feed-divider::after { content: ""; flex: 1; border-top: 1px solid var(--amber-dim); }
+.feed-seen-group { display: contents; }
+.feed-recap { border-color: var(--amber-dim); }
+.recap-lines { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
+.club-feed-more { margin: 0.5rem 0 0; text-align: right; font-size: var(--fs-sm); }
+
 /* Kernels on a feed card (R10b): give or take for what members did. */
 .kernel-panel { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .kernel-allowance { margin: 0; font-size: var(--fs-sm); color: var(--cream); }

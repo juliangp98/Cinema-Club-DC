@@ -8,6 +8,10 @@ export const CalendarIcon = () => (
 export const TheatreIcon = () => (
   <svg {...base}><path d="M3 21V9l9-5 9 5v12" /><path d="M3 9h18" /><path d="M9 21v-5a3 3 0 0 1 6 0v5" /></svg>
 );
+export const FeedIcon = () => (
+  <svg {...base}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1.2" /><circle cx="4.5" cy="12" r="1.2" />
+    <circle cx="4.5" cy="18" r="1.2" /></svg>
+);
 export const PollIcon = () => (
   <svg {...base}><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
 );

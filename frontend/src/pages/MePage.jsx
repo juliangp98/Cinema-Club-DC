@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
-import { EditIcon, LogoutIcon, CompassIcon } from "../ui/icons";
+import { EditIcon, LogoutIcon, CompassIcon, PollIcon } from "../ui/icons";
 import { ClubBadge } from "../ui/Avatar";
 import { WatchlistTab, GoingTab, HistoryTab } from "../components/UserProfileDrawer";
 import UserProfileDrawer from "../components/UserProfileDrawer";
@@ -85,6 +85,9 @@ export default function MePage({ user, apiBase, groupId }) {
         <button className="me-link" onClick={() => navigate("/club")}>
           {group && <ClubBadge group={group} size={28} />}
           <span>{group?.name || "Club page"}<small>Members, leaderboard and activity</small></span>
+        </button>
+        <button className="me-link" onClick={() => navigate("/polls")}>
+          <PollIcon /><span>Polls<small>Vote, make a poll, see results</small></span>
         </button>
         <button className="me-link" onClick={() => navigate("/groups")}>
           <CompassIcon /><span>Other clubs<small>Join or start another club</small></span>

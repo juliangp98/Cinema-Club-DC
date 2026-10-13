@@ -74,7 +74,8 @@ export default function ClubPage({ user, apiBase }) {
             <SectionTitle>In your calendar</SectionTitle>
             <CalendarLinks apiBase={apiBase} clubId={group.id} />
             <SectionTitle>Recent activity</SectionTitle>
-            <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} /></div>
+            <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} limit={3} /></div>
+            <p className="club-feed-more"><Link to="/feed">See the full feed →</Link></p>
           </>
         )}
         {tab === "members" && <Members group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />}

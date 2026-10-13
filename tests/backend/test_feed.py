@@ -86,7 +86,7 @@ def feed(c, who='A', **q):
 
 
 def keys(f):
-    return [card['key'] for card in f['cards']]
+    return [card['key'] for card in f['cards'] if card['type'] != 'recap']    # Monday recaps: see their own tests
 
 
 def test_every_rsvp_has_an_updated_time():
@@ -195,3 +195,55 @@ def test_paging(club):
     assert len(p1['cards']) == FEED_PAGE and p1['next_offset'] == FEED_PAGE
     assert len(set(every)) == len(every) and p2['next_offset'] is None
     assert p1['cards'][-1]['at'] >= p2['cards'][0]['at']
+
+
+def test_filtering_by_kind(club):
+    assert {c['type'] for c in feed(club, type='polls')['cards']} == {'poll'}
+    assert {c['type'] for c in feed(club, type='watchlists')['cards']} == {'watchlist'}
+    assert {c['type'] for c in feed(club, type='screenings')['cards']} == {'screening'}
+    assert feed(club, type='kernels')['cards'] == []                          # nobody gave any yet
+    assert len(feed(club, type='nonsense')['cards']) == len(feed(club)['cards'])
+
+
+def monday_of(d):
+    return d - timedelta(days=d.weekday())
+
+
+@pytest.fixture
+def last_week(club):
+    """Nine days ago: Ana, Bo and Cy checked in to an earlier KHARTOUM (a
+    crew night), Bo gave Ana 2 kernels, Cy commented, and the poll was scored."""
+    from app import app, db, Attendance, KernelGift, Message, Poll, PollVote, Showtime
+    when = datetime.utcnow() - timedelta(days=9)
+    with app.app_context():
+        past = db.session.get(Showtime, club['PAST'])
+        s = Showtime(movie_id=past.movie_id, theatre_id=club['tid'], start_time=datetime.now() - timedelta(days=10))
+        db.session.add(s)
+        db.session.flush()
+        for who in ('A', 'B', 'C'):
+            db.session.add(Attendance(user_id=club[who], showtime_id=s.id, status='went', source='site', answered_at=when))
+        db.session.add(KernelGift(giver_id=club['B'], recipient_id=club['A'], group_id=club['G'], showtime_id=s.id,
+                                  week=monday_of(when.date()), amount=2, created_at=when, updated_at=when))
+        db.session.add(Message(user_id=club['C'], showtime_id=s.id, group_id=club['G'], body='what a print', created_at=when))
+        db.session.add(PollVote(category_id=club['CAT'], user_id=club['B'], option_id=club['OPT']))
+        p = db.session.get(Poll, club['POLL'])
+        p.categories[0].correct_option_id = club['OPT']
+        p.status, p.scored_at = 'scored', when
+        db.session.commit()
+    return club
+
+
+def test_a_recap_each_monday_for_the_week_before(last_week):
+    cards = feed(last_week, type='recaps')['cards']
+    week = monday_of((datetime.now() - timedelta(days=9)).date()) + timedelta(days=7)
+    r = next(c for c in cards if c['key'] == f'r{week.isoformat()}')['recap']
+    assert r['checkins'] == 3 and r['people_out'] == 3 and r['crew_nights'] == 1
+    assert r['top']['screening']['title'] == 'KHARTOUM' and {u['name'] for u in r['top']['users']} == {'Ana', 'Bo', 'Cy'}
+    assert r['kernels'] == [{'user': r['kernels'][0]['user'], 'amount': 2}] and r['kernels'][0]['user']['name'] == 'Ana'
+    assert r['polls'] == [{'id': last_week['POLL'], 'title': 'Oscar picks', 'winner': 'Bo'}]
+    assert r['comments'] == 1
+
+
+def test_a_quiet_week_has_no_recap(club):
+    week = monday_of((datetime.now() - timedelta(days=30)).date()) + timedelta(days=7)
+    assert all(c['key'] != f'r{week.isoformat()}' for c in feed(club, type='recaps')['cards'])

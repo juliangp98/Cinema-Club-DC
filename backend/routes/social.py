@@ -81,16 +81,93 @@ def feed_events(group_id, since):
     return ev, member_ids
 
 
-def feed_skeletons(group_id):
-    """Cards (key, latest activity time, their events), newest first."""
-    events, member_ids = feed_events(group_id, _utcnow_naive() - timedelta(days=FEED_DAYS))
+FEED_TYPES = {                 # ?type= on the feed page
+    'screenings': lambda c: c['key'][0] == 's',
+    'kernels': lambda c: c['key'][0] == 's' and any(e[0] == 'kernels' for e in c['events']),
+    'watchlists': lambda c: c['key'][0] == 'w',
+    'polls': lambda c: c['key'][0] == 'p',
+    'recaps': lambda c: c['key'][0] == 'r',
+    'joins': lambda c: c['key'][0] == 'j',
+}
+
+
+def _local_to_utc(dt):
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _recap_skeletons(events, since):
+    """One "last week in the club" card each Monday (R10c), placed at Monday
+    midnight and holding that week's events — only for weeks with any."""
+    today = datetime.now().date()
+    monday = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
+    out = []
+    for weeks_back in range(FEED_DAYS // 7 + 1):
+        end = monday - timedelta(days=7 * weeks_back)
+        start_utc, end_utc = _local_to_utc(end - timedelta(days=7)), _local_to_utc(end)
+        if end_utc < since:
+            break
+        week = [e for e in events if start_utc <= e[2] < end_utc]
+        if week:
+            out.append({'key': f'r{end.date().isoformat()}', 'at': end_utc, 'events': week})
+    return out
+
+
+def feed_skeletons(group_id, kind=None):
+    """Cards (key, latest activity time, their events), newest first —
+    optionally only one FEED_TYPES kind."""
+    since = _utcnow_naive() - timedelta(days=FEED_DAYS)
+    events, member_ids = feed_events(group_id, since)
     cards = {}
     for e in events:
         cards.setdefault(e[1], {'key': e[1], 'events': []})['events'].append(e)
     for c in cards.values():
         c['events'].sort(key=lambda e: e[2], reverse=True)
         c['at'] = c['events'][0][2]
-    return sorted(cards.values(), key=lambda c: (c['at'], c['key']), reverse=True), member_ids
+    out = list(cards.values()) + _recap_skeletons(events, since)
+    if kind in FEED_TYPES:
+        out = [c for c in out if FEED_TYPES[kind](c)]
+    return sorted(out, key=lambda c: (c['at'], c['key']), reverse=True), member_ids
+
+
+def _feed_recap(group_id, week_of, events, users):
+    """Last week in the club: check-ins (and the most-seen screening), crew
+    nights, who members gave the most kernels to, polls scored, plans made,
+    talk, and who joined. None when the week had nothing worth a card."""
+    from app import poll_scores
+    went = {}
+    for kind, key, _, uid, _ in events:
+        if kind == 'went' and uid in users:
+            went.setdefault(int(key[1:]), set()).add(uid)
+    top = max(went.items(), key=lambda kv: (len(kv[1]), -kv[0]), default=None)
+    top_show = db.session.get(Showtime, top[0]) if top else None
+    gifts = {}
+    for kind, _, _, _, detail in events:
+        if kind == 'kernels' and detail['to'] in users:
+            gifts[detail['to']] = gifts.get(detail['to'], 0) + detail['amount']
+    polls = []
+    for kind, key, _, _, _ in events:
+        p = db.session.get(Poll, int(key[1:])) if kind == 'poll_scored' else None
+        if p:
+            board = poll_scores(p)
+            polls.append({'id': p.id, 'title': p.title, 'winner': board[0]['user'].name if board else None})
+    joined = list(dict.fromkeys(uid for kind, _, _, uid, _ in events if kind == 'joined' and uid in users))
+    recap = {
+        'week_of': week_of,
+        'checkins': sum(len(v) for v in went.values()),
+        'people_out': len(set().union(*went.values())) if went else 0,
+        'top': {'screening': _screening_item(top_show), 'users': [_feed_user(users[u]) for u in top[1]]}
+               if top_show and top_show.movie else None,
+        'crew_nights': sum(1 for v in went.values() if len(v) >= 3),
+        'kernels': [{'user': _feed_user(users[u]), 'amount': n}
+                    for u, n in sorted(gifts.items(), key=lambda kv: -kv[1]) if n > 0][:3],
+        'polls': polls,
+        'plans': sum(1 for e in events if e[0] == 'rsvp' and e[4] == 'going'),
+        'comments': sum(1 for e in events if e[0] == 'comment'),
+        'joined': [_feed_user(users[u]) for u in joined],
+    }
+    if not any((recap['checkins'], recap['kernels'], polls, recap['plans'], recap['comments'], joined)):
+        return None
+    return {'type': 'recap', 'recap': recap}
 
 
 def _feed_screening(viewer, group_id, sid, events, users, member_ids):
@@ -175,6 +252,8 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
             card = _feed_watchlist(viewer, int(ref), c['events'], users, member_ids)
         elif kind == 'p':
             card = _feed_poll(viewer, int(ref))
+        elif kind == 'r':
+            card = _feed_recap(group_id, ref, c['events'], users)
         else:
             joined = list(dict.fromkeys(e[3] for e in c['events'] if e[3] in users))
             card = {'type': 'joined', 'users': [_feed_user(users[u]) for u in joined]}
@@ -186,13 +265,14 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
 @app.route('/api/feed')
 @require_auth
 def feed():
-    """The group's recent activity as cards, FEED_PAGE at a time (?offset=)."""
+    """The group's recent activity as cards, FEED_PAGE at a time (?offset=;
+    ?type= one of FEED_TYPES)."""
     group_id = request.args.get('group_id', type=int)
     err = require_group_member(group_id)
     if err:
         return err
     offset = max(0, request.args.get('offset', 0, type=int))
-    skeletons, member_ids = feed_skeletons(group_id)
+    skeletons, member_ids = feed_skeletons(group_id, request.args.get('type'))
     page = skeletons[offset:offset + FEED_PAGE]
     more = len(skeletons) > offset + FEED_PAGE
     import kernels

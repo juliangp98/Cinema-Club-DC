@@ -280,9 +280,60 @@ function JoinedCard({ card, viewerId, onViewProfile }) {
   );
 }
 
-// The club's recent activity. Lives in the top bar's activity panel (R3c);
-// "Did you make it?" moved to Discover.
-export default function Feed({ user, apiBase, groupId }) {
+// Monday's "last week in the club" (R10c).
+function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
+  const r = card.recap;
+  const monday = new Date(`${r.week_of}T00:00`);
+  const from = new Date(monday.getTime() - 7 * 864e5);
+  const span = `${from.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${
+    new Date(monday.getTime() - 864e5).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  return (
+    <article className="feed-card feed-recap">
+      <CardHead at={card.at}>📅 Last week in the club · {span}</CardHead>
+      <ul className="recap-lines">
+        {r.checkins > 0 && (
+          <li>🍿 {plural(r.people_out, "member")} went out — {plural(r.checkins, "check-in")}
+            {r.crew_nights > 0 && `, ${plural(r.crew_nights, "crew night")}`}</li>
+        )}
+        {r.top && (
+          <li>
+            🏆 Most seen:{" "}
+            <button type="button" className="linkish" onClick={() => onOpenShowtime(r.top.screening.showtime_id)}>
+              {r.top.screening.title}
+            </button>{" "}
+            ({r.top.screening.theatre}) — {names(r.top.users, viewerId, 3)}
+          </li>
+        )}
+        {r.kernels.length > 0 && (
+          <li>🍿 Most kernels from members: {r.kernels.map((k, i) => (
+            <span key={k.user.id}>{i > 0 && ", "}
+              <button type="button" className="linkish" onClick={() => onViewProfile(k.user.id)}>
+                {k.user.id === viewerId ? "you" : k.user.name}
+              </button> +{k.amount}</span>
+          ))}</li>
+        )}
+        {r.polls.map(p => (
+          <li key={p.id}>🗳️ <Link to={`/polls/${p.id}`}>{p.title}</Link> was scored{p.winner && ` — ${p.winner} came out on top`}</li>
+        ))}
+        {(r.plans > 0 || r.comments > 0) && (
+          <li>{[r.plans > 0 && `🎟️ ${plural(r.plans, "plan")} made`, r.comments > 0 && `💬 ${plural(r.comments, "comment")}`]
+            .filter(Boolean).join(" · ")}</li>
+        )}
+        {r.joined.length > 0 && <li>👋 Welcome, {names(r.joined, viewerId, 4)}</li>}
+      </ul>
+    </article>
+  );
+}
+
+const seenKey = g => `cinemaclub_feed_seen_${g}`;
+function readSeen(g) { try { return localStorage.getItem(seenKey(g)); } catch { return null; } }
+function writeSeen(g, iso) { try { localStorage.setItem(seenKey(g), iso); } catch { /* private mode */ } }
+
+// The club's recent activity: the Feed page (R10c: `filter` one kind,
+// `divider` "new since your last visit", `endless` scrolling), a short
+// preview on the Club page (`limit`), and the bell's Club tab.
+export default function Feed({ user, apiBase, groupId, filter = null, limit = null, divider = false, endless = false }) {
   const navigate = useNavigate();
   const [cards, setCards] = useState([]);
   const [nextOffset, setNextOffset] = useState(null);
@@ -293,15 +344,19 @@ export default function Feed({ user, apiBase, groupId }) {
   const [selected, setSelected] = useState(null);     // showtimes for the drawer
   const [profileUserId, setProfileUserId] = useState(null);
   const [allowance, setAllowance] = useState(null);   // this week's kernels to give / take
+  const [lastSeen] = useState(() => (divider ? readSeen(groupId) : null));   // as of this visit
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinel = useRef(null);
   const loadedRef = useRef(0);
   const groupRef = useRef(groupId);   // responses for a group we've left are dropped
   groupRef.current = groupId;
 
   const fetchPage = useCallback(async (offset) => {
-    const r = await fetch(`${apiBase}/api/feed?group_id=${groupId}&offset=${offset}`, { credentials: "include" });
+    const r = await fetch(`${apiBase}/api/feed?group_id=${groupId}&offset=${offset}${filter ? `&type=${filter}` : ""}`,
+                          { credentials: "include" });
     if (!r.ok) throw new Error(String(r.status));
     return r.json();
-  }, [apiBase, groupId]);
+  }, [apiBase, groupId, filter]);
 
   // (Re)load everything currently shown, so updates land in place.
   const reload = useCallback(async () => {
@@ -317,6 +372,7 @@ export default function Feed({ user, apiBase, groupId }) {
       setNextOffset(results[results.length - 1].next_offset);
       setDays(results[0].days);
       setAllowance(results[0].allowance || null);
+      if (divider && all[0] && (!readSeen(groupId) || all[0].at > readSeen(groupId))) writeSeen(groupId, all[0].at);
       setError(false);
     } catch {
       if (forGroup === groupRef.current) setError(true);
@@ -342,7 +398,9 @@ export default function Feed({ user, apiBase, groupId }) {
   }, [reload]);
 
   async function loadMore() {
+    if (loadingMore) return;
     const forGroup = groupId;
+    setLoadingMore(true);
     try {
       const page = await fetchPage(nextOffset);
       if (forGroup !== groupRef.current) return;
@@ -355,8 +413,18 @@ export default function Feed({ user, apiBase, groupId }) {
       setNextOffset(page.next_offset);
     } catch {
       setError(true);
+    } finally {
+      setLoadingMore(false);
     }
   }
+
+  // Endless scrolling: the next page loads as the end comes into view.
+  useEffect(() => {
+    if (!endless || nextOffset == null || !sentinel.current || typeof IntersectionObserver === "undefined") return undefined;
+    const io = new IntersectionObserver(entries => { if (entries[0].isIntersecting) loadMore(); }, { rootMargin: "400px" });
+    io.observe(sentinel.current);
+    return () => io.disconnect();
+  });
 
   function toggleDiscussion(key) {
     // Closing a discussion refreshes its preview (new comments, counts).
@@ -430,6 +498,8 @@ export default function Feed({ user, apiBase, groupId }) {
         return <PollCard key={card.key} {...common} onOpenPoll={() => navigate(`/polls/${card.poll.id}`)} />;
       case "joined":
         return <JoinedCard key={card.key} {...common} />;
+      case "recap":
+        return <RecapCard key={card.key} {...common} onOpenShowtime={openShowtime} />;
       default:
         return null;
     }
@@ -441,19 +511,30 @@ export default function Feed({ user, apiBase, groupId }) {
       <div className="feed-main">
         {loading && !cards.length && <div className="feed-empty">Loading…</div>}
         {error && <div className="feed-empty">Couldn't load the feed. <button type="button" className="attendance-link" onClick={reload}>Try again</button></div>}
-        {!loading && !error && !cards.length && (
+        {!loading && !error && !cards.length && (filter ? (
+          <div className="feed-empty"><p>Nothing like that in the last {days} days.</p></div>
+        ) : (
           <div className="feed-empty">
             <p>Nothing here yet. RSVP to a screening, add films to your watchlist, or start a discussion and it'll show up here.</p>
             <button type="button" className="feed-action" onClick={() => navigate("/")}>Find something to see</button>
           </div>
-        )}
+        ))}
 
-        {cards.map(renderCard)}
+        {(limit ? cards.slice(0, limit) : cards).map((card, i, shown) => (
+          divider && lastSeen && i > 0 && card.at <= lastSeen && shown[i - 1].at > lastSeen ? (
+            <div key={card.key} className="feed-seen-group">
+              <div className="feed-divider" role="separator">New since your last visit ↑</div>
+              {renderCard(card)}
+            </div>
+          ) : renderCard(card)
+        ))}
 
-        {nextOffset != null && (
-          <button type="button" className="feed-more" onClick={loadMore}>Load more</button>
+        {!limit && nextOffset != null && (
+          <button type="button" ref={sentinel} className="feed-more" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
         )}
-        {nextOffset == null && cards.length > 0 && (
+        {!limit && nextOffset == null && cards.length > 0 && (
           <div className="feed-end">That's everything from the last {days} days.</div>
         )}
       </div>
