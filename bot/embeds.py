@@ -229,9 +229,10 @@ def profile_embed(profile, own=False):
     """A member's /profile card. `own` adds the prompts for editing it."""
     u = profile['user']
     embed = discord.Embed(title=f"🎬 {u['name']}", colour=AMBER, description=u.get('bio') or None)
-    genres = ', '.join(g.title() for g in profile.get('genres') or [])
+    genres = ', '.join(g['label'] for g in profile.get('genres') or [])
     embed.add_field(name='Favorite genres', inline=False, value=genres or (
-        'None yet — pick some below; the chatbot uses them for recommendations.' if own else '—'))
+        'None yet — pick some below; they shape your picks (/foryou) and the chatbot\'s.' if own
+        else 'Kept private' if profile.get('taste_hidden') else '—'))
     if u.get('letterboxd_username'):
         handle = u['letterboxd_username']
         embed.add_field(name='Letterboxd', value=f"[{handle}](https://letterboxd.com/{handle}/)")

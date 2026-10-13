@@ -87,10 +87,10 @@ def test_a_discord_only_member_uses_the_bot_like_anyone(ana):
 def test_profiles_from_discord(ana):
     me = {**ANA, 'create': True, 'discord_name': 'Ana B'}
     p = client().get('/api/internal/profile', query_string=me, headers=H).json
-    assert p['user']['id'] == ana['ana'] and 'horror' in p['genre_options'] and p['site_account'] is False and p['upcoming_rsvps'] == 0
-    p = client().post('/api/internal/profile', headers=H, json={**me, 'favorite_genres': ['Horror', 'noir', 'not-a-genre'],
+    assert p['user']['id'] == ana['ana'] and {'key': 'horror', 'label': 'Horror'} in p['genre_options'] and p['site_account'] is False and p['upcoming_rsvps'] == 0
+    p = client().post('/api/internal/profile', headers=H, json={**me, 'genres': ['Horror', 'noir', 'not-a-genre'],
                                                                 'bio': '  i like it scary  ', 'letterboxd_username': 'ana d!'}).json
-    assert p['genres'] == ['horror', 'noir'] and p['user']['bio'] == 'i like it scary' and p['user']['letterboxd_username'] == 'anad'
+    assert [g['key'] for g in p['genres']] == ['film-noir', 'horror'] and p['user']['bio'] == 'i like it scary' and p['user']['letterboxd_username'] == 'anad'
     assert client().get('/api/internal/profile', query_string={'member_discord_id': '7777'}, headers=H).status_code == 404
     assert client().get('/api/internal/profile', query_string={'member_discord_id': '5001'}, headers=H).json['user']['name'] == 'Ana B'
 
@@ -102,7 +102,7 @@ def linked(ana):
     a profile."""
     from app import app, db, User, GroupMembership, RSVP, Reaction
     client().post('/api/internal/profile', headers=H, json={**ANA, 'create': True, 'discord_name': 'Ana B',
-                                                            'favorite_genres': ['horror', 'noir'], 'letterboxd_username': 'anad'})
+                                                            'genres': ['horror', 'noir'], 'letterboxd_username': 'anad'})
     with app.app_context():
         site = User(email='ana@test.dev', name='Ana Site', is_active=True, discord_link_code='ABC234',
                     discord_link_code_expires=datetime.utcnow() + timedelta(minutes=5))
@@ -128,7 +128,7 @@ def test_link_merges_the_discord_only_account(linked):
         [r] = RSVP.query.filter_by(user_id=site.id, showtime_id=linked['showtime']).all()
         assert r.status == 'maybe'                                                  # the site account's own wins
         assert GroupMembership.query.filter_by(user_id=site.id, group_id=1).first().status == 'active'
-        assert site.favorite_genres == 'horror,noir' and site.letterboxd_username == 'anad' and site.name == 'Ana Site'
+        assert __import__('taste').genres(site) == ['film-noir', 'horror'] and site.letterboxd_username == 'anad' and site.name == 'Ana Site'
 
 
 @pytest.fixture

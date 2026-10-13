@@ -21,7 +21,7 @@ class User(db.Model):
     avatar_kind = db.Column(db.String(10))
     discord_avatar_url = db.Column(db.Text)        # your Discord picture, for "use my Discord picture"
     bio = db.Column(db.Text, default='')
-    favorite_genres = db.Column(db.Text, default='')
+    favorite_genres = db.Column(db.Text, default='')   # before R13; moved to TasteItem (taste.py), unused
     invite_token = db.Column(db.String(64), unique=True)
     is_active = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -47,6 +47,9 @@ class User(db.Model):
     letterboxd_ratings = db.Column(db.Boolean, default=False)
     letterboxd_synced_at = db.Column(db.DateTime)
     tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
+    # R13: show your taste (favorite genres, films, people…) on your profile to
+    # people in your clubs. Off by default; recommendations use it either way.
+    taste_public = db.Column(db.Boolean, default=False)
     # R8: where your alerts reach you and which ones you get (see notify.py);
     # JSON of only what you changed — the rest follows your account's defaults.
     notify_prefs = db.Column(db.Text)
@@ -63,7 +66,6 @@ class User(db.Model):
             'avatar_kind': self.avatar_kind or ('discord' if self.avatar_url else 'initials'),
             'discord_avatar_url': self.discord_avatar_url,
             'bio': self.bio or '',
-            'favorite_genres': self.favorite_genres or '',
             'discord_linked': bool(self.discord_user_id),
             'on_discord': core.on_discord(self),     # linked and in the club's server
             'discord_username': self.discord_username or '',
@@ -73,11 +75,12 @@ class User(db.Model):
             'share_prefs': core.share_prefs(self),
             'is_guest': bool(self.is_guest),
             'tour_seen': self.tour_seen_at is not None,
+            'taste_public': bool(self.taste_public),
         }
 
     # What other members see: no email (unless they're an admin of a club you
     # share), and none of your private settings.
-    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen')
+    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen', 'taste_public')
 
     def public_dict(self, with_email=False):
         d = {k: v for k, v in self.to_dict().items() if k not in self.PRIVATE}
@@ -234,6 +237,7 @@ class Movie(db.Model):
     awards = db.Column(db.String(500))
     ratings_json = db.Column(db.Text)    # JSON: [{source, value}]
     trailer_key = db.Column(db.String(50))  # YouTube video key
+    original_language = db.Column(db.String(8))   # TMDB's ISO 639-1 code (R13: foreign-language films)
     # Last TMDB lookup that found nothing; retried weekly, not every scrape.
     enrich_attempted_at = db.Column(db.DateTime)
     showtimes = db.relationship('Showtime', backref='movie', lazy=True)
@@ -332,10 +336,8 @@ class Showtime(db.Model):
 
         # Smart suggestion
         recommended = False
-        if user_genres and self.movie.genres:
-            user_set = set(g.strip().lower() for g in user_genres.split(',') if g.strip())
-            movie_set = set(g.strip().lower() for g in self.movie.genres.split(',') if g.strip())
-            if user_set & movie_set:
+        if user_genres and self.movie.genres:     # your favorite genres' keys (taste.genres)
+            if set(user_genres) & {g.strip() for g in self.movie.genres.split(',')}:
                 recommended = True
 
         return {
@@ -534,6 +536,22 @@ class LetterboxdEntry(db.Model):
     status = db.Column(db.String(12), nullable=False, default='unmatched')
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
+
+
+class TasteItem(db.Model):
+    """One thing in someone's taste (R13, see taste.py): a favorite genre, a
+    genre they're not into, a way they like to watch, a favorite theatre,
+    film or person, or a film they said is not for them. `key` identifies it
+    within its kind; `label` is what to show."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    kind = db.Column(db.String(12), nullable=False)
+    key = db.Column(db.String(200), nullable=False)
+    label = db.Column(db.String(200))
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'))
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    movie = db.relationship('Movie', lazy=True)
+    __table_args__ = (db.UniqueConstraint('user_id', 'kind', 'key'),)
 
 
 class ScreeningNote(db.Model):

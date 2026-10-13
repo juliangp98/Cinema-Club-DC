@@ -1,4 +1,5 @@
 import Sheet, { SheetTitle } from "./Sheet";
+import ToggleChip from "./ToggleChip";
 
 // The one Filters sheet, shared by Browse and the Calendar: same filters,
 // same URL parameter names (the server applies them the same way too).
@@ -30,9 +31,7 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
   const Choice = ({ k, v, children: label, count }) => {
     const on = multi.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
     return (
-      <button type="button" className={`chip filter-choice${on ? " gold" : ""}`} aria-pressed={on} onClick={() => onToggle(k, v)}>
-        {label}{count != null && <span className="mood-count">{count}</span>}
-      </button>
+      <ToggleChip on={on} count={count} onClick={() => onToggle(k, v)}>{label}</ToggleChip>
     );
   };
 

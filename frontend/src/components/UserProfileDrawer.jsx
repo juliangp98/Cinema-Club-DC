@@ -5,6 +5,7 @@ import Sheet from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
 import { fullDate, dayDateTime } from "../dates";
 import { attend, getJson } from "../api";
+import TasteChips from "../ui/TasteChips";
 
 const formatDate = fullDate, formatWhen = dayDateTime;
 
@@ -214,10 +215,6 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
       .finally(() => setLoading(false));
   }, [userId, apiBase]);
 
-  const genres = user && user.favorite_genres
-    ? user.favorite_genres.split(",").filter(Boolean)
-    : [];
-
   return (
     <Sheet onClose={onClose} label={user ? user.name : "Profile"} className="drawer">
 
@@ -247,18 +244,12 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
               )}
             </div>
 
-            <div className="user-profile-section">
-              <div className="drawer-section-label">Favorite Genres</div>
-              {genres.length === 0 ? (
-                <p className="ui-hint">No genres selected yet.</p>
-              ) : (
-                <div className="genre-chips readonly">
-                  {genres.map((g) => (
-                    <span key={g} className="genre-chip active">{g}</span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {user.taste && (
+              <div className="user-profile-section">
+                <div className="drawer-section-label">Taste</div>
+                <TasteChips taste={user.taste} empty={<p className="ui-hint">Nothing picked yet.</p>} />
+              </div>
+            )}
 
             <div className="user-profile-section">
               <div className="drawer-section-label">Bio</div>

@@ -3,6 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
+import taste
 from app import (Movie, RSVP, Showtime, Watchlist, _active_membership, _as_int, _profile_target,
     _screening_item, _with_attendance, app, apply_rsvp, can_share, current_user, datetime, db, history_items,
     jsonify, pending_attendance, public_showtimes, queue_rsvp_share, request, require_auth, require_role,
@@ -47,7 +48,7 @@ def rsvp():
     if not group_id:
         return jsonify({**public_showtimes([showtime], user)[0], 'attendance_prompt': ask_attendance})
     d = _with_attendance(user, [showtime], [
-        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0]
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=taste.genres(user))], group_id)[0]
     if prompt and d.get('discord') and not d['discord']['my_share']:
         d['discord']['prompt'] = True
     d['attendance_prompt'] = ask_attendance

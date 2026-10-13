@@ -124,20 +124,20 @@ def test_own_profile_card(zoe):
     assert ephemeral and emb.title == '🎬 Zoe' and isinstance(view, zoe.ProfileView)
     assert any(f.name == 'Watchlist' and f.value == '1 films' for f in emb.fields)
     assert 'sign in' in (emb.footer.text or '').lower()                       # Discord-only: the site is optional
-    assert len(view.genres.options) == 20 and view.genres.max_values == 20
+    assert len(view.genres.options) == 22 and view.genres.max_values == 22
 
 
 def test_choosing_genres(zoe):
     it = Interaction(ZOE)
     run(zoe.profile.callback(it))
     view = it.last()[4]
-    view.genres._values = ['horror', 'sci-fi']
-    view.genres._selected_values = ['horror', 'sci-fi']
+    view.genres._values = ['horror', 'science fiction']
+    view.genres._selected_values = ['horror', 'science fiction']
     comp = Interaction(ZOE)
     run(view.on_genres(comp))
     kind, _, _, emb, view2 = comp.last()
-    assert kind == 'edit' and 'Horror, Sci-Fi' in emb.fields[0].value
-    assert {o.value for o in view2.genres.options if o.default} == {'horror', 'sci-fi'}
+    assert kind == 'edit' and 'Horror, Sci-fi' in emb.fields[0].value
+    assert {o.value for o in view2.genres.options if o.default} == {'horror', 'science fiction'}
 
 
 def test_editing_bio_and_letterboxd(zoe):

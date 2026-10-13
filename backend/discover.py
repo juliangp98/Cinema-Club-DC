@@ -343,7 +343,7 @@ def context(group, viewer, films, now):
     rules as the weekly digest), the viewer's genres."""
     from app import db, Showtime, _group_showtime_query, schedule_horizons, is_last_chance, RARE_MIN_SCORE
     ctx = {'year': now.year, 'rare_min': RARE_MIN_SCORE, 'opening': set(), 'last_chance': set(),
-           'genres': {g.strip().lower() for g in ((viewer.favorite_genres if viewer else '') or '').split(',') if g.strip()}}
+           'genres': set(__import__('taste').genres(viewer)) if viewer else set()}
     if not films:
         return ctx
     span = {mid: (first, last, n) for mid, first, last, n in _group_showtime_query(group).with_entities(

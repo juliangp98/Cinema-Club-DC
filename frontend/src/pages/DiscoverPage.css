@@ -10,7 +10,7 @@
 .surprise-head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
 .surprise-title, .moods-title { color: var(--amber); font-size: var(--fs-lg); }
 .surprise-when { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-.surprise-when .chip, .filter-choice, .browse-when .chip { cursor: pointer; background: none; font-family: var(--font-body); }
+.surprise-when .chip, .browse-when .chip { cursor: pointer; background: none; font-family: var(--font-body); }
 .surprise-pick { display: flex; gap: 1rem; }
 .surprise-poster { width: 96px; flex-shrink: 0; aspect-ratio: 2 / 3; border-radius: var(--radius); overflow: hidden; background: var(--bg2); }
 .surprise-poster img { width: 100%; height: 100%; object-fit: cover; }
@@ -90,8 +90,6 @@
 .filters legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
 .filter-group + .filter-group { margin-top: 0.5rem; }
 .filter-sub { display: block; font-size: var(--fs-xs); color: var(--amber); margin-bottom: 0.3rem; }
-.filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.filter-choice { min-height: 32px; text-transform: capitalize; }
 .filters-foot {
   position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 0.5rem;
   padding: 0.85rem 0 1.25rem; background: var(--bg2); border-top: 1px solid var(--border); margin-top: 0.5rem;

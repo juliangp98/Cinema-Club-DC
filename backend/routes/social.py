@@ -2,6 +2,7 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
+import taste
 from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
@@ -185,7 +186,7 @@ def _feed_screening(viewer, group_id, sid, events, users, member_ids):
     if not s or not s.movie:
         return None
     showtime = _with_attendance(viewer, [s], [
-        s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=viewer.favorite_genres)], group_id)[0]
+        s.to_dict(user_id=viewer.id, group_id=group_id, user_genres=taste.genres(viewer))], group_id)[0]
     went_rows = [a for a in Attendance.query.filter_by(showtime_id=sid, status='went') if a.user_id in member_ids]
     went_ids = [a.user_id for a in went_visible_in(group_id, went_rows)]
     went = User.query.filter(User.id.in_(went_ids)).all() if went_ids else []

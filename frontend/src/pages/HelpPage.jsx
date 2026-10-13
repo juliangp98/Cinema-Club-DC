@@ -30,6 +30,12 @@ const SECTIONS = [
     ["What's the watchlist for?", "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can get an alert; your club can see what you want to see too."],
     ["Where are my plans and history?", "On the Me page: your watchlist, what you're going to, and your watch history. On someone's profile, Compare shows what you both want to see and are going to."],
   ] },
+  { id: "taste", title: "Your taste", items: [
+    ["What is Your taste?", "What you like, so the site can pick films for you: genres you love and ones you're not into, how you like to watch (on film, 70mm and IMAX, Q&As, classics, late shows…), favorite theatres, and favorite films, directors, actors and writers. Pick as much or as little as you like."],
+    ["Where do I set it?", "Edit profile → Your taste (it's also offered at the end of the welcome tour). Changes save as you make them. Genres can also be picked in Discord with /profile."],
+    ["Who can see my taste?", "Only you, unless you switch on “Show my taste on my profile” — then people in your clubs see it on your profile and with /profile in Discord."],
+    ["Which genres are there?", "The ones TMDB and IMDb use for films — action to western, plus film noir, musical, biography and sport — so what you pick matches how every film is labelled."],
+  ] },
   { id: "club", title: "Your club", items: [
     ["What's in the feed?", "What the club's been up to: plans, check-ins, comments, watchlist adds, polls and games, newest first, with a marker for what's new since your last visit and a recap every Monday. Filter it by kind at the top. On wide screens a side panel shows what's waiting for you; on phones it's the row of chips."],
     ["What's on the Club page?", "An overview, the members list, the leaderboard and — for admins — the club's settings."],
@@ -60,7 +66,7 @@ const SECTIONS = [
     ["Will people see my ratings?", "Only if you turn on “Show my star ratings with my check-ins” — then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."],
   ] },
   { id: "privacy", title: "Privacy", items: [
-    ["What can other members see?", "Your name, picture, bio, favorite genres, your plans and check-ins in clubs you share, and your Letterboxd link if you added one. Your email is only visible to admins of clubs you're in, and your settings are private."],
+    ["What can other members see?", "Your name, picture, bio, your plans and check-ins in clubs you share, your Letterboxd link if you added one, and your taste only if you switch on showing it. Your email is only visible to admins of clubs you're in, and your settings are private."],
     ["Is anything public?", "What's playing is public. Your plans, comments and lists are only shown to members of your clubs (a guest profile's are private to you). Calendar subscription links work for anyone who has them — New link turns an old one off."],
   ] },
 ];

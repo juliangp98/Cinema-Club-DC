@@ -7,15 +7,10 @@ import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
 import { SheetTitle } from "../ui/Sheet";
 import NotifySettings from "./NotifySettings";
+import TasteChips from "../ui/TasteChips";
+import { useShell } from "../shell/AppShell";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
-
-const GENRE_LIST = [
-  'action', 'comedy', 'drama', 'horror', 'sci-fi', 'thriller',
-  'documentary', 'animation', 'romance', 'classic', 'foreign',
-  'indie', 'experimental', 'mystery', 'fantasy', 'musical', 'war',
-  'western', 'noir', 'biographical'
-];
 
 const SHARE_KINDS = [
   ["rsvp", "My RSVPs", "Never still leaves a Share button on each screening."],
@@ -143,15 +138,14 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
   );
 }
 
-// The profile editor (name, color, genres, bio, Letterboxd, Discord and what
-// to share there). Shown in a Sheet from the account menu or the Me page.
+// The profile editor (name, color, bio, your taste, Letterboxd, Discord and
+// what to share there). Shown in a Sheet from the account menu or the Me page.
 export default function ProfileEditor({ user, apiBase, onUpdate }) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
   const [avatarColor, setAvatarColor] = useState(user.avatar_color || AVATAR_COLORS[0]);
-  const [genres, setGenres] = useState(() => {
-    return user.favorite_genres ? user.favorite_genres.split(",").filter(Boolean) : [];
-  });
+  const shell = useShell() || {};
+  const [taste, setTaste] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [kernels, setKernels] = useState(null);
@@ -175,10 +169,10 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
       .catch(() => {});
   }, [user?.id, apiBase]);
 
-  function toggleGenre(g) {
-    setGenres(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
-    setSaved(false);
-  }
+  // Your taste (R13) is edited in its own sheet; this shows where it stands.
+  useEffect(() => {
+    getJson(`${apiBase}/api/me/taste`, { cache: false }).then(setTaste).catch(() => {});
+  }, [apiBase, shell.tasteVersion]);
 
   async function handleSave() {
     setSaving(true);
@@ -187,7 +181,6 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         name: name.trim(),
         bio,
         avatar_color: avatarColor,
-        favorite_genres: genres.join(","),
       });
       onUpdate(d.user);
       setSaved(true);
@@ -247,17 +240,12 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         ))}
       </div>
 
-      <label className="profile-field-label">Favorite Genres</label>
-      <div className="genre-chips">
-        {GENRE_LIST.map(g => (
-          <button
-            key={g}
-            className={`genre-chip${genres.includes(g) ? " active" : ""}`}
-            onClick={() => toggleGenre(g)}
-          >
-            {g}
-          </button>
-        ))}
+      <label className="profile-field-label">Your taste</label>
+      <div className="profile-taste">
+        <TasteChips taste={taste?.summary} empty={<p className="ui-hint">Not set yet — tell us what you like and Discover picks films for you.</p>} />
+        <button type="button" className="btn btn-sm" onClick={() => shell.editTaste?.()}>
+          {taste?.set ? "Edit your taste" : "Pick what you like"}</button>
+        {taste && <span className="ui-hint">{taste.public ? "Shown on your profile" : "Only you see it"}</span>}
       </div>
 
       <label className="profile-field-label">Bio</label>

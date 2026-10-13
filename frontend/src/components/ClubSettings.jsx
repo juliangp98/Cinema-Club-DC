@@ -3,6 +3,7 @@ import { SectionTitle } from "../ui/PageHeader";
 import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { ROLES } from "../roles";
 
 // A club's settings, for its admins (R6b): picture and short name, details and
@@ -108,14 +109,14 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
             <span className="pv-label">Theatres</span>
             <div className="club-chips">
               {allTheatres.map(t => (
-                <button key={t.slug} type="button" className={`chip${theatres.has(t.slug) ? " gold" : ""}`} aria-pressed={theatres.has(t.slug)}
+                <ToggleChip key={t.slug} on={theatres.has(t.slug)} color={t.color}
                         onClick={() => setTheatres(prev => {
                           const next = new Set(prev);
                           if (next.has(t.slug)) { if (next.size > 1) next.delete(t.slug); } else next.add(t.slug);
                           return next;
                         })}>
                   {t.short_name || t.name}
-                </button>
+                </ToggleChip>
               ))}
             </div>
           </>

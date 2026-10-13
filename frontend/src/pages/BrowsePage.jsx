@@ -9,6 +9,7 @@ import "./DiscoverPage.css";
 import Loading, { LoadError } from "../ui/Loading";
 import { WatchAlertPrompt } from "../ui/AlertPrompts";
 import { useJson, getJson, send } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { groupParam } from "../scope";
 
 // Every filter lives in the URL, so any view is a shareable link (and the
@@ -162,9 +163,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
   const Choice = ({ k, v, children, count }) => {
     const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
     return (
-      <button type="button" className={`chip filter-choice${on ? " gold" : ""}`} aria-pressed={on} onClick={() => set(k, v)}>
-        {children}{count != null && <span className="mood-count">{count}</span>}
-      </button>
+      <ToggleChip on={on} count={count} onClick={() => set(k, v)}>{children}</ToggleChip>
     );
   };
 

@@ -5,6 +5,7 @@ import Loading, { LoadError } from "../ui/Loading";
 import { DoubleCard, SpotlightCard } from "./DiscoverPage";
 import { dayDate as dayLabel } from "../dates";
 import { useJson } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
 
@@ -25,10 +26,9 @@ function useScope(apiBase) {
   const label = named ? `at ${named.name}` : scope.regions ? `in ${REGIONS.find(([k]) => k === scope.regions)?.[1] || scope.regions}` : "";
   const bar = (
     <div className="more-scope" role="group" aria-label="Where">
-      <button type="button" className={`chip filter-choice${!scope.theatres && !scope.regions ? " gold" : ""}`} onClick={() => set({})}>Everywhere</button>
+      <ToggleChip on={!scope.theatres && !scope.regions} onClick={() => set({})}>Everywhere</ToggleChip>
       {REGIONS.map(([k, name]) => (
-        <button key={k} type="button" className={`chip filter-choice${scope.regions === k && !scope.theatres ? " gold" : ""}`}
-                onClick={() => set({ regions: k })}>{name}</button>
+        <ToggleChip key={k} on={scope.regions === k && !scope.theatres} onClick={() => set({ regions: k })}>{name}</ToggleChip>
       ))}
       <select className="more-scope-theatre" value={scope.theatres} aria-label="Theatre"
               onChange={e => set({ theatres: e.target.value })}>
@@ -54,9 +54,8 @@ export function SpotlightsPage({ apiBase, groupId }) {
       {bar}
       <div className="more-scope" role="group" aria-label="Who">
         {[["all", "Everyone"], ["director", "Directors"], ["actor", "Actors"]].map(([k, name]) => (
-          <button key={k} type="button" className={`chip filter-choice${role === k ? " gold" : ""}`} onClick={() => setRole(k)}>
-            {name}{data && <span className="mood-count">{k === "all" ? all.length : all.filter(sp => sp.role === k).length}</span>}
-          </button>
+          <ToggleChip key={k} on={role === k} onClick={() => setRole(k)}
+                      count={data ? (k === "all" ? all.length : all.filter(sp => sp.role === k).length) : null}>{name}</ToggleChip>
         ))}
       </div>
       {!data ? (error ? <LoadError what="the spotlights" onRetry={reload} /> : <Loading context="discover" />)

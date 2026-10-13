@@ -20,6 +20,10 @@ const SLIDES = [
     body: "No emails, Discord DMs or push notifications unless you turn them on — and nothing posts to Discord unless you choose to. It's all in your profile." },
 ];
 
+// Last of all (R13): an invitation to set up Your taste, or leave it for later.
+const TASTE = { emoji: "✨", title: "Make it yours",
+  body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Edit profile." };
+
 const STEPS = [
   { target: "nav:/", page: "/", title: "Discover",
     body: "What's worth seeing: rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
@@ -112,7 +116,7 @@ function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
   );
 }
 
-function Slides({ slides, index, onNext, onBack, onSkip, onTour }) {
+function Slides({ slides, index, onNext, onBack, onSkip, final, skipLabel = "Skip", help = true }) {
   const s = slides[index];
   const last = index === slides.length - 1;
   const nextRef = useRef(null);
@@ -127,20 +131,20 @@ function Slides({ slides, index, onNext, onBack, onSkip, onTour }) {
           {slides.map((x, i) => <span key={x.title} className={i === index ? "on" : ""} />)}
         </div>
         <div className="tour-actions">
-          <button type="button" className="linkish" onClick={onSkip}>Skip</button>
+          <button type="button" className="linkish" onClick={onSkip}>{skipLabel}</button>
           <span className="tour-spacer" />
           {index > 0 && <button type="button" className="btn btn-sm" onClick={onBack}>Back</button>}
           {last
-            ? <button type="button" ref={nextRef} className="btn btn-sm btn-primary" onClick={onTour}>Show me around</button>
+            ? <button type="button" ref={nextRef} className="btn btn-sm btn-primary" onClick={final.onClick}>{final.label}</button>
             : <button type="button" ref={nextRef} className="btn btn-sm btn-primary" onClick={onNext}>Next</button>}
         </div>
-        {last && <p className="tour-help">Or browse the <Link to="/help" onClick={onSkip}>Help guide</Link>.</p>}
+        {last && help && <p className="tour-help">Or browse the <Link to="/help" onClick={onSkip}>Help guide</Link>.</p>}
       </div>
     </div>
   );
 }
 
-export default function Tour({ inClub, onFinish: finished }) {
+export default function Tour({ inClub, onFinish: finished, onTaste }) {
   const slides = SLIDES.filter(s => !s.club || inClub);
   const [phase, setPhase] = useState("slides");
   const [i, setI] = useState(0);
@@ -160,9 +164,10 @@ export default function Tour({ inClub, onFinish: finished }) {
     navigate(step.page, { replace: true });
   }, [step, navigate]);
 
+  const toTaste = () => (onTaste ? setPhase("taste") : onFinish());       // the last card, if there's a sheet to open
   const startSpotlight = () => {
     const on = STEPS.filter(s => (!s.club || inClub) && findTarget(s.target));
-    if (!on.length) { onFinish(); return; }
+    if (!on.length) { toTaste(); return; }
     setSteps(on);
     setI(0);
     setPhase("spotlight");
@@ -181,10 +186,13 @@ export default function Tour({ inClub, onFinish: finished }) {
     <div className={`tour-layer tour-${phase}`}>
       {phase === "slides" ? (
         <Slides slides={slides} index={i} onNext={() => setI(i + 1)} onBack={() => setI(i - 1)}
-                onSkip={onFinish} onTour={startSpotlight} />
+                onSkip={onFinish} final={{ label: "Show me around", onClick: startSpotlight }} />
+      ) : phase === "taste" ? (
+        <Slides slides={[TASTE]} index={0} onSkip={onFinish} skipLabel="Later" help={false}
+                final={{ label: "Pick what you like", onClick: () => { onFinish(); onTaste(); } }} />
       ) : (
         <Spotlight step={steps[i]} index={i} count={steps.length} onSkip={onFinish} onBack={() => setI(i - 1)}
-                   onNext={() => (i === steps.length - 1 ? onFinish() : setI(i + 1))} />
+                   onNext={() => (i === steps.length - 1 ? toTaste() : setI(i + 1))} />
       )}
     </div>,
     document.body,

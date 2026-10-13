@@ -63,6 +63,34 @@
 }
 .chip.gold { color: var(--amber); border-color: var(--amber); background: var(--gold-wash); }
 a.chip { text-decoration: none; }
+/* A chip you switch on and off (ui/ToggleChip.jsx) */
+.chip-toggle {
+  cursor: pointer; background: none; font-family: var(--font-body); min-height: 32px;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.chip-toggle:hover:not(:disabled) { border-color: var(--amber); }
+.chip-toggle:disabled { opacity: 0.5; cursor: default; }
+.filters .chip-toggle { text-transform: capitalize; }        /* genre names come lowercase */
+.filter-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; margin: 0; padding: 0; }
+.chip-removable { gap: 0.3rem; padding-right: 0.3rem; }
+.chip-remove { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: var(--fs-md); line-height: 1; padding: 0 0.15rem; }
+.chip-remove:hover { color: var(--amber); }
+
+/* Type-and-pick (ui/PickSearch.jsx) */
+.pick-search { position: relative; margin-top: 0.5rem; }
+.pick-search .share-input { width: 100%; margin: 0; }
+.pick-results { list-style: none; margin: 0.3rem 0 0; padding: 0.25rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2); }
+.pick-result {
+  display: flex; justify-content: space-between; gap: 0.6rem; width: 100%; padding: 0.45rem 0.55rem; text-align: left;
+  background: none; border: 0; border-radius: var(--radius); color: var(--cream); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+}
+.pick-result:hover, .pick-result:focus-visible { background: var(--gold-wash); }
+
+/* Your taste (R13) */
+.taste-editor { display: flex; flex-direction: column; gap: 1rem; }
+.taste-editor section { display: flex; flex-direction: column; gap: 0.45rem; }
+.taste-editor .profile-section-label { margin: 0; }
+.taste-public { margin-top: 0.25rem; }
 a.chip:hover { border-color: var(--amber); color: var(--amber); }
 
 /* ── Hints: the one muted small line (R12) ─────────────────────────────── */
@@ -664,7 +692,7 @@ a.share-state { color: var(--green); }
 
 /* The welcome tour (R11): slides, then a spotlight on the real navigation. */
 .tour-layer { position: fixed; inset: 0; z-index: 300; }
-.tour-layer.tour-slides { background: rgba(10, 4, 6, 0.72); }
+.tour-layer.tour-slides, .tour-layer.tour-taste { background: rgba(10, 4, 6, 0.72); }
 .tour-slide-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; }
 .tour-card {
   position: fixed; background: var(--bg2); border: 1px solid var(--amber-dim); border-radius: var(--radius-lg);

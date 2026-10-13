@@ -151,10 +151,13 @@ def test_keeping_the_profile_by_signing_into_an_account(world, emails):
     g = v.post('/api/auth/guest').json['user']
     v.post('/api/rsvp', json={'showtime_id': world['s2'], 'status': 'maybe'})
     v.post('/api/watchlist', json={'movie_id': world['m2']})
+    v.put('/api/me/taste', json={'genres': ['horror'], 'ways': ['film']})
     v.post('/api/auth/login', json={'email': 'owner@r5b.test'})
     r = browser().post('/api/auth/verify', json={'token': emails()})
     with app.app_context():
         assert r.json['user']['id'] == world['owner'] and db.session.get(User, g['id']) is None       # guest folded in
+        owner = db.session.get(User, world['owner'])
+        assert __import__('taste').view(owner)['genres'] == ['horror'] and __import__('taste').view(owner)['ways'] == ['film']
         assert RSVP.query.filter_by(user_id=world['owner'], showtime_id=world['s2'], group_id=None).first().status == 'maybe'
         assert Watchlist.query.filter_by(user_id=world['owner'], movie_id=world['m2']).count() == 1     # no duplicate
         assert db.session.get(User, world['owner']).discord_user_id == '313131'

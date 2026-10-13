@@ -2,6 +2,7 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
+import taste
 from app import (FRONTEND_URL, Group, GroupMembership, Movie, RARE_MIN_SCORE, RSVP, Showtime, Theatre, User,
     Watchlist, _active_membership, _ai, _ai_searches, _as_int, _brief_user, _group_showtime_query,
     _with_attendance, app, attended_showtime_ids, current_user, datetime, db, guest_blocked, interest_counts,
@@ -121,7 +122,7 @@ def get_showtimes():
 
     showtimes = query.order_by(Showtime.start_time).all()
     return jsonify(_with_attendance(user, showtimes, [
-        s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)
+        s.to_dict(user_id=user.id, group_id=group_id, user_genres=taste.genres(user))
         for s in showtimes
     ], group_id))
 
@@ -140,7 +141,7 @@ def get_showtime(showtime_id):
     if not group:
         return jsonify(public_showtimes([showtime], user)[0])
     return jsonify(_with_attendance(user, [showtime], [
-        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres)], group_id)[0])
+        showtime.to_dict(user_id=user.id, group_id=group_id, user_genres=taste.genres(user))], group_id)[0])
 
 
 @app.route('/api/films/<int:movie_id>')
@@ -164,7 +165,7 @@ def film_detail(movie_id):
     upcoming = base.filter(Showtime.start_time >= now).order_by(Showtime.start_time).all()
     if group:
         showtimes = _with_attendance(user, upcoming, [
-            s.to_dict(user_id=user.id, group_id=group_id, user_genres=user.favorite_genres) for s in upcoming
+            s.to_dict(user_id=user.id, group_id=group_id, user_genres=taste.genres(user)) for s in upcoming
         ], group_id)
     else:
         showtimes = public_showtimes(upcoming, user)
@@ -418,7 +419,7 @@ def discover_calendar():
         shows = sorted((s for f in films for s in f.shows), key=lambda s: s.start_time)
         if group:
             dicts = _with_attendance(user, shows, [
-                s.to_dict(user_id=user.id, group_id=group.id, user_genres=user.favorite_genres) for s in shows], group.id)
+                s.to_dict(user_id=user.id, group_id=group.id, user_genres=taste.genres(user)) for s in shows], group.id)
         else:
             dicts = public_showtimes(shows, user)
         # Each film and theatre once (a busy week repeated them per screening:

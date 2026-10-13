@@ -59,6 +59,7 @@ def world():
                             Reaction(user_id=z.id, showtime_id=sp.id, group_id=ga.id, emoji='🔥'),
                             ShowtimeThread(showtime_id=sp.id, group_id=ga.id, guild_id='1', channel_id='2', thread_id='998877')])
         db.session.commit()
+        __import__('taste').migrate_legacy_genres()      # genres set the pre-R13 way, moved over
         return {'ga': ga.id, 'zelda': z.id, 'otto': o.id, 'lone': lone.id, 'sp': sp.id, 'sq': sq.id, 'pop': pop.id,
                 'quiet': quiet.id, 'd0': now.strftime('%Y-%m-%d'), 'd13': (now + timedelta(days=13)).strftime('%Y-%m-%d')}
 

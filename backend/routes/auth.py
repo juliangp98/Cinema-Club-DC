@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
 from app import (AVATAR_COLORS, Attendance, FRONTEND_URL, GroupMembership, LoginToken, Message, PollVote,
-    RSVP, Reaction, SharedRsvp, User, Watchlist, _update_profile_fields, _utcnow_naive, app, current_user,
+    RSVP, Reaction, SharedRsvp, TasteItem, User, Watchlist, _update_profile_fields, _utcnow_naive, app, current_user,
     datetime, db, follow_discord_avatar, guest_blocked, hashlib, jsonify, merge_users, random, re, redirect,
     request, require_auth, secrets, session, time, timedelta, timezone, urlencode)
 
@@ -68,8 +68,7 @@ def absorb_guest(keep, guest):
     move(Watchlist, 'movie_id')
     move(Reaction, 'showtime_id', 'group_id', 'emoji')
     move(Attendance, 'showtime_id')
-    if not keep.favorite_genres and guest.favorite_genres:
-        keep.favorite_genres = guest.favorite_genres
+    move(TasteItem, 'kind', 'key')
     LoginToken.query.filter_by(guest_user_id=guest.id).update({'guest_user_id': None}, synchronize_session=False)
     db.session.flush()
     db.session.delete(guest)

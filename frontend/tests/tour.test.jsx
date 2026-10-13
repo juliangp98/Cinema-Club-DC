@@ -61,6 +61,29 @@ describe("the spotlight", () => {
     document.querySelector(".topbar-bell").remove();
   });
 
+  test("then an invitation to set up Your taste — now, or later", async () => {
+    document.body.insertAdjacentHTML("beforeend", `<nav class="topbar-nav"><a href="/">Discover</a></nav>`);
+    const onFinish = vi.fn(), onTaste = vi.fn();
+    const { unmount } = renderPage(<Tour inClub={false} onFinish={onFinish} onTaste={onTaste} />);
+    for (let i = 0; i < 2; i += 1) await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show me around" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByRole("dialog", { name: "Make it yours" })).toBeInTheDocument();
+    expect(onFinish).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Pick what you like" }));
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(onTaste).toHaveBeenCalledTimes(1);
+    unmount();
+    renderPage(<Tour inClub={false} onFinish={onFinish} onTaste={onTaste} />);
+    for (let i = 0; i < 2; i += 1) await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show me around" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await userEvent.click(screen.getByRole("button", { name: "Later" }));
+    expect(onFinish).toHaveBeenCalledTimes(2);
+    expect(onTaste).toHaveBeenCalledTimes(1);
+    document.querySelector(".topbar-nav").remove();
+  });
+
   test("nothing on screen to show: straight to the end", async () => {
     const onFinish = vi.fn();
     renderPage(<Tour inClub={false} onFinish={onFinish} />);

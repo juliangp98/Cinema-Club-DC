@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
 import Feed from "./Feed";
 import { useJson } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { GamesRail, GamesStrip } from "../ui/GamesSummary";
 
 // The club feed as its own page (R10c): everything the club did, one kind
@@ -34,10 +35,9 @@ export default function FeedPage({ user, apiBase, groupId }) {
         <div className="feed-col">
           <div className="feed-filters" role="group" aria-label="Show">
             {FILTERS.map(([k, label]) => (
-              <button key={label} type="button" className={`chip filter-choice${type === k ? " gold" : ""}`} aria-pressed={type === k}
-                      onClick={() => setParams(k ? { type: k } : {}, { replace: true })}>
+              <ToggleChip key={label} on={type === k} onClick={() => setParams(k ? { type: k } : {}, { replace: true })}>
                 {label}
-              </button>
+              </ToggleChip>
             ))}
           </div>
           <Feed key={`${groupId}:${type || "all"}`} user={user} apiBase={apiBase} groupId={groupId} filter={type}

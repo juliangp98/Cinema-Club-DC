@@ -14,6 +14,7 @@ import { clearCache, send } from "../api";
 
 const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
+const TasteEditor = lazyPage(() => import("../components/TasteEditor"));          // R13, on demand
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -48,6 +49,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
   const [editing, setEditing] = useState(false);
   const [touring, setTouring] = useState(false);
+  const [tasting, setTasting] = useState(false);
+  const [tasteVersion, setTasteVersion] = useState(0);        // bumped when the taste sheet closes
 
   // The welcome tour (R11): on its own once per account (new ones, and
   // everyone the first time it shipped); replayable from the menu and Help.
@@ -98,6 +101,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
                   editProfile: () => setEditing(true), startTour: () => setTouring(true),
+                  editTaste: () => setTasting(true), tasteVersion,
                   openActivity: () => activity.open("club") };
 
   return (
@@ -146,7 +150,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
 
         <InstallPrompt />
 
-        {touring && <Suspense fallback={null}><Tour inClub={!!groupId} onFinish={finishTour} /></Suspense>}
+        {touring && <Suspense fallback={null}>
+          <Tour inClub={!!groupId} onFinish={finishTour} onTaste={() => setTasting(true)} /></Suspense>}
 
         {activity.isOpen && (
           <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} activity={activity} />
@@ -156,6 +161,14 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
           <Sheet label="Edit profile" onClose={() => setEditing(false)}>
             <div className="profile-editor">
               <Suspense fallback={<Loading />}><ProfileEditor user={user} apiBase={apiBase} onUpdate={setUser} /></Suspense>
+            </div>
+          </Sheet>
+        )}
+
+        {tasting && (
+          <Sheet label="Your taste" onClose={() => { setTasting(false); setTasteVersion(v => v + 1); }}>
+            <div className="profile-editor">
+              <Suspense fallback={<Loading />}><TasteEditor apiBase={apiBase} /></Suspense>
             </div>
           </Sheet>
         )}

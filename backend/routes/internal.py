@@ -5,8 +5,9 @@ and the models are imported from app."""
 import app as core
 import html as _html
 import json as _json
+import taste
 from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, BotSetting, DIGEST_CAPS,
-    DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, GENRE_LIST, Group, GroupMembership,
+    DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, Group, GroupMembership,
     INTERNAL_API_TOKEN, IntegrityError, Message, Movie, Notification, PLAN_MIN_WATCHERS, Poll, PollCategory,
     PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre,
     TriviaQuestion, User,
@@ -399,7 +400,7 @@ def internal_chat_context():
     if user:
         out['user'].update({
             'name': user.name,
-            'favorite_genres': user.favorite_genres or '',
+            'genres': ', '.join(taste.GENRE_LABELS[k] for k in taste.genres(user)),
             'letterboxd_username': user.letterboxd_username or '',
             'bio': (user.bio or '')[:300],
         })
@@ -1205,7 +1206,7 @@ def internal_watchlist():
     return jsonify({'owner': target.name, 'items': items})
 
 
-def _profile_payload(user):
+def _profile_payload(user, own=True):
     import kernels
     now = datetime.now()
     k = kernels.breakdown(user.id)
@@ -1214,8 +1215,10 @@ def _profile_payload(user):
                 .count())
     return {
         'user': user.to_dict(),
-        'genres': [g for g in (user.favorite_genres or '').split(',') if g],
-        'genre_options': GENRE_LIST,
+        # someone else's taste only if they show it (R13)
+        'genres': [{'key': k, 'label': taste.GENRE_LABELS[k]} for k in taste.genres(user)] if own or user.taste_public else [],
+        'taste_hidden': not own and not user.taste_public,
+        'genre_options': [{'key': k, 'label': label} for k, label in taste.GENRES],
         'watchlist_count': Watchlist.query.filter_by(user_id=user.id).count(),
         'upcoming_rsvps': upcoming,
         'site_account': user.email is not None,
@@ -1237,7 +1240,7 @@ def internal_profile():
         user, err = resolve_discord_user(request.args)
         if err:
             return err
-    return jsonify(_profile_payload(user))
+    return jsonify(_profile_payload(user, own=not other))
 
 
 @app.route('/api/internal/kernels')

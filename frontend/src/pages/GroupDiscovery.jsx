@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getJson, send } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { ClubBadge } from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import PageHeader from "../ui/PageHeader";
@@ -279,12 +280,10 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                   </label>
                   <div className="theatre-filters">
                     {allTheatres.map(t => (
-                      <button
+                      <ToggleChip
                         key={t.slug}
-                        type="button"
-                        className={`theatre-pill${newTheatres.has(t.slug) ? " active" : ""}`}
-                        data-theatre={t.slug}
-                        style={{ "--tcolor": t.color }}
+                        on={newTheatres.has(t.slug)}
+                        color={t.color}
                         onClick={() => setNewTheatres(prev => {
                           const next = new Set(prev);
                           if (next.has(t.slug)) { if (next.size > 1) next.delete(t.slug); }
@@ -293,7 +292,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                         })}
                       >
                         {t.name}
-                      </button>
+                      </ToggleChip>
                     ))}
                   </div>
                 </div>

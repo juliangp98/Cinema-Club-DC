@@ -14,6 +14,7 @@ import "./Calendar.css";
 import { groupParam } from "../scope";
 import Loading, { LoadError } from "../ui/Loading";
 import { getJson, cachedJson, rsvp, attend } from "../api";
+import ToggleChip from "../ui/ToggleChip";
 import { time, dayDate, monthDay, monthYear } from "../dates";
 
 // The server sends each film and theatre once (R7b); put them back on each screening.
@@ -496,9 +497,9 @@ export default function Calendar({ user, apiBase, groupId }) {
                 {members.map(m => {
                   const on = members_.includes(String(m.id));
                   return (
-                    <button key={m.id} type="button" className={`chip filter-choice${on ? " gold" : ""}`} aria-pressed={on} onClick={() => toggle("members", String(m.id))}>
+                    <ToggleChip key={m.id} on={on} onClick={() => toggle("members", String(m.id))}>
                       <Avatar user={m} size={18} /> {m.id === user?.id ? "You" : m.name}
-                    </button>
+                    </ToggleChip>
                   );
                 })}
               </div>

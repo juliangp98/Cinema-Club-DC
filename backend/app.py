@@ -54,13 +54,6 @@ db = SQLAlchemy(app)
 
 AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a']
 
-GENRE_LIST = [
-    'action', 'comedy', 'drama', 'horror', 'sci-fi', 'thriller',
-    'documentary', 'animation', 'romance', 'classic', 'foreign',
-    'indie', 'experimental', 'mystery', 'fantasy', 'musical', 'war',
-    'western', 'noir', 'biographical'
-]
-
 CINEMA_EMOJIS = [
     '\U0001F37F', '\U0001F3AC', '\U0001F44F', '\U0001F602', '\U0001F622',
     '\U0001F631', '\U0001F525', '\U0001F480', '\u2764\uFE0F', '\U0001F44E',
@@ -142,8 +135,8 @@ from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
     DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
     Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction,
-    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer,
-    TriviaQuestion, User, Watchlist)
+    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
+    TriviaAnswer, TriviaQuestion, User, Watchlist)
 
 
 
@@ -251,6 +244,7 @@ def merge_users(keep, gone):
     move(Reaction, 'showtime_id', 'group_id', 'emoji')
     move(Message)
     move(PollVote, 'category_id', 'rank')
+    move(TasteItem, 'kind', 'key')
     for m in GroupMembership.query.filter_by(user_id=gone.id).all():
         mine = GroupMembership.query.filter_by(user_id=keep.id, group_id=m.group_id).first()
         if not mine:
@@ -266,7 +260,7 @@ def merge_users(keep, gone):
     for col in ('added_by', 'updated_by', 'deleted_by'):
         Quote.query.filter(getattr(Quote, col) == gone.id).update({col: keep.id})
 
-    for col in ('favorite_genres', 'bio', 'letterboxd_username', 'avatar_url'):
+    for col in ('bio', 'letterboxd_username', 'avatar_url'):
         if not getattr(keep, col) and getattr(gone, col):
             setattr(keep, col, getattr(gone, col))
     discord_id, handle = gone.discord_user_id, gone.discord_username
@@ -356,14 +350,12 @@ def too_large(_):
 
 def _update_profile_fields(user, data):
     """Bio, favorite genres and Letterboxd handle — shared by the site's profile
-    menu and Discord's /profile. Genres may be a comma string or a list."""
+    menu and Discord's /profile. Genres (a list or comma string) go to taste.py."""
+    import taste
     if 'bio' in data:
         user.bio = (data['bio'] or '').strip()[:500]
-    if 'favorite_genres' in data:
-        raw = data['favorite_genres'] or []
-        raw = raw.split(',') if isinstance(raw, str) else raw
-        picked = {g.strip().lower() for g in raw}
-        user.favorite_genres = ','.join(g for g in GENRE_LIST if g in picked)
+    if 'genres' in data:
+        taste.set_genres(user, data['genres'])
     if 'letterboxd_username' in data:
         handle = re.sub(r'[^A-Za-z0-9_]', '', (data['letterboxd_username'] or ''))[:60] or None
         if user.letterboxd_sync and (handle or '').lower() != (user.letterboxd_username or '').lower():
@@ -452,7 +444,7 @@ def public_showtimes(showtimes, viewer=None):
     site renders either), with every member field empty."""
     ids = [s.id for s in showtimes]
     want, going = interest_counts({s.movie_id for s in showtimes}, ids)
-    genres = {g.strip().lower() for g in ((viewer.favorite_genres if viewer else '') or '').split(',') if g.strip()}
+    genres = set(__import__('taste').genres(viewer)) if viewer else set()
     # The viewer's own personal plans (R5b) — never anyone else's.
     mine = {r.showtime_id: r.status for r in RSVP.query.filter(
         RSVP.user_id == viewer.id, RSVP.group_id.is_(None), RSVP.showtime_id.in_(ids))} if viewer and ids else {}
@@ -1428,6 +1420,8 @@ def migrate():
     stmts = [
         "ALTER TABLE user ADD COLUMN bio TEXT DEFAULT ''",
         "ALTER TABLE user ADD COLUMN favorite_genres TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN taste_public BOOLEAN DEFAULT 0",
+        "ALTER TABLE movie ADD COLUMN original_language VARCHAR(8)",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
@@ -1540,6 +1534,7 @@ def migrate():
     db.session.commit()
     _migrate_poll_vote_ranked_constraint()
     _migrate_trivia_slots()
+    __import__('taste').migrate_legacy_genres()
     _migrate_user_email_nullable()
     _backfill_title_normalized()
 

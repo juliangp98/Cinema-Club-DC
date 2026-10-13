@@ -516,7 +516,7 @@ def format_context(ctx):
     u = ctx.get('user') or {}
     if u.get('linked'):
         who = u.get('name') or 'them'
-        genres = (u.get('favorite_genres') or '').strip()
+        genres = (u.get('genres') or '').strip()
         lines.append(f"Person: {who}" + (f"; favorite genres: {genres}" if genres else ''))
     else:
         lines.append("Person: no Cinema Club profile yet")
@@ -1767,7 +1767,8 @@ class ProfileView(discord.ui.View):
     def __init__(self, ident, profile):
         super().__init__(timeout=600)
         self.ident, self.profile = ident, profile
-        options = [discord.SelectOption(label=g.title(), value=g, default=g in profile['genres'])
+        mine = {g['key'] for g in profile['genres']}
+        options = [discord.SelectOption(label=g['label'], value=g['key'], default=g['key'] in mine)
                    for g in profile['genre_options'][:25]]
         self.genres = discord.ui.Select(placeholder='Favorite genres (for recommendations)',
                                         min_values=0, max_values=len(options), options=options, row=0)
@@ -1775,7 +1776,7 @@ class ProfileView(discord.ui.View):
         self.add_item(self.genres)
 
     async def on_genres(self, interaction: discord.Interaction):
-        await self.save(interaction, self.ident, {'favorite_genres': self.genres.values})
+        await self.save(interaction, self.ident, {'genres': self.genres.values})
 
     @discord.ui.button(label='Edit bio & Letterboxd', emoji='✏️', style=discord.ButtonStyle.secondary, row=1)
     async def edit_text(self, interaction: discord.Interaction, button: discord.ui.Button):

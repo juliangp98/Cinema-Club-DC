@@ -95,11 +95,11 @@ def test_sign_out(world):
 
 def test_profile_update_cleans_input(world):
     c = client(world['member'])
-    r = c.put('/api/auth/profile', json={'name': '  Member Prime  ', 'avatar_color': '#000000', 'favorite_genres': 'horror,NOPE,comedy',
+    r = c.put('/api/auth/profile', json={'name': '  Member Prime  ', 'avatar_color': '#000000', 'genres': 'horror,NOPE,comedy',
                                           'bio': 'x' * 900, 'letterboxd_username': 'mem ber!'}).json['user']
     assert r['name'] == 'Member Prime'
     assert r['avatar_color'] != '#000000'                      # only the palette's colors
-    assert r['favorite_genres'] == 'comedy,horror'
+    assert c.get('/api/me/taste').json['genres'] == ['comedy', 'horror']
     assert len(r['bio']) == 500 and r['letterboxd_username'] == 'member'
 
 

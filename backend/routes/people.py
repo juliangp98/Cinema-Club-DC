@@ -79,7 +79,8 @@ def get_user_profile(user_id):
 
     me = current_user()
     if me.id == target.id:
-        return jsonify(target.to_dict())
+        import taste
+        return jsonify({**target.to_dict(), 'taste': taste.summary(target)})
 
     # Privacy: must share at least one group with active membership
     mine = {m.group_id: m for m in GroupMembership.query.filter_by(user_id=me.id, status='active').all()}
@@ -87,8 +88,12 @@ def get_user_profile(user_id):
     shared = set(mine) & their_groups
     if not shared:
         return jsonify({'error': 'You do not share a group with this user'}), 403
-    # Their email only for an admin of a club you share.
-    return jsonify(target.public_dict(with_email=any(role_at_least(mine[g], 'admin') for g in shared)))
+    # Their email only for an admin of a club you share; their taste if they show it (R13).
+    out = target.public_dict(with_email=any(role_at_least(mine[g], 'admin') for g in shared))
+    if target.taste_public:
+        import taste
+        out['taste'] = taste.summary(target)
+    return jsonify(out)
 
 
 def watchlist_items(user):
@@ -206,3 +211,44 @@ def finish_tour():
         user.tour_seen_at = _utcnow_naive()
         db.session.commit()
     return jsonify({'tour_seen': True})
+
+
+# ─── Your taste (R13, taste.py) ───────────────────────────────────────────────
+
+@app.route('/api/me/taste', methods=['GET', 'PUT'])
+@require_auth
+def my_taste():
+    """The Your taste sheet: GET the choices and your picks; PUT any of
+    genres, avoid, ways, theatres, public."""
+    import taste
+    user = current_user()
+    if request.method == 'PUT':
+        err = taste.update(user, request.get_json(silent=True) or {})
+        if err:
+            return jsonify({'error': err}), 400
+    return jsonify(taste.view(user))
+
+
+@app.route('/api/me/taste/items', methods=['POST', 'DELETE'])
+@require_auth
+def my_taste_items():
+    """Add (POST {kind, movie_id | tmdb_id | name}) or remove (DELETE {kind,
+    key}) a favorite film or person, or a film that's not for you."""
+    import taste
+    user, data = current_user(), request.get_json(silent=True) or {}
+    if request.method == 'DELETE':
+        taste.remove(user, data.get('kind'), data.get('key'))
+    else:
+        err = taste.add(user, data)
+        if err:
+            return jsonify({'error': err}), 400
+    return jsonify(taste.view(user))
+
+
+@app.route('/api/taste/people')
+@require_auth
+def taste_people():
+    """Names for the favorite-people search (our credits, then TMDB's)."""
+    import taste
+    kind = request.args.get('kind')
+    return jsonify(taste.people_search(request.args.get('q', ''), kind if kind in taste.PEOPLE else None))

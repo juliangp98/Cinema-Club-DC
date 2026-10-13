@@ -89,6 +89,7 @@ def disco():
         db.session.add(RSVP(user_id=users[1].id, showtime_id=Showtime.query.filter_by(movie_id=blk.id).first().id,
                             group_id=g.id, status='going'))
         db.session.commit()
+        __import__('taste').migrate_legacy_genres()      # genres set the pre-R13 way, moved over
         group, ana = db.session.get(Group, g.id), db.session.get(User, users[0].id)
         start, end = D.window('2weeks', NOW)
         cat = D.catalog(group, start, end, ana)

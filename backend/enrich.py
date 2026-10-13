@@ -109,6 +109,27 @@ def search_tmdb(title, year=None):
         return None
 
 
+TMDB_DEPARTMENTS = {'Directing': 'director', 'Acting': 'actor', 'Writing': 'writer'}
+
+
+def tmdb_people(query, limit=8):
+    """TMDB's people for a typed name (R13: favorite directors, actors,
+    writers): [{name, kind}], by what they're known for. [] without a token
+    or on errors."""
+    if not _tmdb_token() or len((query or '').strip()) < 2:
+        return []
+    try:
+        r = requests.get(f'{TMDB_BASE}/search/person', headers=_tmdb_headers(),
+                         params={'query': query.strip(), 'include_adult': 'false'}, timeout=8)
+        r.raise_for_status()
+        return [{'name': x['name'], 'kind': TMDB_DEPARTMENTS[x.get('known_for_department')]}
+                for x in r.json().get('results', [])[:limit]
+                if x.get('name') and x.get('known_for_department') in TMDB_DEPARTMENTS]
+    except Exception as e:
+        print(f"  [enrich] TMDB person search error for '{query}': {e}")
+        return []
+
+
 def tmdb_search_list(query, limit=8):
     """TMDB's films for a typed title, most relevant first (R8c: watchlist any
     film): [{tmdb_id, title, year, poster_url}]. [] without a token or on errors."""
@@ -175,8 +196,9 @@ def tmdb_details(tmdb_id):
                     trailer_key = v['key']
                     break
 
-        # Genres
-        genres = ','.join(g['name'].lower() for g in detail.get('genres', []))
+        # Genres, in taste.py's terms (TMDB's names, lowercased)
+        import taste
+        genres = taste.merge_genres([g['name'] for g in detail.get('genres', [])])
 
         # Starring string from top cast
         starring = ', '.join(c['name'] for c in cast[:4])
@@ -196,6 +218,7 @@ def tmdb_details(tmdb_id):
             'tagline': detail.get('tagline') or None,
             'vote_average': detail.get('vote_average'),
             'genres': genres,
+            'original_language': detail.get('original_language') or None,
             'cast_json': json.dumps(cast),
             'crew_json': json.dumps(crew),
             'trailer_key': trailer_key,
@@ -246,6 +269,8 @@ def enrich_from_omdb(title, year=None, imdb_id=None):
             'awards': data.get('Awards') if data.get('Awards') != 'N/A' else None,
             'ratings_json': json.dumps(ratings) if ratings else None,
             'content_rating': data.get('Rated') if data.get('Rated') != 'N/A' else None,
+            # IMDb's genres add what TMDB has no name for (film noir, musical, biography, sport)
+            'omdb_genres': [g for g in (data.get('Genre') or '').split(',') if g.strip() and data.get('Genre') != 'N/A'],
         }
 
         # Backup director from OMDb if TMDB didn't provide one
@@ -293,6 +318,8 @@ def enrich_by_tmdb_id(tmdb_id, title=''):
     omdb = enrich_from_omdb(result['tmdb_title'] or title, result.get('release_year'),
                             imdb_id=result.get('imdb_id'))
     if omdb:
+        import taste
+        result['genres'] = taste.merge_genres(result.get('genres', '').split(','), omdb.pop('omdb_genres', []))
         director_backup = omdb.pop('director_backup', None)
         if not result.get('director') and director_backup:
             result['director'] = director_backup

@@ -743,6 +743,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   display: flex;
   gap: 0.5rem;
   margin-top: 0.3rem;
+  padding: 4px;                 /* room for the chosen color's ring — the profile panel scrolls, so it clips outside */
 }
 .color-swatch {
   width: 26px;
@@ -755,28 +756,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .color-swatch:hover { opacity: 0.8; }
 .color-swatch.active { border-color: var(--cream); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--cream); }
 
-.genre-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.3rem;
-}
-.genre-chip {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--muted);
-  transition: all 0.15s;
-  text-transform: capitalize;
-}
-.genre-chip:hover { border-color: var(--amber); color: var(--amber); }
-.genre-chip.active {
-  border-color: var(--amber);
-  color: var(--amber);
-  background: var(--gold-wash);
-}
+.profile-taste { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.3rem; }
 
 .profile-actions {
   margin-top: 1rem;
@@ -1120,28 +1100,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 0.75rem;
-}
-
-/* Theatre pill selectors (group create & admin) */
-.theatre-pill {
-  font-size: var(--fs-sm);
-  letter-spacing: 0.06em;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.theatre-pill:hover {
-  border-color: var(--cream);
-  color: var(--cream);
-}
-.theatre-pill.active {
-  border-color: var(--tcolor, var(--amber));
-  color: var(--tcolor, var(--amber));
-  background: color-mix(in srgb, var(--tcolor, var(--amber)) 10%, transparent);
 }
 
 /* Group pagination */
