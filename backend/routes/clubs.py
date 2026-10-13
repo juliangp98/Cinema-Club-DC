@@ -310,6 +310,8 @@ def update_group(slug):
         group.trivia_discord = data['trivia_discord'] and bool(group.trivia_enabled)
     if isinstance(data.get('trivia_anytime'), bool):          # extra questions on demand: its own switch
         group.trivia_anytime = data['trivia_anytime']
+    if isinstance(data.get('bingo_enabled'), bool):           # repertory bingo (R10e), off by default
+        group.bingo_enabled = data['bingo_enabled']
 
     db.session.commit()
     return jsonify(group.to_dict())

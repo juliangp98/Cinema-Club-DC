@@ -118,6 +118,8 @@ class Group(db.Model):
     trivia_enabled = db.Column(db.Boolean, default=False)
     trivia_discord = db.Column(db.Boolean, default=False)
     trivia_anytime = db.Column(db.Boolean, default=False)
+    # Repertory bingo (R10e): a monthly card for the club, off until an admin turns it on.
+    bingo_enabled = db.Column(db.Boolean, default=False)
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False, with_email=False):
@@ -136,6 +138,7 @@ class Group(db.Model):
             'discord': core.discord_group(self.id),        # the club's Discord server's group
             'trivia': {'enabled': bool(self.trivia_enabled), 'discord': bool(self.trivia_enabled and self.trivia_discord),
                        'anytime': bool(self.trivia_anytime)},
+            'bingo': {'enabled': bool(self.bingo_enabled)},
         }
         if include_members:
             d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']
@@ -497,6 +500,18 @@ class KernelGift(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     updated_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('giver_id', 'recipient_id', 'group_id', 'showtime_id', 'week'),)
+
+
+class BingoCard(db.Model):
+    """A club's repertory bingo card for a month (R10e): 8 squares around a
+    free middle, the same for every member, filled in from check-ins (see
+    bingo.py). Kept once made, so it doesn't change as the calendar does."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    month = db.Column(db.String(7), nullable=False)            # 'YYYY-MM'
+    squares_json = db.Column(db.Text, nullable=False)          # 8 square keys, in grid order (the middle is free)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    __table_args__ = (db.UniqueConstraint('group_id', 'month'),)
 
 
 class TriviaQuestion(db.Model):

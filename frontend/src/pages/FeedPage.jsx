@@ -3,6 +3,7 @@ import PageHeader from "../ui/PageHeader";
 import Feed from "./Feed";
 import { useJson } from "../api";
 import TriviaCard from "../ui/TriviaCard";
+import BingoCard from "../ui/BingoCard";
 import { useShell } from "../shell/AppShell";
 
 // The club feed as its own page (R10c): everything the club did, one kind
@@ -11,7 +12,7 @@ import { useShell } from "../shell/AppShell";
 // club has it on (R10d), and Monday recaps.
 
 const FILTERS = [[null, "All"], ["screenings", "Screenings"], ["watchlists", "Watchlists"], ["polls", "Polls"],
-                 ["kernels", "Kernels"], ["recaps", "Weekly recaps"]];
+                 ["kernels", "Kernels"], ["games", "Games"], ["recaps", "Weekly recaps"]];
 
 function OpenPolls({ apiBase, groupId }) {
   const { data } = useJson(`${apiBase}/api/club/week?group_id=${groupId}`);
@@ -56,6 +57,7 @@ export default function FeedPage({ user, apiBase, groupId }) {
       <PageHeader title="Club feed" />
       <OpenPolls apiBase={apiBase} groupId={groupId} />
       <TriviaCard apiBase={apiBase} groupId={groupId} role={role} />
+      <BingoCard apiBase={apiBase} groupId={groupId} role={role} />
       <div className="feed-filters" role="group" aria-label="Show">
         {FILTERS.map(([k, label]) => (
           <button key={label} type="button" className={`chip filter-choice${type === k ? " gold" : ""}`} aria-pressed={type === k}

@@ -157,6 +157,18 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         </label>
       </div>
 
+      <SectionTitle>Repertory bingo</SectionTitle>
+      <div className="club-form club-trivia">
+        <label className="notify-row">
+          <input type="checkbox" checked={!!group.bingo?.enabled}
+                 onChange={e => run(() => update({ bingo_enabled: e.target.checked }), "Saved")} />
+          <span><span className="notify-name">A bingo card every month</span>
+            <span className="notify-hint">One 3×3 card for the whole club (the middle's free) that fills in by itself from
+              check-ins: on film, before 1960, a late show, a theatre you'd never been to… Only squares this month's
+              calendar can fill. First line +5 kernels, the full card +15. Nobody is sent anything.</span></span>
+        </label>
+      </div>
+
       <SectionTitle>Invite by email</SectionTitle>
       <form className="club-inline" onSubmit={sendInvite}>
         <input className="share-input" type="email" placeholder="friend@example.com" value={inviteEmail}

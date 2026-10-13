@@ -280,6 +280,22 @@ function JoinedCard({ card, viewerId, onViewProfile }) {
   );
 }
 
+// Who got bingo on a month's card (R10e).
+function BingoFeedCard({ card, viewerId, onViewProfile }) {
+  const lines = card.winners.filter(w => w.kind === "line").map(w => w.user);
+  const full = card.winners.filter(w => w.kind === "full").map(w => w.user);
+  return (
+    <article className="feed-card feed-recap">
+      <CardHead at={card.at}>🎱 Repertory bingo · {card.month_label}</CardHead>
+      <div className="feed-card-body">
+        <Avatars users={card.winners.map(w => w.user)} onViewProfile={onViewProfile} max={8} />
+        {full.length > 0 && <div className="feed-activity">🎉🎉 {names(full, viewerId, 3)} filled the whole card</div>}
+        {lines.length > 0 && <div className="feed-activity">🎉 {names(lines, viewerId, 3)} got bingo</div>}
+      </div>
+    </article>
+  );
+}
+
 // Monday's "last week in the club" (R10c).
 function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
   const r = card.recap;
@@ -320,6 +336,7 @@ function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
           <li>{[r.plans > 0 && `🎟️ ${plural(r.plans, "plan")} made`, r.comments > 0 && `💬 ${plural(r.comments, "comment")}`]
             .filter(Boolean).join(" · ")}</li>
         )}
+        {r.bingo?.length > 0 && <li>🎱 Bingo: {names(r.bingo, viewerId, 4)}</li>}
         {r.joined.length > 0 && <li>👋 Welcome, {names(r.joined, viewerId, 4)}</li>}
       </ul>
     </article>
@@ -500,6 +517,8 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         return <JoinedCard key={card.key} {...common} />;
       case "recap":
         return <RecapCard key={card.key} {...common} onOpenShowtime={openShowtime} />;
+      case "bingo":
+        return <BingoFeedCard key={card.key} {...common} />;
       default:
         return null;
     }

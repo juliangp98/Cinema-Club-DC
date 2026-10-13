@@ -1301,6 +1301,17 @@ def internal_trivia_another():
     return jsonify(trivia.as_dict(q, user))
 
 
+@app.route('/api/internal/bingo')
+@require_internal
+def internal_bingo():
+    """/bingo: this member's card for the month."""
+    import bingo
+    user, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    return jsonify(bingo.view(db.session.get(Group, request.args.get('group_id', type=int) or 0), user))
+
+
 @app.route('/api/internal/trivia/post')
 @require_internal
 def internal_trivia_post():

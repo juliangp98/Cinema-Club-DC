@@ -1502,6 +1502,23 @@ a.feed-action { text-decoration: none; display: inline-flex; align-items: center
 .trivia-yesterday { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .trivia-off { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 1rem; }
 .trivia-card > .btn { align-self: flex-start; }
+/* Repertory bingo (R10e) */
+.bingo-card {
+  border: 1px solid var(--amber-dim); border-radius: var(--radius); padding: 0.8rem 0.9rem; margin: 0 0 1rem;
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.bingo-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; }
+.bingo-cell {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 0.45rem 0.4rem; min-height: 5.2rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 0.15rem;
+}
+.bingo-cell.done { border-color: var(--green); background: rgba(80, 160, 100, 0.14); }
+.bingo-cell.free { border-color: var(--amber-dim); background: var(--gold-wash); }
+.bingo-emoji { font-size: 1.35rem; line-height: 1; }
+.bingo-label { font-size: var(--fs-xs); font-weight: 600; }
+.bingo-sub { font-size: 0.68rem; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bingo-cell.done .bingo-sub { color: var(--green); }
+.bingo-club { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
 .club-trivia { gap: 0.6rem; }
 .club-trivia-sub { margin-left: 1.6rem; }
 

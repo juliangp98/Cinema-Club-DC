@@ -733,12 +733,13 @@ HELP_SECTIONS = [
         ('/watch', 'add to, remove from, or show a watchlist'),
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
-    ('🗳️ Polls, trivia & kernels', [
+    ('🗳️ Polls, games & kernels', [
         ('/polls', 'what\'s open right now'),
         ('/vote', 'your private ballot'),
         ('/leaderboard', 'season kernel standings 🍿'),
         ('/kernels', 'your kernels, where they came from, and how to earn more'),
         ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
+        ('/bingo', "this month's repertory bingo card (if your club has bingo on)"),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -797,10 +798,11 @@ def notify_settings_embed(s):
 
 def kernel_parts(k):
     """'polls 12 · going out 20 · from members 3' — where someone's kernels came
-    from (trivia only once there's some)."""
+    from (trivia and bingo only once there's some)."""
     return ' · '.join(f'{label} {k[key]}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
-                                                              ('trivia', 'trivia'), ('members', 'from members'))
-                      if key != 'trivia' or k.get('trivia'))
+                                                              ('trivia', 'trivia'), ('bingo', 'bingo'),
+                                                              ('members', 'from members'))
+                      if key not in ('trivia', 'bingo') or k.get(key))
 
 
 def kernels_embed(k):
@@ -820,6 +822,8 @@ def kernels_embed(k):
         *([f"• Trivia question of the day: **+{r['trivia']}** for a right answer (`/trivia`)"] if r.get('trivia') else []),
         *([f"• Anytime trivia: **+{r['trivia_anytime']['each']}** each, up to {r['trivia_anytime']['per_day']} a day"]
           if r.get('trivia_anytime') else []),
+        *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/bingo`)"]
+          if r.get('bingo') else []),
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
@@ -842,6 +846,27 @@ def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
     worth = (f"+{q.get('kernels', 2)} 🍿 for a right answer" if left is None or left > 0
              else "just for fun (today's anytime kernels are used up)")
     embed.set_footer(text=f"One try · {worth} · your answer stays private")
+    return embed
+
+
+def bingo_embed(b):
+    """/bingo: your card for the month (R10e) — the grid, what each square
+    asks for (✅ with the screening that filled it), and your lines."""
+    sq = b['squares']
+    grid = '\n'.join(' '.join('✅' if sq[r * 3 + c]['done'] and sq[r * 3 + c]['key'] != 'free'
+                               else sq[r * 3 + c]['emoji'] if sq[r * 3 + c]['key'] == 'free' else '⬜'
+                               for c in range(3)) for r in range(3))
+    lines = [f"{'✅' if s['done'] else '⬜'} {s['emoji']} **{s['label']}**"
+             + (f" — {s['by']['title']}" if s.get('by') else f" — *{s['hint']}*") for s in sq if s['key'] != 'free']
+    status = ('🎉 **Full card!**' if b['full'] else '🎉 **Bingo!** Now the full card…' if b['line']
+              else f"{b['filled']} of 8 — a line of 3 (the middle's free) is bingo")
+    embed = discord.Embed(title=f"🎱 Repertory bingo · {b['month_label']}", colour=AMBER, url=f'{SITE_URL}/feed',
+                          description=f"{grid}\n\n{status}\n\n" + '\n'.join(lines))
+    leaders = [f"{r['user']['name']} {r['filled']}/8" + (' 🎉' if r['line'] else '') for r in b.get('club', [])[:6]]
+    if leaders:
+        embed.add_field(name='The club', value=' · '.join(leaders)[:1024], inline=False)
+    embed.set_footer(text=f"Fills in from your check-ins · first line +{b['rules']['line']} 🍿, full card "
+                          f"+{b['rules']['full']} 🍿 · you've earned {b['kernels']} this month")
     return embed
 
 

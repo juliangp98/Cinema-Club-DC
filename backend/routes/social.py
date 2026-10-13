@@ -2,7 +2,7 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
-from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, GroupMembership, KernelGift, Message, Movie,
+from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
@@ -73,6 +73,10 @@ def feed_events(group_id, since):
     for m in GroupMembership.query.filter(GroupMembership.group_id == group_id, GroupMembership.status == 'active',
                                           GroupMembership.joined_at >= since):
         ev.append(('joined', f'j{m.joined_at.date().isoformat()}', m.joined_at, m.user_id, None))
+    group = db.session.get(Group, group_id)
+    if group and group.bingo_enabled and member_ids:          # repertory bingo (R10e)
+        import bingo
+        ev += bingo.feed_events(group_id, member_ids, since)
     ev = [e for e in ev if e[3] in member_ids]   # people who've since left drop out
     for p in Poll.query.filter_by(group_id=group_id):
         for kind, at in (('poll_opened', p.created_at), ('poll_closed', p.closed_at), ('poll_scored', p.scored_at)):
@@ -88,6 +92,7 @@ FEED_TYPES = {                 # ?type= on the feed page
     'polls': lambda c: c['key'][0] == 'p',
     'recaps': lambda c: c['key'][0] == 'r',
     'joins': lambda c: c['key'][0] == 'j',
+    'games': lambda c: c['key'][0] == 'b',
 }
 
 
@@ -129,6 +134,21 @@ def feed_skeletons(group_id, kind=None):
     return sorted(out, key=lambda c: (c['at'], c['key']), reverse=True), member_ids
 
 
+def _feed_bingo(month, events, users):
+    """Who got bingo on a month's card (R10e), newest first; a full card
+    supersedes that member's line."""
+    best = {}
+    for kind, _, at, uid, what in events:
+        if uid in users and (uid not in best or what == 'full'):
+            best[uid] = (what, at)
+    if not best:
+        return None
+    rows = sorted(best.items(), key=lambda kv: kv[1][1], reverse=True)
+    return {'type': 'bingo', 'month': month,
+            'month_label': datetime.strptime(month, '%Y-%m').strftime('%B'),
+            'winners': [{'user': _feed_user(users[uid]), 'kind': what} for uid, (what, _) in rows]}
+
+
 def _feed_recap(group_id, week_of, events, users):
     """Last week in the club: check-ins (and the most-seen screening), crew
     nights, who members gave the most kernels to, polls scored, plans made,
@@ -151,6 +171,7 @@ def _feed_recap(group_id, week_of, events, users):
             board = poll_scores(p)
             polls.append({'id': p.id, 'title': p.title, 'winner': board[0]['user'].name if board else None})
     joined = list(dict.fromkeys(uid for kind, _, _, uid, _ in events if kind == 'joined' and uid in users))
+    bingos = list(dict.fromkeys(uid for kind, _, _, uid, _ in events if kind == 'bingo' and uid in users))
     recap = {
         'week_of': week_of,
         'checkins': sum(len(v) for v in went.values()),
@@ -164,8 +185,9 @@ def _feed_recap(group_id, week_of, events, users):
         'plans': sum(1 for e in events if e[0] == 'rsvp' and e[4] == 'going'),
         'comments': sum(1 for e in events if e[0] == 'comment'),
         'joined': [_feed_user(users[u]) for u in joined],
+        'bingo': [_feed_user(users[u]) for u in bingos],
     }
-    if not any((recap['checkins'], recap['kernels'], polls, recap['plans'], recap['comments'], joined)):
+    if not any((recap['checkins'], recap['kernels'], polls, recap['plans'], recap['comments'], joined, bingos)):
         return None
     return {'type': 'recap', 'recap': recap}
 
@@ -254,6 +276,8 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
             card = _feed_poll(viewer, int(ref))
         elif kind == 'r':
             card = _feed_recap(group_id, ref, c['events'], users)
+        elif kind == 'b':
+            card = _feed_bingo(ref, c['events'], users)
         else:
             joined = list(dict.fromkeys(e[3] for e in c['events'] if e[3] in users))
             card = {'type': 'joined', 'users': [_feed_user(users[u]) for u in joined]}

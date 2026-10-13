@@ -3424,6 +3424,27 @@ async def trivia_cmd(interaction: discord.Interaction):
         await interaction.followup.send('No trivia question today — check back tomorrow.', ephemeral=True)
 
 
+# ─── Repertory bingo (R10e) ───────────────────────────────────────────────────
+
+@client.tree.command(name='bingo', description="This month's repertory bingo card (if your club has bingo on)")
+async def bingo_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        b = await api.get('/api/internal/bingo', **discord_identity(interaction))
+    except ApiError as e:
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else api_error_text(e), ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/bingo failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    if not b.get('enabled'):
+        await interaction.followup.send(
+            "Bingo is off for this club — a club admin can turn it on in Club settings on the site.", ephemeral=True)
+        return
+    await interaction.followup.send(embed=embeds.bingo_embed(b), ephemeral=True)
+
+
 @tasks.loop(minutes=15)
 async def trivia_loop():
     """Post the question of the day in #movies once, after 11 AM — only when

@@ -256,7 +256,8 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
               {kernels?.breakdown && (
                 <small className="profile-kernels-parts">
                   polls {kernels.breakdown.polls} · going out {kernels.breakdown.going_out}
-                  {kernels.breakdown.trivia ? ` · trivia ${kernels.breakdown.trivia}` : ""} · from members {kernels.breakdown.members}
+                  {kernels.breakdown.trivia ? ` · trivia ${kernels.breakdown.trivia}` : ""}
+                  {kernels.breakdown.bingo ? ` · bingo ${kernels.breakdown.bingo}` : ""} · from members {kernels.breakdown.members}
                 </small>
               )}
             </div>

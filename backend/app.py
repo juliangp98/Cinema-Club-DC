@@ -140,7 +140,7 @@ def email_signin_link(to_email, link_url, purpose):
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BotSetting, DiscordDeletion, DiscordPost, DiscordServerMember,
-    Group, GroupMembership, KernelGift, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
+    BingoCard, Group, GroupMembership, KernelGift, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
     PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, SavedSearch, SavedSearchHit,
     ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer, TriviaQuestion, User,
     Watchlist)
@@ -1455,6 +1455,7 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN trivia_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN trivia_discord BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN trivia_anytime BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN bingo_enabled BOOLEAN DEFAULT 0",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",

@@ -374,3 +374,18 @@ def trivia_answer():
     if error:
         return jsonify({'error': error}), 400
     return jsonify(result)
+
+
+# ─── Repertory bingo (R10e) ───────────────────────────────────────────────────
+
+@app.route('/api/bingo')
+@require_auth
+def bingo_card():
+    """This month's club card (if the club turned bingo on): your squares, the
+    screenings that filled them, your lines, and how the club is doing."""
+    import bingo
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    return jsonify(bingo.view(db.session.get(Group, group_id), current_user()))
