@@ -8,7 +8,7 @@ import Menu, { MenuItem } from "../ui/Menu";
 import "./DiscoverPage.css";
 import Loading, { LoadError } from "../ui/Loading";
 import { WatchAlertPrompt } from "../ui/AlertPrompts";
-import { useJson, getJson } from "../api";
+import { useJson, getJson, send } from "../api";
 import { groupParam } from "../scope";
 
 // Every filter lives in the URL, so any view is a shareable link (and the
@@ -54,20 +54,17 @@ function SaveSearch({ apiBase, groupId, query }) {
     setBusy(true);
     setNote(null);
     if (mine) {
-      const r = await fetch(`${apiBase}/api/searches/${mine.id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
-      if (r?.ok) { setSaved(saved.filter(s => s.id !== mine.id)); setNote("Alerts off for this search."); }
+      const ok = await send(`${apiBase}/api/searches/${mine.id}`, "DELETE").then(() => true, () => false);
+      if (ok) { setSaved(saved.filter(s => s.id !== mine.id)); setNote("Alerts off for this search."); }
     } else {
-      const r = await fetch(`${apiBase}/api/searches`, {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ params: search, group_id: groupId || null }),
-      }).catch(() => null);
-      const d = await r?.json().catch(() => null);
-      if (r?.ok && d) {
+      const d = await send(`${apiBase}/api/searches`, "POST", { params: search, group_id: groupId || null })
+        .catch(e => ({ failed: e.data?.error || "Couldn't save that — try again in a bit." }));
+      if (!d.failed) {
         setSaved([...saved, d.search]);
         setNote(`Saved. We'll tell you when a theatre books a new film that fits${d.fitting_now
           ? ` (${d.fitting_now} already ${d.fitting_now === 1 ? "does" : "do"})` : ""}.`);
         setAsk(!!d.alert_prompt);
-      } else setNote(d?.error || "Couldn't save that — try again in a bit.");
+      } else setNote(d.failed);
     }
     setBusy(false);
   }
@@ -100,8 +97,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
   const qs = new URLSearchParams(query).toString();
 
   useEffect(() => {
-    fetch(`${apiBase}/api/theatres`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
+    getJson(`${apiBase}/api/theatres`)
       .then(ts => setTheatreNames(Object.fromEntries(ts.map(t => [t.slug, t.short_name || t.name]))))
       .catch(() => {});
   }, [apiBase]);

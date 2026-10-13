@@ -52,14 +52,9 @@ export default function PicturePicker({ preview, onUpload, onEmoji, onClear, cle
   );
 }
 
-// fetch helpers that throw the server's message
-export async function sendPicture(url, file) {
+// Upload a picture (throws the server's message, like send()).
+export function sendPicture(url, file) {
   const body = new FormData();
   body.append("file", file);
-  const r = await fetch(url, { method: "POST", credentials: "include", body }).catch(() => null);
-  const d = r ? await r.json().catch(() => ({})) : {};
-  if (!r?.ok) throw new Error(d.error || "Couldn't upload that — try again.");
-  return d;
+  return send(url, "POST", body);
 }
-
-export const sendJson = (url, method, payload) => send(url, method, payload);

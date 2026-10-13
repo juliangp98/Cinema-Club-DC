@@ -6,7 +6,7 @@ import SearchBox from "../ui/SearchBox";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import Loading, { LoadError } from "../ui/Loading";
-import { useJson, attend } from "../api";
+import { useJson, getJson, send, attend } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
@@ -31,9 +31,8 @@ function Surprise({ apiBase, groupId }) {
   async function spin(nextWhen = when, exclude = seen) {
     setState("loading");
     const qs = new URLSearchParams({ when: nextWhen, exclude: exclude.join(",") });
-    const r = await fetch(`${apiBase}/api/discover/surprise?${groupParam(groupId)}${qs}`, { credentials: "include" }).catch(() => null);
-    if (r?.ok) {
-      const p = await r.json();
+    const p = await getJson(`${apiBase}/api/discover/surprise?${groupParam(groupId)}${qs}`, { cache: false }).catch(() => null);
+    if (p) {
       setPick(p);
       setSeen([...exclude, p.movie.id]);
       setState("idle");
@@ -105,8 +104,7 @@ export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtim
   const [week, setWeek] = useState(null);
   useEffect(() => {
     let live = true;
-    fetch(`${apiBase}/api/club/week?group_id=${groupId}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null))
+    getJson(`${apiBase}/api/club/week?group_id=${groupId}`)
       .then(d => { if (live) setWeek(d); })
       .catch(() => {});
     return () => { live = false; };
@@ -290,8 +288,7 @@ function BringPlans({ apiBase, groupId, user, clubName, onShared }) {
   const [asked, setAsked] = useState(() => { try { return !!localStorage.getItem(key); } catch { return false; } });
   useEffect(() => {
     if (asked) return;
-    fetch(`${apiBase}/api/groups/${groupId}/personal-plans`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : { items: [] }))
+    getJson(`${apiBase}/api/groups/${groupId}/personal-plans`, { cache: false })
       .then(d => { setItems(d.items); setPicked(new Set(d.items.map(i => i.showtime_id))); })
       .catch(() => {});
   }, [apiBase, groupId, asked]);
@@ -299,12 +296,10 @@ function BringPlans({ apiBase, groupId, user, clubName, onShared }) {
   const done = () => { try { localStorage.setItem(key, "1"); } catch { /* private mode */ } setAsked(true); };
   async function share() {
     setBusy(true);
-    const r = await fetch(`${apiBase}/api/groups/${groupId}/personal-plans`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ showtime_ids: [...picked] }),
-    }).catch(() => null);
+    const ok = await send(`${apiBase}/api/groups/${groupId}/personal-plans`, "POST", { showtime_ids: [...picked] })
+      .then(() => true, () => false);
     setBusy(false);
-    if (r?.ok) { done(); onShared?.(); }
+    if (ok) { done(); onShared?.(); }
   }
   const toggle = id => setPicked(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (

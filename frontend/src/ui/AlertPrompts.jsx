@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { PushDevice } from "../components/NotifySettings";
+import { getJson, send } from "../api";
 
 // Notifications are opt-in: these ask once, at the first moment they matter.
 // Nothing leaves the site unless the person picks something here (or in the
 // bell's Notification settings, which can change it all later).
 
-const put = (apiBase, path, body) => fetch(`${apiBase}${path}`, {
-  method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-});
+const put = (apiBase, path, body) => send(`${apiBase}${path}`, "PUT", body);
 
 // What to ask after a watchlist add, from the server's answer.
 export const watchPromptOf = d => (d.alert_prompt ? { alerts: true, digest: !!d.discord_prompt }
@@ -22,8 +21,7 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
   const [pick, setPick] = useState({ discord: false, email: false, mention: false });
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    fetch(`${apiBase}/api/me/notifications`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null)).then(setS).catch(() => setS(null));
+    getJson(`${apiBase}/api/me/notifications`, { cache: false }).then(setS).catch(() => setS(null));
   }, [apiBase]);
   if (!s) return null;
   const ways = [["discord", "Discord DM"], ["email", "Email"]].filter(([k]) => s.available[k]);

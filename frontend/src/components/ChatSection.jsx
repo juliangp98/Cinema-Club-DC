@@ -3,6 +3,7 @@ import { useShell } from "../shell/AppShell";
 import { shareToDiscord } from "../ui/DiscordShare";
 import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import { ago } from "../dates";
+import { getJson, send } from "../api";
 
 const timeAgo = ago;
 
@@ -38,14 +39,11 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
     const params = new URLSearchParams({ showtime_id: showtimeId });
     if (groupId) params.set("group_id", groupId);
     try {
-      const r = await fetch(`${apiBase}/api/messages?${params}`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        const sig = signature(data);
-        if (sig !== lastSignature.current) {
-          lastSignature.current = sig;
-          setMessages(data);
-        }
+      const data = await getJson(`${apiBase}/api/messages?${params}`, { cache: false });
+      const sig = signature(data);
+      if (sig !== lastSignature.current) {
+        lastSignature.current = sig;
+        setMessages(data);
       }
     } catch {
       // ignore
@@ -93,22 +91,14 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
 
     setSending(true);
     try {
-      const r = await fetch(`${apiBase}/api/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ showtime_id: showtimeId, group_id: groupId, body,
-                               ...(discord ? { to_discord: !!threadUrl && toDiscord } : {}) }),
+      const msg = await send(`${apiBase}/api/messages`, "POST", { showtime_id: showtimeId, group_id: groupId, body,
+                                                               ...(discord ? { to_discord: !!threadUrl && toDiscord } : {}) });
+      setMessages(prev => {
+        const next = [...prev, msg];
+        lastSignature.current = signature(next);
+        return next;
       });
-      if (r.ok) {
-        const msg = await r.json();
-        setMessages(prev => {
-          const next = [...prev, msg];
-          lastSignature.current = signature(next);
-          return next;
-        });
-        setInput("");
-      }
+      setInput("");
     } catch {
       // ignore
     } finally {
@@ -135,14 +125,12 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
   async function handleDelete(m) {
     if (!window.confirm(m.via_discord ? "Delete this comment here and in Discord?" : "Delete this comment?")) return;
     try {
-      const r = await fetch(`${apiBase}/api/messages/${m.id}`, { method: "DELETE", credentials: "include" });
-      if (r.ok) {
-        setMessages(prev => {
-          const next = prev.filter(x => x.id !== m.id);
-          lastSignature.current = signature(next);
-          return next;
-        });
-      }
+      await send(`${apiBase}/api/messages/${m.id}`, "DELETE");
+      setMessages(prev => {
+        const next = prev.filter(x => x.id !== m.id);
+        lastSignature.current = signature(next);
+        return next;
+      });
     } catch {
       // ignore
     }

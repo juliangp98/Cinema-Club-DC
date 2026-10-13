@@ -4,7 +4,7 @@ import { accountLabel } from "../accountLabel";
 import Sheet from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
 import { fullDate, dayDateTime } from "../dates";
-import { attend } from "../api";
+import { attend, getJson } from "../api";
 
 const formatDate = fullDate, formatWhen = dayDateTime;
 
@@ -17,10 +17,7 @@ function useList(url) {
   const [data, setData] = useState(null);
   useEffect(() => {
     setData(null);
-    fetch(url, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : { error: true }))
-      .then(setData)
-      .catch(() => setData({ error: true }));
+    getJson(url).then(setData).catch(() => setData({ error: true }));
   }, [url]);
   return [data, setData];
 }
@@ -205,17 +202,9 @@ export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, 
     setUser(null);
     setKernels(null);
     Promise.all([
-      fetch(`${apiBase}/api/users/${userId}/profile`, { credentials: "include" })
-        .then(async (r) => {
-          if (!r.ok) {
-            const d = await r.json().catch(() => ({}));
-            throw new Error(d.error || "Could not load profile");
-          }
-          return r.json();
-        }),
-      fetch(`${apiBase}/api/users/${userId}/kernels`, { credentials: "include" })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null),
+      getJson(`${apiBase}/api/users/${userId}/profile`)
+        .catch(e => { throw new Error(e.data?.error || "Could not load profile"); }),
+      getJson(`${apiBase}/api/users/${userId}/kernels`).catch(() => null),
     ])
       .then(([userData, kernelData]) => {
         setUser(userData);

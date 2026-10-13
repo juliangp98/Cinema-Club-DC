@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { numericDay } from "../dates";
+import { getJson, send } from "../api";
 import { stars } from "../ui/stars";
-import { Segmented } from "../ui/TicketRow";
+import { ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
 
 const formatDay = numericDay;
 
@@ -15,8 +16,7 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
   const [diaryChoice, setDiaryChoice] = useState(null);   // just changed here
 
   useEffect(() => {
-    fetch(`${apiBase}/api/attendance/pending`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
+    getJson(`${apiBase}/api/attendance/pending`, { cache: false })
       .then(setItems)
       .catch(() => setItems([]));
   }, [apiBase, refreshKey]);
@@ -65,14 +65,10 @@ export default function AttendancePrompt({ apiBase, refreshKey, onAnswer, onOpen
         <div className="attendance-diary-choice">
           <span>Check me in from my Letterboxd diary:</span>
           <Segmented label="Check me in from my Letterboxd diary" value={diaryChoice || "ask"}
-                     options={[{ status: "ask", label: "Ask me" }, { status: "always", label: "Always" }, { status: "never", label: "Never" }]}
+                     options={ASK_ALWAYS_NEVER}
                      onChange={async v => {
                        if (!v) return;
-                       const r = await fetch(`${apiBase}/api/me/letterboxd`, {
-                         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-                         body: JSON.stringify({ checkin: v }),
-                       }).catch(() => null);
-                       if (r?.ok) setDiaryChoice(v);
+                       send(`${apiBase}/api/me/letterboxd`, "PUT", { checkin: v }).then(() => setDiaryChoice(v), () => {});
                      }} />
         </div>
       )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import { useShell } from "../shell/AppShell";
+import { getJson } from "../api";
 import "./Polls.css";
 
 export const SCORING_LABELS = {
@@ -24,8 +25,7 @@ export default function PollsPage({ apiBase, activeGroupId }) {
 
   useEffect(() => {
     if (!activeGroupId) return;
-    fetch(`${apiBase}/api/groups/${activeGroupId}/polls`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
+    getJson(`${apiBase}/api/groups/${activeGroupId}/polls`)
       .then(setPolls)
       .catch(() => setFailed(true));
   }, [apiBase, activeGroupId]);

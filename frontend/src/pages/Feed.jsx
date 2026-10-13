@@ -8,7 +8,7 @@ import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import { ago, dayDateTime } from "../dates";
-import { rsvp, attend } from "../api";
+import { getJson, send, rsvp, attend } from "../api";
 import { stars } from "../ui/stars";
 import { NOTE_TAGS } from "../ui/ScreeningNotes";
 
@@ -386,10 +386,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
   groupRef.current = groupId;
 
   const fetchPage = useCallback(async (offset) => {
-    const r = await fetch(`${apiBase}/api/feed?group_id=${groupId}&offset=${offset}${filter ? `&type=${filter}` : ""}`,
-                          { credentials: "include" });
-    if (!r.ok) throw new Error(String(r.status));
-    return r.json();
+    return getJson(`${apiBase}/api/feed?group_id=${groupId}&offset=${offset}${filter ? `&type=${filter}` : ""}`);
   }, [apiBase, groupId, filter]);
 
   // (Re)load everything currently shown, so updates land in place.
@@ -472,8 +469,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
   }, []);
 
   const openShowtime = useCallback((stId) => {
-    fetch(`${apiBase}/api/showtimes/${stId}?group_id=${groupId}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null))
+    getJson(`${apiBase}/api/showtimes/${stId}?group_id=${groupId}`)
       .then(data => { if (data) setSelected([data]); })
       .catch(() => { /* ignore */ });
   }, [apiBase, groupId]);
@@ -495,12 +491,12 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
 
   // Give (+1) or take (−1) a kernel; returns an error message, or null.
   async function toss(showtimeId, userId, delta) {
-    const r = await fetch(`${apiBase}/api/kernels/toss`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ group_id: groupId, showtime_id: showtimeId, user_id: userId, delta }),
-    }).catch(() => null);
-    const d = await r?.json().catch(() => null);
-    if (!r?.ok || !d) return d?.error || "Couldn't do that — try again in a bit.";
+    let d;
+    try {
+      d = await send(`${apiBase}/api/kernels/toss`, "POST", { group_id: groupId, showtime_id: showtimeId, user_id: userId, delta });
+    } catch (e) {
+      return e.data?.error || "Couldn't do that — try again in a bit.";
+    }
     setAllowance(d.allowance);
     setCards(prev => prev.map(c => (c.showtime?.id !== showtimeId ? c : {
       ...c, kernels: { ...c.kernels, people: c.kernels.people.map(p => (p.user.id === userId ? { ...p, mine: d.mine, net: d.net } : p)) },

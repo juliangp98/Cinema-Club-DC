@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { send } from "../api";
 
 const CINEMA_EMOJIS = [
   "\u{1F37F}", "\u{1F3AC}", "\u{1F44F}", "\u{1F602}", "\u{1F622}",
@@ -20,16 +21,7 @@ export default function ReactionBar({ reactions, showtimeId, groupId, apiBase, o
     if (readOnly) return;
     if (beforeReact && !(await beforeReact())) return;
     try {
-      const r = await fetch(`${apiBase}/api/reactions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ showtime_id: showtimeId, group_id: groupId, emoji }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        onUpdate(data);
-      }
+      onUpdate(await send(`${apiBase}/api/reactions`, "POST", { showtime_id: showtimeId, group_id: groupId, emoji }));
     } catch {
       // ignore
     }

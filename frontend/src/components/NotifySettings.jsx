@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getJson, send } from "../api";
 
 // Push on this device (R8d): needs the browser's permission and, on iPhone,
 // the site added to the Home Screen.
@@ -14,13 +15,11 @@ export function PushDevice({ apiBase, onSettings }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   useEffect(() => {
-    fetch(`${apiBase}/api/push/key`).then(r => r.json()).then(d => setKey(d.key || "")).catch(() => setKey(""));
+    getJson(`${apiBase}/api/push/key`).then(d => setKey(d?.key || "")).catch(() => setKey(""));
     if (pushSupported()) navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription()).then(setSub).catch(() => setSub(null));
   }, [apiBase]);
   if (!key) return null;                             // push isn't set up on the server
-  const post = (path, body) => fetch(`${apiBase}/api/push/${path}`, {
-    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
+  const post = (path, body) => send(`${apiBase}/api/push/${path}`, "POST", body);
 
   async function turnOn() {
     setBusy(true); setMsg("");
@@ -31,10 +30,9 @@ export function PushDevice({ apiBase, onSettings }) {
       }
       const reg = await navigator.serviceWorker.ready;
       const s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
-      const r = await post("subscribe", s.toJSON());
-      if (!r.ok) throw new Error();
+      const d = await post("subscribe", s.toJSON());
       setSub(s);
-      onSettings(await r.json());
+      onSettings(d);
     } catch {
       setMsg("Couldn't turn on push here — try again in a bit.");
     } finally { setBusy(false); }
@@ -42,15 +40,15 @@ export function PushDevice({ apiBase, onSettings }) {
   async function turnOff() {
     setBusy(true);
     try {
-      const r = await post("unsubscribe", { endpoint: sub.endpoint });
+      const d = await post("unsubscribe", { endpoint: sub.endpoint }).catch(() => null);
       await sub.unsubscribe().catch(() => {});
       setSub(null);
-      if (r.ok) onSettings(await r.json());
+      if (d) onSettings(d);
     } finally { setBusy(false); }
   }
   async function test() {
-    const r = await post("test", {}).catch(() => null);
-    setMsg(r?.ok ? "Sent — it should pop up in a moment." : "Couldn't send a test just now.");
+    const ok = await post("test", {}).then(() => true, () => false);
+    setMsg(ok ? "Sent — it should pop up in a moment." : "Couldn't send a test just now.");
   }
 
   let body;
@@ -86,20 +84,16 @@ export default function NotifySettings({ apiBase }) {
   const [s, setS] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    fetch(`${apiBase}/api/me/notifications`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then(setS).catch(() => setFailed(true));
+    getJson(`${apiBase}/api/me/notifications`).then(setS).catch(() => setFailed(true));
   }, [apiBase]);
 
   async function save(change) {
-    const r = await fetch(`${apiBase}/api/me/notifications`, {
-      method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(change),
-    }).catch(() => null);
-    if (r?.ok) setS(await r.json());
+    const d = await send(`${apiBase}/api/me/notifications`, "PUT", change).catch(() => null);
+    if (d) setS(d);
   }
   async function removeSearch(id) {
-    const r = await fetch(`${apiBase}/api/searches/${id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
-    if (r?.ok) setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
+    const ok = await send(`${apiBase}/api/searches/${id}`, "DELETE").then(() => true, () => false);
+    if (ok) setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
   }
 
   if (failed) return <p className="notify-hint">Couldn't load your notification settings — try again in a bit.</p>;

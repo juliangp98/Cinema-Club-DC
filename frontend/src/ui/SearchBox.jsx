@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useId } from "react";
 import { useNavigate } from "react-router-dom";
+import { getJson, send } from "../api";
 import { useShell } from "../shell/AppShell";
 import Poster from "./Poster";
 import { dayDate } from "../dates";
@@ -43,8 +44,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     const ctl = new AbortController();
     const timer = setTimeout(() => {
       const qs = new URLSearchParams({ q: text, ...(groupId ? { group_id: groupId } : {}) });
-      fetch(`${apiBase}/api/search/suggest?${qs}`, { credentials: "include", signal: ctl.signal })
-        .then(r => (r.ok ? r.json() : null))
+      getJson(`${apiBase}/api/search/suggest?${qs}`, { signal: ctl.signal, retries: 0, cache: false })
         .then(d => { if (d) { setResults(d); setActive(-1); setOpen(true); } })
         .catch(() => {});
     }, 140);
@@ -59,8 +59,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     if (!user || !typed.current || text.length < 3) { setTmdb([]); return undefined; }
     const ctl = new AbortController();
     const timer = setTimeout(() => {
-      fetch(`${apiBase}/api/films/tmdb-search?${new URLSearchParams({ q: text })}`, { credentials: "include", signal: ctl.signal })
-        .then(r => (r.ok ? r.json() : null))
+      getJson(`${apiBase}/api/films/tmdb-search?${new URLSearchParams({ q: text })}`, { signal: ctl.signal, retries: 0, cache: false })
         .then(d => { if (d) { setTmdb(d.results || []); setOpen(true); } })
         .catch(() => {});
     }, 450);
@@ -107,13 +106,13 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     setThinking(true);
     setError("");
     setOpen(false);
-    const r = await fetch(`${apiBase}/api/search/ai`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ q: q.trim(), ...(groupId ? { group_id: groupId } : {}) }),
-    }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    setThinking(false);
-    if (!r?.ok) { setError(d.error || "Couldn't reach the AI — try again."); return; }
+    let d;
+    try {
+      d = await send(`${apiBase}/api/search/ai`, "POST", { q: q.trim(), ...(groupId ? { group_id: groupId } : {}) });
+    } catch (e) {
+      setError(e.data?.error || "Couldn't reach the AI — try again.");
+      return;
+    } finally { setThinking(false); }
     const text = `${d.ai ? "✨ " : ""}Showing: ${d.explain}${d.note ? ` — ${d.note}` : ""}`;
     typed.current = false;
     setNote(text);
@@ -122,12 +121,9 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
 
   async function openTmdb(t) {
     if (t.movie_id) { navigate(`/films/${t.movie_id}`); return; }
-    const r = await fetch(`${apiBase}/api/films/from-tmdb`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tmdb_id: t.tmdb_id }),
-    }).catch(() => null);
-    if (r?.ok) navigate(`/films/${(await r.json()).movie_id}`);
-    else setError("Couldn't open that film — try again in a bit.");
+    send(`${apiBase}/api/films/from-tmdb`, "POST", { tmdb_id: t.tmdb_id })
+      .then(d => navigate(`/films/${d.movie_id}`))
+      .catch(() => setError("Couldn't open that film — try again in a bit."));
   }
 
   let i = -1;

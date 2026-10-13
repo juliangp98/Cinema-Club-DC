@@ -10,7 +10,7 @@ import { CalendarIcon, CompassIcon, FeedIcon, HelpIcon, PlayIcon, UserIcon, User
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
-import { clearCache } from "../api";
+import { clearCache, send } from "../api";
 
 const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
@@ -59,7 +59,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const finishTour = useCallback(() => {
     setTouring(false);
     if (user && user.tour_seen === false) {
-      fetch(`${apiBase}/api/me/tour`, { method: "POST", credentials: "include" }).catch(() => {});
+      send(`${apiBase}/api/me/tour`).catch(() => {});
       setUser({ ...user, tour_seen: true });
     }
   }, [user, apiBase, setUser]);
@@ -68,9 +68,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   // profile (R5b); returns the signed-in user either way, or null if refused.
   const ensureProfile = useCallback(async () => {
     if (user) return user;
-    const r = await fetch(`${apiBase}/api/auth/guest`, { method: "POST", credentials: "include" }).catch(() => null);
-    if (!r?.ok) return null;
-    const u = (await r.json()).user;
+    const u = (await send(`${apiBase}/api/auth/guest`).catch(() => null))?.user;
+    if (!u) return null;
     setUser(u);
     return u;
   }, [user, apiBase, setUser]);
@@ -79,7 +78,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     if (user?.is_guest && !window.confirm("Sign out of your guest profile? Your plans and watchlist can't be recovered "
                                           + "unless you keep the profile first (add an email or Discord).")) return;
     try {
-      await fetch(`${apiBase}/api/auth/logout`, { method: "POST", credentials: "include" });
+      await send(`${apiBase}/api/auth/logout`).catch(() => {});
     } finally {
       clearCache();                   // nothing loaded while signed in stays around
       setUser(null);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { getJson, send } from "../api";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import { Segmented } from "../ui/TicketRow";
 import { ShareWhen } from "../ui/DiscordShare";
@@ -53,8 +54,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   useEffect(() => {
     const id = params.get("draft");
     if (!id) return;
-    fetch(`${apiBase}/api/poll-drafts/${id}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
+    getJson(`${apiBase}/api/poll-drafts/${id}`)
       .then(d => { applyDraft(d); setAsk(d.prompt || ""); if (d.scope) setScopeState(d.scope); })
       .catch(() => setDraftError("That draft couldn't be opened (it may belong to another club)."));
   }, [apiBase, params]);
@@ -64,14 +64,11 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
     if (ask.trim().length < 3) return;
     setDrafting(true);
     setDraftError("");
-    const r = await fetch(`${apiBase}/api/groups/${activeGroupId}/polls/draft`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ prompt: ask, scope }),
-    }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    setDrafting(false);
-    if (r?.ok) applyDraft(d);
-    else setDraftError(d.error || "Couldn't draft that right now. You can still build the poll by hand below.");
+    try {
+      applyDraft(await send(`${apiBase}/api/groups/${activeGroupId}/polls/draft`, "POST", { prompt: ask, scope }));
+    } catch (e) {
+      setDraftError(e.data?.error || "Couldn't draft that right now. You can still build the poll by hand below.");
+    } finally { setDrafting(false); }
   }
 
   const set = changes => setForm(f => ({ ...f, ...changes }));
@@ -97,21 +94,16 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
       draft_id: draftId,
       ...(canAnnounce ? { announce: announce.when, announce_at: announce.when === "later" ? announce.at : undefined } : {}),
     };
-    const r = await fetch(`${apiBase}/api/groups/${activeGroupId}/polls`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body),
-    }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    setSaving(false);
-    if (r?.ok) navigate(`/polls/${d.id}`);
-    else setError(d.error || "Couldn't create the poll — try again.");
+    try {
+      navigate(`/polls/${(await send(`${apiBase}/api/groups/${activeGroupId}/polls`, "POST", body)).id}`);
+    } catch (e) {
+      setError(e.data?.error || "Couldn't create the poll — try again.");
+    } finally { setSaving(false); }
   }
 
   async function oscars() {
-    const r = await fetch(`${apiBase}/api/groups/${activeGroupId}/polls/oscars`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-      body: JSON.stringify({ scoring_mode: "confidence" }),
-    }).catch(() => null);
-    if (r?.ok) navigate(`/polls/${(await r.json()).id}`);
+    send(`${apiBase}/api/groups/${activeGroupId}/polls/oscars`, "POST", { scoring_mode: "confidence" })
+      .then(d => navigate(`/polls/${d.id}`)).catch(() => {});
   }
 
   if (!canRun) {

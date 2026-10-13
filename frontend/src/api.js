@@ -27,7 +27,8 @@ function remember(url, data) {
 export const cachedJson = url => memory.get(url);
 export const clearCache = () => memory.clear();           // on sign-in / sign-out
 
-export async function getJson(url, { timeout = 25000, retries = 1, signal } = {}) {
+// `cache: false` for lookups not worth remembering (type-ahead, polling).
+export async function getJson(url, { timeout = 25000, retries = 1, signal, cache = true } = {}) {
   for (let attempt = 0; ; attempt += 1) {
     const ctl = new AbortController();
     const abort = () => ctl.abort();
@@ -37,7 +38,7 @@ export async function getJson(url, { timeout = 25000, retries = 1, signal } = {}
       const r = await fetch(url, { credentials: "include", signal: ctl.signal });
       const data = await r.json().catch(() => null);
       if (r.ok) {
-        remember(url, data);
+        if (cache) remember(url, data);
         return data;
       }
       const err = new HttpError(r.status, data);
@@ -80,14 +81,16 @@ export function useJson(url, { keep = false } = {}) {
 }
 
 // Sending (R9b): one way to POST / PUT / DELETE — the session cookie, JSON
-// both ways, and the server's own message when it says no (an HttpError).
+// both ways (or a FormData upload), and the server's own message when it
+// says no (an HttpError).
 export async function send(url, method = "POST", body) {
+  const form = body instanceof FormData;
   let r;
   try {
     r = await fetch(url, {
       method, credentials: "include",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined || form ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined || form ? body : JSON.stringify(body),
     });
   } catch {
     throw new HttpError(0, { error: "Couldn't reach the server — try again." });

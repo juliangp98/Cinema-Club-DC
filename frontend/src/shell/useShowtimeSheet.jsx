@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import { groupParam } from "../scope";
-import { rsvp, attend } from "../api";
+import { getJson, rsvp, attend } from "../api";
 
 // Open any screening's drawer from a page that doesn't otherwise manage
 // showtimes: const { openShowtime, sheet } = useShowtimeSheet(...); render {sheet}.
@@ -9,8 +9,7 @@ export default function useShowtimeSheet({ user, apiBase, groupId, onViewProfile
   const [selected, setSelected] = useState(null);
 
   const openShowtime = useCallback((id) => {
-    fetch(`${apiBase}/api/showtimes/${id}?${groupParam(groupId)}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null))
+    getJson(`${apiBase}/api/showtimes/${id}?${groupParam(groupId)}`)
       .then(data => { if (data) setSelected([data]); })
       .catch(() => {});
   }, [apiBase, groupId]);

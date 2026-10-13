@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
-import { Segmented } from "../ui/TicketRow";
+import { ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
 import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
 import Avatar from "../ui/Avatar";
-import PicturePicker, { sendPicture, sendJson } from "../ui/PicturePicker";
+import PicturePicker, { sendPicture } from "../ui/PicturePicker";
+import { getJson, send } from "../api";
 import NotifySettings from "./NotifySettings";
 
 const AVATAR_COLORS = ['#e8a838', '#c45c3a', '#4a7c6f', '#7b5ea7', '#3a6bb5', '#b5503a'];
@@ -15,11 +16,6 @@ const GENRE_LIST = [
   'western', 'noir', 'biographical'
 ];
 
-const SHARE_CHOICES = [
-  { status: "ask", label: "Ask me" },
-  { status: "always", label: "Always" },
-  { status: "never", label: "Never" },
-];
 const SHARE_KINDS = [
   ["rsvp", "My RSVPs", "Never still leaves a Share button on each screening."],
   ["poll", "Polls I create", "Announcements and results (organizers and admins)."],
@@ -67,18 +63,12 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
             <div className="profile-sharing-kind">{label}</div>
             <div className="profile-sharing-hint">{hint}</div>
           </div>
-          <Segmented label={label} options={SHARE_CHOICES} value={state.prefs[kind]} onChange={v => choose(kind, v)} />
+          <Segmented label={label} options={ASK_ALWAYS_NEVER} value={state.prefs[kind]} onChange={v => choose(kind, v)} />
         </div>
       ))}
     </div>
   );
 }
-
-const DIARY_CHOICES = [
-  { status: "ask", label: "Ask me" },
-  { status: "always", label: "Always" },
-  { status: "never", label: "Never" },
-];
 
 // Your Letterboxd diary (R10f): connect it by username (we check the diary
 // exists); then choose what a diary entry for a screening you were going to
@@ -90,21 +80,20 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   useEffect(() => {
-    fetch(`${apiBase}/api/me/letterboxd`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null)).then(setS).catch(() => setS(null));
+    getJson(`${apiBase}/api/me/letterboxd`).then(setS).catch(() => setS(null));
   }, [apiBase]);
   if (!s || user.is_guest) return null;
 
   async function call(method, body, path = "") {
     setBusy(true);
     setMsg(null);
-    const r = await fetch(`${apiBase}/api/me/letterboxd${path}`, {
-      method, credentials: "include", headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    }).catch(() => null);
-    const d = await r?.json().catch(() => null);
-    setBusy(false);
-    if (!r?.ok) { setMsg(d?.error || "Couldn't do that — try again."); return null; }
+    let d;
+    try {
+      d = await send(`${apiBase}/api/me/letterboxd${path}`, method, body);
+    } catch (e) {
+      setMsg(e.message);
+      return null;
+    } finally { setBusy(false); }
     setS(d);
     onUpdate?.({ ...user, letterboxd_username: d.username, letterboxd_connected: d.connected });
     return d;
@@ -139,7 +128,7 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
           <div className="profile-sharing-hint">When your diary has a film you said you were going to (that day or the next).
             Ask = your "Did you make it?" prompt says so.</div>
         </div>
-        <Segmented label="Check me in from my diary" options={DIARY_CHOICES} value={s.checkin}
+        <Segmented label="Check me in from my diary" options={ASK_ALWAYS_NEVER} value={s.checkin}
                    onChange={v => v && call("PUT", { checkin: v })} />
       </div>
       <label className="notify-row">
@@ -172,17 +161,15 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
   // "Connect Discord" uses Discord sign-in when the site has it configured;
   // otherwise fall back to the /link code.
   useEffect(() => {
-    fetch(`${apiBase}/api/auth/providers`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : {}))
-      .then(d => setDiscordOAuth(!!d.discord))
+    getJson(`${apiBase}/api/auth/providers`)
+      .then(d => setDiscordOAuth(!!d?.discord))
       .catch(() => {});
   }, [apiBase]);
 
   // Fetch kernel count
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`${apiBase}/api/users/${user.id}/kernels`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
+    getJson(`${apiBase}/api/users/${user.id}/kernels`)
       .then(d => { if (d) setKernels(d.kernels); })
       .catch(() => {});
   }, [user?.id, apiBase]);
@@ -195,23 +182,15 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
   async function handleSave() {
     setSaving(true);
     try {
-      const r = await fetch(`${apiBase}/api/auth/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: name.trim(),
-          bio,
-          avatar_color: avatarColor,
-          favorite_genres: genres.join(","),
-        }),
+      const d = await send(`${apiBase}/api/auth/profile`, "PUT", {
+        name: name.trim(),
+        bio,
+        avatar_color: avatarColor,
+        favorite_genres: genres.join(","),
       });
-      if (r.ok) {
-        const d = await r.json();
-        onUpdate(d.user);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
+      onUpdate(d.user);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch {
       // ignore
     } finally {
@@ -248,11 +227,11 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
         canUpload={!user.is_guest}
         uploadNote={user.is_guest ? "Keep your profile (add an email or Discord) to upload a photo." : undefined}
         onUpload={file => sendPicture(`${apiBase}/api/me/picture`, file).then(d => onUpdate(d.user))}
-        onEmoji={emoji => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "emoji", emoji }).then(d => onUpdate(d.user))}
+        onEmoji={emoji => send(`${apiBase}/api/me/picture`, "PUT", { kind: "emoji", emoji }).then(d => onUpdate(d.user))}
         onClear={user.avatar_kind !== "initials"
-          ? () => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "initials" }).then(d => onUpdate(d.user)) : null}
+          ? () => send(`${apiBase}/api/me/picture`, "PUT", { kind: "initials" }).then(d => onUpdate(d.user)) : null}
         extra={user.discord_avatar_url && user.avatar_kind !== "discord" && (
-          <button type="button" className="btn btn-sm" onClick={() => sendJson(`${apiBase}/api/me/picture`, "PUT", { kind: "discord" })
+          <button type="button" className="btn btn-sm" onClick={() => send(`${apiBase}/api/me/picture`, "PUT", { kind: "discord" })
             .then(d => onUpdate(d.user)).catch(() => {})}>Use my Discord picture</button>
         )}
       />
@@ -321,10 +300,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
             onClick={async () => {
               setLinkLoading(true);
               try {
-                const r = await fetch(`${apiBase}/api/me/discord-link-code`, {
-                  method: "POST", credentials: "include",
-                });
-                if (r.ok) setLinkCode((await r.json()).code);
+                setLinkCode((await send(`${apiBase}/api/me/discord-link-code`)).code);
               } catch { /* ignore */ }
               setLinkLoading(false);
             }}

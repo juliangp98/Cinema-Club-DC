@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getJson, send } from "../api";
 import PageHeader from "../ui/PageHeader";
 import Sheet from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
@@ -94,49 +95,45 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function fetchPoll() {
     setLoading(true);
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        setPoll(data);
+      const data = await getJson(`${apiBase}/api/polls/${pollId}`);
+      setPoll(data);
 
-        // Check admin status
-        const gr = await fetch(`${apiBase}/api/groups`, { credentials: "include" });
-        if (gr.ok) {
-          const groups = await gr.json();
-          const g = groups.find(g => g.id === data.group_id);
-          setIsAdmin(["admin", "organizer"].includes(g?.role));
-          setReadOnly(g?.role === "viewer");
-        }
-
-        // Pre-fill votes from user's existing votes
-        const existingVotes = {};
-        let hasVoted = false;
-        for (const cat of data.categories || []) {
-          if (cat.user_votes && cat.user_votes.length > 0) {
-            existingVotes[cat.id] = { ranked: cat.user_votes.map(v => v.option_id) };
-            hasVoted = true;
-          } else if (cat.user_vote) {
-            existingVotes[cat.id] = {
-              option_id: cat.user_vote.option_id,
-              confidence: cat.user_vote.confidence || 1,
-            };
-            hasVoted = true;
-          }
-        }
-        setVotes(existingVotes);
-        if (hasVoted || data.status !== "open") {
-          setTab(data.status === "scored" ? "results" : "results");
-        }
-
-        // Pre-fill winners for scoring
-        const existingWinners = {};
-        for (const cat of data.categories || []) {
-          if (cat.correct_option_id) {
-            existingWinners[cat.id] = cat.correct_option_id;
-          }
-        }
-        setWinners(existingWinners);
+      // Check admin status
+      const groups = await getJson(`${apiBase}/api/groups`).catch(() => null);
+      if (groups) {
+        const g = groups.find(g => g.id === data.group_id);
+        setIsAdmin(["admin", "organizer"].includes(g?.role));
+        setReadOnly(g?.role === "viewer");
       }
+
+      // Pre-fill votes from user's existing votes
+      const existingVotes = {};
+      let hasVoted = false;
+      for (const cat of data.categories || []) {
+        if (cat.user_votes && cat.user_votes.length > 0) {
+          existingVotes[cat.id] = { ranked: cat.user_votes.map(v => v.option_id) };
+          hasVoted = true;
+        } else if (cat.user_vote) {
+          existingVotes[cat.id] = {
+            option_id: cat.user_vote.option_id,
+            confidence: cat.user_vote.confidence || 1,
+          };
+          hasVoted = true;
+        }
+      }
+      setVotes(existingVotes);
+      if (hasVoted || data.status !== "open") {
+        setTab(data.status === "scored" ? "results" : "results");
+      }
+
+      // Pre-fill winners for scoring
+      const existingWinners = {};
+      for (const cat of data.categories || []) {
+        if (cat.correct_option_id) {
+          existingWinners[cat.id] = cat.correct_option_id;
+        }
+      }
+      setWinners(existingWinners);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }
@@ -144,26 +141,22 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function fetchPollQuiet() {
     // Refresh poll data without resetting loading/vote state (for live updates)
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        setPoll(data);
-        // Update winners from server (in case another admin set them)
-        const existingWinners = {};
-        for (const cat of data.categories || []) {
-          if (cat.correct_option_id) {
-            existingWinners[cat.id] = cat.correct_option_id;
-          }
+      const data = await getJson(`${apiBase}/api/polls/${pollId}`, { cache: false });
+      setPoll(data);
+      // Update winners from server (in case another admin set them)
+      const existingWinners = {};
+      for (const cat of data.categories || []) {
+        if (cat.correct_option_id) {
+          existingWinners[cat.id] = cat.correct_option_id;
         }
-        setWinners(prev => ({ ...prev, ...existingWinners }));
       }
+      setWinners(prev => ({ ...prev, ...existingWinners }));
     } catch { /* ignore */ }
   }
 
   async function fetchLeaderboard() {
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}/leaderboard`, { credentials: "include" });
-      if (r.ok) setLeaderboard(await r.json());
+      setLeaderboard(await getJson(`${apiBase}/api/polls/${pollId}/leaderboard`, { cache: false }));
     } catch { /* ignore */ }
   }
 
@@ -202,14 +195,9 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
       return;
     }
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ votes: voteList, clear }),
-      });
-      setSaveStatus(prev => ({ ...prev, [catId]: r.ok ? 'saved' : 'error' }));
-      if (r.ok) fetchPollQuiet();   // your pick unlocks this category's vote split
+      await send(`${apiBase}/api/polls/${pollId}/vote`, "POST", { votes: voteList, clear });
+      setSaveStatus(prev => ({ ...prev, [catId]: 'saved' }));
+      fetchPollQuiet();   // your pick unlocks this category's vote split
     } catch {
       setSaveStatus(prev => ({ ...prev, [catId]: 'error' }));
     }
@@ -257,13 +245,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function saveWinnerForCategory(catId, optionId) {
     setWinnerSaveStatus(prev => ({ ...prev, [catId]: 'saving' }));
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}/categories/${catId}/winner`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ option_id: optionId || null }),
-      });
-      setWinnerSaveStatus(prev => ({ ...prev, [catId]: r.ok ? 'saved' : 'error' }));
+      await send(`${apiBase}/api/polls/${pollId}/categories/${catId}/winner`, "PUT", { option_id: optionId || null });
+      setWinnerSaveStatus(prev => ({ ...prev, [catId]: 'saved' }));
     } catch {
       setWinnerSaveStatus(prev => ({ ...prev, [catId]: 'error' }));
     }
@@ -272,16 +255,9 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function handleScoreWinners() {
     setScoring(true);
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}/score`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ winners }),
-      });
-      if (r.ok) {
-        fetchPoll();
-        setTab("results");
-      }
+      await send(`${apiBase}/api/polls/${pollId}/score`, "POST", { winners });
+      fetchPoll();
+      setTab("results");
     } catch { /* ignore */ }
     finally { setScoring(false); }
   }
@@ -289,37 +265,22 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function handleUndoScoring() {
     if (!window.confirm("Undo scoring? Winner selections will be preserved for editing.")) return;
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: "closed" }),
-      });
-      if (r.ok) fetchPoll();
+      await send(`${apiBase}/api/polls/${pollId}`, "PUT", { status: "closed" });
+      fetchPoll();
     } catch { /* ignore */ }
   }
 
   async function handleReopenVoting() {
     if (!window.confirm("Reopen voting? Members will be able to change their votes.")) return;
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: "open" }),
-      });
-      if (r.ok) fetchPoll();
+      await send(`${apiBase}/api/polls/${pollId}`, "PUT", { status: "open" });
+      fetchPoll();
     } catch { /* ignore */ }
   }
 
   async function handleClosePoll() {
     try {
-      await fetch(`${apiBase}/api/polls/${pollId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: "closed" }),
-      });
+      await send(`${apiBase}/api/polls/${pollId}`, "PUT", { status: "closed" });
       fetchPoll();
     } catch { /* ignore */ }
   }
@@ -327,11 +288,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function handleDeletePoll() {
     if (!window.confirm("Delete this poll? This cannot be undone.")) return;
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (r.ok) navigate("/polls");
+      await send(`${apiBase}/api/polls/${pollId}`, "DELETE");
+      navigate("/polls");
     } catch { /* ignore */ }
   }
 
@@ -346,21 +304,14 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
-      const r = await fetch(`${apiBase}/api/polls/${pollId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          title: editTitle.trim(),
-          description: editDesc,
-          poll_type: editType,
-          scoring_mode: editScoring,
-        }),
+      await send(`${apiBase}/api/polls/${pollId}`, "PUT", {
+        title: editTitle.trim(),
+        description: editDesc,
+        poll_type: editType,
+        scoring_mode: editScoring,
       });
-      if (r.ok) {
-        setShowSettings(false);
-        fetchPoll();
-      }
+      setShowSettings(false);
+      fetchPoll();
     } catch { /* ignore */ }
     finally { setSavingSettings(false); }
   }

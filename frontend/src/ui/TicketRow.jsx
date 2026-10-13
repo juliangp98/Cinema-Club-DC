@@ -5,6 +5,7 @@ import { TicketDiscord } from "./DiscordShare";
 import TheatreLink from "./TheatreLink";
 import { AttendanceAsk } from "./AlertPrompts";
 import { weekday, monthDay, time } from "../dates";
+import { getJson } from "../api";
 
 const RSVP = [
   { status: "going", label: "Going" },
@@ -17,6 +18,14 @@ const ATTENDED = [
 ];
 
 const day = weekday, date = monthDay;
+
+// The standing choice for things that could happen on your behalf (sharing to
+// Discord, Letterboxd check-ins): ask each time, always, or never.
+export const ASK_ALWAYS_NEVER = [
+  { status: "ask", label: "Ask me" },
+  { status: "always", label: "Always" },
+  { status: "never", label: "Never" },
+];
 
 // A choice of one: pick again to clear (e.g. un-RSVP).
 export function Segmented({ options, value, onChange, label }) {
@@ -47,8 +56,7 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
 
   async function googleCalendar() {
     try {
-      const r = await fetch(`${apiBase}/api/showtimes/${s.id}/gcal-url`, { credentials: "include" });
-      if (r.ok) window.open((await r.json()).url, "_blank", "noopener");
+      window.open((await getJson(`${apiBase}/api/showtimes/${s.id}/gcal-url`)).url, "_blank", "noopener");
     } catch { /* ignore */ }
   }
 

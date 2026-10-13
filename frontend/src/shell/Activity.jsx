@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { Link } from "react-router-dom";
+import { getJson, send } from "../api";
 import Sheet from "../ui/Sheet";
 import Tabs from "../ui/Tabs";
 import Poster from "../ui/Poster";
@@ -40,12 +41,11 @@ export function useActivity({ apiBase, groupId, user }) {
 
   const check = useCallback(async () => {
     if (!user) return;
-    fetch(`${apiBase}/api/notifications?count=1`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null)).then(d => d && setMineUnread(d.unread)).catch(() => {});
+    getJson(`${apiBase}/api/notifications?count=1`, { cache: false }).then(d => d && setMineUnread(d.unread)).catch(() => {});
     if (!groupId) { setClubUnread(0); return; }
-    const r = await fetch(`${apiBase}/api/feed?group_id=${groupId}`, { credentials: "include" }).catch(() => null);
-    if (!r?.ok) return;
-    const { cards } = await r.json();
+    const feed = await getJson(`${apiBase}/api/feed?group_id=${groupId}`).catch(() => null);
+    if (!feed) return;
+    const { cards } = feed;
     let seen = readSeen(groupId);
     if (!seen) {                     // first visit: start counting from now
       seen = new Date().toISOString();
@@ -96,13 +96,11 @@ function ForYou({ apiBase, onSeen, onClose }) {
   const [items, setItems] = useState(null);
   const [settings, setSettings] = useState(false);
   useEffect(() => {
-    fetch(`${apiBase}/api/notifications`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : { items: [] }))
+    getJson(`${apiBase}/api/notifications`, { cache: false })
       .then(d => {
         setItems(d.items);
         if (d.unread) {
-          fetch(`${apiBase}/api/notifications/read`, { method: "POST", credentials: "include",
-            headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+          send(`${apiBase}/api/notifications/read`, "POST", {}).catch(() => {});
           onSeen();
         }
       })

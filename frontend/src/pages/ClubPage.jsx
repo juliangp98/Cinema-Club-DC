@@ -13,7 +13,7 @@ import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { roleLabel } from "../roles";
 import TheatreLink from "../ui/TheatreLink";
 import { GamesStrip } from "../ui/GamesSummary";
-import { useJson as useSharedJson } from "../api";
+import { useJson, getJson, send } from "../api";
 import "./Club.css";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -37,8 +37,7 @@ export default function ClubPage({ user, apiBase }) {
   const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId: group?.id, onViewProfile: setProfileUserId });
 
   useEffect(() => {
-    fetch(`${apiBase}/api/theatres`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
+    getJson(`${apiBase}/api/theatres`)
       .then(ts => setTheatreBySlug(Object.fromEntries(ts.map(t => [t.slug, t]))))
       .catch(() => {});
   }, [apiBase]);
@@ -106,24 +105,10 @@ export default function ClubPage({ user, apiBase }) {
   );
 }
 
-function useJson(url) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    let live = true;
-    setData(null);
-    fetch(url, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : { error: true }))
-      .then(d => live && setData(d))
-      .catch(() => live && setData({ error: true }));
-    return () => { live = false; };
-  }, [url]);
-  return data;
-}
-
 function Members({ group, apiBase, viewerId, onOpen }) {
-  const data = useJson(`${apiBase}/api/groups/${group.slug}/members`);
+  const { data, error } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
+  if (error) return <p className="pv-empty">Couldn't load members right now.</p>;
   if (!data) return <p className="pv-empty">Loading…</p>;
-  if (data.error) return <p className="pv-empty">Couldn't load members right now.</p>;
   const active = data.filter(m => m.status === "active" && m.user)
     .sort((a, b) => (ROLE_ORDER[a.role] ?? 2) - (ROLE_ORDER[b.role] ?? 2) || a.user.name.localeCompare(b.user.name));
   return (
@@ -153,12 +138,12 @@ function LeaveClub({ group, apiBase, userId, onLeft }) {
     if (!window.confirm(`Leave ${group.name}? You'll stop seeing its plans, feed and games. You can ask to join again later.`)) return;
     setBusy(true);
     setError(null);
-    const r = await fetch(`${apiBase}/api/groups/${group.slug}/members/${userId}`, { method: "DELETE", credentials: "include" })
-      .catch(() => null);
-    const d = await r?.json().catch(() => null);
-    setBusy(false);
-    if (r?.ok) onLeft();
-    else setError(d?.error || "Couldn't leave right now — try again.");
+    try {
+      await send(`${apiBase}/api/groups/${group.slug}/members/${userId}`, "DELETE");
+      onLeft();
+    } catch (e) {
+      setError(e.data?.error || "Couldn't leave right now — try again.");
+    } finally { setBusy(false); }
   }
   return (
     <div className="club-leave">
@@ -171,7 +156,7 @@ function LeaveClub({ group, apiBase, userId, onLeft }) {
 // The club's games in one row (R10 Play): today's trivia, bingo, polls to
 // vote in, your kernels — each opens on the Play page.
 function ClubGames({ apiBase, groupId }) {
-  const { data } = useSharedJson(`${apiBase}/api/play?group_id=${groupId}`);
+  const { data } = useJson(`${apiBase}/api/play?group_id=${groupId}`);
   if (!data) return null;
   return (
     <>
@@ -182,9 +167,9 @@ function ClubGames({ apiBase, groupId }) {
 }
 
 function Leaderboard({ group, apiBase, viewerId, onOpen }) {
-  const rows = useJson(`${apiBase}/api/groups/${group.id}/leaderboard`);
-  if (!rows) return <p className="pv-empty">Loading…</p>;
-  if (rows.error || !rows.length) {
+  const { data: rows, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard`);
+  if (!rows && !error) return <p className="pv-empty">Loading…</p>;
+  if (error || !rows.length) {
     return <p className="pv-empty">No standings yet — vote in a scored poll or log a screening you went to. 🍿</p>;
   }
   return (

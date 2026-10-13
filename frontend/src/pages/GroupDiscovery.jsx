@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getJson, send } from "../api";
 import { ClubBadge } from "../ui/Avatar";
 import UserProfileDrawer from "../components/UserProfileDrawer";
 import PageHeader from "../ui/PageHeader";
@@ -42,19 +43,15 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
 
   async function fetchTheatres() {
     try {
-      const r = await fetch(`${apiBase}/api/theatres`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        setAllTheatres(data);
-        setNewTheatres(new Set(data.map(t => t.slug)));
-      }
+      const data = await getJson(`${apiBase}/api/theatres`);
+      setAllTheatres(data);
+      setNewTheatres(new Set(data.map(t => t.slug)));
     } catch { /* ignore */ }
   }
 
   async function fetchMyGroups() {
     try {
-      const r = await fetch(`${apiBase}/api/groups`, { credentials: "include" });
-      if (r.ok) setMyGroups(await r.json());
+      setMyGroups(await getJson(`${apiBase}/api/groups`));
     } catch { /* ignore */ }
   }
 
@@ -63,16 +60,10 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     try {
       const params = new URLSearchParams({ page: pageNum, per_page: 10 });
       if (searchQuery) params.set("q", searchQuery);
-      const r = await fetch(
-        `${apiBase}/api/groups/discover?${params}`,
-        { credentials: "include" }
-      );
-      if (r.ok) {
-        const data = await r.json();
-        setPublicGroups(data.groups || []);
-        setPage(data.page || 1);
-        setTotalPages(data.pages || 1);
-      }
+      const data = await getJson(`${apiBase}/api/groups/discover?${params}`);
+      setPublicGroups(data.groups || []);
+      setPage(data.page || 1);
+      setTotalPages(data.pages || 1);
     } catch { /* ignore */ }
     finally { setLoadingPublic(false); }
   }
@@ -91,14 +82,9 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
 
   async function handleJoin(slug) {
     try {
-      const r = await fetch(`${apiBase}/api/groups/${slug}/join`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (r.ok) {
-        fetchPublicGroups(page, query);
-        fetchMyGroups();
-      }
+      await send(`${apiBase}/api/groups/${slug}/join`);
+      fetchPublicGroups(page, query);
+      fetchMyGroups();
     } catch { /* ignore */ }
   }
 
@@ -107,21 +93,14 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const r = await fetch(`${apiBase}/api/groups`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name: newName.trim(), description: newDesc, is_public: newPublic, theatres: [...newTheatres] }),
-      });
-      if (r.ok) {
-        const group = await r.json();
-        setGroupId(group.id);
-        setNewName("");
-        setNewDesc("");
-        setShowCreate(false);
-        fetchMyGroups();
-        fetchPublicGroups(page, query);
-      }
+      const group = await send(`${apiBase}/api/groups`, "POST",
+        { name: newName.trim(), description: newDesc, is_public: newPublic, theatres: [...newTheatres] });
+      setGroupId(group.id);
+      setNewName("");
+      setNewDesc("");
+      setShowCreate(false);
+      fetchMyGroups();
+      fetchPublicGroups(page, query);
     } catch { /* ignore */ }
     finally { setCreating(false); }
   }

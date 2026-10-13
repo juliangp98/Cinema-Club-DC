@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getJson, send } from "../api";
 
 const webcal = url => url.replace(/^https?:\/\//, "webcal://");
 const google = url => `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal(url))}`;
@@ -11,8 +12,7 @@ export default function CalendarLinks({ apiBase, clubId }) {
   const [copied, setCopied] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
-    fetch(`${apiBase}/api/me/calendar`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : Promise.reject()))
+    getJson(`${apiBase}/api/me/calendar`)
       .then(setLinks)
       .catch(() => setLinks(null));
   }, [apiBase]);
@@ -25,11 +25,8 @@ export default function CalendarLinks({ apiBase, clubId }) {
   async function reset(groupId) {
     if (!window.confirm("Make a new link? Calendars subscribed to the old one stop updating; you'll need to subscribe again.")) return;
     setError("");
-    const r = await fetch(`${apiBase}/api/me/calendar/reset`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(groupId ? { group_id: groupId } : {}),
-    }).catch(() => null);
-    if (r?.ok) setLinks(await r.json()); else setError("Couldn't make a new link — try again.");
+    send(`${apiBase}/api/me/calendar/reset`, "POST", groupId ? { group_id: groupId } : {})
+      .then(setLinks, () => setError("Couldn't make a new link — try again."));
   }
 
   const rows = clubId

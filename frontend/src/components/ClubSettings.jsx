@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { SectionTitle } from "../ui/PageHeader";
 import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
-import PicturePicker, { sendPicture, sendJson } from "../ui/PicturePicker";
+import PicturePicker, { sendPicture } from "../ui/PicturePicker";
+import { getJson, send } from "../api";
 import { ROLES } from "../roles";
 
 // A club's settings, for its admins (R6b): picture and short name, details and
@@ -26,10 +27,9 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
     setTheatres(new Set(group.theatres || []));
   }, [group]);
   useEffect(() => {
-    fetch(`${apiBase}/api/theatres`, { credentials: "include" }).then(r => (r.ok ? r.json() : [])).then(setAllTheatres).catch(() => {});
+    getJson(`${apiBase}/api/theatres`).then(setAllTheatres).catch(() => {});
   }, [apiBase]);
-  const loadMembers = () => fetch(`${base}/members`, { credentials: "include" })
-    .then(r => (r.ok ? r.json() : [])).then(setMembers).catch(() => {});
+  const loadMembers = () => getJson(`${base}/members`, { cache: false }).then(setMembers).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadMembers(); }, [base]);
 
@@ -43,14 +43,9 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
       setError(e.message);
     }
   };
-  const update = async payload => onChanged?.(await sendJson(base, "PUT", payload));
+  const update = async payload => onChanged?.(await send(base, "PUT", payload));
   const memberAction = async (path, method = "POST", payload) => {
-    const r = await fetch(`${base}/members/${path}`, {
-      method, credentials: "include",
-      headers: payload ? { "Content-Type": "application/json" } : undefined,
-      body: payload ? JSON.stringify(payload) : undefined,
-    }).catch(() => null);
-    if (!r?.ok) throw new Error((await r?.json().catch(() => ({})))?.error || "Couldn't do that — try again.");
+    await send(`${base}/members/${path}`, method, payload);
     loadMembers();
   };
 
@@ -58,7 +53,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
     e.preventDefault();
     if (!inviteEmail.trim()) return;
     await run(async () => {
-      const d = await sendJson(`${apiBase}/api/admin/invite`, "POST", { email: inviteEmail.trim(), group_id: group.id });
+      const d = await send(`${apiBase}/api/admin/invite`, "POST", { email: inviteEmail.trim(), group_id: group.id });
       setInvite(d);
       setInviteEmail("");
       loadMembers();
@@ -68,8 +63,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
   async function deleteClub() {
     if (!window.confirm(`Delete "${group.name}"? Its members, RSVPs, comments, reactions and polls are removed for good.`)) return;
     await run(async () => {
-      const r = await fetch(base, { method: "DELETE", credentials: "include" }).catch(() => null);
-      if (!r?.ok) throw new Error("Couldn't delete the club — try again.");
+      await send(base, "DELETE");
       onDeleted?.();
     });
   }

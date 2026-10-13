@@ -25,7 +25,7 @@ const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "Spotlight
 const DoublesPage = lazyPage(() => import("./pages/DiscoverMore"), "DoublesPage");
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
-import { clearCache } from "./api";
+import { clearCache, getJson } from "./api";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -107,23 +107,20 @@ export default function App() {
 
   const fetchGroups = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/groups`, { credentials: "include" });
-      if (r.ok) {
-        const groups = await r.json();
-        setHasGroups(groups.length > 0);
-        setGroups(groups);
-        const stored = localStorage.getItem("cinemaclub_group_id");
-        const storedId = stored ? parseInt(stored, 10) : null;
-        const validIds = groups.map(g => g.id);
-        if (storedId && validIds.includes(storedId)) {
-          setActiveGroupId(storedId);
-        } else if (groups.length > 0) {
-          setActiveGroupId(groups[0].id);
-          localStorage.setItem("cinemaclub_group_id", String(groups[0].id));
-        } else {
-          setActiveGroupId(null);
-          localStorage.removeItem("cinemaclub_group_id");
-        }
+      const groups = await getJson(`${API_BASE}/api/groups`, { cache: false });
+      setHasGroups(groups.length > 0);
+      setGroups(groups);
+      const stored = localStorage.getItem("cinemaclub_group_id");
+      const storedId = stored ? parseInt(stored, 10) : null;
+      const validIds = groups.map(g => g.id);
+      if (storedId && validIds.includes(storedId)) {
+        setActiveGroupId(storedId);
+      } else if (groups.length > 0) {
+        setActiveGroupId(groups[0].id);
+        localStorage.setItem("cinemaclub_group_id", String(groups[0].id));
+      } else {
+        setActiveGroupId(null);
+        localStorage.removeItem("cinemaclub_group_id");
       }
     } catch {
       // ignore
@@ -132,8 +129,7 @@ export default function App() {
 
   const fetchUser = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
-      const d = await r.json();
+      const d = await getJson(`${API_BASE}/api/auth/me`, { cache: false });
       setUser(d.user || null);
       if (!d.user && fromDiscord) {
         setNotice({ error: true, text: "Discord signed you in, but this browser didn't keep the sign-in. "

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useJson } from "../api";
+import { useJson, send } from "../api";
 
 // Club trivia (R10d), only once a club admin turns it on (admins see where to
 // do that; everyone else sees nothing): the question of the day, and — if the
@@ -27,13 +27,12 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   async function post(path, body) {
     setBusy(true);
     setError(null);
-    const r = await fetch(`${apiBase}/api/trivia/${path}`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ group_id: groupId, ...body }),
-    }).catch(() => null);
-    const d = await r?.json().catch(() => null);
-    if (r?.ok && d) setShown(d);
-    else { setError(d?.error || "Couldn't do that — try again."); reload(); }
+    try {
+      setShown(await send(`${apiBase}/api/trivia/${path}`, "POST", { group_id: groupId, ...body }));
+    } catch (e) {
+      setError(e.data?.error || "Couldn't do that — try again.");
+      reload();
+    }
     setBusy(false);
   }
   const another = data.anytime && canPlay && (

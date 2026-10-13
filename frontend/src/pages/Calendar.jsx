@@ -267,15 +267,12 @@ export default function Calendar({ user, apiBase, groupId }) {
   // Theatre names and the group's members (for filters).
   useEffect(() => {
     let live = true;
-    fetch(`${apiBase}/api/theatres`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
+    getJson(`${apiBase}/api/theatres`)
       .then(ts => { if (live) setTheatreNames(Object.fromEntries(ts.map(t => [t.slug, t.short_name || t.name]))); })
       .catch(() => {});
     if (!groupId) { setMembers([]); return () => { live = false; }; }      // public mode: no members
-    fetch(`${apiBase}/api/groups/by-id/${groupId}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null))
-      .then(g => (g?.slug ? fetch(`${apiBase}/api/groups/${g.slug}/members`, { credentials: "include" }) : null))
-      .then(r => (r?.ok ? r.json() : []))
+    getJson(`${apiBase}/api/groups/by-id/${groupId}`)
+      .then(g => (g?.slug ? getJson(`${apiBase}/api/groups/${g.slug}/members`) : []))
       .then(ms => { if (live) setMembers(ms.filter(m => m.status === "active" && m.user).map(m => m.user)); })
       .catch(() => {});
     return () => { live = false; };
@@ -303,8 +300,7 @@ export default function Calendar({ user, apiBase, groupId }) {
 
   // Deep link: open one screening.
   const openShowtime = useCallback(id => {
-    fetch(`${apiBase}/api/showtimes/${id}?${groupParam(groupId)}`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : null))
+    getJson(`${apiBase}/api/showtimes/${id}?${groupParam(groupId)}`)
       .then(s => { if (s) setSelected([s]); })
       .catch(() => {});
   }, [apiBase, groupId]);

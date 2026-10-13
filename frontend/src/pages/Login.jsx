@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { getJson, send } from "../api";
 
 // `keeping`: a guest is keeping their profile (R5b) — signing up turns it into
 // the account; signing in (or Discord) brings their plans to the account they have.
@@ -15,9 +16,8 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
   const isInvite = !!inviteToken;
 
   useEffect(() => {
-    fetch(`${apiBase}/api/auth/providers`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : {}))
-      .then(d => setDiscordEnabled(!!d.discord))
+    getJson(`${apiBase}/api/auth/providers`)
+      .then(d => setDiscordEnabled(!!d?.discord))
       .catch(() => {});
   }, [apiBase]);
 
@@ -30,21 +30,11 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
     const body = { email: email.trim().toLowerCase() };
     if (mode === "signup") body.name = name.trim();
     try {
-      const r = await fetch(`${apiBase}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Something went wrong");
-        return false;
-      }
+      const d = await send(`${apiBase}${path}`, "POST", body);
       setSentTo(d.email || body.email);
       return true;
-    } catch {
-      setError("Could not connect to server");
+    } catch (e) {
+      setError(e.status ? e.data?.error || "Something went wrong" : "Could not connect to server");
       return false;
     } finally {
       setLoading(false);
@@ -69,20 +59,9 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
     setLoading(true);
     setError("");
     try {
-      const r = await fetch(`${apiBase}/api/auth/accept-invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ token: inviteToken, name: name.trim() }),
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Could not accept invite");
-      } else {
-        onLogin(d.user);
-      }
-    } catch {
-      setError("Could not connect to server");
+      onLogin((await send(`${apiBase}/api/auth/accept-invite`, "POST", { token: inviteToken, name: name.trim() })).user);
+    } catch (e) {
+      setError(e.status ? e.data?.error || "Could not accept invite" : "Could not connect to server");
     } finally {
       setLoading(false);
     }

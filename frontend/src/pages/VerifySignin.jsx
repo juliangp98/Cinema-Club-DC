@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { takeNext } from "../afterSignIn";
+import { send } from "../api";
 
 // Landing page for emailed sign-in links (/auth/verify?token=...). The token is
 // redeemed on an explicit click rather than on page load: some mail providers
@@ -17,21 +18,11 @@ export default function VerifySignin({ apiBase, onLogin }) {
     setLoading(true);
     setError("");
     try {
-      const r = await fetch(`${apiBase}/api/auth/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ token }),
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Could not sign you in");
-        return;
-      }
+      const d = await send(`${apiBase}/api/auth/verify`, "POST", { token });
       onLogin(d.user);
       navigate(takeNext() || "/", { replace: true });
-    } catch {
-      setError("Could not connect to server");
+    } catch (e) {
+      setError(e.status ? e.data?.error || "Could not sign you in" : "Could not connect to server");
     } finally {
       setLoading(false);
     }

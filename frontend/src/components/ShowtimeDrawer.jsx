@@ -11,7 +11,7 @@ import { WatchDiscordPrompt } from "../ui/DiscordShare";
 import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
 import Poster from "../ui/Poster";
 import { metaLine, RatingBadges, Awards, CastScroll, Trailer, parseAwards } from "./film/FilmInfo";
-import { toggleWatch } from "../api";
+import { getJson, toggleWatch } from "../api";
 
 // Collapsible accordion section used for the sheet's informational blocks.
 function Collapsible({ title, count, defaultOpen = false, children }) {
@@ -53,8 +53,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
 
   useEffect(() => {
     if (!user) return;                    // visitors: nothing on it yet
-    fetch(`${apiBase}/api/watchlist`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
+    getJson(`${apiBase}/api/watchlist`, { cache: false })
       .then(items => setWatching(items.some(i => i.movie && i.movie.id === movie.id)))
       .catch(() => setWatching(false));
   }, [apiBase, movie.id, user]);

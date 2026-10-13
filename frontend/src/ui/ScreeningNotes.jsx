@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { useJson } from "../api";
+import { useJson, send } from "../api";
 import { SectionTitle } from "./PageHeader";
 import Poster from "./Poster";
 import { dayDate } from "../dates";
@@ -26,13 +26,8 @@ export default function ScreeningNotes({ apiBase, groupId, showtimeId }) {
 
   async function toggle(tag) {
     setError(null);
-    const r = await fetch(`${apiBase}/api/notes`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ group_id: groupId, showtime_id: showtimeId, tag }),
-    }).catch(() => null);
-    const d = await r?.json().catch(() => null);
-    if (r?.ok && d) setView(d);
-    else setError(d?.error || "Couldn't save that — try again.");
+    send(`${apiBase}/api/notes`, "POST", { group_id: groupId, showtime_id: showtimeId, tag })
+      .then(setView, e => setError(e.data?.error || "Couldn't save that — try again."));
   }
   const shown = view.can_add ? view.tags : view.tags.filter(t => t.count);
   return (
