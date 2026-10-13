@@ -1711,6 +1711,19 @@ def seed_theatres():
     db.session.commit()
 
 
+def prepare_db():
+    """Bring the database up to date — tables, migrations, theatres, the first
+    admin. Every way in runs it: the server (entrypoint.sh, `python app.py`)
+    and the scripts (scraper.py, backfill_enrichment.py), so a script run
+    against a database the new code hasn't started on yet doesn't fail on a
+    missing column. Safe to run any number of times."""
+    with app.app_context():
+        db.create_all()
+        migrate()
+        seed_theatres()
+        seed_admin()
+
+
 def seed_admin():
     """A fresh install's first admin and default club, from ADMIN_EMAIL (and
     ADMIN_NAME) in the environment; without them there's nothing to seed."""
@@ -1813,9 +1826,5 @@ from routes import (alerts, auth, clubs, discord, internal, people, plans, polls
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        migrate()
-        seed_theatres()
-        seed_admin()
+    prepare_db()
     app.run(debug=True, port=5001)

@@ -3,12 +3,8 @@ set -e
 
 # Run database migrations and seed data on startup
 python -c "
-from app import app, db, migrate, seed_theatres, seed_admin
-with app.app_context():
-    db.create_all()
-    migrate()
-    seed_theatres()
-    seed_admin()
+from app import prepare_db
+prepare_db()
 print('Database initialized.')
 "
 

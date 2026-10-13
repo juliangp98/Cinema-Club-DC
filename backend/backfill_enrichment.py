@@ -22,7 +22,7 @@ import argparse
 import datetime
 import time
 
-from app import app, db, Movie, MovieAlias, Showtime
+from app import app, db, prepare_db, Movie, MovieAlias, Showtime
 from enrich import enrich_by_tmdb_id, enrich_movie
 from scrapers.base import event_label, parse_movie_title
 from scrapers.sync import (_apply_movie_fields, adopt_matched_title, consolidate_catalog,
@@ -97,6 +97,7 @@ def main():
     parser.add_argument('--all', action='store_true', help='with --refresh: every matched film')
     args = parser.parse_args()
 
+    prepare_db()                          # a database the new code hasn't started on yet: migrate it first
     print('Cleaning up the catalog…')
     _report(consolidate_catalog())
     lookup_unmatched(force=args.force)

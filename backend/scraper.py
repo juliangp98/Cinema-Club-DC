@@ -104,6 +104,8 @@ if __name__ == '__main__':
     print("=" * 50)
     print("Cinema Club Scraper")
     print("=" * 50)
+    from app import prepare_db
+    prepare_db()                          # a database the new code hasn't started on yet: migrate it first
 
     if args.only:
         slugs = [s.strip() for s in args.only.split(',') if s.strip()]
