@@ -208,3 +208,11 @@ def test_the_old_discord_switch_carries_over():
         migrate()
         g = db.session.get(Group, 1)
         assert g.trivia_post == 'always' and not g.trivia_discord
+
+
+def test_the_scraper_runs_it_on_its_own(club):
+    """scraper.py calls tick() outside any request — it makes its own context."""
+    import game_posts
+    settings(club, trivia_enabled=True, trivia_post='always')
+    assert game_posts.tick(NOON) == 1
+    assert [r['kind'] for r in ready()] == ['trivia']

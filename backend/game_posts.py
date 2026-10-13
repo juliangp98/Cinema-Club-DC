@@ -168,8 +168,13 @@ def _expire(group, now):
 
 
 def tick(now=None):
-    """Everything due for every club with a game on. Returns how many clubs."""
-    from app import db, Group
+    """Everything due for every club with a game on. Returns how many clubs.
+    Works from a request (the bot's check) or on its own (the scraper)."""
+    from flask import has_app_context
+    from app import app, db, Group
+    if not has_app_context():
+        with app.app_context():
+            return tick(now)
     now = now or _local_now()
     groups = Group.query.filter((Group.trivia_enabled.is_(True)) | (Group.bingo_enabled.is_(True))).all()
     for g in groups:
