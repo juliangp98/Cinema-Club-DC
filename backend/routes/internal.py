@@ -8,7 +8,8 @@ import json as _json
 from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, BotSetting, DIGEST_CAPS,
     DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, GENRE_LIST, Group, GroupMembership,
     INTERNAL_API_TOKEN, IntegrityError, Message, Movie, Notification, PLAN_MIN_WATCHERS, Poll, PollCategory,
-    PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User,
+    PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre,
+    TriviaQuestion, User,
     Watchlist, _active_membership, _ai, _as_int, _draft_poll, _group_showtime_query, _notify_settings,
     _screening_item, _update_profile_fields, _utcnow_naive, announce_new_poll, app, apply_rsvp, apply_votes,
     attended_showtime_ids, build_leaderboard, build_poll, compare_members, datetime, db,
@@ -1218,7 +1219,7 @@ def _profile_payload(user):
         'watchlist_count': Watchlist.query.filter_by(user_id=user.id).count(),
         'upcoming_rsvps': upcoming,
         'site_account': user.email is not None,
-        'kernels': {key: k[key] for key in ('kernels', 'polls', 'going_out', 'members')},
+        'kernels': {key: k[key] for key in ('kernels', *kernels.PARTS)},
     }
 
 
@@ -1251,9 +1252,69 @@ def internal_kernels():
     group_id = request.args.get('group_id', type=int)
     k = kernels.breakdown(user.id, group_id)
     return jsonify({**k, 'allowance': kernels.allowance(user.id),
-                    'rules': {'went': kernels.WENT, 'planned': kernels.PLANNED, 'trailblazer_max': kernels.TRAIL_MAX,
-                              'crew_min': kernels.CREW_MIN, 'crew': kernels.CREW, 'give': kernels.GIVE_PER_WEEK,
-                              'take': kernels.TAKE_PER_WEEK}})
+                    'rules': kernels.rules(group_id)})
+
+
+# ─── Daily trivia (R10d) ──────────────────────────────────────────────────────
+
+@app.route('/api/internal/trivia/today')
+@require_internal
+def internal_trivia_today():
+    """/trivia: the club's question of the day for this member."""
+    import trivia
+    user, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    return jsonify(trivia.today_for(group, user))
+
+
+@app.route('/api/internal/trivia/answer', methods=['POST'])
+@require_internal
+def internal_trivia_answer():
+    """A trivia button in Discord: {discord ident, question_id, choice}."""
+    import trivia
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    group = db.session.get(Group, _as_int(data.get('group_id')) or 0)
+    result, error = trivia.answer(group, user, _as_int(data.get('question_id')),
+                                  data.get('choice') if isinstance(data.get('choice'), int) else None, source='discord')
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(result)
+
+
+@app.route('/api/internal/trivia/post')
+@require_internal
+def internal_trivia_post():
+    """For the bot's daily post in #movies: today's question (without its
+    answer) and yesterday's (with it) — only if the club turned trivia on AND
+    said yes to Discord posts, and today's isn't posted yet."""
+    import trivia
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    if not group or not (group.trivia_enabled and group.trivia_discord):
+        return jsonify({'post': None})
+    q = trivia.question_for(group)
+    if not q or q.discord_message_id:
+        return jsonify({'post': None})
+    prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day < q.day)
+            .order_by(TriviaQuestion.day.desc()).first())
+    return jsonify({'post': trivia.as_dict(q),
+                    'yesterday': trivia.as_dict(prev, reveal=True) if prev and prev.day == q.day - timedelta(days=1) else None})
+
+
+@app.route('/api/internal/trivia/posted', methods=['POST'])
+@require_internal
+def internal_trivia_posted():
+    data = request.json or {}
+    q = db.session.get(TriviaQuestion, _as_int(data.get('question_id')) or 0)
+    if not q:
+        return jsonify({'error': 'Not found'}), 404
+    q.discord_message_id = str(data.get('message_id') or '')[:30] or None
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/api/internal/profile', methods=['POST'])

@@ -301,6 +301,13 @@ def update_group(slug):
         group.photo_url = None
     if 'short_name' in data:
         group.short_name = re.sub(r'\s+', ' ', (data.get('short_name') or '')).strip()[:12] or None
+    # Daily trivia (R10d): off by default; the Discord post is its own switch.
+    if isinstance(data.get('trivia_enabled'), bool):
+        group.trivia_enabled = data['trivia_enabled']
+        if not group.trivia_enabled:
+            group.trivia_discord = False
+    if isinstance(data.get('trivia_discord'), bool):
+        group.trivia_discord = data['trivia_discord'] and bool(group.trivia_enabled)
 
     db.session.commit()
     return jsonify(group.to_dict())

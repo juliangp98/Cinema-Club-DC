@@ -733,11 +733,12 @@ HELP_SECTIONS = [
         ('/watch', 'add to, remove from, or show a watchlist'),
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
-    ('🗳️ Polls & kernels', [
+    ('🗳️ Polls, trivia & kernels', [
         ('/polls', 'what\'s open right now'),
         ('/vote', 'your private ballot'),
         ('/leaderboard', 'season kernel standings 🍿'),
         ('/kernels', 'your kernels, where they came from, and how to earn more'),
+        ('/trivia', "today's movie trivia question, if your club has trivia on"),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -795,9 +796,11 @@ def notify_settings_embed(s):
 
 
 def kernel_parts(k):
-    """'polls 12 · going out 20 · members 3' — where someone's kernels came from."""
+    """'polls 12 · going out 20 · from members 3' — where someone's kernels came
+    from (trivia only once there's some)."""
     return ' · '.join(f'{label} {k[key]}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
-                                                              ('members', 'from members')))
+                                                              ('trivia', 'trivia'), ('members', 'from members'))
+                      if key != 'trivia' or k.get('trivia'))
 
 
 def kernels_embed(k):
@@ -814,9 +817,36 @@ def kernels_embed(k):
         f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
         f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
         '• Right picks in scored polls',
+        *([f"• Daily trivia: **+{r['trivia']}** for a right answer (`/trivia`)"] if r.get('trivia') else []),
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
+
+
+LETTERS = 'ABCD'
+
+
+def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
+    """The question of the day (R10d): the options lettered, and yesterday's
+    answer underneath when there was one."""
+    embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/feed', description='\n'.join(
+        [q['prompt'], ''] + [f"**{LETTERS[i]}.** {o}" for i, o in enumerate(q['options'])]))
+    if yesterday and yesterday.get('answer') is not None:
+        st = yesterday.get('stats') or {}
+        embed.add_field(name='Yesterday', inline=False, value=(
+            f"{yesterday['prompt'][:300]} → **{yesterday['options'][yesterday['answer']]}**"
+            f" ({st.get('correct', 0)} of {st.get('answered', 0)} got it)")[:1024])
+    embed.set_footer(text=f"One try each · +{q.get('kernels', 2)} 🍿 for a right answer · your answer stays private")
+    return embed
+
+
+def trivia_result(q):
+    """What you see after answering: right or not, the answer, and the tally."""
+    right = q['options'][q['answer']]
+    st = q.get('stats') or {}
+    head = (f"✅ Right — **{right}**! +{q.get('kernels', 2)} 🍿" if q['mine']['correct']
+            else f"❌ Not quite — it was **{right}**.")
+    return f"{head}\n-# {st.get('correct', 0)} of {st.get('answered', 0)} got it so far. New question tomorrow."
 
 
 def help_embed():

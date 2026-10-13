@@ -2,10 +2,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
 import Feed from "./Feed";
 import { useJson } from "../api";
+import TriviaCard from "../ui/TriviaCard";
+import { useShell } from "../shell/AppShell";
 
 // The club feed as its own page (R10c): everything the club did, one kind
 // at a time if you like, with what's new since you last looked, the open
-// polls up top (Polls' phone tab went to the Feed), and Monday recaps.
+// polls up top (Polls' phone tab went to the Feed), today's trivia when the
+// club has it on (R10d), and Monday recaps.
 
 const FILTERS = [[null, "All"], ["screenings", "Screenings"], ["watchlists", "Watchlists"], ["polls", "Polls"],
                  ["kernels", "Kernels"], ["recaps", "Weekly recaps"]];
@@ -37,6 +40,7 @@ function OpenPolls({ apiBase, groupId }) {
 
 export default function FeedPage({ user, apiBase, groupId }) {
   const [params, setParams] = useSearchParams();
+  const { role } = useShell() || {};
   const type = FILTERS.some(([k]) => k === params.get("type")) ? params.get("type") : null;
 
   if (!groupId) {
@@ -51,6 +55,7 @@ export default function FeedPage({ user, apiBase, groupId }) {
     <div className="page feed-full">
       <PageHeader title="Club feed" />
       <OpenPolls apiBase={apiBase} groupId={groupId} />
+      <TriviaCard apiBase={apiBase} groupId={groupId} role={role} />
       <div className="feed-filters" role="group" aria-label="Show">
         {FILTERS.map(([k, label]) => (
           <button key={label} type="button" className={`chip filter-choice${type === k ? " gold" : ""}`} aria-pressed={type === k}

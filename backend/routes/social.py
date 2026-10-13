@@ -325,9 +325,7 @@ def my_kernels():
     viewer = current_user()
     k = kernels.breakdown(viewer.id, group_id)
     return jsonify({**k, 'allowance': kernels.allowance(viewer.id),
-                    'rules': {'went': kernels.WENT, 'planned': kernels.PLANNED, 'trailblazer_max': kernels.TRAIL_MAX,
-                              'crew_min': kernels.CREW_MIN, 'crew': kernels.CREW, 'give': kernels.GIVE_PER_WEEK,
-                              'take': kernels.TAKE_PER_WEEK}})
+                    'rules': kernels.rules(group_id)})
 
 
 @app.route('/api/club/week')

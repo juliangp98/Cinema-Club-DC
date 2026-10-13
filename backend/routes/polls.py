@@ -310,7 +310,7 @@ def user_kernels(user_id):
     import kernels
     k = kernels.breakdown(user_id)
     return jsonify({'user_id': user_id, 'kernels': k['kernels'],
-                    'breakdown': {'polls': k['polls'], 'going_out': k['going_out'], 'members': k['members']}})
+                    'breakdown': {part: k[part] for part in kernels.PARTS}})
 
 
 @app.route('/api/groups/<int:group_id>/leaderboard')
@@ -324,3 +324,35 @@ def group_leaderboard(group_id):
     if err:
         return err
     return jsonify(build_leaderboard(group))
+
+
+# ─── Daily trivia (R10d) ──────────────────────────────────────────────────────
+
+@app.route('/api/trivia/today')
+@require_auth
+def trivia_today():
+    """The club's question of the day (if the club turned trivia on), your
+    answer if you've given one, and yesterday's with its answer."""
+    import trivia
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    return jsonify(trivia.today_for(db.session.get(Group, group_id), current_user()))
+
+
+@app.route('/api/trivia/answer', methods=['POST'])
+@require_auth
+def trivia_answer():
+    """{group_id, question_id, choice}: your one answer to today's question."""
+    import trivia
+    data = request.json or {}
+    group_id = _as_int(data.get('group_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    result, error = trivia.answer(db.session.get(Group, group_id), current_user(), _as_int(data.get('question_id')),
+                                  data.get('choice') if isinstance(data.get('choice'), int) else None)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(result)

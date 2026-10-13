@@ -5,6 +5,8 @@
              going; trailblazer: +1 for each member who joined a screening you
              were going to first (up to +5); crew night: +3 each when 3+
              members checked in to the same screening
+  trivia     right answers to the club's daily trivia (trivia.py; off unless
+             the club turned it on)
   members    what other members gave you (or took) for your activity
 
 Everything but the gifts is worked out from the source tables, like poll
@@ -96,18 +98,34 @@ def from_members(user_ids, group_id=None):
 
 
 def breakdowns(user_ids, group_id=None):
-    """{uid: {kernels, correct, polls, going_out, members, detail}} — `kernels`
-    is the one total; the rest say where it came from."""
+    """{uid: {kernels, correct, polls, going_out, trivia, members, detail}} —
+    `kernels` is the one total; the rest say where it came from."""
+    import trivia
     from app import calc_user_kernels
     user_ids = list(dict.fromkeys(user_ids))
     out_k, gifts = going_out(user_ids, group_id), from_members(user_ids, group_id)
+    right = trivia.correct_counts(user_ids, group_id)
     result = {}
     for uid in user_ids:
         polls, correct = calc_user_kernels(uid, group_id=group_id)
-        go = sum(out_k[uid].values())
-        result[uid] = {'kernels': polls + go + gifts.get(uid, 0), 'correct': correct, 'polls': polls,
-                       'going_out': go, 'members': gifts.get(uid, 0), 'detail': out_k[uid]}
+        go, quiz = sum(out_k[uid].values()), right.get(uid, 0) * trivia.TRIVIA_KERNELS
+        result[uid] = {'kernels': polls + go + quiz + gifts.get(uid, 0), 'correct': correct, 'polls': polls,
+                       'going_out': go, 'trivia': quiz, 'members': gifts.get(uid, 0), 'detail': out_k[uid]}
     return result
+
+
+PARTS = ('polls', 'going_out', 'trivia', 'members')     # a breakdown's parts, in the order they're shown
+
+
+def rules(group_id=None):
+    """How kernels are earned, for /kernels and the site (trivia: only when
+    the club has it on)."""
+    import trivia
+    from app import db, Group
+    group = db.session.get(Group, group_id) if group_id else None
+    return {'went': WENT, 'planned': PLANNED, 'trailblazer_max': TRAIL_MAX, 'crew_min': CREW_MIN, 'crew': CREW,
+            'give': GIVE_PER_WEEK, 'take': TAKE_PER_WEEK,
+            'trivia': trivia.TRIVIA_KERNELS if group and group.trivia_enabled else None}
 
 
 def breakdown(user_id, group_id=None):

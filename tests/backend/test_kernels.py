@@ -193,7 +193,7 @@ def test_the_leaderboard_adds_it_all_up(active):
     rows = client(active['Ana']).get(f"/api/groups/{active['G']}/leaderboard").json
     top = rows[0]
     assert top['user']['name'] == 'Ana' and top['kernels'] == 9
-    assert top['breakdown'] == {'polls': 0, 'going_out': 8, 'members': 1}
+    assert top['breakdown'] == {'polls': 0, 'going_out': 8, 'trivia': 0, 'members': 1}
     assert client(active['Bo']).get(f"/api/users/{active['Ana']}/kernels").json['breakdown']['members'] == 1
 
 

@@ -142,7 +142,8 @@ from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BotSetting, DiscordDeletion, DiscordPost, DiscordServerMember,
     Group, GroupMembership, KernelGift, LoginToken, Message, Movie, MovieAlias, Notification, Poll, PollCategory,
     PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction, SavedSearch, SavedSearchHit,
-    ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, User, Watchlist)
+    ScrapeEvent, ScrapeRun, SharedRsvp, Showtime, ShowtimeThread, Theatre, TriviaAnswer, TriviaQuestion, User,
+    Watchlist)
 
 
 
@@ -1226,7 +1227,7 @@ def build_leaderboard(group):
             'kernels': k['kernels'],
             'correct': k['correct'],
             'attendance': len(attended_showtime_ids(m.user_id, {group.id})),
-            'breakdown': {'polls': k['polls'], 'going_out': k['going_out'], 'members': k['members']},
+            'breakdown': {part: k[part] for part in kernels.PARTS},
         })
     rows.sort(key=lambda r: (-r['kernels'], -r['correct'], -r['attendance']))
     return rows
@@ -1451,6 +1452,8 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN photo_url VARCHAR(200)",
         "ALTER TABLE 'group' ADD COLUMN emoji VARCHAR(16)",
         "ALTER TABLE 'group' ADD COLUMN short_name VARCHAR(12)",
+        "ALTER TABLE 'group' ADD COLUMN trivia_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN trivia_discord BOOLEAN DEFAULT 0",
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",

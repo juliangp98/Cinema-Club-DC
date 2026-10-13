@@ -110,6 +110,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(DiscussButton, ThreadRsvpButton)   # screening threads
         self.add_dynamic_items(FindPickSelect, SpinButton)       # /find and /surprise
         self.add_dynamic_items(DraftCreateButton)                 # /poll make
+        self.add_dynamic_items(TriviaButton)                      # daily trivia (R10d)
         announce_loop.start()
         share_loop.start()
         digest_loop.start()
@@ -117,6 +118,7 @@ class CinemaClubBot(discord.Client):
         notify_loop.start()
         discussion_loop.start()
         member_sync_loop.start()
+        trivia_loop.start()
 
     async def close(self):
         await api.close()
@@ -3301,6 +3303,101 @@ async def kernels_cmd(interaction: discord.Interaction):
         await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
         return
     await interaction.followup.send(embed=embeds.kernels_embed(k), ephemeral=True)
+
+
+# ─── Daily trivia (R10d) ──────────────────────────────────────────────────────
+# Off unless the club turned it on (a club admin, in Club settings on the
+# site); the post in #movies is a second yes there. Answers are private.
+
+TRIVIA_OFF_MSG = "Trivia is off for this club — a club admin can turn it on in Club settings on the site."
+
+
+def trivia_view(q):
+    view = discord.ui.View(timeout=None)
+    for i in range(len(q['options'])):
+        view.add_item(TriviaButton(q['id'], i))
+    return view
+
+
+class TriviaButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:(?P<qid>[0-9]+):(?P<i>[0-3])'):
+    """A / B / C / D under a trivia question: answers privately (one try)."""
+    def __init__(self, question_id, choice):
+        super().__init__(discord.ui.Button(label=embeds.LETTERS[choice], style=discord.ButtonStyle.secondary,
+                                           custom_id=f'trivia:{question_id}:{choice}'))
+        self.question_id, self.choice = question_id, choice
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match['qid']), int(match['i']))
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            q = await api.post('/api/internal/trivia/answer', {**discord_identity(interaction),
+                                                                'question_id': self.question_id, 'choice': self.choice})
+        except ApiError as e:
+            if no_account(e):
+                msg = NO_ACCOUNT_MSG
+            else:
+                try:
+                    msg = json.loads(e.body).get('error') or f'That didn\'t work ({e.status}).'
+                except (ValueError, TypeError, AttributeError):
+                    msg = f'That didn\'t work ({e.status}).'
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+        except Exception as e:
+            print(f'trivia answer failed: {e}')
+            await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+            return
+        await interaction.followup.send(embeds.trivia_result(q), ephemeral=True)
+
+
+@client.tree.command(name='trivia', description="Today's movie trivia question (if your club has trivia on)")
+async def trivia_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        t = await api.get('/api/internal/trivia/today', **discord_identity(interaction))
+    except ApiError as e:
+        await interaction.followup.send(NO_ACCOUNT_MSG if no_account(e) else f'Trivia lookup failed ({e.status}).',
+                                        ephemeral=True)
+        return
+    except Exception as e:
+        print(f'/trivia failed: {e}')
+        await interaction.followup.send("Couldn't reach the server — try again in a bit.", ephemeral=True)
+        return
+    if not t.get('enabled'):
+        await interaction.followup.send(TRIVIA_OFF_MSG, ephemeral=True)
+    elif not t.get('question'):
+        await interaction.followup.send('No trivia question today — check back tomorrow.', ephemeral=True)
+    elif t['question'].get('mine'):
+        await interaction.followup.send(embeds.trivia_result(t['question']), ephemeral=True)
+    else:
+        await interaction.followup.send(embed=embeds.trivia_embed(t['question'], t.get('yesterday')),
+                                        view=trivia_view(t['question']), ephemeral=True)
+
+
+@tasks.loop(minutes=15)
+async def trivia_loop():
+    """Post the question of the day in #movies once, after 11 AM — only when
+    the club said yes to Discord posts (the backend checks)."""
+    if not 11 <= datetime.now(ET).hour < 22:
+        return
+    channel = movies_channel()
+    if channel is None:
+        return
+    try:
+        p = await api.get('/api/internal/trivia/post', group_id=DEFAULT_GROUP_ID)
+        if not p.get('post'):
+            return
+        msg = await channel.send(embed=embeds.trivia_embed(p['post'], p.get('yesterday')), view=trivia_view(p['post']))
+        await api.post('/api/internal/trivia/posted', {'question_id': p['post']['id'], 'message_id': str(msg.id)})
+    except Exception as e:
+        print(f'trivia_loop: {e}')
+
+
+@trivia_loop.before_loop
+async def before_trivia():
+    await client.wait_until_ready()
 
 
 DIGEST_COOLDOWN_SEC = 30 * 60

@@ -129,6 +129,25 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         <div className="club-form-foot"><button className="btn btn-primary btn-sm">Save details</button></div>
       </form>
 
+      <SectionTitle>Daily trivia</SectionTitle>
+      <div className="club-form club-trivia">
+        <label className="notify-row">
+          <input type="checkbox" checked={!!group.trivia?.enabled}
+                 onChange={e => run(() => update({ trivia_enabled: e.target.checked }), e.target.checked ? "Trivia is on" : "Trivia is off")} />
+          <span><span className="notify-name">A movie trivia question every day</span>
+            <span className="notify-hint">Made from the films on your calendar and classic movie quotes. Members answer on the
+              club feed (and with /trivia in Discord); a right answer is worth 2 kernels. Nobody is sent anything.</span></span>
+        </label>
+        {group.trivia?.enabled && group.discord && (
+          <label className="notify-row">
+            <input type="checkbox" checked={!!group.trivia?.discord}
+                   onChange={e => run(() => update({ trivia_discord: e.target.checked }), "Saved")} />
+            <span><span className="notify-name">Also post each day's question in Discord (#movies)</span>
+              <span className="notify-hint">Around 11 AM, with A–D buttons; answers stay private.</span></span>
+          </label>
+        )}
+      </div>
+
       <SectionTitle>Invite by email</SectionTitle>
       <form className="club-inline" onSubmit={sendInvite}>
         <input className="share-input" type="email" placeholder="friend@example.com" value={inviteEmail}

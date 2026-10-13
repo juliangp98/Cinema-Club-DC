@@ -1480,6 +1480,29 @@ a.feed-action { text-decoration: none; display: inline-flex; align-items: center
 .recap-lines { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
 .club-feed-more { margin: 0.5rem 0 0; text-align: right; font-size: var(--fs-sm); }
 
+/* Daily trivia (R10d) */
+.trivia-card {
+  border: 1px solid var(--amber-dim); border-radius: var(--radius); padding: 0.8rem 0.9rem; margin: 0 0 1rem;
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.trivia-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.trivia-hint { font-size: var(--fs-xs); color: var(--muted); }
+.trivia-q { margin: 0; font-size: var(--fs-md); }
+.trivia-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.4rem; }
+.trivia-option {
+  text-align: left; padding: 0.5rem 0.65rem; border-radius: var(--radius); border: 1px solid var(--border);
+  background: none; color: var(--cream); font-size: var(--fs-sm); cursor: pointer;
+}
+.trivia-option:hover:not(:disabled) { border-color: var(--amber); }
+.trivia-option:disabled { cursor: default; }
+.trivia-option.right { border-color: var(--green); background: rgba(80, 160, 100, 0.15); }
+.trivia-option.wrong { border-color: var(--red); opacity: 0.85; }
+.trivia-letter { font-weight: 700; color: var(--amber); margin-right: 0.25rem; }
+.trivia-result, .trivia-error { margin: 0; font-size: var(--fs-sm); }
+.trivia-yesterday { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
+.trivia-off { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 1rem; }
+.club-trivia { gap: 0.6rem; }
+
 /* Kernels on a feed card (R10b): give or take for what members did. */
 .kernel-panel { border-top: 1px solid var(--border); padding-top: 0.6rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .kernel-allowance { margin: 0; font-size: var(--fs-sm); color: var(--cream); }
