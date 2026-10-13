@@ -7,7 +7,7 @@ import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import Loading, { LoadError } from "../ui/Loading";
 import Panel from "../ui/Panel";
-import { useJson, getJson, send, attend } from "../api";
+import { useJson, getJson, send, attend, hideFilm } from "../api";
 import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
@@ -18,7 +18,7 @@ import { time, dayDate } from "../dates";
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
 // non-shelf sections; shelves not listed become "more ways to browse" chips.
-export const LAYOUT = ["friends", "rare", "@announced", "@doubles", "@spotlights", "classics", "awards", "arthouse",
+export const LAYOUT = ["friends", "for-you", "rare", "@announced", "@doubles", "@spotlights", "classics", "awards", "arthouse",
                 "one-night", "on-film", "big-screen", "events", "opening", "last-chance"];
 
 const timeLabel = time, dayLabel = dayDate;
@@ -163,17 +163,45 @@ export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtim
 
 // Discover's sections, also used on theatre pages: `scope` narrows their
 // "See all" links (e.g. "&theatres=afi").
-export function Shelf({ s, scope = "" }) {
+// `onHide` (For you, R13) adds "Not for me" under each film; it leaves the row at once.
+export function Shelf({ s, scope = "", onHide }) {
+  const [gone, setGone] = useState(() => new Set());
+  const items = s.items.filter(c => !gone.has(c.movie.id));
+  if (!items.length) return null;
+  const hide = id => { setGone(prev => new Set(prev).add(id)); onHide(id); };
   return (
-    <section className="shelf">
+    <section className="shelf" id={`shelf-${s.key}`}>
       <SectionTitle action={<Link className="shelf-all" to={`/browse?shelf=${s.key}&when=2weeks${scope}`}>See all {s.total} →</Link>}>
         {s.title}
       </SectionTitle>
       <p className="shelf-blurb">{s.blurb}</p>
       <div className="shelf-row">
-        {s.items.map(c => <PosterCard key={c.movie.id} card={c} />)}
+        {items.map(c => (onHide ? (
+          <div key={c.movie.id} className="poster-card-wrap">
+            <PosterCard card={c} />
+            <button type="button" className="linkish poster-card-hide" onClick={() => hide(c.movie.id)}
+                    aria-label={`Not for me: ${c.movie.title}`}>Not for me</button>
+          </div>
+        ) : <PosterCard key={c.movie.id} card={c} />))}
       </div>
     </section>
+  );
+}
+
+// Where For you would be, until you've told us what you like (R13).
+export function TasteNudge({ userId }) {
+  const shell = useShell() || {};
+  const key = `cinemaclub_taste_nudge_${userId}`;
+  const [gone, setGone] = useState(() => { try { return !!localStorage.getItem(key); } catch { return false; } });
+  if (gone) return null;
+  const later = () => { try { localStorage.setItem(key, "1"); } catch { /* private mode */ } setGone(true); };
+  return (
+    <Panel tone="callout" title="Make Discover yours" actions={<>
+      <button type="button" className="btn btn-primary" onClick={() => shell.editTaste?.()}>Pick what you like</button>
+      <button type="button" className="btn btn-ghost" onClick={later}>Not now</button>
+    </>}>
+      <p>Tell us the genres, films, people and theatres you love (and what you're not into), and this spot fills with films for you.</p>
+    </Panel>
   );
 }
 
@@ -347,6 +375,8 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
   const navigate = useNavigate();
   const shell = useShell();
   const { data, error, reload } = useJson(`${apiBase}/api/discover?${groupParam(groupId)}`);
+  useEffect(() => { if (shell.tasteVersion) reload(); }, [shell.tasteVersion, reload]);     // taste changed: new picks
+  const hide = id => hideFilm(apiBase, id).catch(() => {});
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
   const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId, onChange: refresh });
@@ -364,7 +394,8 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
     if (key === "@announced" && data?.announced?.length) sections.push(<Announced key={key} items={data.announced} />);
     else if (key === "@doubles" && data?.double_features.length) sections.push(<DoubleFeatures key={key} items={data.double_features} />);
     else if (key === "@spotlights" && data?.spotlights.length) sections.push(<Spotlights key={key} items={data.spotlights} />);
-    else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} />);
+    else if (key === "for-you" && user && data?.taste_set === false && !byKey[key]) sections.push(<TasteNudge key={key} userId={user.id} />);
+    else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} onHide={key === "for-you" ? hide : undefined} />);
   }
   const more = (data?.shelves || []).filter(s => !LAYOUT.includes(s.key));
 

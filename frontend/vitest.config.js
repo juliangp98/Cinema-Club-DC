@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    environmentOptions: { jsdom: { url: 'http://localhost/' } },   // a real origin, so localStorage works
     globals: true,
     include: ['tests/**/*.test.{js,jsx}'],
     setupFiles: ['tests/setup.js'],

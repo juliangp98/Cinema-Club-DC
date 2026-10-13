@@ -36,6 +36,9 @@
 .shelf-all { font-size: var(--fs-sm); color: var(--amber); white-space: nowrap; }
 .shelf-all:hover { text-decoration: underline; }
 .shelf-blurb { color: var(--muted); font-size: var(--fs-sm); margin-bottom: 0.85rem; }
+/* For you (R13): "Not for me" under each film */
+.poster-card-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; flex: none; }
+.poster-card-wrap .poster-card-hide { font-size: var(--fs-xs); color: var(--muted); }
 .shelf-row {
   /* Top padding: a scrolling row clips whatever rises above it, and posters lift on hover. */
   display: flex; gap: 0.9rem; overflow-x: auto; padding: 6px 2px 0.5rem; scroll-snap-type: x proximity;

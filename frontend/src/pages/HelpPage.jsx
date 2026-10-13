@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import useHashScroll from "../useHashScroll";
 import PageHeader from "../ui/PageHeader";
 import { useShell } from "../shell/AppShell";
 
@@ -34,6 +35,9 @@ const SECTIONS = [
     ["What is Your taste?", "What you like, so the site can pick films for you: genres you love and ones you're not into, how you like to watch (on film, 70mm and IMAX, Q&As, classics, late shows…), favorite theatres, and favorite films, directors, actors and writers. Pick as much or as little as you like."],
     ["Where do I set it?", "Edit profile → Your taste (it's also offered at the end of the welcome tour). Changes save as you make them. Genres can also be picked in Discord with /profile."],
     ["Who can see my taste?", "Only you, unless you switch on “Show my taste on my profile” — then people in your clubs see it on your profile and with /profile in Discord."],
+    ["What's “For you”?", "A row near the top of Discover (and “For you here” on each theatre's page) with films playing in the next two weeks that fit your taste — each says why: a favorite director, a genre you love, on 35mm, at a theatre you like. It also learns from what you watchlist, plan, see and rate well on Letterboxd. Films you've already seen are left out. Theatres shows how many are for you at each one."],
+    ["A pick isn't for me — can I get rid of it?", "Tap “Not for me” under it: it's gone from For you. You'll find it under Not for me in Your taste if you change your mind."],
+    ["What does “Not into” do?", "Films in a genre you're not into rank lower — they only show up when something else about them is a strong fit (say, a favorite director's)."],
     ["Which genres are there?", "The ones TMDB and IMDb use for films — action to western, plus film noir, musical, biography and sport — so what you pick matches how every film is labelled."],
   ] },
   { id: "club", title: "Your club", items: [
@@ -74,7 +78,6 @@ const SECTIONS = [
 const norm = s => s.toLowerCase();
 
 export default function HelpPage() {
-  const { hash } = useLocation();
   const shell = useShell() || {};
   const [q, setQ] = useState("");
   const shown = useMemo(() => {
@@ -86,11 +89,7 @@ export default function HelpPage() {
     })).filter(sec => sec.items.length);
   }, [q]);
 
-  useEffect(() => {
-    if (!hash) return undefined;
-    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" }), 100);
-    return () => clearTimeout(t);
-  }, [hash]);
+  useHashScroll();
 
   return (
     <div className="page narrow help-page">

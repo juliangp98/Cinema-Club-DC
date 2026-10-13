@@ -267,6 +267,17 @@ def discover_page():
     return jsonify(build() if user else public_cached(('discover', tuple(sorted(theatres or ()))), build))
 
 
+@app.route('/api/for-you/theatres')
+@require_auth
+def for_you_theatres():
+    """{slug: n} — films for you at each theatre in the next two weeks (R13)."""
+    import discover
+    user, group, err = _discover_group()
+    if err:
+        return err
+    return jsonify(discover.for_you_by_theatre(group, user))
+
+
 @app.route('/api/discover/browse')
 def discover_browse():
     import discover

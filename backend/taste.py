@@ -276,3 +276,120 @@ def migrate_legacy_genres():
                 db.session.add(TasteItem(user_id=u.id, kind=kind, key=key, label=label))
         u.favorite_genres = ''
     db.session.commit()
+
+
+# ─── For you: the engine ──────────────────────────────────────────────────────
+# A film playing soon earns points for what you told us (favorite films,
+# people, genres, ways, theatres, your watchlist) and, more lightly, for what
+# you've done (the genres and directors of films you planned, saw, rated
+# well on Letterboxd or watchlisted). Genres you're not into count against
+# it; films you've seen or said aren't for you are left out. Each point
+# comes with the reason shown on the card.
+
+POINTS = {'watchlist': 5, 'favorite_film': 6, 'person': 4, 'learned_director': 2, 'genre': 2, 'way': 1.5,
+          'theatre': 1.5, 'learned_genre': 0.5, 'avoid': -3}
+MIN_SCORE = 2          # below this, not "for you"
+LIKED_RATING = 3.5     # Letterboxd stars that count as liking a film
+DISLIKED_RATING = 2
+
+
+def _people_of(movie):
+    """[(key, label, kind)] — a film's director(s), writers and top-billed cast."""
+    import json
+    out = [(_person_key(d), d.strip(), 'director') for d in (movie.director or '').split(',') if d.strip()]
+    for field, kind_of, top in (('crew_json', lambda c: 'writer' if c.get('job') in ('Writer', 'Screenplay') else None, 50),
+                                ('cast_json', lambda c: 'actor', 8)):
+        try:
+            rows = json.loads(getattr(movie, field) or '[]')[:top]
+        except ValueError:
+            rows = []
+        out += [(_person_key(c['name']), c['name'], kind_of(c)) for c in rows
+                if isinstance(c, dict) and c.get('name') and kind_of(c)]
+    return out
+
+
+def profile(user):
+    """Everything scoring needs about someone, gathered once per request."""
+    from collections import Counter
+    from app import Attendance, LetterboxdEntry, Movie, RSVP, Showtime, Watchlist, db
+    if not user or not getattr(user, 'id', None):
+        return None
+    if getattr(user, '_taste_profile', None) is not None:
+        return user._taste_profile
+    mine = items(user)
+    of = lambda kind: {i.key for i in mine if i.kind == kind}
+    p = {'genres': set(genres(user)), 'avoid': of('avoid'), 'ways': of('way'), 'theatres': of('theatre'),
+         'movies': {i.movie_id for i in mine if i.kind == 'movie'}, 'hide': {i.movie_id for i in mine if i.kind == 'hide'},
+         'people': {i.key: (i.label, i.kind) for i in mine if i.kind in PEOPLE}}
+    p['seen'] = {mid for (mid,) in db.session.query(Showtime.movie_id).join(Attendance, Attendance.showtime_id == Showtime.id)
+                 .filter(Attendance.user_id == user.id, Attendance.status == 'went')}
+    planned = {mid for (mid,) in db.session.query(Showtime.movie_id).join(RSVP, RSVP.showtime_id == Showtime.id)
+               .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')))}
+    wanted = {w.movie_id for w in Watchlist.query.filter_by(user_id=user.id)}
+    rated = {e.tmdb_id: e.rating for e in LetterboxdEntry.query.filter(LetterboxdEntry.user_id == user.id,
+                                                                       LetterboxdEntry.rating.isnot(None),
+                                                                       LetterboxdEntry.tmdb_id.isnot(None))}
+    by_tmdb = {m.tmdb_id: m.id for m in Movie.query.filter(Movie.tmdb_id.in_(list(rated)))} if rated else {}
+    liked = p['movies'] | planned | p['seen'] | wanted | {by_tmdb[t] for t, r in rated.items() if t in by_tmdb and r >= LIKED_RATING}
+    disliked = {by_tmdb[t] for t, r in rated.items() if t in by_tmdb and r <= DISLIKED_RATING}
+    p['seen'] |= {by_tmdb[t] for t in rated if t in by_tmdb}          # on your Letterboxd diary: seen
+    learned, directors = Counter(), {}
+    for m in Movie.query.filter(Movie.id.in_(list(liked | disliked))) if liked | disliked else []:
+        sign = -1 if m.id in disliked else 1
+        for g in (m.genres or '').split(','):
+            if g in GENRE_LABELS:
+                learned[g] += sign
+        if sign > 0:
+            for key, label, kind in _people_of(m):
+                if kind == 'director':
+                    directors.setdefault(key, label)
+    p['learned_genres'], p['learned_directors'] = learned, directors
+    user._taste_profile = p
+    return p
+
+
+def score(f, p, ctx):
+    """(points, reasons) for a discover.Film, or None when it isn't for you."""
+    import discover
+    m = f.movie
+    if not p or m.id in p['hide'] or m.id in p['seen']:
+        return None
+    points, why = 0.0, []
+
+    def add(n, reason=None):
+        nonlocal points
+        points += n
+        if reason and reason not in why:
+            why.append(reason)
+    if f.you_want:
+        add(POINTS['watchlist'], 'on your watchlist')
+    if m.id in p['movies']:
+        add(POINTS['favorite_film'], 'a favorite of yours')
+    named = set()
+    for key, label, kind in _people_of(m):
+        if key in p['people'] and key not in named:
+            named.add(key)
+            add(POINTS['person'], label)
+        elif kind == 'director' and key in p['learned_directors'] and key not in named:
+            named.add(key)
+            add(POINTS['learned_director'], f'more from {label}')
+    for g in sorted(f.genres & p['genres'])[:2]:
+        add(POINTS['genre'], GENRE_LABELS[g])
+    points += POINTS['avoid'] * len(f.genres & p['avoid'])
+    for w in WAY_KEYS:
+        if w in p['ways']:
+            reason = discover.way_fits(w, f, ctx)
+            if reason:
+                add(POINTS['way'], reason)
+    here = sorted(f.venues & p['theatres'])
+    if here:
+        add(POINTS['theatre'], f'at {next(s.theatre.short_name or s.theatre.name for s in f.shows if s.theatre.slug == here[0])}')
+    points += POINTS['learned_genre'] * max(-4, min(4, sum(p['learned_genres'][g] for g in f.genres)))
+    return (points, why) if points >= MIN_SCORE else None
+
+
+def for_you(films, user, ctx):
+    """[(film, reasons)], best first (then soonest)."""
+    p = ctx.get('taste') if ctx else profile(user)
+    scored = [(f, score(f, p, ctx)) for f in films]
+    return [(f, s[1]) for f, s in sorted(((f, s) for f, s in scored if s), key=lambda x: (-x[1][0], x[0].next.start_time))]

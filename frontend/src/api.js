@@ -106,3 +106,5 @@ export const rsvp = (apiBase, showtimeId, status, groupId) =>
 export const attend = (apiBase, showtimeId, status) =>
   send(`${apiBase}/api/attendance`, "POST", { showtime_id: showtimeId, status });
 export const toggleWatch = (apiBase, movieId) => send(`${apiBase}/api/watchlist`, "POST", { movie_id: movieId });
+export const hideFilm = (apiBase, movieId) =>                       // "Not for me" (R13): out of For you
+  send(`${apiBase}/api/me/taste/items`, "POST", { kind: "hide", movie_id: movieId });

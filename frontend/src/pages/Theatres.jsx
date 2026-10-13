@@ -4,7 +4,10 @@ import PosterCard from "../ui/PosterCard";
 import Poster from "../ui/Poster";
 import Loading, { LoadError } from "../ui/Loading";
 import { Shelf, DoubleFeatures, Spotlights, Announced, LAYOUT } from "./DiscoverPage";
-import { useJson } from "../api";
+import { useEffect } from "react";
+import { useJson, hideFilm } from "../api";
+import { useShell } from "../shell/AppShell";
+import useHashScroll from "../useHashScroll";
 import { groupParam } from "../scope";
 import { TheatreNotes } from "../ui/ScreeningNotes";
 import "./DiscoverPage.css";
@@ -19,6 +22,9 @@ const dayTime = dayShortTime;
 // tonight, and the next showing.
 export function TheatresPage({ apiBase }) {
   const { data: list, error, reload } = useJson(`${apiBase}/api/theatres-overview`);
+  const shell = useShell() || {};
+  const forYou = useJson(shell.user ? `${apiBase}/api/for-you/theatres?${groupParam(shell.groupId)}` : null);
+  useEffect(() => { if (shell.tasteVersion) forYou.reload(); }, [shell.tasteVersion]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (error && !list) return <div className="page"><LoadError what="the theatres" onRetry={reload} /></div>;
   if (!list) return <div className="page"><Loading context="theatre" /></div>;
 
@@ -36,7 +42,7 @@ export function TheatresPage({ apiBase }) {
         <section key={region} className="theatres-region">
           <SectionTitle>{region}</SectionTitle>
           <div className="theatre-cards">
-            {regions[region].map(t => <TheatreCard key={t.slug} t={t} />)}
+            {regions[region].map(t => <TheatreCard key={t.slug} t={t} forYou={forYou.data?.[t.slug]} />)}
           </div>
         </section>
       ))}
@@ -45,7 +51,7 @@ export function TheatresPage({ apiBase }) {
   );
 }
 
-function TheatreCard({ t }) {
+function TheatreCard({ t, forYou }) {
   const p = t.preview;
   return (
     <article className="theatre-card" style={{ "--tcolor": t.color }}>
@@ -57,6 +63,7 @@ function TheatreCard({ t }) {
       <p className="theatre-card-meta">
         {p.film_count ? `${p.film_count} film${p.film_count === 1 ? "" : "s"} in the next two weeks` : "Nothing scheduled right now"}
         {p.rare > 0 && <> · <span className="theatre-card-rare">{p.rare} rare</span></>}
+        {forYou > 0 && <Link to={`/theatres/${t.slug}#shelf-for-you`} className="chip gold">✨ {forYou} for you</Link>}
         {p.formats.map(f => <span key={f} className="chip theatre-card-format">{f}</span>)}
       </p>
       {p.posters.length > 0 && (
@@ -84,6 +91,9 @@ export function TheatrePage({ apiBase, groupId }) {
   const { slug } = useParams();
   const info = useJson(`${apiBase}/api/theatres/${slug}`);
   const disc = useJson(`${apiBase}/api/discover?${groupParam(groupId)}theatres=${slug}`);
+  const shell = useShell() || {};
+  useEffect(() => { if (shell.tasteVersion) disc.reload(); }, [shell.tasteVersion]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useHashScroll(!!disc.data);                  // e.g. #shelf-for-you from the Theatres page
   const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest`);
   const t = info.data;
 
@@ -110,7 +120,8 @@ export function TheatrePage({ apiBase, groupId }) {
     if (key === "@announced" && d?.announced?.length) sections.push(<Announced key={key} items={d.announced} />);
     else if (key === "@doubles" && d?.double_features?.length) sections.push(<DoubleFeatures key={key} items={d.double_features} scope={scope} />);
     else if (key === "@spotlights" && d?.spotlights?.length) sections.push(<Spotlights key={key} items={d.spotlights} scope={scope} />);
-    else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} scope={scope} />);
+    else if (byKey[key]) sections.push(<Shelf key={key} s={byKey[key]} scope={scope}
+                                              onHide={key === "for-you" ? id => hideFilm(apiBase, id).catch(() => {}) : undefined} />);
   }
   for (const s of d?.shelves || []) if (!LAYOUT.includes(s.key)) sections.push(<Shelf key={s.key} s={s} scope={scope} />);
 

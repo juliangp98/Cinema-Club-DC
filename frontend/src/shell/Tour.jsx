@@ -26,7 +26,7 @@ const TASTE = { emoji: "✨", title: "Make it yours",
 
 const STEPS = [
   { target: "nav:/", page: "/", title: "Discover",
-    body: "What's worth seeing: rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
+    body: "What's worth seeing: films picked for you, rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
   { target: "nav:/calendar", page: "/calendar", title: "Calendar",
     body: "Every showtime at your club's theatres. Filter by theatre, format or time; tap one to RSVP, see who's going, or add it to your own calendar." },
   { target: "nav:/feed", page: "/feed", title: "Feed", club: true,

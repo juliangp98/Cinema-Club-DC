@@ -251,7 +251,7 @@ SHELVES = [
     ('opening', 'Opening', 'New releases arriving at the club’s theatres'),
     ('last-chance', 'Last chance', 'Final scheduled showings'),
     ('most-wanted', 'Most wanted in the club', 'On the most members’ watchlists'),
-    ('for-you', 'For you', 'Your favorite genres and your watchlist'),
+    ('for-you', 'For you', 'From your taste, your watchlist and what you’ve seen'),
     ('blockbusters', 'Blockbusters', 'The big new releases, playing everywhere'),
     ('arthouse', 'Arthouse & indie', 'Recent films at a theatre or two'),
     ('classics', 'Classics', 'Twenty years old and up'),
@@ -300,13 +300,8 @@ def shelf(key, films, ctx):
     if key == 'most-wanted':
         return sorted([(f, [f"{f.wanted} want to see it"]) for f in fl if f.wanted],
                       key=lambda p: (-p[0].wanted, p[0].next.start_time))
-    if key == 'for-you':
-        out = []
-        for f in fl:
-            match = sorted(f.genres & ctx['genres'])
-            if f.you_want or match:
-                out.append((f, (['on your watchlist'] if f.you_want else []) + match[:2]))
-        return sorted(out, key=lambda p: (not p[0].you_want, -p[0].rare_score, p[0].next.start_time))
+    if key == 'for-you':                           # Your taste (R13, taste.py)
+        return __import__('taste').for_you(fl, None, ctx) if ctx.get('taste') else []
     if key == 'blockbusters':
         return sorted([(f, [f"{len(f.shows)} showings", f"{len(f.venues)} theatres"]) for f in fl
                        if f.year and f.year >= y - 1 and len(f.venues) >= 3 and len(f.shows) >= 10],
@@ -338,12 +333,45 @@ def shelf(key, films, ctx):
     return []
 
 
+def way_fits(key, f, ctx):
+    """Does film `f` fit one of taste.WAYS (how someone likes to watch)? The
+    reason to show if so, else None."""
+    if key == 'film':
+        prints = sorted(f.formats & set(FILM_PRINTS))
+        return f'on {prints[0]}' if prints else None
+    if key == 'big':
+        big = [x for x in BIG_FORMATS if x in f.formats] or (['IMAX'] if f.venues & BIG_SCREEN_THEATRES else [])
+        return big[0] if big else None
+    if key == 'events':
+        return f.events[0] if f.events else None
+    if key == 'classics':
+        return f'a {f.year} classic' if f.year and f.year <= ctx['year'] - 20 else None
+    if key == 'foreign':
+        lang = f.movie.original_language
+        return f'in {LANGUAGES.get(lang, "another language")}' if lang and lang != 'en' else None
+    if key == 'arthouse':
+        return 'arthouse' if f.year and f.year >= ctx['year'] - 3 and len(f.venues) <= 2 and f.venues & ARTHOUSE_THEATRES else None
+    if key == 'late':
+        s = _late(f)
+        return f"late show {s.start_time.strftime('%-I:%M %p')}" if s else None
+    if key == 'matinee':
+        s = next((s for s in f.shows if s.start_time.hour < 17), None)
+        return f"matinee {s.start_time.strftime('%-I:%M %p')}" if s else None
+    return None
+
+
+LANGUAGES = {'fr': 'French', 'ja': 'Japanese', 'it': 'Italian', 'de': 'German', 'es': 'Spanish', 'ko': 'Korean',
+             'zh': 'Chinese', 'cn': 'Cantonese', 'hi': 'Hindi', 'sv': 'Swedish', 'ru': 'Russian', 'pt': 'Portuguese',
+             'fa': 'Persian', 'da': 'Danish', 'pl': 'Polish', 'ar': 'Arabic', 'tr': 'Turkish', 'nl': 'Dutch'}
+
+
 def context(group, viewer, films, now):
     """What shelves need beyond the films: opening / last-chance sets (same
-    rules as the weekly digest), the viewer's genres."""
+    rules as the weekly digest), the viewer's genres and taste (For you)."""
     from app import db, Showtime, _group_showtime_query, schedule_horizons, is_last_chance, RARE_MIN_SCORE
     ctx = {'year': now.year, 'rare_min': RARE_MIN_SCORE, 'opening': set(), 'last_chance': set(),
-           'genres': set(__import__('taste').genres(viewer)) if viewer else set()}
+           'genres': set(__import__('taste').genres(viewer)) if viewer else set(),
+           'taste': __import__('taste').profile(viewer) if viewer else None}
     if not films:
         return ctx
     span = {mid: (first, last, n) for mid, first, last, n in _group_showtime_query(group).with_entities(
@@ -373,9 +401,12 @@ def discover(group, viewer, per_shelf=12, now=None, theatres=None):
     for key, title, blurb in SHELVES:
         items = shelf(key, films, ctx)
         if items:
+            if key == 'for-you' and theatres:
+                title = 'For you here'
             shelves.append({'key': key, 'title': title, 'blurb': blurb, 'total': len(items),
                             'items': [card(f, r) for f, r in items[:per_shelf]]})
     return {'window': {'start': start.isoformat(), 'end': end.isoformat()}, 'shelves': shelves,
+            'taste_set': __import__('taste').is_set(viewer) if viewer else None,
             'moods': [{'key': k, 'label': v['label']} for k, v in MOODS.items()],
             'spotlights': spotlights(group, viewer, now, theatres=theatres),
             'announced': announced(group, theatres, now=now),
@@ -432,6 +463,18 @@ def weekly(group, now=None, days=7, caps=None, plan_min=2):
     take('last_chance', [(f, f.shows[-1], None) for f, _ in shelf('last-chance', films, ctx)])
     take('opening', [(f, f.next, len(f.venues)) for f, _ in shelf('opening', films, ctx)])
     return films, picks
+
+
+def for_you_by_theatre(group, viewer, now=None):
+    """{slug: how many films for you there} over the next two weeks (the
+    Theatres page's "N for you", R13)."""
+    now = now or datetime.now()
+    films = catalog(group, *window('2weeks', now), viewer)
+    out = {}
+    for f, _ in shelf('for-you', films, context(group, viewer, films, now)):
+        for slug in f.venues:
+            out[slug] = out.get(slug, 0) + 1
+    return out
 
 
 def theatre_previews(group, now=None, posters=5):
