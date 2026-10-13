@@ -1,6 +1,5 @@
 """Daily trivia in Discord (R10d): /trivia (privately), A–D buttons that
-answer privately (one try), and the daily #movies post — only once the club
-has turned trivia on AND said yes to Discord posts on the site."""
+answer privately (one try). The daily #movies post is test_bot_game_posts.py."""
 import asyncio
 import re
 import types
@@ -70,30 +69,6 @@ def test_answering_privately_once(bot):
     it = FakeInteraction(uid=9601, name='ana')
     run(bot.trivia_cmd.callback(it))
     assert it.last[1].startswith(('✅', '❌'))                                     # /trivia now shows your result
-
-
-def test_the_daily_post_needs_both_yeses_and_goes_out_once(bot, monkeypatch):
-    sent = []
-
-    class Channel:
-        async def send(self, content=None, embed=None, view=None, **k):
-            sent.append((embed, view))
-            return types.SimpleNamespace(id=4242)
-    real = datetime
-
-    class Noon(real):
-        @classmethod
-        def now(cls, tz=None):
-            return real.now(tz).replace(hour=12)
-    monkeypatch.setattr(bot, 'movies_channel', lambda: Channel())
-    monkeypatch.setattr(bot, 'datetime', Noon)
-    switch(bot, trivia_enabled=True)
-    run(bot.trivia_loop.coro())
-    assert sent == []                                                            # on, but no yes to Discord posts
-    switch(bot, trivia_discord=True)
-    run(bot.trivia_loop.coro())
-    run(bot.trivia_loop.coro())
-    assert len(sent) == 1 and sent[0][0].title == '🧠 Question of the day' and len(items_of(sent[0][1])) == 4
 
 
 def test_kernels_explains_trivia_when_its_on(bot):

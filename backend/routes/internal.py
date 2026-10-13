@@ -10,7 +10,7 @@ from app import (ATTENDANCE_LOOKBACK, AVATAR_COLORS, ActivityEvent, Attendance, 
     DiscordDeletion, DiscordPost, DiscordServerMember, FRONTEND_URL, Group, GroupMembership,
     INTERNAL_API_TOKEN, IntegrityError, Message, Movie, Notification, PLAN_MIN_WATCHERS, Poll, PollCategory,
     PollDraft, PollVote, Quote, RANKED_PICKS, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre,
-    TriviaQuestion, User,
+    GamePost, TriviaQuestion, User, discord_group, role_at_least,
     Watchlist, _active_membership, _ai, _as_int, _draft_poll, _group_showtime_query, _notify_settings,
     _screening_item, _update_profile_fields, _utcnow_naive, announce_new_poll, app, apply_rsvp, apply_votes,
     attended_showtime_ids, build_leaderboard, build_poll, compare_members, datetime, db,
@@ -1344,36 +1344,54 @@ def internal_bingo():
     return jsonify(bingo.view(db.session.get(Group, request.args.get('group_id', type=int) or 0), user))
 
 
-@app.route('/api/internal/trivia/post')
+# ─── Game posts in #movies (R14, game_posts.py) ────────────────────────────────
+
+@app.route('/api/internal/games/posts')
 @require_internal
-def internal_trivia_post():
-    """For the bot's daily post in #movies: today's question (without its
-    answer) and yesterday's (with it) — only if the club turned trivia on AND
-    said yes to Discord posts, and today's isn't posted yet."""
-    import trivia
+def internal_game_posts():
+    """What the bot should post in #movies now (the question of the day, the
+    month's card, wins) — after bringing everything due up to date."""
+    import game_posts
+    game_posts.tick_if_due()
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
-    if not group or not (group.trivia_enabled and group.trivia_discord):
-        return jsonify({'post': None})
-    q = trivia.question_for(group)
-    if not q or q.discord_message_id:
-        return jsonify({'post': None})
-    prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.slot == 'daily',
-                                        TriviaQuestion.day < q.day)
-            .order_by(TriviaQuestion.day.desc()).first())
-    return jsonify({'post': trivia.as_dict(q),
-                    'yesterday': trivia.as_dict(prev, reveal=True) if prev and prev.day == q.day - timedelta(days=1) else None})
+    if not group or not discord_group(group.id):
+        return jsonify({'posts': []})
+    return jsonify({'posts': game_posts.ready_to_post(group)})
 
 
-@app.route('/api/internal/trivia/posted', methods=['POST'])
+@app.route('/api/internal/games/posted', methods=['POST'])
 @require_internal
-def internal_trivia_posted():
+def internal_game_posted():
+    import game_posts
     data = request.json or {}
-    q = db.session.get(TriviaQuestion, _as_int(data.get('question_id')) or 0)
-    if not q:
+    post = db.session.get(GamePost, _as_int(data.get('post_id')) or 0)
+    if not post:
         return jsonify({'error': 'Not found'}), 404
-    q.discord_message_id = str(data.get('message_id') or '')[:30] or None
-    db.session.commit()
+    game_posts.posted(post, data.get('message_id'))
     return jsonify({'ok': True})
+
+
+@app.route('/api/internal/games/post/<int:post_id>', methods=['GET', 'POST'])
+@require_internal
+def internal_game_review(post_id):
+    """An admin's review in their DM: GET the post as it'll look; POST
+    {action: post | skip | another | reshuffle}."""
+    import game_posts
+    data = (request.json or {}) if request.method == 'POST' else request.args
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    post = db.session.get(GamePost, post_id)
+    if not post:
+        return jsonify({'error': 'That post is gone.'}), 404
+    if request.method == 'GET':
+        if not role_at_least(_active_membership(user, post.group_id), 'admin'):
+            return jsonify({'error': 'Only club admins can do that.'}), 403
+        return jsonify(game_posts.preview(post))
+    view, err = game_posts.decide(post, user, data.get('action'))
+    if view is None:
+        return jsonify({'error': err}), 403
+    return jsonify({**view, 'error': err})
 
 
 @app.route('/api/internal/profile', methods=['POST'])

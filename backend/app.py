@@ -135,7 +135,7 @@ from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
     DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
     Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction,
-    SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
+    GamePost, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
     TriviaAnswer, TriviaQuestion, User, Watchlist)
 
 
@@ -595,8 +595,11 @@ def apply_rsvp(user, showtime_id, status, group_id):
 # else is at most a count ("+2 on the site"), whatever their settings say.
 
 DISCORD_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
-SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist')
+SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist', 'games')
 SHARE_CHOICES = ('ask', 'always', 'never')
+# Kinds where Ask makes no sense (it happens on its own) — and what they start as.
+SHARE_ONLY = {'games': ('always', 'never')}        # R14: a game win posted in #movies naming you
+SHARE_DEFAULT = {'games': 'never'}
 RSVP_BATCH_WAIT = timedelta(seconds=60)    # quick RSVPs in a row become one post...
 RSVP_BATCH_MAX = timedelta(minutes=5)      # ...but none waits longer than this
 LIVE_POSTS = ('pending', 'posted')
@@ -609,12 +612,13 @@ def share_prefs(user):
         raw = json.loads(user.share_prefs or '{}')
     except ValueError:
         raw = {}
-    return {k: raw[k] if raw.get(k) in SHARE_CHOICES else 'ask' for k in SHARE_KINDS}
+    return {k: raw[k] if raw.get(k) in SHARE_ONLY.get(k, SHARE_CHOICES) else SHARE_DEFAULT.get(k, 'ask')
+            for k in SHARE_KINDS}
 
 
 def set_share_pref(user, kind, value):
     import json
-    if kind in SHARE_KINDS and value in SHARE_CHOICES:
+    if kind in SHARE_KINDS and value in SHARE_ONLY.get(kind, SHARE_CHOICES):
         prefs = share_prefs(user)
         prefs[kind] = value
         user.share_prefs = json.dumps(prefs)
@@ -1422,6 +1426,9 @@ def migrate():
         "ALTER TABLE user ADD COLUMN bio TEXT DEFAULT ''",
         "ALTER TABLE user ADD COLUMN favorite_genres TEXT DEFAULT ''",
         "ALTER TABLE user ADD COLUMN taste_public BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN trivia_post VARCHAR(8) DEFAULT 'never'",
+        "ALTER TABLE 'group' ADD COLUMN bingo_card_post VARCHAR(8) DEFAULT 'never'",
+        "ALTER TABLE 'group' ADD COLUMN bingo_wins_post VARCHAR(8) DEFAULT 'never'",
         "ALTER TABLE movie ADD COLUMN original_language VARCHAR(8)",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
@@ -1536,6 +1543,10 @@ def migrate():
     _migrate_poll_vote_ranked_constraint()
     _migrate_trivia_slots()
     __import__('taste').migrate_legacy_genres()
+    # R14: "post the question of the day in Discord" (a yes/no) is now Always.
+    db.session.execute(db.text("UPDATE 'group' SET trivia_post = 'always' WHERE trivia_discord = 1"))
+    db.session.execute(db.text("UPDATE 'group' SET trivia_discord = 0 WHERE trivia_discord = 1"))
+    db.session.commit()
     _migrate_user_email_nullable()
     _backfill_title_normalized()
 

@@ -19,6 +19,12 @@ TYPES = {
     'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
     'searches': ('A film fits a search you saved', 'When a theatre books a film that fits one of your saved searches.'),
     'favorites': ('A favorite’s film is booked', 'When a theatre books one of your favorite films, or one by a director, actor or writer in Your taste.'),
+    # Games (R14, game_posts.py) — only in clubs with the game on
+    'trivia_daily': ('Trivia: the question of the day is up', 'Once a day, around 11 AM.'),
+    'trivia_result': ('Trivia: yesterday\u2019s answer', 'The answer, whether you got it, and how the club did.'),
+    'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
+    'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
+    'reviews': ('A game post is waiting for your OK', 'Club admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
 }
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
@@ -46,7 +52,8 @@ def available(user):
 
 # Off until chosen: no DM, email or push, and no "Did you make it?" DMs.
 # Watchlist alerts still land in the site's bell (it never sends anything).
-DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True}
+DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True,
+                 'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True}
 ASKS = ('alerts', 'attendance')
 
 
@@ -95,10 +102,11 @@ def wants_dm(user, kind):
     return p['types'].get(kind, True) and p['channels']['discord']
 
 
-def _make(db, Notification, user, kind, movie_id, theatre_id, payload):
+def _make(db, Notification, user, kind, movie_id, theatre_id, payload, ready=False):
+    """`ready`: send at once (games, R14) rather than with the scrape run's bundle."""
     p = prefs(user)
     db.session.add(Notification(user_id=user.id, kind=kind, movie_id=movie_id, theatre_id=theatre_id,
-                                payload_json=json.dumps(payload),
+                                payload_json=json.dumps(payload), ready_at=_now() if ready else None,
                                 channels=','.join(c for c in CHANNELS if p['channels'][c])))
 
 
@@ -396,7 +404,32 @@ def describe(n):
                 else 'A favorite of yours', p.get('theatre'), _when(p['first']) if p.get('first') else None,
                 f'+{more} more' if more > 0 else None]
         return {'headline': f'{title} is playing', 'detail': ' · '.join(b for b in bits if b), 'link': link}
+    if n.kind in GAME_KINDS:
+        return _describe_game(n.kind, p)
     return {'headline': title, 'detail': '', 'link': link}
+
+
+GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review')
+
+
+def _describe_game(kind, p):
+    if kind == 'trivia_daily':
+        return {'headline': 'Today’s trivia question is up', 'detail': p.get('prompt', ''), 'link': '/play#trivia'}
+    if kind == 'trivia_result':
+        you = {'right': 'You got it ✅', 'wrong': 'You missed this one', None: 'You didn’t answer'}[p.get('you')]
+        return {'headline': f"Yesterday’s trivia: {p.get('answer', '')}",
+                'detail': ' · '.join(b for b in (p.get('prompt'), you, f"{p.get('correct', 0)} of {p.get('answered', 0)} got it") if b),
+                'link': '/play#trivia'}
+    if kind == 'bingo_card':
+        return {'headline': f"{p.get('month_label', 'This month')}’s bingo card is up",
+                'detail': ' · '.join(p.get('squares') or []), 'link': '/play#bingo'}
+    if kind == 'bingo_win':
+        what = 'the full card 🎉🎉' if p.get('which') == 'full' else 'bingo 🎉'
+        return {'headline': f'You got {what}', 'detail': f"+{p.get('kernels', 0)} kernels · {p.get('month_label', '')}",
+                'link': '/play#bingo'}
+    what = 'Today’s trivia question' if p.get('post_kind') == 'trivia' else f"{p.get('month_label', 'This month')}’s bingo card"
+    return {'headline': f'{what} is waiting for your OK', 'detail': 'Look it over, then post it in Discord, skip it or change it.',
+            'link': '/club?tab=settings#game-posts'}
 
 
 WATCHLIST_KINDS = ('showings', 'on_sale', 'announced')
@@ -525,5 +558,7 @@ def pending_dms(now=None):
     return [{'discord_user_id': uid, 'ids': [n.id for n in ns],
              'title': bundle_title(ns),
              'items': [{**{k: v for k, v in describe(n).items() if k != 'link'},
-                        'url': FRONTEND_URL + describe(n)['link'], 'poster_url': item(n)['poster_url']} for n in ns]}
+                        'url': FRONTEND_URL + describe(n)['link'], 'poster_url': item(n)['poster_url']} for n in ns],
+             # admins' game posts waiting for an OK (R14): the bot DMs these with Post / Skip buttons
+             'reviews': [json.loads(n.payload_json or '{}').get('post_id') for n in ns if n.kind == 'game_review']}
             for uid, ns in by_user.items()]

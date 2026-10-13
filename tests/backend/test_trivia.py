@@ -52,8 +52,8 @@ def club():
         return {**{n: u.id for n, u in us.items()}, 'G': g.id, 'slug': g.slug}
 
 
-def turn_on(c, discord=False):
-    r = client(c['Ana']).put(f"/api/groups/{c['slug']}", json={'trivia_enabled': True, 'trivia_discord': discord})
+def turn_on(c, post='never'):
+    r = client(c['Ana']).put(f"/api/groups/{c['slug']}", json={'trivia_enabled': True, 'trivia_post': post})
     assert r.status_code == 200
     return r.json
 
@@ -70,19 +70,17 @@ def answer(c, who, q, choice):
 
 def test_trivia_starts_off(club):
     assert today(club) == {'enabled': False}
-    assert client(club['Bo']).get(f"/api/groups/{club['slug']}").json['trivia'] == {'enabled': False, 'discord': False,
-                                                                                   'anytime': False}
+    assert client(club['Bo']).get(f"/api/groups/{club['slug']}").json['trivia'] == {'enabled': False, 'anytime': False,
+                                                                                   'post': 'never'}
     r = client(club['Bo']).post('/api/trivia/answer', json={'group_id': club['G'], 'question_id': 1, 'choice': 0})
     assert r.status_code == 400 and 'off' in r.json['error']
 
 
 def test_only_club_admins_switch_it(club):
     assert client(club['Bo']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': True}).status_code == 403
-    on = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_discord': True}).json
-    assert on['trivia'] == {'enabled': False, 'discord': False, 'anytime': False}   # Discord needs the daily first
-    assert turn_on(club, discord=True)['trivia'] == {'enabled': True, 'discord': True, 'anytime': False}
-    off = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': False}).json
-    assert off['trivia'] == {'enabled': False, 'discord': False, 'anytime': False}  # off turns the Discord post off too
+    assert turn_on(club, post='ask')['trivia'] == {'enabled': True, 'anytime': False, 'post': 'ask'}
+    bad = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_post': 'sometimes'}).json
+    assert bad['trivia']['post'] == 'ask'                                         # only never / ask / always
 
 
 # ── the question of the day ──
@@ -175,17 +173,6 @@ def test_no_film_or_quote_twice_in_a_while(club):
 
 
 # ── Discord ──
-
-def test_the_daily_post_needs_its_own_yes(club):
-    turn_on(club)
-    post = lambda: client().get('/api/internal/trivia/post', query_string={'group_id': club['G']}, headers=H).json
-    assert post() == {'post': None}
-    turn_on(club, discord=True)
-    p = post()['post']
-    assert p['options'] and 'answer' not in p
-    client().post('/api/internal/trivia/posted', json={'question_id': p['id'], 'message_id': '123'}, headers=H)
-    assert post() == {'post': None}                                            # once a day
-
 
 def test_answering_from_discord(club):
     from app import app, db, User

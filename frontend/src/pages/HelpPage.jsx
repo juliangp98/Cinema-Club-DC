@@ -53,18 +53,21 @@ const SECTIONS = [
     ["How do polls work?", "Pick your answers before a poll closes. Some polls are scored once the results are in: single picks, confidence (stake 1–10 kernels on each pick) or ranked. Organizers and admins make polls."],
     ["How does trivia work?", "A question of the day for the whole club (+2 kernels for a right answer), and — if your club allows it — anytime questions whenever you like (+1 each, up to 5 a day). One try each. Questions come from the films on the calendar and classic movie quotes."],
     ["How does repertory bingo work?", "One card a month for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more."],
+    ["Do the games post in the club's Discord?", "Only if a club admin says so, in Club settings: the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Posts never ping anyone."],
+    ["Will a bingo win post name me?", "Only if your Edit profile → Sharing to Discord says Always for My game wins (it starts at Never) — otherwise the post just says someone got bingo."],
+    ["Can I get reminders about the games?", "Yes, each one your own choice in Notification settings: the question of the day is up, yesterday's answer, a new bingo card, and your own bingo (that one's on in the bell to start with). By DM, email or push only if you've turned those on."],
     ["How do I earn kernels?", "Check in after a screening (+5, and +2 more if you'd said you were going); be the first to say you're going to a screening others join (+1 each, up to 5); crew nights where 3+ members went (+3 each); right picks in scored polls; trivia and bingo; and kernels other members give you."],
     ["Can I give kernels to people?", "Yes — tap 🍿 Kernels on a screening in the feed. Each week you have 10 to give and 3 to take (up to 3 to a person per screening, or take 1). Nobody loses more than 5 a week or goes below zero, and it always shows who gave or took."],
   ] },
   { id: "alerts", title: "Notifications and alerts", items: [
     ["Will you email or message me?", "Not unless you say so. Nothing is emailed, sent by Discord DM or pushed until you turn that on in the bell → Notification settings (or Edit profile). Alerts always land in the 🔔 bell on the site."],
-    ["What can I get alerts about?", "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits a search you saved, a favorite's film being booked (from Your taste), and (Discord members) a “Did you make it?” DM after screenings."],
+    ["What can I get alerts about?", "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits a search you saved, a favorite's film being booked (from Your taste), the club's games (if you turn those on), and (Discord members) a “Did you make it?” DM after screenings."],
     ["How do I save a search?", "On Browse, pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage saved searches in the bell → Notification settings."],
     ["Can I get notifications on my phone?", "Yes — in Notification settings, turn on push for this device. On iPhone, add the site to your Home Screen first."],
   ] },
   { id: "discord", title: "Discord", items: [
     ["How do I link Discord?", "Edit profile → Connect Discord (or sign in with Discord). Linking puts your site and Discord activity together."],
-    ["What shows up in the club's Discord?", "Only what you choose. In Edit profile → Sharing to Discord, pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you. Only members who've linked Discord and are in the club's server ever appear there."],
+    ["What shows up in the club's Discord?", "Only what you choose. In Edit profile → Sharing to Discord, pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Only members who've linked Discord and are in the club's server ever appear there."],
     ["What can the bot do?", "Type /help in Discord for the list. Favorites: /showtimes, /movie, /foryou, /find, /rsvp, /watch, /vote, /play, /trivia, /bingo and /kernels — replies to you are private unless they're meant for the channel."],
   ] },
   { id: "letterboxd", title: "Letterboxd", items: [

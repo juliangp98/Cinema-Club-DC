@@ -70,7 +70,9 @@ def test_everything_is_opt_in():
         mail = A.User(name='M', email='m@t.dev')
         assert notify.prefs(both)['channels'] == off and notify.prefs(mail)['channels'] == off
         assert notify.prefs(both)['types'] == {'showings': True, 'on_sale': True, 'attendance': False,
-                                               'searches': True, 'favorites': True}      # bell only
+                                               'searches': True, 'favorites': True, 'trivia_daily': False,
+                                               'trivia_result': False, 'bingo_card': False, 'bingo_win': True,
+                                               'reviews': True}                          # bell only
         assert not notify.wants_dm(both, 'attendance') and not notify.wants_dm(both, 'showings')
         notify.set_prefs(mail, {'channels': {'discord': True, 'email': True}, 'types': {'bogus': True}})
         assert notify.prefs(mail)['channels'] == {**off, 'email': True}                 # no Discord to DM

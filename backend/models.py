@@ -129,10 +129,16 @@ class Group(db.Model):
     # the day (trivia_enabled), posting it in Discord (trivia_discord, its own
     # yes), and extra questions whenever members ask (trivia_anytime).
     trivia_enabled = db.Column(db.Boolean, default=False)
-    trivia_discord = db.Column(db.Boolean, default=False)
+    trivia_discord = db.Column(db.Boolean, default=False)      # before R14; moved to trivia_post, unused
     trivia_anytime = db.Column(db.Boolean, default=False)
     # Repertory bingo (R10e): a monthly card for the club, off until an admin turns it on.
     bingo_enabled = db.Column(db.Boolean, default=False)
+    # R14: what the games post in the club's Discord (game_posts.py), each its
+    # own choice, all off by default: the question of the day and the month's
+    # card 'never' | 'ask' (an admin OKs it first) | 'always'; wins 'never' | 'always'.
+    trivia_post = db.Column(db.String(8), default='never')
+    bingo_card_post = db.Column(db.String(8), default='never')
+    bingo_wins_post = db.Column(db.String(8), default='never')
     # Screening notes (R10f): tags about the screening itself, off until an admin turns them on.
     notes_enabled = db.Column(db.Boolean, default=False)
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
@@ -151,9 +157,10 @@ class Group(db.Model):
             'emoji': self.emoji,
             'short_name': self.short_name or '',
             'discord': core.discord_group(self.id),        # the club's Discord server's group
-            'trivia': {'enabled': bool(self.trivia_enabled), 'discord': bool(self.trivia_enabled and self.trivia_discord),
-                       'anytime': bool(self.trivia_anytime)},
-            'bingo': {'enabled': bool(self.bingo_enabled)},
+            'trivia': {'enabled': bool(self.trivia_enabled), 'anytime': bool(self.trivia_anytime),
+                       'post': self.trivia_post or 'never'},
+            'bingo': {'enabled': bool(self.bingo_enabled), 'card_post': self.bingo_card_post or 'never',
+                      'wins_post': self.bingo_wins_post or 'never'},
             'notes': {'enabled': bool(self.notes_enabled)},
         }
         if include_members:
@@ -536,6 +543,26 @@ class LetterboxdEntry(db.Model):
     status = db.Column(db.String(12), nullable=False, default='unmatched')
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
+
+
+class GamePost(db.Model):
+    """Something a club game posts in Discord (R14, game_posts.py): today's
+    trivia question (ref: the day), the month's bingo card (ref: the month) or
+    a member's win (ref: month:user:line|full). 'waiting' for an admin's OK
+    (Ask first), 'approved' (the bot posts it), 'posted', 'skipped' (by an
+    admin) or 'expired' (nobody said yes in time)."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    kind = db.Column(db.String(12), nullable=False)          # 'trivia' | 'bingo_card' | 'bingo_win'
+    ref = db.Column(db.String(60), nullable=False)
+    status = db.Column(db.String(10), nullable=False, default='waiting')
+    payload_json = db.Column(db.Text)                        # wins: {user_id, which}
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    decided_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    decided_at = db.Column(db.DateTime)
+    posted_at = db.Column(db.DateTime)
+    message_id = db.Column(db.String(30))
+    __table_args__ = (db.UniqueConstraint('group_id', 'kind', 'ref'),)
 
 
 class TasteItem(db.Model):

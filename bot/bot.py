@@ -112,6 +112,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(DraftCreateButton)                 # /poll make
         self.add_dynamic_items(TriviaButton, TriviaMoreButton)    # trivia (R10d)
         self.add_dynamic_items(PlayButton)                        # /play (R10)
+        self.add_dynamic_items(GameReviewButton)                  # admins' OK for game posts (R14)
         announce_loop.start()
         share_loop.start()
         digest_loop.start()
@@ -119,7 +120,7 @@ class CinemaClubBot(discord.Client):
         notify_loop.start()
         discussion_loop.start()
         member_sync_loop.start()
-        trivia_loop.start()
+        games_loop.start()
 
     async def close(self):
         await api.close()
@@ -1033,6 +1034,8 @@ async def notify_loop():
         try:
             user = await client.fetch_user(int(p['discord_user_id']))
             await user.send(embed=embeds.alerts_embed(p['items'], p.get('title')))
+            for post_id in [r for r in p.get('reviews') or [] if r]:          # game posts waiting for this admin (R14)
+                await send_review(user, p['discord_user_id'], post_id)
         except discord.Forbidden:
             pass                                   # DMs closed: the bell has it
         except Exception as e:
@@ -3452,29 +3455,94 @@ async def play_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embeds.play_embed(p), view=play_view(p), ephemeral=True)
 
 
-@tasks.loop(minutes=15)
-async def trivia_loop():
-    """Post the question of the day in #movies once, after 11 AM — only when
-    the club said yes to Discord posts (the backend checks)."""
-    if not 11 <= datetime.now(ET).hour < 22:
-        return
+# ─── Game posts in #movies (R14) ───────────────────────────────────────────────
+# The backend decides what's due (game_posts.py: the question of the day, the
+# month's card, wins — each Never / Ask first / Always in Club settings); this
+# posts what's approved, and gives admins Post / Skip / change buttons in a DM.
+
+def game_post_message(post):
+    """(embed, view) for a game post in #movies."""
+    if post['kind'] == 'trivia':
+        return (embeds.trivia_embed(post['question'], post.get('yesterday'), title='🧠 Question of the day'),
+                trivia_view(post['question']))
+    if post['kind'] == 'bingo_card':
+        return embeds.bingo_card_post_embed(post), None
+    return embeds.bingo_win_embed(post), None
+
+
+@tasks.loop(minutes=1)
+async def games_loop():
     channel = movies_channel()
     if channel is None:
         return
     try:
-        p = await api.get('/api/internal/trivia/post', group_id=DEFAULT_GROUP_ID)
-        if not p.get('post'):
-            return
-        msg = await channel.send(embed=embeds.trivia_embed(p['post'], p.get('yesterday'), title='🧠 Question of the day'),
-                                 view=trivia_view(p['post']))
-        await api.post('/api/internal/trivia/posted', {'question_id': p['post']['id'], 'message_id': str(msg.id)})
+        posts = (await api.get('/api/internal/games/posts', group_id=DEFAULT_GROUP_ID)).get('posts') or []
     except Exception as e:
-        print(f'trivia_loop: {e}')
+        print(f'games_loop: {e}')
+        return
+    for post in posts:
+        try:
+            embed, view = game_post_message(post)
+            msg = await channel.send(embed=embed, view=view, allowed_mentions=NO_PINGS)
+            await api.post('/api/internal/games/posted', {'post_id': post['id'], 'message_id': str(msg.id)})
+        except Exception as e:
+            print(f"games_loop: post {post.get('id')} failed: {e}")
 
 
-@trivia_loop.before_loop
-async def before_trivia():
+@games_loop.before_loop
+async def before_games():
     await client.wait_until_ready()
+
+
+REVIEW_ACTIONS = {'trivia': ('post', 'another', 'skip'), 'bingo_card': ('post', 'reshuffle', 'skip')}
+REVIEW_LABELS = {'post': ('Post it', discord.ButtonStyle.success), 'skip': ('Skip', discord.ButtonStyle.secondary),
+                 'another': ('Try another', discord.ButtonStyle.primary),
+                 'reshuffle': ('Reshuffle', discord.ButtonStyle.primary)}
+
+
+def review_view(post):
+    view = discord.ui.View(timeout=None)
+    if post.get('status') == 'waiting':
+        for action in REVIEW_ACTIONS.get(post['kind'], ()):
+            if action == 'another' and not post.get('can_swap'):
+                continue
+            view.add_item(GameReviewButton(action, post['id']))
+    return view
+
+
+async def send_review(user, discord_user_id, post_id):
+    """DM an admin a waiting game post exactly as it'll look, with the buttons."""
+    try:
+        post = await api.get(f'/api/internal/games/post/{post_id}', discord_user_id=str(discord_user_id),
+                             group_id=DEFAULT_GROUP_ID)
+    except Exception as e:
+        print(f'review {post_id}: {e}')
+        return
+    embed, _ = game_post_message(post)
+    await user.send(embeds.review_note(post), embed=embed, view=review_view(post))
+
+
+class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'game:(?P<action>post|skip|another|reshuffle):(?P<pid>[0-9]+)'):
+    """Post it / Try another / Reshuffle / Skip under a game post in an admin's DM."""
+    def __init__(self, action, post_id):
+        label, style = REVIEW_LABELS[action]
+        super().__init__(discord.ui.Button(label=label, style=style, custom_id=f'game:{action}:{post_id}'))
+        self.action, self.post_id = action, post_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['action'], int(match['pid']))
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            post = await api.post(f'/api/internal/games/post/{self.post_id}',
+                                  {**discord_identity(interaction), 'action': self.action})
+        except Exception as e:
+            await reply_failure(interaction, e, 'game review')
+            return
+        embed, _ = game_post_message(post)
+        await interaction.response.edit_message(content=embeds.review_note(post, post.get('error')), embed=embed,
+                                                view=review_view(post))
 
 
 DIGEST_COOLDOWN_SEC = 30 * 60

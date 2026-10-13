@@ -26,6 +26,15 @@ export const ASK_ALWAYS_NEVER = [
   { status: "always", label: "Always" },
   { status: "never", label: "Never" },
 ];
+// …where asking each time makes no sense (it happens on its own).
+export const ALWAYS_NEVER = ASK_ALWAYS_NEVER.filter(o => o.status !== "ask");
+// A club's posts in Discord (R14): off, an admin's OK first, or on.
+export const POST_MODES = [
+  { status: "never", label: "Never" },
+  { status: "ask", label: "Ask first" },
+  { status: "always", label: "Always" },
+];
+export const NEVER_ALWAYS = POST_MODES.filter(o => o.status !== "ask");
 
 // A choice of one: pick again to clear (e.g. un-RSVP).
 export function Segmented({ options, value, onChange, label }) {

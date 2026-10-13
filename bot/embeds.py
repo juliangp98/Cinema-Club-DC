@@ -881,6 +881,39 @@ def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
     return embed
 
 
+def bingo_card_post_embed(post):
+    """The month's card in #movies (R14): its eight squares around the free middle."""
+    sq = post['squares']
+    lines = [f"{s['emoji']} **{s['label']}** — *{s['hint']}*" for s in sq]
+    embed = discord.Embed(title=f"🎱 {post['month_label']}'s repertory bingo card", colour=AMBER, url=f'{SITE_URL}/play#bingo',
+                          description='Fills in by itself when you check in ("Went") to screenings this month — '
+                                      'the middle is free.\n\n' + '\n'.join(lines))
+    embed.set_footer(text=f"A line of 3 is bingo: +{post['rules']['line']} 🍿 · the full card +{post['rules']['full']} 🍿 · /bingo for yours")
+    return embed
+
+
+def bingo_win_embed(post):
+    """A win in #movies (R14) — naming them only if they said Always."""
+    who = post.get('name') or 'Someone'
+    what = 'filled the whole card 🎉🎉' if post.get('which') == 'full' else 'got bingo 🎉'
+    return discord.Embed(title=f"🎱 {who} {what}", colour=AMBER, url=f'{SITE_URL}/play#bingo',
+                         description=f"{post.get('month_label', 'This month')}'s repertory bingo · /bingo for your card")
+
+
+def review_note(post, error=None):
+    """The line above a game post in an admin's DM (R14)."""
+    status = post.get('status')
+    if error:
+        return f"⚠️ {error}"
+    if status == 'waiting':
+        what = "today's trivia question" if post['kind'] == 'trivia' else 'the bingo card'
+        extra = (f" The answer: **{post['question']['options'][post['answer']]}**."
+                 if post['kind'] == 'trivia' and post.get('answer') is not None else '')
+        return f"👀 Waiting for your OK: here's {what} as it'll look in #movies.{extra}"
+    return {'approved': '✅ Approved — it goes up in #movies in a minute.', 'posted': '✅ Posted in #movies.',
+            'skipped': '⏭️ Skipped — nothing was posted.', 'expired': '⌛ Too late — nothing was posted.'}.get(status, '')
+
+
 def play_embed(p):
     """/play: your day in the club — trivia, bingo, polls waiting for your
     vote, your kernels (games the club has off are left out)."""

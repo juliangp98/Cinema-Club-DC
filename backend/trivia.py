@@ -182,6 +182,24 @@ def question_for(group, day=None):
     return q
 
 
+def swap(q):
+    """A different question of the day (R14: an admin's "Try another" before
+    it's posted) — only while nobody has answered it. Returns an error or None."""
+    from app import db, Group, TriviaAnswer, TriviaQuestion
+    if TriviaAnswer.query.filter_by(question_id=q.id).first():
+        return "Someone has answered it already, so it can't be swapped now."
+    group = db.session.get(Group, q.group_id)
+    recent = {x.ref for x in TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id,
+                                                         TriviaQuestion.day >= q.day - REPEAT_AFTER)}
+    made = make_question(group, q.day, rng=random.Random(), recent=recent | {q.ref})
+    if not made:
+        return "There isn't another question to ask today."
+    q.kind, q.prompt, q.options_json, q.answer = made['kind'], made['prompt'], json.dumps(made['options']), made['answer']
+    q.movie_id, q.ref = made['movie_id'], made['ref']
+    db.session.commit()
+    return None
+
+
 def _save(group, day, slot, made, asked_by=None):
     from app import db, TriviaQuestion
     q = TriviaQuestion(group_id=group.id, day=day, slot=slot, asked_by=asked_by, kind=made['kind'],

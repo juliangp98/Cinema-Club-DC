@@ -301,22 +301,55 @@ def update_group(slug):
         group.photo_url = None
     if 'short_name' in data:
         group.short_name = re.sub(r'\s+', ' ', (data.get('short_name') or '')).strip()[:12] or None
-    # Trivia (R10d): each part off by default; the Discord post needs the daily one.
+    # Trivia (R10d): each part off by default.
     if isinstance(data.get('trivia_enabled'), bool):
         group.trivia_enabled = data['trivia_enabled']
-        if not group.trivia_enabled:
-            group.trivia_discord = False
-    if isinstance(data.get('trivia_discord'), bool):
-        group.trivia_discord = data['trivia_discord'] and bool(group.trivia_enabled)
     if isinstance(data.get('trivia_anytime'), bool):          # extra questions on demand: its own switch
         group.trivia_anytime = data['trivia_anytime']
     if isinstance(data.get('bingo_enabled'), bool):           # repertory bingo (R10e), off by default
         group.bingo_enabled = data['bingo_enabled']
     if isinstance(data.get('notes_enabled'), bool):           # screening notes (R10f), off by default
         group.notes_enabled = data['notes_enabled']
+    import game_posts                                         # what the games post in Discord (R14)
+    for kind, column in game_posts.SETTINGS.items():
+        if data.get(column) in game_posts.MODES[kind]:
+            setattr(group, column, data[column])
 
     db.session.commit()
     return jsonify(group.to_dict())
+
+
+# ─── Game posts waiting for an admin's OK (R14, game_posts.py) ─────────────────
+
+@app.route('/api/groups/<slug>/game-posts')
+@require_auth
+def club_game_posts(slug):
+    import game_posts
+    group = Group.query.filter_by(slug=slug).first()
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    _, err = require_role(current_user(), group.id, 'admin')
+    if err:
+        return err
+    return jsonify({'waiting': game_posts.waiting(group)})
+
+
+@app.route('/api/groups/<slug>/game-posts/<int:post_id>', methods=['POST'])
+@require_auth
+def decide_game_post(slug, post_id):
+    """{action: post | skip | another | reshuffle}"""
+    import game_posts
+    from app import GamePost
+    group = Group.query.filter_by(slug=slug).first()
+    post = db.session.get(GamePost, post_id)
+    if not group or not post or post.group_id != group.id:
+        return jsonify({'error': 'Not found'}), 404
+    view, err = game_posts.decide(post, current_user(), (request.json or {}).get('action'))
+    if view is None:
+        return jsonify({'error': err}), 403
+    if err:
+        return jsonify({**view, 'error': err}), 400
+    return jsonify(view)
 
 
 @app.route('/api/groups/<slug>/picture', methods=['POST'])

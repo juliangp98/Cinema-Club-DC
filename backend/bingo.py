@@ -85,17 +85,44 @@ def show_fits(key, s, this_year=None):
 def card_for(group, month=None):
     """The club's card for `month` (this one): made on first ask, then kept."""
     from sqlalchemy.exc import IntegrityError
-    from app import db, BingoCard, Showtime, _group_showtime_query
+    from app import db, BingoCard
     month = month or month_of()
     card = BingoCard.query.filter_by(group_id=group.id, month=month).first()
     if card:
         return card
+    squares = _pick(group, month, random.Random(f'{group.id}:{month}'))
+    card = BingoCard(group_id=group.id, month=month, squares_json=json.dumps(squares))
+    db.session.add(card)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        card = BingoCard.query.filter_by(group_id=group.id, month=month).first()
+    return card
+
+
+def reshuffle(card):
+    """New squares for a card (R14: an admin's "Reshuffle" before it's posted);
+    everyone's progress follows the new squares."""
+    from app import db, Group
+    group = db.session.get(Group, card.group_id)
+    old = json.loads(card.squares_json)
+    for _ in range(10):
+        picked = _pick(group, card.month, random.Random())
+        if picked != old:
+            break
+    card.squares_json = json.dumps(picked)
+    db.session.commit()
+
+
+def _pick(group, month, rng):
+    """8 squares this month's calendar can fill (a few from each kind)."""
+    from app import Showtime, _group_showtime_query
     start, end = month_bounds(month)
     shows = _group_showtime_query(group).filter(Showtime.start_time >= max(start, datetime.now()),
                                                 Showtime.start_time < end).all()
     possible = [k for k in SHOW_SQUARES if sum(1 for s in shows if show_fits(k, s, start.year)) >= MIN_CHANCES]
     always = [k for k in SQUARES if k not in SHOW_SQUARES]
-    rng = random.Random(f'{group.id}:{month}')
     pool = rng.sample(possible, len(possible)) + rng.sample(always, len(always))
     picked, per = [], {}
     for k in pool:
@@ -111,14 +138,7 @@ def card_for(group, month=None):
         if k not in picked:
             picked.append(k)
     rng.shuffle(picked)
-    card = BingoCard(group_id=group.id, month=month, squares_json=json.dumps(picked))
-    db.session.add(card)
-    try:
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
-        card = BingoCard.query.filter_by(group_id=group.id, month=month).first()
-    return card
+    return picked
 
 
 def _grid(card):

@@ -49,7 +49,7 @@ def went(uid, sid, minutes=0):
 
 
 def turn_on(c):
-    assert client(c['Ana']).put(f"/api/groups/{c['slug']}", json={'bingo_enabled': True}).json['bingo'] == {'enabled': True}
+    assert client(c['Ana']).put(f"/api/groups/{c['slug']}", json={'bingo_enabled': True}).json['bingo']['enabled'] is True
 
 
 def this_month(day, hour):

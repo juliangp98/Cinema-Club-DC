@@ -76,9 +76,11 @@ def at(**k):
 
 def test_preferences(club):
     r = client(club['ana']).get('/api/discord/prefs').json
-    assert r == {'prefs': {'rsvp': 'ask', 'poll': 'ask', 'comment': 'ask', 'watchlist': 'ask'}, 'available': True, 'reason': None}
-    r = client(club['cy']).put('/api/discord/prefs', json={'rsvp': 'never', 'comment': 'bogus'}).json
-    assert r['prefs'] == {'rsvp': 'never', 'poll': 'ask', 'comment': 'ask', 'watchlist': 'ask'}      # bad values ignored
+    assert r == {'prefs': {'rsvp': 'ask', 'poll': 'ask', 'comment': 'ask', 'watchlist': 'ask', 'games': 'never'},
+                 'available': True, 'reason': None}
+    r = client(club['cy']).put('/api/discord/prefs', json={'rsvp': 'never', 'comment': 'bogus', 'games': 'ask'}).json
+    assert r['prefs'] == {'rsvp': 'never', 'poll': 'ask', 'comment': 'ask', 'watchlist': 'ask', 'games': 'never'}  # bad values ignored
+    assert client(club['cy']).put('/api/discord/prefs', json={'games': 'always'}).json['prefs']['games'] == 'always'
 
 
 def test_the_rsvp_prompt(club):

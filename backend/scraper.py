@@ -128,6 +128,11 @@ if __name__ == '__main__':
         print(f"Letterboxd diaries read: {letterboxd.sync_due()}")
     except Exception as e:
         print(f"  ERROR reading Letterboxd diaries: {e}")
+    try:                                   # the club games' posts and notices (R14)
+        import game_posts
+        print(f"Game posts checked for {game_posts.tick()} club(s)")
+    except Exception as e:
+        print(f"  ERROR checking game posts: {e}")
     try:                                   # this run's alerts go out together (R8)
         import notify
         print(f"Alert emails sent: {notify.release()}")

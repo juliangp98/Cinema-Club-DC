@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { accountLabel } from "../accountLabel";
-import { ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
+import { ALWAYS_NEVER, ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
 import { getSharePrefs, setSharePrefs } from "../ui/DiscordShare";
 import Avatar from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
@@ -17,6 +17,7 @@ const SHARE_KINDS = [
   ["poll", "Polls I create", "Announcements and results (organizers and admins)."],
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
   ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
+  ["games", "My game wins", "Whether a bingo win posted in #movies names you (if the club posts wins).", ALWAYS_NEVER],
 ];
 // Why sharing isn't on offer: only members who've linked Discord and are in
 // the club's server ever appear there.
@@ -53,13 +54,13 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
     <div className="profile-sharing">
       <div className="profile-section-label">Sharing to Discord</div>
       <p className="profile-sharing-hint">Nothing you do here posts to #movies unless you choose to. Shared posts never ping anyone.</p>
-      {SHARE_KINDS.map(([kind, label, hint]) => (
+      {SHARE_KINDS.map(([kind, label, hint, options = ASK_ALWAYS_NEVER]) => (
         <div key={kind} className="profile-sharing-row">
           <div>
             <div className="profile-sharing-kind">{label}</div>
             <div className="profile-sharing-hint">{hint}</div>
           </div>
-          <Segmented label={label} options={ASK_ALWAYS_NEVER} value={state.prefs[kind]} onChange={v => choose(kind, v)} />
+          <Segmented label={label} options={options} value={state.prefs[kind]} onChange={v => choose(kind, v)} />
         </div>
       ))}
     </div>

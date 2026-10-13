@@ -4,6 +4,8 @@ import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
 import ToggleChip from "../ui/ToggleChip";
+import { NEVER_ALWAYS, POST_MODES, Segmented } from "../ui/TicketRow";
+import GamePostsWaiting from "./GamePostsWaiting";
 import { ROLES } from "../roles";
 
 // A club's settings, for its admins (R6b): picture and short name, details and
@@ -124,6 +126,8 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         <div className="club-form-foot"><button className="btn btn-primary btn-sm">Save details</button></div>
       </form>
 
+      <GamePostsWaiting apiBase={apiBase} slug={group.slug} />
+
       <SectionTitle>Movie trivia</SectionTitle>
       <p className="ui-hint">Questions made from the films on your calendar and classic movie quotes. Each part is off
         until you turn it on, and nobody is ever sent anything.</p>
@@ -136,12 +140,9 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
               Discord). A right answer is worth 2 kernels.</span></span>
         </label>
         {group.trivia?.enabled && group.discord && (
-          <label className="notify-row club-trivia-sub">
-            <input type="checkbox" checked={!!group.trivia?.discord}
-                   onChange={e => run(() => update({ trivia_discord: e.target.checked }), "Saved")} />
-            <span><span className="notify-name">Also post it in Discord (#movies)</span>
-              <span className="ui-hint">Around 11 AM, with A–D buttons; answers stay private.</span></span>
-          </label>
+          <PostChoice label="Post it in Discord (#movies)" options={POST_MODES} value={group.trivia?.post}
+                      hint="Around 11 AM, with A–D buttons; answers stay private. Ask first: an admin checks it (here, or by DM) — if nobody does by 10 PM, it isn't posted."
+                      onChange={v => run(() => update({ trivia_post: v }), "Saved")} />
         )}
         <label className="notify-row">
           <input type="checkbox" checked={!!group.trivia?.anytime}
@@ -160,8 +161,16 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
           <span><span className="notify-name">A bingo card every month</span>
             <span className="ui-hint">One 3×3 card for the whole club (the middle's free) that fills in by itself from
               check-ins: on film, before 1960, a late show, a theatre you'd never been to… Only squares this month's
-              calendar can fill. First line +5 kernels, the full card +15. Nobody is sent anything.</span></span>
+              calendar can fill. First line +5 kernels, the full card +15.</span></span>
         </label>
+        {group.bingo?.enabled && group.discord && (<>
+          <PostChoice label="Post each month's card in Discord" options={POST_MODES} value={group.bingo?.card_post}
+                      hint="On the 1st, with its squares. Ask first: an admin checks it (and can reshuffle it) before it goes up."
+                      onChange={v => run(() => update({ bingo_card_post: v }), "Saved")} />
+          <PostChoice label="Post wins in Discord" options={NEVER_ALWAYS} value={group.bingo?.wins_post}
+                      hint="“Ana got bingo! 🎉” — naming only members whose Sharing to Discord says Always for My game wins; others are “Someone”."
+                      onChange={v => run(() => update({ bingo_wins_post: v }), "Saved")} />
+        </>)}
       </div>
 
       <SectionTitle>Screening notes</SectionTitle>
@@ -241,6 +250,16 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
         </div>
         <button className="btn btn-sm btn-danger" onClick={deleteClub}>Delete club</button>
       </div>
+    </div>
+  );
+}
+
+// One of a game's Discord posts (R14): Never / Ask first / Always (wins: Never / Always).
+function PostChoice({ label, hint, options, value, onChange }) {
+  return (
+    <div className="notify-row club-trivia-sub club-post-choice">
+      <span><span className="notify-name">{label}</span><span className="ui-hint"> {hint}</span></span>
+      <Segmented label={label} options={options} value={value || "never"} onChange={v => v && onChange(v)} />
     </div>
   );
 }
