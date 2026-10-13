@@ -63,7 +63,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
     setHeroOk(true);
   }, [primary]);
 
-  async function toggleWatch() {
+  async function onWatch() {      // (not "toggleWatch": that's the shared call it makes)
     if (!user && !(await shell.ensureProfile())) return;
     const next = !watching;
     setWatching(next);
@@ -130,7 +130,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
           {watching !== null && (
             <button
               className={`btn btn-sm drawer-watch${watching ? " btn-primary" : ""}`}
-              onClick={toggleWatch}
+              onClick={onWatch}
               title={watching ? "On your watchlist — the digest tells you when it's playing" : "Add to watchlist"}
             >
               {watching ? "✓ On your watchlist" : "＋ Watchlist"}

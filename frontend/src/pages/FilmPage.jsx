@@ -84,7 +84,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
     return [...groups.values()];
   }, [data, theatre]);
 
-  async function toggleWatch() {
+  async function onWatch() {      // (not "toggleWatch": that's the shared call it makes)
     if (!user && !(await shell.ensureProfile())) return;      // a visitor's first save makes a guest profile
     const next = !watching;
     setWatching(next);
@@ -145,7 +145,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
               <div className="film-ratings"><RatingBadges movie={movie} /></div>
               {!club && interest?.want && <p className="film-interest">{interest.want} people want to see it</p>}
               <div className="film-actions">
-                <button className={`btn${watching ? " btn-primary" : ""}`} onClick={toggleWatch}>
+                <button className={`btn${watching ? " btn-primary" : ""}`} onClick={onWatch}>
                   {watching ? "✓ On your watchlist" : "＋ Watchlist"}
                 </button>
                 <button className="btn" onClick={share}>{copied ? "Link copied" : "Share"}</button>

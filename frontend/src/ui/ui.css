@@ -92,7 +92,7 @@ a.chip { text-decoration: none; }
 .taste-editor .profile-section-label { margin: 0; }
 .taste-public { margin-top: 0.25rem; }
 /* Club settings: a game's Discord post (R14) */
-.club-post-choice { flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; cursor: default; }
+.club-post-choice { flex-direction: column; align-items: flex-start; gap: 0.45rem; cursor: default; }
 .game-preview-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: var(--fs-sm); }
 .game-preview-options li.right strong { color: var(--green); }
 .taste-match { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.6rem; }

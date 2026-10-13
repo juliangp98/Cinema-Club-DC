@@ -130,7 +130,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
 
       <SectionTitle>Movie trivia</SectionTitle>
       <p className="ui-hint">Questions made from the films on your calendar and classic movie quotes. Each part is off
-        until you turn it on, and nobody is ever sent anything.</p>
+        until you turn it on; members choose their own reminders in Notification settings.</p>
       <div className="club-form club-trivia">
         <label className="notify-row">
           <input type="checkbox" checked={!!group.trivia?.enabled}

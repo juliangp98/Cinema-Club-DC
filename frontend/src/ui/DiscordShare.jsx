@@ -59,7 +59,7 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
   const [when, setWhen] = useState({ when: "now" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function send() {
+  async function postInvite() {
     setBusy(true);
     setError("");
     try {
@@ -90,7 +90,7 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
         {error && <p className="share-error">{error}</p>}
         <div className="share-sheet-foot">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={send} disabled={busy || (when.when === "later" && !when.at)}>
+          <button type="button" className="btn btn-primary" onClick={postInvite} disabled={busy || (when.when === "later" && !when.at)}>
             {busy ? "Posting…" : when.when === "later" ? "Schedule" : "Post in #movies"}
           </button>
         </div>
