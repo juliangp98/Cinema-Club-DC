@@ -56,3 +56,20 @@ test("Discover: a club on every theatre, and visitors", async () => {
   expect(await screen.findByRole("link", { name: /^7 DC-area theatres/ })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "All theatres →" })).toBeInTheDocument();
 });
+
+test("a section's link is the same gold link everywhere — a link or a button", async () => {
+  const { SectionTitle } = await import("../src/ui/PageHeader");
+  const onClick = vi.fn();
+  renderPage(<>
+    <SectionTitle link={{ to: "/play", label: "Play →" }}>Games</SectionTitle>
+    <SectionTitle link={{ to: "/feed", label: "See the full feed →" }}>Recent activity</SectionTitle>
+    <SectionTitle link={{ onClick, label: "All activity →" }}>This week</SectionTitle>
+  </>);
+  const play = screen.getByRole("link", { name: "Play →" });
+  const feed = screen.getByRole("link", { name: "See the full feed →" });
+  expect(play).toHaveClass("ui-section-link");
+  expect(feed).toHaveClass("ui-section-link");
+  expect(play.closest(".ui-section-title")).toHaveTextContent("Games");               // in the heading, not below it
+  screen.getByRole("button", { name: "All activity →" }).click();
+  expect(onClick).toHaveBeenCalled();
+});

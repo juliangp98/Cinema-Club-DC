@@ -33,8 +33,6 @@
 
 .shelf { margin-bottom: 2.25rem; }
 .shelf .ui-section-title { margin-bottom: 0.2rem; }
-.shelf-all { font-size: var(--fs-sm); color: var(--amber); white-space: nowrap; }
-.shelf-all:hover { text-decoration: underline; }
 .shelf-blurb { color: var(--muted); font-size: var(--fs-sm); margin-bottom: 0.85rem; }
 /* For you (R13): "Not for me" under each film */
 .poster-card-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; flex: none; }
@@ -109,7 +107,6 @@
 .club-week { margin-bottom: 1.5rem; }
 .club-week-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem; }
 .club-week-title { color: var(--amber); font-size: var(--fs-lg); }
-.club-week-head .shelf-all { background: none; border: none; padding: 0; cursor: pointer; }
 .club-week-empty { color: var(--muted); font-size: var(--fs-sm); }
 .club-week-row {
   display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.4rem;

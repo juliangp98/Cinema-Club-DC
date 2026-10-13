@@ -118,7 +118,7 @@ export function ClubWeek({ apiBase, groupId, viewerId, refreshKey, onOpenShowtim
     <section className="club-week" aria-label="This week in the club">
       <div className="club-week-head">
         <span className="deco club-week-title">This week in the club</span>
-        <button type="button" className="shelf-all" onClick={onOpenActivity}>All activity →</button>
+        <button type="button" className="ui-section-link" onClick={onOpenActivity}>All activity →</button>
       </div>
       {empty ? (
         <p className="club-week-empty">Nothing planned yet this week. Find something below and be the first to RSVP.</p>
@@ -171,7 +171,7 @@ export function Shelf({ s, scope = "", onHide }) {
   const hide = id => { setGone(prev => new Set(prev).add(id)); onHide(id); };
   return (
     <section className="shelf" id={`shelf-${s.key}`}>
-      <SectionTitle action={<Link className="shelf-all" to={`/browse?shelf=${s.key}&when=2weeks${scope}`}>See all {s.total} →</Link>}>
+      <SectionTitle link={{ to: `/browse?shelf=${s.key}&when=2weeks${scope}`, label: `See all ${s.total} →` }}>
         {s.title}
       </SectionTitle>
       <p className="shelf-blurb">{s.blurb}</p>
@@ -230,7 +230,7 @@ export function DoubleCard({ d, showDay = true }) {
 export function DoubleFeatures({ items, scope = "" }) {
   return (
     <section className="shelf">
-      <SectionTitle action={<Link className="shelf-all" to={`/discover/doubles${moreQuery(scope)}`}>See all →</Link>}>
+      <SectionTitle link={{ to: `/discover/doubles${moreQuery(scope)}`, label: "See all →" }}>
         Double features
       </SectionTitle>
       <p className="shelf-blurb">Two films, one theatre, one evening — with time for a drink in between.</p>
@@ -280,7 +280,7 @@ export function SpotlightCard({ sp, scope = "", posters = 4 }) {
 export function Spotlights({ items, scope = "" }) {
   return (
     <section className="shelf">
-      <SectionTitle action={<Link className="shelf-all" to={`/discover/spotlights${moreQuery(scope)}`}>See all →</Link>}>
+      <SectionTitle link={{ to: `/discover/spotlights${moreQuery(scope)}`, label: "See all →" }}>
         Spotlights
       </SectionTitle>
       <p className="shelf-blurb">Directors and stars with several films playing this month.</p>

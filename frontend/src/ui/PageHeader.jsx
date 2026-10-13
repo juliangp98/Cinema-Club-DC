@@ -43,12 +43,18 @@ export function PageMeta({ items, label = "About this page", className = "" }) {
   );
 }
 
-export function SectionTitle({ children, action }) {
+// A section's heading. `link` ({to, label}, or {onClick, label}) is the gold
+// "See all →"-style link at its end; `action` anything else there.
+export function SectionTitle({ children, action, link }) {
+  const end = link
+    ? (link.to ? <Link className="ui-section-link" to={link.to}>{link.label}</Link>
+      : <button type="button" className="ui-section-link" onClick={link.onClick}>{link.label}</button>)
+    : action;
   return (
     <div className="ui-section-title">
       <h2><span className="deco">{children}</span></h2>
       <span className="ui-section-rule" aria-hidden="true" />
-      {action}
+      {end}
     </div>
   );
 }

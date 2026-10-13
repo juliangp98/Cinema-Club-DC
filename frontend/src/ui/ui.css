@@ -166,6 +166,12 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .ui-section-title h2 { min-width: 0; }
 .ui-section-title h2 .deco { white-space: normal; }
 .ui-section-title > :last-child:not(.ui-section-rule) { flex-shrink: 0; white-space: nowrap; }
+/* The gold "See all →" at a heading's end (SectionTitle link) — a link or a button */
+.ui-section-link {
+  font-size: var(--fs-sm); color: var(--amber); white-space: nowrap; text-decoration: none;
+  background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer;
+}
+.ui-section-link:hover { text-decoration: underline; }
 .ui-section-rule { flex: 1; height: 0; border-top: 3px double var(--gold-line); min-width: 1.5rem; }
 
 /* ── Sheet: right drawer on desktop, bottom sheet on phones ────────────── */

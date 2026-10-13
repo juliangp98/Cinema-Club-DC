@@ -75,9 +75,8 @@ export default function ClubPage({ user, apiBase }) {
             <ClubGames apiBase={apiBase} groupId={group.id} />
             <SectionTitle>In your calendar</SectionTitle>
             <CalendarLinks apiBase={apiBase} clubId={group.id} />
-            <SectionTitle>Recent activity</SectionTitle>
+            <SectionTitle link={{ to: "/feed", label: "See the full feed →" }}>Recent activity</SectionTitle>
             <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} limit={3} /></div>
-            <p className="club-feed-more"><Link to="/feed">See the full feed →</Link></p>
           </>
         )}
         {tab === "members" && (
@@ -160,7 +159,7 @@ function ClubGames({ apiBase, groupId }) {
   if (!data) return null;
   return (
     <>
-      <SectionTitle action={<Link to="/play">Play →</Link>}>Games</SectionTitle>
+      <SectionTitle link={{ to: "/play", label: "Play →" }}>Games</SectionTitle>
       <GamesStrip summary={data} className="club-games" />
     </>
   );

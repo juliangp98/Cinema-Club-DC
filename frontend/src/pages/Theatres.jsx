@@ -163,7 +163,7 @@ export function TheatrePage({ apiBase, groupId }) {
       {sections}
 
       <section className="shelf">
-        <SectionTitle action={all.data?.total > 0 && <Link className="shelf-all" to={`/browse?when=month${scope}`}>Browse all {all.data.total} →</Link>}>
+        <SectionTitle link={all.data?.total > 0 ? { to: `/browse?when=month${scope}`, label: `Browse all ${all.data.total} →` } : null}>
           Playing in the next month
         </SectionTitle>
         {!all.data ? (all.error ? <LoadError what="the schedule" onRetry={all.reload} /> : <Loading context="theatre" />)
