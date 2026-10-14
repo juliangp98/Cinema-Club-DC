@@ -5,6 +5,7 @@ Called by the scraper to fill in metadata for newly discovered movies.
 
 import os
 import json
+import time
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -255,8 +256,24 @@ def tmdb_details(tmdb_id):
         return None
 
 
+# OMDb's free tier allows 1,000 calls a day; past that it answers 401
+# ("Request limit reached!"). After a refusal, OMDb is left alone for a while
+# instead of spending the rest of a run on calls it'll refuse.
+OMDB_FAILED = object()                      # "OMDb didn't answer" — unlike None, "OMDb has no such film"
+OMDB_REST = 60 * 60                         # seconds to leave OMDb alone after a refusal
+_omdb_refused_at = [None]
+
+
+def omdb_limited():
+    """Has OMDb refused us (its daily limit) in the last OMDB_REST seconds?"""
+    return _omdb_refused_at[0] is not None and time.monotonic() - _omdb_refused_at[0] < OMDB_REST
+
+
 def enrich_from_omdb(title, year=None, imdb_id=None):
-    """Fetch awards and ratings from OMDb. Returns dict or None."""
+    """Fetch awards and ratings from OMDb: a dict, None (OMDb has no such
+    film), or OMDB_FAILED (it didn't answer — its daily limit, the network)."""
+    if omdb_limited():
+        return OMDB_FAILED
     if not _omdb_key():
         _warn_once('omdb', "  [enrich] OMDB_API_KEY not set — skipping OMDb enrichment "
                            "(set it in the environment the scraper runs in)")
@@ -272,6 +289,11 @@ def enrich_from_omdb(title, year=None, imdb_id=None):
                 params['y'] = year
 
         r = _http.get('http://www.omdbapi.com/', params=params, timeout=10)
+        if r.status_code == 401:                       # the daily limit (or a bad key)
+            _omdb_refused_at[0] = time.monotonic()
+            print(f"  [enrich] OMDb refused ({(r.json() if r.content else {}).get('Error', 'HTTP 401')}) — "
+                  f"leaving it alone for an hour")
+            return OMDB_FAILED
         r.raise_for_status()
         data = r.json()
 
@@ -303,7 +325,7 @@ def enrich_from_omdb(title, year=None, imdb_id=None):
 
     except Exception as e:
         print(f"  [enrich] OMDb error for '{title}': {e}")
-        return None
+        return OMDB_FAILED
 
 
 def enrich_movie(title, year=None, alternates=()):
@@ -338,7 +360,8 @@ def enrich_by_tmdb_id(tmdb_id, title=''):
         return None
     omdb = enrich_from_omdb(result['tmdb_title'] or title, result.get('release_year'),
                             imdb_id=result.get('imdb_id'))
-    if omdb:
+    result['omdb_ok'] = omdb is not OMDB_FAILED          # answered, even if "no such film"
+    if omdb and omdb is not OMDB_FAILED:
         import taste
         result['genres'] = taste.merge_genres(result.get('genres', '').split(','), omdb.pop('omdb_genres', []))
         director_backup = omdb.pop('director_backup', None)

@@ -203,6 +203,8 @@ def _apply_movie_fields(movie, m, enriched):
         movie.ratings_json = enriched.get('ratings_json') or movie.ratings_json
         movie.trailer_key = enriched.get('trailer_key') or movie.trailer_key
         movie.original_language = enriched.get('original_language') or movie.original_language
+        if enriched.get('omdb_ok'):                     # TMDB and OMDb both answered
+            movie.details_refreshed_at = datetime.datetime.utcnow()
     else:
         # Once TMDB has identified the film, scraped data only fills gaps —
         # otherwise every scrape would replace TMDB's details with the venue's

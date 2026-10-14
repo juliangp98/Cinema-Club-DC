@@ -5,10 +5,10 @@ Safe to re-run, and it never triggers Discord announcements.
 
 Unmatched films are retried at most weekly (the scraper does the same); pass
 --force to retry all of them now. --refresh re-downloads TMDB/OMDb details for
-matched films that haven't had them since R13 (Oct 2026: OMDb's genres and the
-original language) — re-run it to pick up where a cut-short run stopped;
---refresh --all redoes every matched film. About two API calls per film (OMDb's
-free tier allows 1,000 a day).
+matched films that haven't had a full refresh yet (TMDB *and* OMDb answered) —
+it stops when OMDb refuses (its 1,000-a-day limit), so re-run it the next day
+to carry on; --refresh --all redoes every matched film. About two API calls
+per film.
 
 Usage:
     # Local
@@ -23,6 +23,7 @@ import datetime
 import time
 
 from app import app, db, prepare_db, Movie, MovieAlias, Showtime
+import enrich
 from enrich import enrich_by_tmdb_id, enrich_movie
 from scrapers.base import event_label, parse_movie_title
 from scrapers.sync import (_apply_movie_fields, adopt_matched_title, consolidate_catalog,
@@ -65,22 +66,26 @@ def lookup_unmatched(force=False):
 
 
 def refresh_matched(everything=False):
-    """Re-apply TMDB/OMDb details to matched films: those not refreshed since
-    R13 added the original language (a refresh cut short — e.g. by failed
-    lookups — picks up where it stopped), or with `everything`, all of them."""
+    """Re-apply TMDB/OMDb details to matched films not refreshed yet (TMDB and
+    OMDb both answered) — or with `everything`, all of them. Stops when OMDb
+    refuses (its 1,000-a-day limit): run it again tomorrow and it carries on."""
     with app.app_context():
         q = Movie.query.filter(Movie.tmdb_id.isnot(None))
         if not everything:
-            q = q.filter(Movie.original_language.is_(None))
+            q = q.filter(Movie.details_refreshed_at.is_(None))
         movies = q.order_by(Movie.id).all()
         print(f"Refreshing details for {len(movies)} matched films"
               + ("…" if everything else " not refreshed yet (--all for every one)…"))
         refreshed = 0
         for i, movie in enumerate(movies, 1):
+            if enrich.omdb_limited():
+                print(f"OMDb's daily limit is reached — stopped with {len(movies) - i + 1} to go. "
+                      "Run --refresh again tomorrow; it carries on from here.")
+                break
             data = enrich_by_tmdb_id(movie.tmdb_id, movie.title)
             if data:
                 _apply_movie_fields(movie, {}, data)
-                refreshed += 1
+                refreshed += bool(data.get('omdb_ok'))
             if i % 10 == 0:
                 db.session.commit()
                 time.sleep(0.5)

@@ -1430,6 +1430,7 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN bingo_card_post VARCHAR(8) DEFAULT 'never'",
         "ALTER TABLE 'group' ADD COLUMN bingo_wins_post VARCHAR(8) DEFAULT 'never'",
         "ALTER TABLE movie ADD COLUMN original_language VARCHAR(8)",
+        "ALTER TABLE movie ADD COLUMN details_refreshed_at DATETIME",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
@@ -1543,6 +1544,12 @@ def migrate():
     _migrate_poll_vote_ranked_constraint()
     _migrate_trivia_slots()
     __import__('taste').migrate_legacy_genres()
+    # Films refreshed before the marker existed: done if OMDb clearly answered (it gave ratings).
+    if not db.session.get(BotSetting, 'details_marker_backfilled'):
+        db.session.execute(db.text("UPDATE movie SET details_refreshed_at = CURRENT_TIMESTAMP WHERE details_refreshed_at IS NULL "
+                                   "AND original_language IS NOT NULL AND ratings_json IS NOT NULL"))
+        db.session.add(BotSetting(key='details_marker_backfilled', value='1'))
+        db.session.commit()
     # R14: "post the question of the day in Discord" (a yes/no) is now Always.
     db.session.execute(db.text("UPDATE 'group' SET trivia_post = 'always' WHERE trivia_discord = 1"))
     db.session.execute(db.text("UPDATE 'group' SET trivia_discord = 0 WHERE trivia_discord = 1"))

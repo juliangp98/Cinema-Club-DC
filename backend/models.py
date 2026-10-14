@@ -245,6 +245,7 @@ class Movie(db.Model):
     ratings_json = db.Column(db.Text)    # JSON: [{source, value}]
     trailer_key = db.Column(db.String(50))  # YouTube video key
     original_language = db.Column(db.String(8))   # TMDB's ISO 639-1 code (R13: foreign-language films)
+    details_refreshed_at = db.Column(db.DateTime)  # last time TMDB *and* OMDb both answered (backfill --refresh)
     # Last TMDB lookup that found nothing; retried weekly, not every scrape.
     enrich_attempted_at = db.Column(db.DateTime)
     showtimes = db.relationship('Showtime', backref='movie', lazy=True)
