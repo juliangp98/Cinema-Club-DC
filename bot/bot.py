@@ -3481,10 +3481,13 @@ def quiz_round_view(r):
     else:
         for i in range(len(r['options'])):
             view.add_item(QuizButton('ans', r['id'], str(i), label=embeds.LETTERS[i]))
+        if r.get('by_step') and r['step'] < r['steps']:
+            view.add_item(QuizButton('ans', r['id'], 'more', label='🔍 Zoom out' if r['kind'] == 'still' else '📝 Another review',
+                                     style=discord.ButtonStyle.primary))
     return view
 
 
-@client.tree.command(name='games', description='Quiz games — higher or lower, who said it… (the ones your club has on)')
+@client.tree.command(name='games', description='Quiz games — higher or lower, who said it, stills… (the ones your club has on)')
 async def games_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     try:

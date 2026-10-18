@@ -45,6 +45,20 @@ def quiz_answer():
     return _round(*quizzes.answer(_group(data), current_user(), _as_int(data.get('round_id')), data.get('choice')))
 
 
+@app.route('/api/quizzes/still/<int:round_id>/<token_step>.jpg')
+def quiz_still(round_id, token_step):
+    """A round's still at a step, cropped (quizzes.still_image). The round's
+    random token is the key: Discord fetches these too, without a session."""
+    import quizzes
+    from app import QuizRound
+    from flask import Response
+    r = db.session.get(QuizRound, round_id)
+    data = quizzes.still_image(r, token_step) if r and r.kind == 'still' else None
+    if data is None:
+        return jsonify({'error': 'Not found'}), 404
+    return Response(data, mimetype='image/jpeg', headers={'Cache-Control': 'private, max-age=86400'})
+
+
 @app.route('/api/internal/quizzes', methods=['GET', 'POST'])
 @require_internal
 def internal_quizzes():

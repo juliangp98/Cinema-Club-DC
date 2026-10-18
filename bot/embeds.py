@@ -772,7 +772,7 @@ HELP_SECTIONS = [
         ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
         ('/play', 'your day in the club: trivia, bingo, polls to vote in, kernels'),
         ('/bingo', "this month's repertory bingo card (if your club has bingo on)"),
-        ('/games', 'quiz games — higher or lower, who said it… (the ones your club has on)'),
+        ('/games', 'quiz games — higher or lower, who said it, stills… (the ones your club has on)'),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -857,7 +857,8 @@ def kernels_embed(k):
           if r.get('trivia_anytime') else []),
         *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/bingo`)"]
           if r.get('bingo') else []),
-        *[f"• {g['label']}: **+{g['each']}** a right call, up to {g['per_day']} a day (`/games`)" for g in r.get('games') or []],
+        *[f"• {g['label']}: " + ('**3 / 2 / 1** by how much you needed to see' if g.get('by_step') else f"**+{g['each']}** a right call")
+          + f", up to {g['per_day']} a day (`/games`)" for g in r.get('games') or []],
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
@@ -908,7 +909,7 @@ LEVELS = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'}
 
 def quiz_games_embed(games):
     """/games (R15): the quiz games the club has on, what you've earned today."""
-    lines = [f"{g['emoji']} **{g['label']}** — {g['blurb']}\n-# +{g['each']} 🍿 a right call · "
+    lines = [f"{g['emoji']} **{g['label']}** — {g['blurb']}\n-# {'3 / 2 / 1 🍿' if g.get('by_step') else f"+{g['each']} 🍿 a right call"} · "
              f"{g['earned_today']}/{g['cap']} today" + (f" · best {g['best']}" if g.get('best') else '') for g in games]
     return discord.Embed(title='🎮 Quiz games', colour=AMBER, url=f'{SITE_URL}/play#games', description='\n\n'.join(lines))
 
@@ -934,9 +935,22 @@ def quiz_round_embed(r):
     else:
         opts = '\n'.join(f"**{LETTERS[i]}.** {o}" + (' ✅' if r['done'] and i == r.get('answer') else '')
                          for i, o in enumerate(r['options']))
-        body = (f"{said + chr(10) if said else ''}“{r['quote']}”\n\nWho says it in {_year_film(r['film'])}?\n\n{opts}")
+        if r['kind'] == 'who_said':
+            body = f"{said + chr(10) if said else ''}“{r['quote']}”\n\nWho says it in {_year_film(r['film'])}?\n\n{opts}"
+        elif r['kind'] == 'reviews':
+            frm = {'club': "from a club member's diary", 'tmdb': 'from a review on TMDB'}
+            clues = '\n'.join(f"> {c['text']}\n-# — {frm.get(c['from'], '')}" for c in r['clues'])
+            body = f"{said + chr(10) if said else ''}{clues}\n\nWhich film?\n\n{opts}"
+        else:
+            body = f"{said + chr(10) if said else ''}Which film is this still from?\n\n{opts}"
+        if r['done'] and r.get('film'):
+            body += f"\n\n🎬 {_year_film(r['film'])}"
     embed = discord.Embed(title=f"{r['emoji']} {r['label']}", colour=AMBER, url=f'{SITE_URL}/play#games', description=body)
-    embed.set_footer(text=f"+{r['each']} 🍿 a right call · {r['left_today']} left to earn today · only you see this")
+    if r['kind'] == 'still':
+        embed.set_image(url=f"{SITE_URL}{r['image']}")
+    worth = (f"worth {r['worth']} 🍿 now" if r.get('by_step') and not r['done'] else
+             '3 / 2 / 1 🍿' if r.get('by_step') else f"+{r['each']} 🍿 a right call")
+    embed.set_footer(text=f"{worth} · {r['left_today']} left to earn today · only you see this")
     return embed
 
 

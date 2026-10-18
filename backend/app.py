@@ -1434,6 +1434,8 @@ def migrate():
         "ALTER TABLE trivia_question ADD COLUMN tmdb_id INTEGER",
         "ALTER TABLE 'group' ADD COLUMN trivia_source VARCHAR(8) DEFAULT 'both'",
         "ALTER TABLE 'group' ADD COLUMN quizzes_json TEXT",
+        "ALTER TABLE user ADD COLUMN letterboxd_clues BOOLEAN DEFAULT 1",
+        "ALTER TABLE letterboxd_entry ADD COLUMN review TEXT",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",

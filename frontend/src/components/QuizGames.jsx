@@ -13,7 +13,12 @@ export const QUIZ_GAMES = [
     hint: "A film and its year — did the next one come out before or after? +1 kernel a right call, up to 5 a day; a miss ends the run." },
   { key: "who_said", label: "🗣️ Who said it",
     hint: "A line from a film and four of its characters. +1 kernel for the right one, up to 5 a day." },
+  { key: "still", label: "🖼️ Guess the still",
+    hint: "A still from a film, close up — zoom out if you need to. 3, 2 or 1 kernels by how much you saw, up to 5 a day." },
+  { key: "reviews", label: "📝 Guess from the reviews",
+    hint: "A line from a review (members' Letterboxd diaries first, never named; TMDB's after), another if you need it. 3, 2 or 1 kernels, up to 5 a day." },
 ];
+const FROM = { club: "from a club member's diary", tmdb: "from a review on TMDB" };
 const LETTERS = "ABCD";
 
 function Film({ f, hideYear }) {
@@ -74,6 +79,53 @@ function WhoSaid({ r, busy, onAnswer }) {
   );
 }
 
+function Choices({ r, busy, onAnswer }) {
+  return (
+    <div className="trivia-options" role="group" aria-label="Which film?">
+      {r.options.map((o, i) => (
+        <button key={o} type="button" disabled={r.done || busy} onClick={() => onAnswer(i)}
+                className={`trivia-option${r.done && i === r.answer ? " right" : ""}`}>
+          <span className="trivia-letter">{LETTERS[i]}</span> {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// "Show more" for the games that pay by how much you needed (still, reviews).
+function More({ r, busy, onAnswer, label }) {
+  if (r.done || r.step >= r.steps) return null;
+  return <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAnswer("more")}>{label} (then worth {r.worth - 1})</button>;
+}
+
+function Still({ r, busy, onAnswer, apiBase }) {
+  return (
+    <>
+      <img className="quiz-still" src={`${apiBase}${r.image}`} alt={r.done ? `A still from ${r.film.title}` : "A still, close up"} />
+      <p className="ui-hint">{r.done ? `${r.film.title}${r.film.year ? ` (${r.film.year})` : ""}` : `Step ${r.step} of 3 · worth ${r.worth} 🍿 now`}</p>
+      <Choices r={r} busy={busy} onAnswer={onAnswer} />
+      <More r={r} busy={busy} onAnswer={onAnswer} label="🔍 Zoom out" />
+      <Result r={r} />
+    </>
+  );
+}
+
+function Reviews({ r, busy, onAnswer }) {
+  return (
+    <>
+      <ol className="quiz-clues">
+        {r.clues.map((c, i) => <li key={i}><q>{c.text}</q> <span className="ui-hint">— {FROM[c.from]}</span></li>)}
+      </ol>
+      {!r.done && <p className="ui-hint">Worth {r.worth} 🍿 now</p>}
+      <Choices r={r} busy={busy} onAnswer={onAnswer} />
+      <More r={r} busy={busy} onAnswer={onAnswer} label="📝 Another review" />
+      <Result r={r} />
+    </>
+  );
+}
+
+const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews };
+
 function Game({ g, apiBase, groupId }) {
   const [r, setR] = useState(g.round);
   const [busy, setBusy] = useState(false);
@@ -85,17 +137,17 @@ function Game({ g, apiBase, groupId }) {
     catch (e) { setError(e.data?.error || "Couldn't do that — try again."); }
     finally { setBusy(false); }
   }
-  const Round = g.kind === "higher_lower" ? HigherLower : WhoSaid;
+  const Round = ROUNDS[g.kind];
   return (
     <Panel tone="gold" className="quiz-game" title={`${g.emoji} ${g.label}`}
-           hint={`+${g.each} 🍿 a right call · ${r ? r.left_today : g.cap - g.earned_today} left today${g.best ? ` · best ${g.best}` : ""}`}
+           hint={`${g.by_step ? "3 / 2 / 1 🍿" : `+${g.each} 🍿 a right call`} · ${r ? r.left_today : g.cap - g.earned_today} left today${g.best && !g.by_step ? ` · best ${g.best}` : ""}`}
            actions={(!r || r.done) && (
              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => call("start", { kind: g.kind })}>
                {r ? "🔁 Play again" : "▶ Play"}
              </button>
            )}>
       {!r && <p className="ui-hint">{g.blurb}</p>}
-      {r && <Round r={r} busy={busy} onAnswer={choice => call("answer", { round_id: r.id, choice })} />}
+      {r && <Round r={r} busy={busy} apiBase={apiBase} onAnswer={choice => call("answer", { round_id: r.id, choice })} />}
       {error && <p className="trivia-error" role="status">{error}</p>}
     </Panel>
   );

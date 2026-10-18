@@ -81,8 +81,24 @@ def parse(xml_bytes):
             'rating': float(rating) if rating and re.fullmatch(r'\d(\.\d)?', rating.strip()) else None,
             'rewatch': (it.findtext('lb:rewatch', namespaces=NS) or '').strip().lower() == 'yes',
             'link': (it.findtext('link') or '').strip()[:300],
+            'review': review_text(it.findtext('description')),
         })
     return [e for e in out if e['guid'] and e['title']]
+
+
+def review_text(html):
+    """A diary entry's review in plain words (R15, for quiz clues): no poster,
+    no "Watched on…" line; None when there's no review or Letterboxd marks it
+    as having spoilers."""
+    import html as htmllib
+    if not html or 'may contain spoilers' in html.lower():
+        return None
+    text = re.sub(r'<img[^>]*>', ' ', html)
+    text = re.sub(r'</p>\s*<p>', '\n', text)
+    text = htmllib.unescape(re.sub(r'<[^>]+>', ' ', text))
+    lines = [re.sub(r'\s+', ' ', ln).strip() for ln in text.split('\n')]
+    lines = [ln for ln in lines if ln and not re.match(r'^Watched on ', ln)]
+    return '\n'.join(lines)[:4000] or None
 
 
 _NOISE = re.compile(r"\b(in\s+)?(70|35|16)\s*mm\b|\b(4k|imax|digital|restoration|restored|director'?s cut|"
@@ -190,7 +206,8 @@ def sync(user, entries=None, now=None):
                 status = 'ignored'
         db.session.add(LetterboxdEntry(user_id=user.id, guid=e['guid'], watched_on=e['watched_on'], title=e['title'],
                                        year=e['year'], tmdb_id=e['tmdb_id'], rating=e['rating'], rewatch=e['rewatch'],
-                                       link=e['link'], showtime_id=s.id if s else None, status=status))
+                                       link=e['link'], review=e.get('review'), showtime_id=s.id if s else None,
+                                       status=status))
         counts['new'] += 1
         if status == 'checked_in':
             db.session.flush()
@@ -251,4 +268,4 @@ def status(user):
     return {'username': user.letterboxd_username or '', 'connected': bool(user.letterboxd_sync),
             'synced_at': user.letterboxd_synced_at.isoformat() + 'Z' if user.letterboxd_synced_at else None,
             'checkin': user.letterboxd_checkin if user.letterboxd_checkin in CHOICES else 'ask',
-            'ratings': bool(user.letterboxd_ratings)}
+            'ratings': bool(user.letterboxd_ratings), 'clues': user.letterboxd_clues is not False}

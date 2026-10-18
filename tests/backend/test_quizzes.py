@@ -64,7 +64,7 @@ def test_off_until_an_organizer_turns_one_on(club):
     assert client(club['bo']).get('/api/quizzes', query_string={'group_id': club['G']}).json == {'games': []}
     assert 'off' in start(club, 'higher_lower').json['error']
     assert client(club['bo']).put(f"/api/groups/{club['slug']}", json={'quizzes': {'who_said': True}}).status_code == 403
-    assert turn_on(club, higher_lower=True, bogus=True) == {'higher_lower': True, 'who_said': False}
+    assert turn_on(club, higher_lower=True, bogus=True) == {'higher_lower': True, 'who_said': False, 'still': False, 'reviews': False}
     games = client(club['bo']).get('/api/quizzes', query_string={'group_id': club['G']}).json['games']
     assert [g['kind'] for g in games] == ['higher_lower'] and games[0]['round'] is None
 
@@ -119,7 +119,7 @@ def test_in_the_leaderboard_and_the_kernel_rules(club):
                                                                    query_string={'period': 'month'}).json['rows']}
     assert rows['Bo']['breakdown']['games'] == 1 and rows['Bo']['stats']['quizzes'] == {'rounds': 1, 'best_streak': 1}
     rules = client(club['bo']).get('/api/kernels', query_string={'group_id': club['G']}).json['rules']
-    assert rules['games'] == [{'label': 'Higher or lower', 'each': 1, 'per_day': 5}]
+    assert rules['games'] == [{'label': 'Higher or lower', 'each': 1, 'per_day': 5, 'by_step': False}]
 
 
 def test_from_discord(club):

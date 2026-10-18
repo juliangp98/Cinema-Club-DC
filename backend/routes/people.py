@@ -179,6 +179,8 @@ def my_letterboxd():
             user.letterboxd_checkin = data['checkin']
         if isinstance(data.get('ratings'), bool):
             user.letterboxd_ratings = data['ratings']
+        if isinstance(data.get('clues'), bool):                  # reviews as quiz clues (R15), on unless turned off
+            user.letterboxd_clues = data['clues']
         db.session.commit()
     elif request.method == 'DELETE':
         user.letterboxd_sync, user.letterboxd_ratings, user.letterboxd_username = False, False, None

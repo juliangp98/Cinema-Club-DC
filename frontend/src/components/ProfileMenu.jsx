@@ -133,6 +133,12 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
         <span><span className="notify-name">Show my star ratings with my check-ins</span>
           <span className="ui-hint">In the club feed, with a link to your review.</span></span>
       </label>
+      <label className="notify-row">
+        <input type="checkbox" checked={s.clues !== false} onChange={e => call("PUT", { clues: e.target.checked })} />
+        <span><span className="notify-name">Let a line from my reviews be a quiz clue</span>
+          <span className="ui-hint">“Guess the film from its reviews” may use a sentence of yours — never with your name, and
+            never one that gives the film away.</span></span>
+      </label>
       {msg && <p className="profile-sharing-hint" role="status">{msg}</p>}
       <button type="button" className="linkish" disabled={busy} onClick={() => call("DELETE")}>Disconnect Letterboxd</button>
     </div>

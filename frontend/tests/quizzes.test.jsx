@@ -49,3 +49,27 @@ test("each game is its own switch in Club settings", async () => {
   await userEvent.click(hl);
   expect(calls.find(c => c.method === "PUT").body).toEqual({ quizzes: { higher_lower: true } });
 });
+
+test("guess from the reviews: another review costs a kernel, the source is said but no one's named", async () => {
+  const rev = (extra = {}) => ({ id: 9, kind: "reviews", label: "Guess from the reviews", emoji: "📝", done: false, score: 0, earned: 0,
+                                 each: 3, by_step: true, left_today: 5, last: null, step: 1, steps: 3, worth: 3,
+                                 clues: [{ text: "The score alone will follow you home.", from: "club" }],
+                                 options: ["Vertigo (1958)", "Psycho (1960)", "The Birds (1963)", "Rear Window (1954)"], ...extra });
+  const calls = mockApi({
+    "GET /api/quizzes": { games: [{ ...game, kind: "reviews", label: "Guess from the reviews", emoji: "📝", each: 3, by_step: true }] },
+    "POST /api/quizzes/start": rev(),
+    "POST /api/quizzes/answer": body => (body.choice === "more"
+      ? rev({ step: 2, worth: 2, clues: [...rev().clues, { text: "Dreamy, sad and perfectly made.", from: "tmdb" }] })
+      : rev({ done: true, step: 2, worth: 2, answer: 0, film: { title: "Vertigo", year: 1958 }, last: { right: true, paid: 2 },
+              clues: [...rev().clues, { text: "Dreamy, sad and perfectly made.", from: "tmdb" }] })),
+  });
+  renderPage(<QuizGames apiBase="" groupId={1} canRun={false} />);
+  expect(await screen.findByText("3 / 2 / 1 🍿 · 5 left today")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "▶ Play" }));
+  expect(await screen.findByText(/from a club member's diary/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "📝 Another review (then worth 2)" }));
+  expect(await screen.findByText(/from a review on TMDB/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Vertigo \(1958\)/ }));
+  expect(calls.at(-1).body).toEqual({ group_id: 1, round_id: 9, choice: 0 });
+  expect(await screen.findByRole("status")).toHaveTextContent("✅ Right! +2 🍿");
+});

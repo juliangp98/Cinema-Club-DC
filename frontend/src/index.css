@@ -1398,6 +1398,8 @@ button.feed-title:hover { color: var(--amber); }
 .quiz-answers { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
 .quiz-quote { margin: 0; font-family: var(--font-serif); font-size: var(--fs-md); font-style: italic; }
 .quiz-result { margin: 0; font-weight: 600; }
+.quiz-still { width: 100%; max-width: 560px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); }
+.quiz-clues { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.45rem; font-family: var(--font-serif); }
 .play-run .chip { align-self: flex-start; }
 .play-run-links { font-size: var(--fs-xs); color: var(--muted); }
 .game-skipped { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }

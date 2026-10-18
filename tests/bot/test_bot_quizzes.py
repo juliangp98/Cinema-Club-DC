@@ -72,3 +72,18 @@ def test_a_higher_or_lower_round_with_buttons(bot):
     run(answer.callback(it3))
     kind, _, kw = it3.last
     assert kind == 'edit' and kw['embed'].description.startswith('✅ Right! +1 🍿')
+
+
+def test_a_still_in_discord():
+    """The still is the embed's picture (the site's cropped copy); Zoom out is a button until the last step."""
+    import embeds
+    import bot as b
+    r = {'id': 7, 'kind': 'still', 'label': 'Guess the still', 'emoji': '🖼️', 'done': False, 'score': 0, 'earned': 0, 'each': 3,
+         'by_step': True, 'left_today': 5, 'last': None, 'image': '/api/quizzes/still/7/abc-1.jpg', 'step': 1, 'steps': 3,
+         'worth': 3, 'options': ['Vertigo (1958)', 'Psycho (1960)', 'The Birds (1963)', 'Rear Window (1954)']}
+    e = embeds.quiz_round_embed(r)
+    assert e.image.url.endswith('/api/quizzes/still/7/abc-1.jpg') and e.footer.text.startswith('worth 3 🍿 now')
+    async def labels(x):                                                      # views need a running loop
+        return [i.label for i in items_of(b.quiz_round_view(x))]
+    assert run(labels(r)) == ['A', 'B', 'C', 'D', '🔍 Zoom out']
+    assert '🔍 Zoom out' not in run(labels({**r, 'step': 3}))

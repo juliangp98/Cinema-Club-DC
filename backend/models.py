@@ -45,6 +45,7 @@ class User(db.Model):
     letterboxd_sync = db.Column(db.Boolean, default=False)
     letterboxd_checkin = db.Column(db.String(10), default='ask')
     letterboxd_ratings = db.Column(db.Boolean, default=False)
+    letterboxd_clues = db.Column(db.Boolean, default=True)    # R15: diary reviews may be quiz clues (unnamed)
     letterboxd_synced_at = db.Column(db.DateTime)
     tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
     # R13: show your taste (favorite genres, films, people…) on your profile to
@@ -546,6 +547,7 @@ class LetterboxdEntry(db.Model):
     link = db.Column(db.String(300))
     showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), index=True)
     status = db.Column(db.String(12), nullable=False, default='unmatched')
+    review = db.Column(db.Text)                     # R15: the review's words (a quiz clue, never named)
     genres = db.Column(db.Text)                     # R15 home bingo: the film's genres and runtime,
     runtime = db.Column(db.Integer)                 # from our films or TMDB (letterboxd.fill_details)
     details_at = db.Column(db.DateTime)             # when they were looked up
