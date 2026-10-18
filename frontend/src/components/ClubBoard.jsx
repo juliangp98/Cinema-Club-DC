@@ -16,7 +16,7 @@ export const PERIODS = [
 ];
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-function KernelBar({ breakdown, total, most }) {
+export function KernelBar({ breakdown, total, most }) {
   const parts = KERNEL_PARTS.map(p => ({ ...p, n: Math.max(0, breakdown[p.key] || 0) })).filter(p => p.n);
   const sum = parts.reduce((a, p) => a + p.n, 0);
   return (

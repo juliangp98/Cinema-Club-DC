@@ -325,7 +325,7 @@ def group_leaderboard(group_id):
         return err
     period = request.args.get('period', 'all')
     if period not in club_stats.PERIODS:
-        return jsonify({'error': 'period must be month, year or all'}), 400
+        return jsonify({'error': 'period must be week, month, year or all'}), 400
     return jsonify(club_stats.leaderboard(group, period))
 
 

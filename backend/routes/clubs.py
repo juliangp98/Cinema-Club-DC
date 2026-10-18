@@ -326,7 +326,7 @@ def update_group(slug):
     return jsonify(group.to_dict())
 
 
-# ─── Game posts waiting for an admin's OK (R14, game_posts.py) ─────────────────
+# ─── Game posts waiting for an OK, and skipped ones (R14/R15, game_posts.py) ───
 
 @app.route('/api/groups/<slug>/game-posts')
 @require_auth
@@ -338,7 +338,7 @@ def club_game_posts(slug):
     _, err = require_role(current_user(), group.id, 'organizer')
     if err:
         return err
-    return jsonify({'waiting': game_posts.waiting(group)})
+    return jsonify({'waiting': game_posts.waiting(group), 'skipped': game_posts.skipped(group)})
 
 
 @app.route('/api/groups/<slug>/game-posts/<int:post_id>', methods=['POST'])
@@ -433,12 +433,14 @@ def join_group(slug):
     db.session.add(membership)
     db.session.commit()
 
-    # Email all group admins about the join request
-    admins = GroupMembership.query.filter_by(group_id=group.id, role='admin', status='active').all()
-    for a in admins:
-        admin_user = db.session.get(User, a.user_id)
-        if admin_user:
-            email_join_request(admin_user.email, user.name, group.name)
+    # Email the club's admins about the request — and its organizers who
+    # asked for these emails (R15; off until they turn it on).
+    import notify
+    for m in GroupMembership.query.filter(GroupMembership.group_id == group.id, GroupMembership.status == 'active',
+                                          GroupMembership.role.in_(('admin', 'organizer'))):
+        who = db.session.get(User, m.user_id)
+        if who and who.email and (m.role == 'admin' or notify.prefs(who)['types']['join_requests']):
+            email_join_request(who.email, user.name, group.name)
 
     return jsonify({'message': 'Join request sent', 'status': 'pending'}), 202
 

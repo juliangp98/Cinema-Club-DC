@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { runsClub } from "../roles";
 import { useJson, send } from "../api";
 import Panel from "./Panel";
 
-// Club trivia (R10d), only once a club admin turns it on (admins see where to
-// do that; everyone else sees nothing): the question of the day, and — if the
+// Club trivia (R10d), only once a club organizer or admin turns it on (they see
+// where to do that; everyone else sees nothing): the question of the day, and — if the
 // club allows it — anytime questions, one at a time. One try each; the
 // answer shows once you've answered.
 const LETTERS = "ABCD";
@@ -16,9 +17,9 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   const [busy, setBusy] = useState(false);
   if (!data) return null;
   if (!data.enabled) {
-    return role === "admin" ? (
-      <p className="ui-note">🧠 Movie trivia is off for the club. <Link to="/club?tab=settings">Turn it on in Club settings</Link></p>
-    ) : offNote ? <p className="ui-note">🧠 Movie trivia isn't on in this club yet — a club admin can turn it on.</p> : null;
+    return runsClub(role) ? (
+      <p className="ui-note">🧠 Movie trivia is off for the club. <Link to="/club?tab=settings#settings-games">Turn it on in Club settings</Link></p>
+    ) : offNote ? <p className="ui-note">🧠 Movie trivia isn't on in this club yet — a club organizer or admin can turn it on.</p> : null;
   }
   const daily = data.question;
   const q = shown || (daily && !daily.mine ? daily : data.waiting || daily);

@@ -25,7 +25,11 @@ TYPES = {
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
     'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
+    # Running a club (R15): an email per join request (admins always get one)
+    'join_requests': ('Someone asks to join your club', 'Club organizers: an email when someone asks to join, to approve or deny it. (Admins always get one.)'),
 }
+# Switches only for people who run a club: {type: the roles it's for}.
+RUNNERS = {'reviews': ('organizer', 'admin'), 'join_requests': ('organizer',)}
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
 RELEASE_AFTER = timedelta(minutes=30)     # a crashed scrape run still gets its alerts out
@@ -53,7 +57,8 @@ def available(user):
 # Off until chosen: no DM, email or push, and no "Did you make it?" DMs.
 # Watchlist alerts still land in the site's bell (it never sends anything).
 DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True,
-                 'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True}
+                 'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True,
+                 'join_requests': False}
 ASKS = ('alerts', 'attendance')
 
 

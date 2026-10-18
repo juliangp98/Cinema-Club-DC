@@ -1376,9 +1376,21 @@ button.feed-title:hover { color: var(--amber); }
 .mini-bingo span { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
 .mini-bingo span.on { background: var(--green); border-color: var(--green); }
 .play-section { margin-bottom: 1.5rem; }
-.play-links { margin: 0.25rem 0 0; font-size: var(--fs-sm); }
-.play-kernels { display: flex; flex-direction: column; gap: 0.75rem; }
-.play-kernels-total { display: flex; flex-direction: column; gap: 0.25rem; }
+/* Play (R15, layout A): the games beside your kernels and the standings;
+   phones: one column, your numbers as chips up top. */
+.play-layout { display: block; }
+.play-side { display: flex; flex-direction: column; gap: 0.75rem; }
+.play-strip { margin-top: -0.25rem; }
+@media (min-width: 1024px) {
+  .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.75rem; align-items: start; }
+  .play-side { position: sticky; top: 5rem; }
+  .play-strip { display: none; }
+}
+.play-board-gap { justify-content: center; color: var(--muted); }
+.play-run .chip { align-self: flex-start; }
+.play-run-links { font-size: var(--fs-xs); color: var(--muted); }
+.game-skipped { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
+.game-skipped li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.6rem; }
 .play-earn summary { cursor: pointer; font-size: var(--fs-sm); color: var(--amber); }
 .play-earn ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 0.3rem; }
 .play-board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }

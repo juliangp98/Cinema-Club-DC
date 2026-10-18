@@ -13,7 +13,7 @@ confirmed check-ins, plus past "going" RSVPs in this club nobody took back.
 import re
 from datetime import datetime, timedelta
 
-PERIODS = ('month', 'year', 'all')
+PERIODS = ('week', 'month', 'year', 'all')     # week: Play's "this week's movers"
 FILM_PRINT = re.compile(r'\b(16|35|70)\s*mm\b|nitrate', re.I)
 LATE = (21, 30)                  # a Night owl screening starts at 9:30 PM or later
 SHARPSHOOTER_MIN = 10            # trivia answers before accuracy can win anything
@@ -35,6 +35,8 @@ def since_of(period, now=None):
     """The local datetime a period starts (None: all time)."""
     now = now or datetime.now()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == 'week':
+        return start - timedelta(days=start.weekday())
     if period == 'month':
         return start.replace(day=1)
     if period == 'year':

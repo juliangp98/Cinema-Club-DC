@@ -179,3 +179,36 @@ def test_organizers_answer_join_requests_and_review_game_posts(season):
         assert view is None and 'organizers and admins' in err
     assert olly.get(f"/api/groups/{season['slug']}/game-posts").status_code == 200
     assert olly.post(f"/api/groups/{season['slug']}/game-posts/{pid}", json={'action': 'skip'}).json['status'] == 'skipped'
+
+
+def test_organizers_choose_whether_join_requests_email_them(season, monkeypatch):
+    import routes.clubs as clubs
+    sent = []
+    monkeypatch.setattr(clubs, 'email_join_request', lambda to, who, club: sent.append(to))
+    from app import app, db, User
+    with app.app_context():
+        for n in ('kit', 'lee'):
+            db.session.add(User(email=f'{n}@stats.test', name=n.title(), is_active=True))
+        db.session.commit()
+        kit, lee = (User.query.filter_by(email=f'{n}@stats.test').first().id for n in ('kit', 'lee'))
+    season.update(kit=kit, lee=lee)
+    as_(season, 'kit').post(f"/api/groups/{season['slug']}/join")
+    assert sent == ['ana@stats.test']                                         # admins always; organizers only if asked
+    olly = as_(season, 'olly')
+    assert olly.put('/api/me/notifications', json={'types': {'join_requests': True}}).status_code == 200
+    as_(season, 'lee').post(f"/api/groups/{season['slug']}/join")
+    assert sorted(sent[1:]) == ['ana@stats.test', 'olly@stats.test']
+
+
+def test_club_running_switches_only_for_people_who_run_a_club(season):
+    keys = lambda who: {t['key'] for t in as_(season, who).get('/api/me/notifications').json['types_info']}
+    assert {'reviews', 'join_requests'} <= keys('olly')
+    assert 'reviews' in keys('ana') and 'join_requests' not in keys('ana')          # admins always get them
+    assert not {'reviews', 'join_requests'} & keys('bo')
+
+
+def test_this_weeks_movers_count_from_monday(season):
+    import club_stats
+    since = club_stats.since_of('week', NOW)
+    assert since.weekday() == 0 and since <= NOW < since + timedelta(days=7)
+    assert board(season, 'week')['period'] == 'week'

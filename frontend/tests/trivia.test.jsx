@@ -9,11 +9,14 @@ const URL = "GET /api/trivia/today?group_id=1";
 const QUESTION = { id: 7, prompt: "Who directed VERTIGO?", options: ["Hitchcock", "Lang", "Wilder", "Ford"],
                    kernels: 2, anytime: false };
 
-test("off: admins get the switch, others a note only where asked", async () => {
+test("off: organizers and admins get the switch, others a note only where asked", async () => {
   mockApi({ [URL]: { enabled: false } });
-  const { unmount } = renderPage(<TriviaCard apiBase="" groupId={1} role="admin" />);
-  expect(await screen.findByRole("link", { name: "Turn it on in Club settings" })).toHaveAttribute("href", "/club?tab=settings");
-  unmount();
+  for (const role of ["admin", "organizer"]) {
+    const { unmount } = renderPage(<TriviaCard apiBase="" groupId={1} role={role} />);
+    expect(await screen.findByRole("link", { name: "Turn it on in Club settings" }))
+      .toHaveAttribute("href", "/club?tab=settings#settings-games");
+    unmount();
+  }
   const { container, unmount: u2 } = renderPage(<TriviaCard apiBase="" groupId={1} role="member" />);
   await new Promise(r => setTimeout(r, 0));
   expect(container).toBeEmptyDOMElement();

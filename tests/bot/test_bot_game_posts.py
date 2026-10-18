@@ -130,3 +130,34 @@ def test_an_admin_reviews_by_dm(bot, monkeypatch):
     assert edits[-1][0].startswith('✅ Approved')
     run(bot.games_loop.coro())
     assert len(bot.sent) == 1 and bot.sent[0][0].description == edits[-2][1].description
+
+
+def test_skipped_in_the_dm_then_posted_after_all(bot):
+    """R15: once skipped, the DM keeps "Post it after all" while it can still go up."""
+    switch(bot, trivia_enabled=True, trivia_post='ask')
+    run(bot.games_loop.coro())
+    from app import app, GamePost
+    with app.app_context():
+        pid = GamePost.query.filter_by(status='waiting').first().id
+    edits = []
+
+    class Response:
+        async def defer(self, **k):
+            pass
+
+        def is_done(self):
+            return True
+
+    async def edit_original_response(content=None, embed=None, view=None, **k):
+        edits.append((content, view))
+    it = types.SimpleNamespace(user=types.SimpleNamespace(id=9801, name='adm', display_name='Adm', display_avatar=None),
+                               guild_id=None, channel_id=1, response=Response(), edit_original_response=edit_original_response)
+    run(bot.GameReviewButton('skip', pid).callback(it))
+    note, view = edits[-1]
+    assert note.startswith('⏭️ Skipped') and 'until 10 PM' in note
+    [after] = view.children
+    assert getattr(after, 'item', after).label == 'Post it after all'
+    run(after.callback(it))
+    assert edits[-1][0].startswith('✅ Approved')
+    run(bot.games_loop.coro())
+    assert len(bot.sent) == 1                                                 # it went up

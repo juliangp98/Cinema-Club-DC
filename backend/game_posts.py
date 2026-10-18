@@ -8,6 +8,7 @@ an organizer or admin picks otherwise (Group.trivia_post / bingo_card_post / bin
   · bingo wins: never | always — naming the winner only if their Sharing to
     Discord says Always for "My game wins" (else "Someone got bingo")
 Unapproved posts lapse: the question at 10 PM, the card when its month ends.
+A skipped one can still be posted after all until then (R15).
 Before saying yes, they can swap the question (until someone answers it)
 or reshuffle the card.
 
@@ -160,13 +161,22 @@ def _bingo(group, now):
                        'named': share_prefs(u)['games'] == 'always' and on_discord(u)})
 
 
-def _expire(group, now):
+def _late(post, now):
+    """Too late to still post this: the question after its day (or, unless
+    it's already on its way, after 10 PM); the card once its month is over."""
     import bingo
+    if post.kind == 'trivia':
+        return post.ref < now.date().isoformat() or (post.status != 'approved' and now.hour >= TRIVIA_HOURS[1])
+    return post.kind == 'bingo_card' and post.ref < bingo.month_of(now)
+
+
+def _expire(group, now):
+    """Waiting, approved and skipped posts that can't go up any more lapse (R15:
+    a skipped one can be posted after all until then)."""
     from app import GamePost
-    today, month = now.date().isoformat(), bingo.month_of()
-    for post in GamePost.query.filter(GamePost.group_id == group.id, GamePost.status.in_(('waiting', 'approved'))):
-        late_question = post.kind == 'trivia' and (post.ref < today or (post.status == 'waiting' and now.hour >= TRIVIA_HOURS[1]))
-        if late_question or (post.kind == 'bingo_card' and post.ref < month):
+    for post in GamePost.query.filter(GamePost.group_id == group.id,
+                                      GamePost.status.in_(('waiting', 'approved', 'skipped'))):
+        if _late(post, now):
             post.status = 'expired'
 
 
@@ -216,6 +226,8 @@ def preview(post):
     from app import db, Group, TriviaAnswer, TriviaQuestion, User
     group = db.session.get(Group, post.group_id)
     out = {'id': post.id, 'kind': post.kind, 'status': post.status, 'ref': post.ref}
+    if post.status == 'skipped' and not _late(post, _local_now()):        # it can still go up, until…
+        out['until'] = '10 PM' if post.kind == 'trivia' else f"the end of {bingo.month_bounds(post.ref)[0].strftime('%B')}"
     if post.kind == 'trivia':
         q = TriviaQuestion.query.filter_by(group_id=group.id, slot='daily', day=datetime.fromisoformat(post.ref).date()).first()
         if q:
@@ -261,23 +273,38 @@ def posted(post, message_id):
 
 
 def waiting(group):
-    """Posts waiting for an admin's OK, as they'll look."""
+    """Posts waiting for an organizer's or admin's OK, as they'll look."""
     from app import GamePost
     return [preview(p) for p in GamePost.query.filter_by(group_id=group.id, status='waiting').order_by(GamePost.id)]
 
 
+def skipped(group):
+    """Skipped posts that could still go up ("Post it after all", R15)."""
+    from app import GamePost
+    now = _local_now()
+    return [preview(p) for p in GamePost.query.filter_by(group_id=group.id, status='skipped').order_by(GamePost.id)
+            if not _late(p, now)]
+
+
 def decide(post, user, action):
-    """An admin's answer to a waiting post: 'post' | 'skip' | 'another'
-    (trivia) | 'reshuffle' (the card). Returns (preview, error)."""
+    """An organizer's or admin's answer to a waiting post: 'post' | 'skip' |
+    'another' (trivia) | 'reshuffle' (the card) — or 'post' for a skipped one
+    that can still go up (posted after all). Returns (preview, error)."""
     import bingo
     import trivia
     from app import db, Group, TriviaQuestion, role_at_least, _active_membership
     group = db.session.get(Group, post.group_id)
     if not role_at_least(_active_membership(user, group.id), 'organizer'):
         return None, 'Only club organizers and admins can do that.'
+    if post.status == 'skipped' and action == 'post' and not _late(post, _local_now()):
+        post.status, post.decided_by, post.decided_at = 'approved', user.id, datetime.utcnow()
+        db.session.commit()
+        return preview(post), None
     if post.status != 'waiting':
-        return preview(post), {'posted': 'It’s already posted.', 'approved': 'It’s already on its way.',
-                               'skipped': 'It was skipped.', 'expired': 'It’s too late for that one.'}.get(post.status)
+        late = post.status == 'expired' or (post.status == 'skipped' and action == 'post')
+        return preview(post), ('It’s too late for that one.' if late else
+                               {'posted': 'It’s already posted.', 'approved': 'It’s already on its way.',
+                                'skipped': 'It was skipped.'}.get(post.status))
     if action in ('post', 'skip'):
         post.status = 'approved' if action == 'post' else 'skipped'
         post.decided_by, post.decided_at = user.id, datetime.utcnow()

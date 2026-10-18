@@ -3509,12 +3509,15 @@ async def before_games():
 
 REVIEW_ACTIONS = {'trivia': ('post', 'another', 'skip'), 'bingo_card': ('post', 'reshuffle', 'skip')}
 REVIEW_LABELS = {'post': ('Post it', discord.ButtonStyle.success), 'skip': ('Skip', discord.ButtonStyle.secondary),
+                 'unskip': ('Post it after all', discord.ButtonStyle.success),
                  'another': ('Try another', discord.ButtonStyle.primary),
                  'reshuffle': ('Reshuffle', discord.ButtonStyle.primary)}
 
 
 def review_view(post):
     view = discord.ui.View(timeout=None)
+    if post.get('status') == 'skipped' and post.get('until'):         # changed your mind (R15)
+        view.add_item(GameReviewButton('unskip', post['id']))
     if post.get('status') == 'waiting':
         for action in REVIEW_ACTIONS.get(post['kind'], ()):
             if action == 'another' and not post.get('can_swap'):
@@ -3535,8 +3538,9 @@ async def send_review(user, discord_user_id, post_id):
     await user.send(embeds.review_note(post), embed=embed, view=review_view(post))
 
 
-class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'game:(?P<action>post|skip|another|reshuffle):(?P<pid>[0-9]+)'):
-    """Post it / Try another / Reshuffle / Skip under a game post in an admin's DM."""
+class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'game:(?P<action>post|skip|another|reshuffle|unskip):(?P<pid>[0-9]+)'):
+    """Post it / Try another / Reshuffle / Skip — and, once skipped, Post it
+    after all — under a game post in an organizer's or admin's DM."""
     def __init__(self, action, post_id):
         label, style = REVIEW_LABELS[action]
         super().__init__(discord.ui.Button(label=label, style=style, custom_id=f'game:{action}:{post_id}'))
@@ -3550,7 +3554,7 @@ class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'gam
         await interaction.response.defer()
         try:
             post = await api.post(f'/api/internal/games/post/{self.post_id}',
-                                  {**discord_identity(interaction), 'action': self.action})
+                                  {**discord_identity(interaction), 'action': 'post' if self.action == 'unskip' else self.action})
         except Exception as e:
             await reply_failure(interaction, e, 'game review')
             return

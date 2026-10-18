@@ -7,6 +7,7 @@ import { ShareWhen } from "../ui/DiscordShare";
 import { useShell } from "../shell/AppShell";
 import { SCORING_LABELS } from "../components/PollList";
 import "./Polls.css";
+import { runsClub } from "../roles";
 
 const TYPES = [{ status: "standard", label: "Opinion" }, { status: "prediction", label: "Prediction" }];
 const MODES = {
@@ -27,7 +28,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const shell = useShell();
-  const canRun = ["organizer", "admin"].includes(shell?.role);
+  const canRun = runsClub(shell?.role);
   const [ask, setAsk] = useState("");
   const [scope, setScopeState] = useState(() => { try { return localStorage.getItem(SCOPE_KEY) === "all" ? "all" : "playing"; } catch { return "playing"; } });
   const setScope = v => { if (!v) return; setScopeState(v); try { localStorage.setItem(SCOPE_KEY, v); } catch { /* private mode */ } };

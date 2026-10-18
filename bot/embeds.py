@@ -901,7 +901,7 @@ def bingo_win_embed(post):
 
 
 def review_note(post, error=None):
-    """The line above a game post in an admin's DM (R14)."""
+    """The line above a game post in an organizer's or admin's DM (R14)."""
     status = post.get('status')
     if error:
         return f"⚠️ {error}"
@@ -910,6 +910,8 @@ def review_note(post, error=None):
         extra = (f" The answer: **{post['question']['options'][post['answer']]}**."
                  if post['kind'] == 'trivia' and post.get('answer') is not None else '')
         return f"👀 Waiting for your OK: here's {what} as it'll look in #movies.{extra}"
+    if status == 'skipped' and post.get('until'):
+        return f"⏭️ Skipped — nothing was posted. Changed your mind? You can post it after all until {post['until']}."
     return {'approved': '✅ Approved — it goes up in #movies in a minute.', 'posted': '✅ Posted in #movies.',
             'skipped': '⏭️ Skipped — nothing was posted.', 'expired': '⌛ Too late — nothing was posted.'}.get(status, '')
 

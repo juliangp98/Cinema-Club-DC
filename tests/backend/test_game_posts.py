@@ -86,7 +86,7 @@ def test_nothing_posts_until_a_club_says_so(club):
     s = settings(club, trivia_enabled=True, bingo_enabled=True)
     assert s['trivia']['post'] == 'never' and s['bingo']['card_post'] == 'never' and s['bingo']['wins_post'] == 'never'
     tick()
-    assert ready() == [] and posts(club).json == {'waiting': []}
+    assert ready() == [] and posts(club).json == {'waiting': [], 'skipped': []}
     assert 'trivia_daily' not in bell(club, 'Bo')                             # a personal notice is off until you say so
     assert settings(club, bingo_wins_post='ask')['bingo']['wins_post'] == 'never'   # wins: never / always only
 
@@ -216,3 +216,33 @@ def test_the_scraper_runs_it_on_its_own(club):
     settings(club, trivia_enabled=True, trivia_post='always')
     assert game_posts.tick(NOON) == 1
     assert [r['kind'] for r in ready()] == ['trivia']
+
+
+def test_a_skipped_post_can_still_go_up_until_it_lapses(club):
+    """R15: "Post it after all" — straight up, until 10 PM for the question."""
+    settings(club, trivia_enabled=True, trivia_post='ask')
+    tick()
+    [p] = posts(club).json['waiting']
+    assert decide(club, p['id'], 'skip').json['status'] == 'skipped'
+    [s] = posts(club).json['skipped']
+    assert s['id'] == p['id'] and s['until'] == '10 PM'
+    assert decide(club, p['id'], 'post', who='Bo').status_code == 403
+    assert decide(club, p['id'], 'post').json['status'] == 'approved'
+    assert [r['id'] for r in ready()] == [p['id']]
+
+
+def test_a_skipped_question_lapses_at_10_pm(club, monkeypatch):
+    import game_posts
+    settings(club, trivia_enabled=True, trivia_post='ask')
+    tick()
+    [p] = posts(club).json['waiting']
+    decide(club, p['id'], 'skip')
+    late = NOON.replace(hour=22, minute=5)
+    monkeypatch.setattr(game_posts, '_local_now', lambda: late)
+    assert posts(club).json['skipped'] == []                                  # not offered any more
+    r = decide(club, p['id'], 'post')
+    assert r.status_code == 400 and 'too late' in r.json['error']
+    tick(late)
+    from app import app, db, GamePost
+    with app.app_context():
+        assert db.session.get(GamePost, p['id']).status == 'expired'

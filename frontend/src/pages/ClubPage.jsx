@@ -9,7 +9,7 @@ import Feed from "./Feed";
 import { ClubWeek } from "./DiscoverPage";
 import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
-import { roleLabel } from "../roles";
+import { roleLabel, runsClub } from "../roles";
 import TheatreLink from "../ui/TheatreLink";
 import { personPath } from "../ui/PersonLink";
 import { GamesRail, GamesStrip } from "../ui/GamesSummary";
@@ -33,7 +33,7 @@ export default function ClubPage({ user, apiBase }) {
   const [params, setParams] = useSearchParams();
   const [theatreBySlug, setTheatreBySlug] = useState({});
   const isAdmin = shell?.role === "admin";
-  const canManage = isAdmin || shell?.role === "organizer";
+  const canManage = runsClub(shell?.role);
   const tabs = [{ key: "overview", label: "Overview" }, { key: "members", label: "Members" },
                 { key: "leaderboard", label: "Leaderboard" }, ...(canManage ? [{ key: "settings", label: "Settings" }] : [])];
   const tab = tabs.some(t => t.key === params.get("tab")) ? params.get("tab") : "overview";
