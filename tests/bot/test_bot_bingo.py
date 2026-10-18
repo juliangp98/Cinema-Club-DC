@@ -64,3 +64,18 @@ def test_kernels_explains_bingo_when_its_on(bot):
     e = it.last[2]['embed']
     assert 'bingo 5' in e.description
     assert 'Repertory bingo: **+5** for a line, **+15** for the full card' in {f.name: f.value for f in e.fields}['How to earn']
+
+
+def test_home_squares_show_a_house():
+    """R15: a square a diary entry filled shows 🏠 and the film, and the footer says how home squares count."""
+    import embeds
+    sq = [{'key': k, 'emoji': '🎞️', 'label': k.title(), 'hint': 'h', 'done': False, 'by': None, 'home': None} for k in 'abcdefgh']
+    sq.insert(4, {'key': 'free', 'emoji': '🍿', 'label': 'Free', 'hint': '', 'done': True})
+    sq[1].update(done=True, home={'title': 'OLD DOC', 'watched_on': '2026-10-05', 'link': ''})
+    sq[2].update(done=True, by={'title': 'VERTIGO'})
+    b = {'squares': sq, 'month_label': 'October 2026', 'full': False, 'line': False, 'filled': 2, 'kernels': 0, 'club': [],
+         'rules': {'line': 5, 'full': 15, 'home': True, 'home_line': 3, 'home_full': 10}}
+    e = embeds.bingo_embed(b)
+    assert e.description.splitlines()[0] == '⬜ 🏠 ✅'
+    assert '🏠 🎞️ **B** — OLD DOC (at home)' in e.description and '✅ 🎞️ **C** — VERTIGO' in e.description
+    assert 'a line that needs one +3' in e.footer.text and 'the full card +10' in e.footer.text

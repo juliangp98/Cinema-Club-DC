@@ -25,7 +25,7 @@ def summary(group, user):
         p = bingo.progress(card, user.id)
         out['bingo'] = {'month_label': bingo.month_bounds(card.month)[0].strftime('%B'), 'filled': p['filled'],
                         'line': bool(p['line_at']), 'full': bool(p['full_at']),
-                        'cells': [i == bingo.FREE or bool(cell and cell[1]) for i, cell in enumerate(p['squares'])]}
+                        'cells': [i == bingo.FREE or bool(cell and cell[2]) for i, cell in enumerate(p['squares'])]}
 
     polls = out['polls'] = open_polls(group.id, user.id, 5)
 

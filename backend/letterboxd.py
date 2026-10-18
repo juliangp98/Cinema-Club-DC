@@ -12,7 +12,10 @@ What happens then is your choice, like the Discord sharing ones:
   ask     the "Did you make it?" prompt for it says your diary has it (default)
   always  you're checked in ("Went") automatically
   never   the diary isn't used for check-ins
-Entries that match nothing are kept only so they're not read twice.
+Entries that match nothing are kept so they're not read twice — and (R15)
+in clubs that turn it on, the month's entries fill bingo's film squares
+("home viewing"), so each recent one gets its film's genres and runtime
+(fill_details: from our films, or TMDB by id).
 """
 import re
 import xml.etree.ElementTree as ET
@@ -23,6 +26,8 @@ NS = {'lb': 'https://letterboxd.com', 'tmdb': 'https://themoviedb.org'}
 USER_AGENT = 'Mozilla/5.0 (compatible; CinemaClubDC/1.0; +https://cinemaclubdc.com)'
 SYNC_EVERY = timedelta(hours=3)
 MATCH_WINDOW = timedelta(days=30)        # only recent diary entries are matched to screenings
+DETAILS_WINDOW = timedelta(days=62)      # entries this recent get their film's details (this card and last)
+DETAILS_PER_SYNC = 25                    # TMDB lookups per sync, at most
 MAX_FEED_BYTES = 3_000_000
 CHOICES = ('ask', 'always', 'never')
 USERNAME_RE = re.compile(r'^[A-Za-z0-9_]{1,60}$')
@@ -122,6 +127,36 @@ def match(user, entry):
     return next((r.showtime for r in rows if r.showtime.movie and same_film(r.showtime.movie, entry)), None)
 
 
+def fill_details(user, now=None):
+    """Genres and runtime for `user`'s recent diary entries (home bingo, R15):
+    from the film when it's one of ours (same TMDB id, or same title and
+    year), else TMDB by id. Entries without either keep None (only the era
+    squares, from the diary's year, can use them). Caller commits."""
+    import enrich
+    from app import LetterboxdEntry, Movie, _utcnow_naive
+    now = now or datetime.now()
+    todo = (LetterboxdEntry.query.filter(LetterboxdEntry.user_id == user.id, LetterboxdEntry.details_at.is_(None),
+                                         LetterboxdEntry.watched_on >= (now - DETAILS_WINDOW).date())
+            .order_by(LetterboxdEntry.watched_on.desc()).all())
+    looked_up = 0
+    for e in todo:
+        entry = {'tmdb_id': e.tmdb_id, 'title': e.title, 'year': e.year}
+        m = Movie.query.filter_by(tmdb_id=e.tmdb_id).first() if e.tmdb_id else None
+        if not m and e.year:                              # no TMDB match: the same title from that year
+            m = next((x for x in Movie.query.filter(Movie.release_year.like(f'{e.year}%')) if same_film(x, entry)), None)
+        if m:
+            e.genres, e.runtime = m.genres or '', m.runtime_minutes
+        elif e.tmdb_id and looked_up < DETAILS_PER_SYNC:
+            looked_up += 1
+            d = enrich.tmdb_details(e.tmdb_id)
+            if d is None:
+                continue                                  # TMDB didn't answer: try again next sync
+            e.genres, e.runtime = d.get('genres') or '', d.get('runtime_minutes')
+        elif e.tmdb_id:
+            continue                                      # over this sync's lookups: next time
+        e.details_at = _utcnow_naive()
+
+
 def sync(user, entries=None, now=None):
     """Read `user`'s diary (or the given entries) and act on new matches by
     their choice. Returns {'new', 'checked_in', 'suggested'} (or {'error'})."""
@@ -163,6 +198,7 @@ def sync(user, entries=None, now=None):
             counts['checked_in'] += 1
         elif status == 'suggested':
             counts['suggested'] += 1
+    fill_details(user, now)
     user.letterboxd_synced_at = _utcnow_naive()
     db.session.commit()
     return counts

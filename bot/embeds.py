@@ -950,13 +950,16 @@ def play_embed(p):
 
 def bingo_embed(b):
     """/bingo: your card for the month (R10e) — the grid, what each square
-    asks for (✅ with the screening that filled it), and your lines."""
+    asks for (✅ with the screening that filled it; 🏠 with the diary entry,
+    when the club counts home viewing, R15), and your lines."""
     sq = b['squares']
-    grid = '\n'.join(' '.join('✅' if sq[r * 3 + c]['done'] and sq[r * 3 + c]['key'] != 'free'
+    mark = lambda s: '🏠' if s.get('home') else '✅'
+    grid = '\n'.join(' '.join(mark(sq[r * 3 + c]) if sq[r * 3 + c]['done'] and sq[r * 3 + c]['key'] != 'free'
                                else sq[r * 3 + c]['emoji'] if sq[r * 3 + c]['key'] == 'free' else '⬜'
                                for c in range(3)) for r in range(3))
-    lines = [f"{'✅' if s['done'] else '⬜'} {s['emoji']} **{s['label']}**"
-             + (f" — {s['by']['title']}" if s.get('by') else f" — *{s['hint']}*") for s in sq if s['key'] != 'free']
+    lines = [f"{mark(s) if s['done'] else '⬜'} {s['emoji']} **{s['label']}**"
+             + (f" — {s['by']['title']}" if s.get('by') else f" — {s['home']['title']} (at home)" if s.get('home')
+                else f" — *{s['hint']}*") for s in sq if s['key'] != 'free']
     status = ('🎉 **Full card!**' if b['full'] else '🎉 **Bingo!** Now the full card…' if b['line']
               else f"{b['filled']} of 8 — a line of 3 (the middle's free) is bingo")
     embed = discord.Embed(title=f"🎱 Repertory bingo · {b['month_label']}", colour=AMBER, url=f'{SITE_URL}/feed',
@@ -964,8 +967,11 @@ def bingo_embed(b):
     leaders = [f"{r['user']['name']} {r['filled']}/8" + (' 🎉' if r['line'] else '') for r in b.get('club', [])[:6]]
     if leaders:
         embed.add_field(name='The club', value=' · '.join(leaders)[:1024], inline=False)
-    embed.set_footer(text=f"Fills in from your check-ins · first line +{b['rules']['line']} 🍿, full card "
-                          f"+{b['rules']['full']} 🍿 · you've earned {b['kernels']} this month")
+    r = b['rules']
+    home = (f" · 🏠 your Letterboxd diary fills film squares (a line that needs one +{r['home_line']}, "
+            f"the full card +{r['home_full']})") if r.get('home') else ''
+    embed.set_footer(text=f"Fills in from your check-ins · first line +{r['line']} 🍿, full card "
+                          f"+{r['full']} 🍿{home} · you've earned {b['kernels']} this month")
     return embed
 
 

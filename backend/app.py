@@ -1423,6 +1423,11 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN bingo_wins_post VARCHAR(8) DEFAULT 'never'",
         "ALTER TABLE movie ADD COLUMN original_language VARCHAR(8)",
         "ALTER TABLE movie ADD COLUMN details_refreshed_at DATETIME",
+        # R15: home bingo — diary entries fill film squares
+        "ALTER TABLE 'group' ADD COLUMN bingo_home BOOLEAN DEFAULT 0",
+        "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
+        "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
+        "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",

@@ -240,6 +240,15 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                 from check-ins: on film, before 1960, a late show, a theatre you'd never been to… First line +5 kernels,
                 the full card +15.</span></span>
           </label>
+          {group.bingo?.enabled && (
+            <label className="notify-row club-trivia-sub">
+              <input type="checkbox" {...toggle(group.bingo?.home, "bingo_home")} />
+              <span><span className="notify-name">🏠 Count Letterboxd diaries</span>
+                <span className="ui-hint">Films members log in their Letterboxd diary that month fill the film squares —
+                  era, genre, length, their watchlist — for those who've connected Letterboxd. A line that needs one is
+                  worth +3, the full card +10.</span></span>
+            </label>
+          )}
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.notes?.enabled, "notes_enabled")} />
             <span><span className="notify-name">Screening notes</span>

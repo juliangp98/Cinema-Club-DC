@@ -133,6 +133,7 @@ class Group(db.Model):
     trivia_anytime = db.Column(db.Boolean, default=False)
     # Repertory bingo (R10e): a monthly card for the club, off until an admin turns it on.
     bingo_enabled = db.Column(db.Boolean, default=False)
+    bingo_home = db.Column(db.Boolean, default=False)       # R15: Letterboxd diaries fill film squares
     # R14: what the games post in the club's Discord (game_posts.py), each its
     # own choice, all off by default: the question of the day and the month's
     # card 'never' | 'ask' (an admin OKs it first) | 'always'; wins 'never' | 'always'.
@@ -160,7 +161,7 @@ class Group(db.Model):
             'trivia': {'enabled': bool(self.trivia_enabled), 'anytime': bool(self.trivia_anytime),
                        'post': self.trivia_post or 'never'},
             'bingo': {'enabled': bool(self.bingo_enabled), 'card_post': self.bingo_card_post or 'never',
-                      'wins_post': self.bingo_wins_post or 'never'},
+                      'wins_post': self.bingo_wins_post or 'never', 'home': bool(self.bingo_home)},
             'notes': {'enabled': bool(self.notes_enabled)},
         }
         if include_members:
@@ -542,6 +543,9 @@ class LetterboxdEntry(db.Model):
     link = db.Column(db.String(300))
     showtime_id = db.Column(db.Integer, db.ForeignKey('showtime.id'), index=True)
     status = db.Column(db.String(12), nullable=False, default='unmatched')
+    genres = db.Column(db.Text)                     # R15 home bingo: the film's genres and runtime,
+    runtime = db.Column(db.Integer)                 # from our films or TMDB (letterboxd.fill_details)
+    details_at = db.Column(db.DateTime)             # when they were looked up
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
 

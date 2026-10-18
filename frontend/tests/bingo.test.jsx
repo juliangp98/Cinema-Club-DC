@@ -33,3 +33,15 @@ test("off: only admins see where to turn it on", async () => {
   renderPage(<BingoCard apiBase="" groupId={1} role="admin" />);
   expect(await screen.findByRole("link", { name: "Turn it on in Club settings" })).toBeInTheDocument();
 });
+
+test("home viewing (R15): a square a diary entry filled, and how it counts", async () => {
+  const squares = CARD.squares.map((s, i) => (i === 1 ? { ...s, home: { title: "OLD DOC", watched_on: "2026-10-05", link: "" } } : s));
+  mockApi({ "GET /api/bingo?group_id=1": { ...CARD, squares, rules: { line: 5, full: 15, home: true, home_line: 3, home_full: 10 } } });
+  renderPage(<BingoCard apiBase="" groupId={1} role="member" />);
+  const card = await screen.findByRole("region", { name: "🎱 Repertory bingo · October 2026" });
+  const cell = within(card).getAllByRole("listitem")[1];
+  expect(cell).toHaveClass("done", "home");
+  expect(cell).toHaveTextContent("🏠 OLD DOC");
+  expect(cell).toHaveAttribute("title", "OLD DOC · watched at home Oct 5");
+  expect(within(card).getByText(/a line that needs one is \+3, the full card \+10/)).toBeInTheDocument();
+});
