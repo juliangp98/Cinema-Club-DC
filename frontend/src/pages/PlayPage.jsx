@@ -48,13 +48,13 @@ export default function PlayPage({ user, apiBase, groupId }) {
             <SectionTitle>Bingo</SectionTitle>
             <BingoCard apiBase={apiBase} groupId={groupId} role={role} offNote />
           </section>
-          <section id="games" className="play-section">
-            <SectionTitle>More games</SectionTitle>
-            <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />
-          </section>
           <section id="polls" className="play-section">
             <SectionTitle link={canRun ? { to: "/polls/new", label: "＋ New poll" } : undefined}>Polls</SectionTitle>
             <PollList apiBase={apiBase} groupId={groupId} canRun={canRun} />
+          </section>
+          <section id="games" className="play-section">
+            <SectionTitle>More games</SectionTitle>
+            <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />
           </section>
         </div>
         <aside className="play-side" aria-label="Kernels and standings">
