@@ -77,3 +77,21 @@ test("everyone else goes back to the Club page", () => {
              { route: "/styleguide", shell: { group, role: "member" } });
   expect(screen.getByText("club page")).toBeInTheDocument();
 });
+
+test("one search bar everywhere: Discover's (ui/SearchField)", async () => {
+  const { default: SearchBox } = await import("../src/ui/SearchBox");
+  const { default: PickSearch } = await import("../src/ui/PickSearch");
+  const { default: HelpPage } = await import("../src/pages/HelpPage");
+  const { renderPage } = await import("./support");
+  const { container } = renderPage(<>
+    <SearchBox ai={false} />
+    <PickSearch label="Add a favorite film" search={async () => []} onPick={() => {}} />
+    <HelpPage />
+  </>);
+  const bars = container.querySelectorAll("form.ui-search");
+  expect(bars).toHaveLength(3);
+  bars.forEach(bar => {
+    expect(bar.querySelector("svg")).not.toBeNull();                              // the magnifier
+    expect(bar.querySelector('input[type="search"]')).not.toBeNull();
+  });
+});

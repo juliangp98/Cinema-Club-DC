@@ -7,6 +7,7 @@ import Prompt from "../ui/Prompt";
 import ToggleChip, { RemovableChip } from "../ui/ToggleChip";
 import { Segmented, ASK_ALWAYS_NEVER, POST_MODES } from "../ui/TicketRow";
 import Avatar, { ClubBadge } from "../ui/Avatar";
+import SearchField, { SearchAction } from "../ui/SearchField";
 import "./StyleguidePage.css";
 
 // The style guide (R15), for club admins: every piece of the UI kit in one
@@ -21,6 +22,7 @@ export default function StyleguidePage() {
   const [mode, setMode] = useState("never");
   const [on, setOn] = useState(true);
   const [picked, setPicked] = useState(["Agnès Varda", "Wong Kar-wai"]);
+  const [find, setFind] = useState("");
   if (!shell?.group) return null;
   if (shell.role !== "admin") return <Navigate to="/club" replace />;
   const me = { name: "Your Name", id: 1 };
@@ -67,6 +69,11 @@ export default function StyleguidePage() {
         <Segmented label="Ask / Always / Never" options={ASK_ALWAYS_NEVER} value={seg} onChange={v => setSeg(v || "ask")} />
         <Segmented label="Club posts" options={POST_MODES} value={mode} onChange={v => setMode(v || "never")} />
       </div>
+
+      <SectionTitle>Search</SectionTitle>
+      <p className="ui-hint">One search bar everywhere (ui/SearchField): Discover, Browse, the Calendar, Help, Your taste, Find a club. Enter searches; ✨ is an optional action.</p>
+      <SearchField label="Search (sample)" placeholder="Search, or describe what you want and tap ✨" value={find} onChange={setFind}
+                   action={<SearchAction aria-label="AI search (sample)" disabled={find.trim().length < 3}>✨</SearchAction>} />
 
       <SectionTitle>Panels</SectionTitle>
       <p className="ui-hint">Every box sits on the one card surface (--card-bg, --card-border, --card-radius, --card-pad).</p>

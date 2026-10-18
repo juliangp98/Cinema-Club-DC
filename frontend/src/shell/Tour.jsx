@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { bringIntoView } from "../arrive";
 
-// The welcome tour (R11, short since 7f): a few slides with the essentials,
-// one spotlight on the menu, then Your taste. Each page has its own tour
-// (PageTour, pageTours.js) — offered the first time you open it, replayable
-// from its ? button. New accounts see the welcome tour on their own; anyone
-// can replay it from the account menu, the Me page or Help. Steps for things
-// that aren't on screen (no club, phones) are skipped.
+// The welcome tour (R11): a few slides with the essentials, then a spotlight
+// on the real navigation — each step opens the page it points at (`page`),
+// the last shows the ? that tours whatever page you're on — and it ends back
+// where it started, with Your taste. Each page has its own tour (PageTour,
+// pageTours.js): offered the first time you open it, replayable from the ?.
+// New accounts see the welcome tour on their own; anyone can replay it from
+// the account menu, the Me page or Help. Steps for things you can't use yet
+// (no club) or that aren't on screen (phones show fewer tabs) are skipped.
 
 const SLIDES = [
   { emoji: "🎬", title: "Welcome to Cinema Club DC",
@@ -25,8 +28,24 @@ const TASTE = { emoji: "✨", title: "Make it yours",
   body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Edit profile." };
 
 const STEPS = [
-  { target: "menu", title: "Find your way around",
-    body: "Discover, the Calendar, your club's feed, Play and Theatres. Each page has its own short tour — tap ? next to its title any time — and Help has the rest." },
+  { target: "nav:/", page: "/", title: "Discover",
+    body: "What's worth seeing: films picked for you, rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
+  { target: "nav:/calendar", page: "/calendar", title: "Calendar",
+    body: "Every showtime at your club's theatres. Filter by theatre, format or time; tap one to RSVP, see who's going, or add it to your own calendar." },
+  { target: "nav:/feed", page: "/feed", title: "Feed", club: true,
+    body: "What the club's up to — plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
+  { target: "nav:/play", page: "/play", title: "Play", club: true,
+    body: "Every poll, open and past, plus trivia, bingo and quiz games when your club turns them on — beside your kernels, this month's standings and this week's movers." },
+  { target: "nav:/theatres", page: "/theatres", title: "Theatres",
+    body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
+  { target: ".topbar-groupmenu", title: "Your clubs", club: true,
+    body: "In more than one club? Switch here — the calendar, feed and games follow." },
+  { target: ".topbar-bell", title: "The bell",
+    body: "Club activity and your alerts. Alerts are opt-in: watchlist a film, or tap 🔔 Alert me on a Browse search, to hear when a theatre books it." },
+  { target: "account", page: "/me", title: "You",
+    body: "Your profile and lists: link Discord, connect Letterboxd, choose your notifications. Replay this tour, or find Help, here any time." },
+  { target: ".topbar-tour", page: "/me", title: "A tour of any page",
+    body: "On any page, tap ? up here for a quick tour of what that page does — and where its Help is." },
 ];
 
 const visible = el => el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
@@ -58,10 +77,23 @@ export function holeFor(rect, vw, vh, bar = null) {
   return { top, left, width: right - left, height: bottom - top };
 }
 
+// Where the step's card goes (7f fix): below the target if it fits, else
+// above, else pinned inside the screen over it — never off screen, and clear
+// of the phone tab bar. `cardH` is the card's measured height.
+export function cardPlace(hole, cardH, vh, floor = vh) {
+  const bottom = Math.min(vh, floor) - EDGE * 2;
+  const top = EDGE * 2;
+  if (hole.top + hole.height + 10 + cardH <= bottom) return hole.top + hole.height + 10;
+  if (hole.top - 10 - cardH >= top) return hole.top - 10 - cardH;
+  return Math.max(top, bottom - cardH);
+}
+
 function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
   const [rect, setRect] = useState(null);
   const [bar, setBar] = useState(null);
+  const [cardH, setCardH] = useState(200);
   const nextRef = useRef(null);
+  const cardRef = useRef(null);
   const measure = useCallback(() => {
     const el = findTarget(step.target);
     setRect(el ? el.getBoundingClientRect() : null);
@@ -71,26 +103,37 @@ function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
     const el = findTarget(step.target);                 // a page's widget may be below the fold
     if (el && !el.closest(".topbar, .tabbar")) {
       const r = el.getBoundingClientRect();
-      if (r.top < 70 || r.bottom > window.innerHeight - 200) el.scrollIntoView?.({ block: r.height > window.innerHeight * 0.5 ? "start" : "center" });
+      if (r.top < 70 || r.bottom > window.innerHeight - 200) bringIntoView(el);
     }
     measure();
+    const tick = setInterval(measure, 300);             // a page still drawing (or settling) after a step opens it
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
-    return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+    return () => { clearInterval(tick); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
   }, [measure]);
   useEffect(() => { nextRef.current?.focus(); }, [index]);
+  useEffect(() => {                                     // never there (a page that didn't draw it): move on
+    if (rect) return undefined;
+    const t = setTimeout(onNext, 1500);
+    return () => clearTimeout(t);
+  }, [rect, onNext]);
+  useLayoutEffect(() => {                               // the card's real height, for placing it
+    const h = cardRef.current?.offsetHeight;
+    if (h && Math.abs(h - cardH) > 1) setCardH(h);
+  });
   if (!rect) return null;
 
   const vw = window.innerWidth, vh = window.innerHeight;
   const hole = holeFor(rect, vw, vh, bar);
   const width = Math.min(340, vw - 32);
-  const below = rect.bottom + 12 + 190 < vh;
+  const tabbar = [document.querySelector(".tabbar")].find(visible);
+  const floor = tabbar && !step.target.startsWith("nav:") && step.target !== "account" ? tabbar.getBoundingClientRect().top : vh;
   const left = Math.min(Math.max(16, rect.left + rect.width / 2 - width / 2), vw - width - 16);
-  const card = below ? { top: hole.top + hole.height + 10, left, width } : { bottom: vh - hole.top + 10, left, width };
+  const card = { top: cardPlace(hole, cardH, vh, floor), left, width };
   return (
     <>
       <div className="tour-hole" aria-hidden="true" style={hole} />
-      <div className="tour-card" style={card} role="dialog" aria-modal="true" aria-labelledby="tour-step-title">
+      <div className="tour-card" ref={cardRef} style={card} role="dialog" aria-modal="true" aria-labelledby="tour-step-title">
         <div className="tour-count">{index + 1} of {count}</div>
         <h2 id="tour-step-title" className="tour-title">{step.title}</h2>
         <p className="tour-body">{step.body}</p>
@@ -135,15 +178,33 @@ function Slides({ slides, index, onNext, onBack, onSkip, final, skipLabel = "Ski
   );
 }
 
-export default function Tour({ inClub, onFinish, onTaste }) {
+export default function Tour({ inClub, onFinish: finished, onTaste }) {
   const slides = SLIDES.filter(s => !s.club || inClub);
   const [phase, setPhase] = useState("slides");
   const [i, setI] = useState(0);
   const [steps, setSteps] = useState([]);
+  const navigate = useNavigate();
+  const { pathname, search } = useLocation();
+  const [start] = useState(pathname + search);            // where to come back to
+  const toured = useRef(false);
+  const onFinish = useCallback(() => {
+    if (toured.current) navigate(start, { replace: true });
+    finished();
+  }, [finished, navigate, start]);
+  const step = phase === "spotlight" ? steps[i] : null;
+  const opened = useRef(null);
+  useEffect(() => {
+    if (!step?.page || opened.current === step) return;   // once per step (navigate changes with every page)
+    opened.current = step;
+    toured.current = true;
+    navigate(step.page, { replace: true });
+  }, [step, navigate]);
 
   const toTaste = () => (onTaste ? setPhase("taste") : onFinish());       // the last card, if there's a sheet to open
   const startSpotlight = () => {
-    const on = STEPS.filter(s => (!s.club || inClub) && findTarget(s.target));
+    // The ? only shows on pages with a tour, and the step before it opens one: keep it.
+    const seen = STEPS.filter(s => (!s.club || inClub) && findTarget(s.target));
+    const on = seen.length ? STEPS.filter(s => seen.includes(s) || (s.target === ".topbar-tour" && seen.some(x => x.page === s.page))) : [];
     if (!on.length) { toTaste(); return; }
     setSteps(on);
     setI(0);

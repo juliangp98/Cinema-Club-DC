@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import PageHeader from "../ui/PageHeader";
+import PageHeader, { PageMeta } from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import RichText from "../ui/RichText";
+import SearchField, { SearchAction } from "../ui/SearchField";
 import { useShell } from "../shell/AppShell";
 import { send } from "../api";
 import { SECTIONS, TOPICS, plain, rank, words } from "../help";
@@ -47,7 +48,7 @@ export default function HelpPage({ apiBase = "" }) {
   const near = useMemo(() => (q && !shown.length ? rank(q) : []), [q, shown.length]);
 
   async function ask(e) {
-    e.preventDefault();
+    e?.preventDefault?.();
     const question = q.trim();
     if (!canAsk || words(question).length < 2 || asked?.q === question) return;
     setAsked({ q: question, loading: true });
@@ -59,26 +60,34 @@ export default function HelpPage({ apiBase = "" }) {
   }
 
   return (
-    <div className="page narrow help-page">
+    <div className="page help-page">
       <PageHeader title="Help" />
-      <form className="help-tools" onSubmit={ask} role="search">
-        <input type="search" className="share-input help-search"
-               placeholder={canAsk ? "Search, or ask a question (kernels, Discord, alerts…)" : "Search help (kernels, Discord, alerts…)"}
-               aria-label="Search help" value={q} onChange={e => { setQ(e.target.value); if (!e.target.value) setAsked(null); }} />
-        {canAsk && <button type="submit" className="btn btn-sm btn-primary" disabled={words(q).length < 2}>✨ Ask</button>}
+      <div className="help-tools">
+        <SearchField className="help-search" label="Search help" value={q} onSubmit={ask}
+                     placeholder={canAsk ? "Search, or ask a question and tap ✨" : "Search help (kernels, Discord, alerts…)"}
+                     onChange={v => { setQ(v); if (!v) setAsked(null); }}
+                     action={canAsk && (
+                       <SearchAction onClick={ask} disabled={words(q).length < 2 || asked?.loading} busy={asked?.loading}
+                                     aria-label="Ask in your own words" title="Ask in your own words: the AI answers from these topics">✨</SearchAction>
+                     )} />
         {shell.user && !shell.user.is_guest && (
           <button type="button" className="btn btn-sm" onClick={() => shell.startTour?.()}>Take the tour</button>
         )}
-      </form>
-      {asked && asked.q === q.trim() && <Answer a={asked} />}
+      </div>
+      {/* Wide screens (7f): the topics down the side, beside the questions. */}
+      <div className="ui-split side-first" style={{ "--split-side": "220px" }}>
+      <aside className="ui-split-side sticky">
       {!q && (
         <nav className="help-toc" aria-label="Help topics">
-          {SECTIONS.map(s => <a key={s.id} href={`#${s.id}`} className="chip">{s.title}</a>)}
+          <PageMeta label="Topics" className="section-menu" items={SECTIONS.map(s => ({ key: s.id, label: s.title, to: `#${s.id}` }))} />
         </nav>
       )}
+      </aside>
+      <div className="help-main">
+      {asked && asked.q === q.trim() && <Answer a={asked} />}
       {shown.length === 0 && !(asked && asked.q === q.trim()) && (
         <div className="pv-empty">
-          <p>Nothing has every word of “{q}”.{canAsk ? " Tap ✨ Ask to ask it in your own words" : ""}
+          <p>Nothing has every word of “{q}”.{canAsk ? " Tap ✨ to ask it in your own words" : ""}
             {near.length ? (canAsk ? ", or try the closest topics:" : " The closest topics:") : "."}{" "}
             {!near.length && <Link to="/help" onClick={() => setQ("")}>See every topic</Link>}</p>
           {near.length > 0 && (
@@ -99,6 +108,8 @@ export default function HelpPage({ apiBase = "" }) {
           ))}
         </section>
       ))}
+      </div>
+      </div>
     </div>
   );
 }

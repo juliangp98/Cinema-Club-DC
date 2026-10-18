@@ -1,10 +1,11 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Link, MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter, useNavigate } from "react-router-dom";
 import useArrival, { GLOW_MS } from "../src/arrive";
 
-// The arrival glow (7f): any link to #something lights it up when you land,
-// waits for a slow page to draw it, opens the <details> it's in, and fades.
+// Where you land (7f): a new page starts at the top, Back returns to where you
+// were, and any link to #something lights it up when you land — waiting for
+// a slow page to draw it, opening the <details> it's in — then fades.
 
 function Shell({ children }) {
   useArrival();
@@ -37,4 +38,26 @@ test("waits for the page to draw it, and opens a closed topic", async () => {
   await act(async () => { vi.advanceTimersByTime(200); });
   expect(document.getElementById("late")).toHaveClass("arrive-glow");
   expect(document.querySelector("details").open).toBe(true);
+});
+
+test("a new page starts at the top; a filter or tab keeps your place; Back returns to it", async () => {
+  function Nav() {
+    const navigate = useNavigate();
+    return <>
+      <button type="button" onClick={() => navigate("/")}>Discover</button>
+      <button type="button" onClick={() => navigate("/calendar?tickets=soldout", { replace: true })}>Filter</button>
+      <button type="button" onClick={() => navigate(-1)}>Back</button>
+    </>;
+  }
+  render(<MemoryRouter initialEntries={["/calendar"]}><main className="shell-main"><Shell><Nav /></Shell></main></MemoryRouter>);
+  const main = document.querySelector(".shell-main");
+  main.scrollTop = 900;
+  main.dispatchEvent(new Event("scroll"));
+  await userEvent.click(screen.getByRole("button", { name: "Filter" }));
+  expect(main.scrollTop).toBe(900);                                     // same page: stays put
+  main.dispatchEvent(new Event("scroll"));
+  await userEvent.click(screen.getByRole("button", { name: "Discover" }));
+  expect(main.scrollTop).toBe(0);                                       // a new page: the top
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(main.scrollTop).toBe(900);                                     // Back: where you were
 });

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getJson, send } from "../api";
 import { useShell } from "../shell/AppShell";
 import Poster from "./Poster";
+import SearchField, { SearchAction } from "./SearchField";
 import { dayDate } from "../dates";
 
 const GROUPS = [["films", "Films"], ["people", "People"], ["filters", "Filters"]];
@@ -129,28 +130,20 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
   let i = -1;
   return (
     <div className="searchbox-wrap">
-      <form className="searchbox" role="search" onSubmit={submit}>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-        </svg>
-        <input type="search" value={q} placeholder={canAi ? "Search, or describe what you want and tap ✨" : placeholder}
-               autoFocus={autoFocus} autoComplete="off" spellCheck="false"
-               role="combobox" aria-label="Search films" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
-               aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
-               onChange={e => { typed.current = true; setQ(e.target.value); setError(""); }}
-               onKeyDown={onKey} onFocus={() => results && setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)} />
-        {q && (
-          <button type="button" className="searchbox-clear" aria-label="Clear"
-                  onClick={() => { setQ(""); setResults(null); setNote(""); typed.current = false; onSearch?.(""); }}>&times;</button>
-        )}
-        {canAi && (
-          <button type="button" className={`searchbox-ai${thinking ? " busy" : ""}`} onClick={askAi}
-                  disabled={thinking || q.trim().length < 3} title="AI search: describe what you're in the mood for"
-                  aria-label="AI search">
-            {thinking ? "…" : "✨"}
-          </button>
-        )}
-      </form>
+      <SearchField value={q} label="Search films" placeholder={canAi ? "Search, or describe what you want and tap ✨" : placeholder}
+                   onSubmit={submit} onChange={v => { typed.current = true; setQ(v); setError(""); }}
+                   onClear={() => { setQ(""); setResults(null); setNote(""); typed.current = false; onSearch?.(""); }}
+                   inputProps={{
+                     autoFocus, spellCheck: "false", role: "combobox", "aria-expanded": showList, "aria-controls": listId,
+                     "aria-autocomplete": "list", "aria-activedescendant": showList && active >= 0 ? `${listId}-${active}` : undefined,
+                     onKeyDown: onKey, onFocus: () => results && setOpen(true), onBlur: () => setTimeout(() => setOpen(false), 120),
+                   }}
+                   action={canAi && (
+                     <SearchAction busy={thinking} onClick={askAi} disabled={thinking || q.trim().length < 3}
+                                   title="AI search: describe what you're in the mood for" aria-label="AI search">
+                       {thinking ? "…" : "✨"}
+                     </SearchAction>
+                   )} />
       {showList && (
         <div className="searchbox-list" id={listId} role="listbox" aria-label="Suggestions">
           {groups.map(([key, title]) => lists[key].length > 0 && (

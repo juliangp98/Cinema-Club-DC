@@ -22,7 +22,7 @@ export default function MePage({ user, apiBase, groupId }) {
   });
 
   return (
-    <div className="page narrow">
+    <div className="page me-page">
       <PageHeader title="Me" tour="me" />
 
       {user.is_guest && (
@@ -33,6 +33,8 @@ export default function MePage({ user, apiBase, groupId }) {
         </Panel>
       )}
 
+      <div className="ui-split" style={{ "--split-side": "360px" }}>
+      <div className="me-main">
       <section className="me-card">
         <Avatar user={user} size={64} />
         <div className="me-card-text">
@@ -48,6 +50,10 @@ export default function MePage({ user, apiBase, groupId }) {
       <div id="me-lists"><SectionTitle>Your lists</SectionTitle></div>
       <ProfileLists userId={user.id} apiBase={apiBase} own onOpen={openShowtime}
                     onChange={() => setListKey(k => k + 1)} refreshKey={listKey} />
+      </div>
+
+      {/* Wide screens (7f): your calendar, club and the rest beside your lists. */}
+      <aside className="ui-split-side me-side" aria-label="Calendar, club and help">
 
       {!user.is_guest && (
         <div className="me-block" id="me-calendar">
@@ -91,6 +97,8 @@ export default function MePage({ user, apiBase, groupId }) {
         <button className="me-link" onClick={() => navigate("/help")}>
           <HelpIcon /><span>Help<small>How everything works, and answers to common questions</small></span>
         </button>
+      </div>
+      </aside>
       </div>
 
       {sheet}

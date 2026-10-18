@@ -1,9 +1,9 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router-dom";
-import Tour, { PageTour, holeFor } from "../src/shell/Tour";
+import Tour, { PageTour, cardPlace, holeFor } from "../src/shell/Tour";
 import { PAGE_TOURS } from "../src/shell/pageTours";
-import { TourButton, TourOffer } from "../src/ui/PageTourControls";
+import { TopbarTour, TourOffer } from "../src/ui/PageTourControls";
 import { renderPage } from "./support";
 
 function Where() {
@@ -12,9 +12,10 @@ function Where() {
 }
 const page = () => screen.getByRole("status", { name: "page" }).textContent;
 
-// The welcome tour (R11, short since 7f): slides with the essentials, one
-// spotlight on the menu, then Your taste. Page tours (7f): each page's own
-// steps, then its Help. Steps for things you can't use, or can't see, are skipped.
+// The welcome tour (R11): slides with the essentials, then a spotlight on
+// the real navigation page by page, ending on the ? that tours any page,
+// then Your taste. Page tours (7f): each page's own steps, then its Help.
+// Steps for things you can't use, or can't see, are skipped.
 
 test("slides: the club one only for club members; skip, Escape and Back", async () => {
   const onFinish = vi.fn();
@@ -41,23 +42,35 @@ describe("the spotlight", () => {
       { top: 10, left: 10, bottom: 40, right: 90, width: 80, height: 30, x: 10, y: 10 });
   });
 
-  test("one step on the menu, without leaving the page", async () => {
-    document.body.insertAdjacentHTML("beforeend", `<nav class="topbar-nav"><a href="/">Discover</a></nav>`);
+  test("goes page by page through what's on screen, ends on the ?, then back to where it started", async () => {
+    document.body.insertAdjacentHTML("beforeend", `<nav class="topbar-nav"><a href="/">Discover</a>
+      <a href="/calendar">Calendar</a></nav><button class="topbar-bell">bell</button><button class="topbar-tour">?</button>`);
     const onFinish = vi.fn();
     renderPage(<><Tour inClub={false} onFinish={onFinish} /><Where /></>, { route: "/help" });
     for (let i = 0; i < 2; i += 1) await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(page()).toBe("/help");                                              // slides stay put
     await userEvent.click(screen.getByRole("button", { name: "Show me around" }));
-    const step = screen.getByRole("dialog", { name: "Find your way around" });
-    expect(step).toHaveTextContent("1 of 1");
-    expect(step).toHaveTextContent("Each page has its own short tour");
-    expect(page()).toBe("/help");                                              // the welcome tour stays put
+    expect(screen.getByRole("dialog", { name: "Discover" })).toHaveTextContent("1 of 4");
+    expect(page()).toBe("/");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("dialog", { name: "Calendar" })).toBeInTheDocument();
+    expect(page()).toBe("/calendar");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("dialog", { name: "The bell" })).toHaveTextContent("3 of 4");
+    expect(page()).toBe("/calendar");                                          // the bell isn't a page
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("dialog", { name: "A tour of any page" })).toHaveTextContent("tap ? up here");
+    expect(page()).toBe("/me");                                                // a page that has a tour
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onFinish).toHaveBeenCalled();
+    expect(page()).toBe("/help");
     document.querySelector(".topbar-nav").remove();
+    document.querySelector(".topbar-bell").remove();
+    document.querySelector(".topbar-tour").remove();
   });
 
   test("then an invitation to set up Your taste — now, or later", async () => {
-    document.body.insertAdjacentHTML("beforeend", `<nav class="topbar-nav"><a href="/">Discover</a></nav>`);
+    document.body.insertAdjacentHTML("beforeend", `<nav class="topbar-nav"><a href="/">Discover</a></nav>`);   // and nothing else
     const onFinish = vi.fn(), onTaste = vi.fn();
     const { unmount } = renderPage(<Tour inClub={false} onFinish={onFinish} onTaste={onTaste} />);
     for (let i = 0; i < 2; i += 1) await userEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -123,10 +136,10 @@ describe("a page's tour", () => {
   });
 });
 
-test("the ? button and the one-time offer", async () => {
+test("the ? in the top bar, on pages with a tour, and the one-time offer", async () => {
   const startPageTour = vi.fn(), markPageTour = vi.fn();
   const shell = { startPageTour, markPageTour, offerPageTour: page => page === "play" };
-  const { unmount } = renderPage(<><TourButton page="play" /><TourOffer page="play" /></>, { shell });
+  const { unmount } = renderPage(<><TopbarTour /><TourOffer page="play" /></>, { shell, route: "/play" });
   await userEvent.click(screen.getByRole("button", { name: "Tour of Play" }));
   expect(startPageTour).toHaveBeenLastCalledWith("play");
   const offer = screen.getByRole("group", { name: "Page tour" });
@@ -134,8 +147,11 @@ test("the ? button and the one-time offer", async () => {
   await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
   expect(markPageTour).toHaveBeenCalledWith("play");
   unmount();
-  renderPage(<TourOffer page="feed" />, { shell });
+  const { unmount: unmount2 } = renderPage(<TourOffer page="feed" />, { shell });
   expect(screen.queryByRole("group", { name: "Page tour" })).toBeNull();          // already offered
+  unmount2();
+  renderPage(<TopbarTour />, { shell, route: "/help" });
+  expect(screen.queryByRole("button", { name: /Tour of/ })).toBeNull();            // Help has no tour of its own
 });
 
 test("the spotlight's outline stays on screen, the same size across a bar", () => {
@@ -152,4 +168,14 @@ test("the spotlight's outline stays on screen, the same size across a bar", () =
   expect(tab.left).toBeGreaterThanOrEqual(6);
   const loose = holeFor({ top: 300, bottom: 330, left: 100, right: 200, width: 100, height: 30 }, 1024, 800);
   expect(loose).toEqual({ top: 294, left: 94, width: 112, height: 42 });     // anywhere else: PAD all round
+});
+
+test("a step's card is always on screen: below, above, or pinned over a tall target", () => {
+  const vh = 800;
+  expect(cardPlace({ top: 100, height: 40 }, 200, vh)).toBe(150);                         // room below
+  expect(cardPlace({ top: 600, height: 150 }, 200, vh)).toBe(390);                        // room above
+  const tall = cardPlace({ top: 6, height: 788 }, 220, vh);                               // fills the screen
+  expect(tall).toBeGreaterThanOrEqual(12);
+  expect(tall + 220).toBeLessThanOrEqual(vh - 12);
+  expect(cardPlace({ top: 400, height: 200 }, 200, vh, 740) + 200).toBeLessThanOrEqual(740 - 12);   // above the phone tab bar
 });

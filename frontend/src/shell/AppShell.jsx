@@ -13,6 +13,7 @@ import InstallPrompt from "./InstallPrompt";
 import { clearCache, send } from "../api";
 import useArrival from "../arrive";
 import { PAGE_TOURS } from "./pageTours";
+import { TopbarTour } from "../ui/PageTourControls";
 
 const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
@@ -145,6 +146,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
           </nav>
           <div className="topbar-spacer" />
           {user && groupId && <GroupSwitcher groups={groups} activeGroupId={groupId} setGroupId={setGroupId} />}
+          <TopbarTour />
           {user && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
           {!user && <Link className="btn btn-sm btn-primary topbar-signin" to={signInLink}>Sign in</Link>}
           {user && <Menu

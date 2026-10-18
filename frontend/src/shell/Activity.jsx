@@ -83,7 +83,7 @@ export function useActivity({ apiBase, groupId, user }) {
 export function ActivityBell({ unread, onOpen }) {
   const label = unread ? `Notifications, ${unread} new` : "Notifications";
   return (
-    <button type="button" className="topbar-bell" onClick={() => onOpen()} aria-label={label} title="Notifications">
+    <button type="button" className="topbar-icon topbar-bell" onClick={() => onOpen()} aria-label={label} title="Notifications">
       <BellIcon />
       {unread > 0 && <span className="topbar-bell-count" aria-hidden="true">{unread > 9 ? "9+" : unread}</span>}
     </button>

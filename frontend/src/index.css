@@ -509,11 +509,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .drawer-state { text-align: center; padding-top: 3rem; color: var(--muted); }
 .drawer-state.error { color: var(--red); }
 .group-switcher-name { flex: 1; }
-.group-empty.loading { opacity: 0.5; }
-.group-cards.spaced { margin-top: 0.75rem; }
-.group-create-theatres { margin-top: 0.5rem; }
-.group-create-theatres .group-create-checkbox { margin-bottom: 0.3rem; }
-.group-create-theatres .theatre-filters { justify-content: flex-start; }
 .drawer-ratings-row {
   display: flex;
   flex-wrap: wrap;
@@ -751,9 +746,8 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 
 .profile-taste { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.3rem; }
 
-.profile-actions {
-  margin-top: 1rem;
-}
+/* Save sits at the end of the form, as wide as its word (7f). */
+.profile-actions { margin-top: 1rem; display: flex; justify-content: flex-end; }
 
 .profile-divider {
   border: none;
@@ -761,7 +755,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   margin: 1rem 0;
 }
 
-.profile-discord { text-align: center; }
+.profile-discord { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; }
 
 .profile-discord-linked {
   font-size: var(--fs-sm);
@@ -938,165 +932,18 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 }
 .chat-input:focus { border-color: var(--amber); }
 
-/* ── Group Discovery Page ──────────────────────────────────────────────── */
-.group-discovery-page {
-  min-height: 100vh;
-  background: var(--bg);
-  display: flex;
-  justify-content: center;
-  padding: 2rem;
-}
-.group-discovery-container {
-  width: 100%;
-  max-width: 600px;
-}
-
-.group-section {
-  margin-bottom: 2rem;
-}
-.group-section-title {
-  font-family: var(--font-display);
-  font-size: var(--fs-lg);
-  letter-spacing: 0.06em;
-  color: var(--cream);
-  margin-bottom: 0.75rem;
-}
-.group-empty {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-}
-.group-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.group-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--card-radius);
-  gap: 0.75rem;
-}
-.group-card.active { border-color: var(--amber-dim); }
-.group-card-info { flex: 1; min-width: 0; }
-.group-card-name {
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  color: var(--cream);
-  display: block;
-}
-.group-card-meta {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  margin-top: 0.15rem;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.group-card-actions {
-  display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-
-.group-active-badge {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--amber);
-}
-.group-pending-badge {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* Search */
-.group-search-form {
-  display: flex;
-  gap: 0.5rem;
-}
-.group-search-input {
-  flex: 1;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--cream);
-  padding: 0.5rem 0.7rem;
-  font-size: var(--fs-sm);
-  outline: none;
-  border-radius: var(--radius);
-  font-family: inherit;
-}
-.group-search-input:focus { border-color: var(--amber); }
-
-/* Create group */
-.group-create-toggle {
-  font-size: var(--fs-sm);
-  letter-spacing: 0.06em;
-  color: var(--amber);
-  padding: 0.5rem 0;
-  transition: opacity 0.15s;
-}
-.group-create-toggle:hover { opacity: 0.7; }
-.group-create-form {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--card-radius);
-  padding: 1.25rem;
-}
-.group-create-input {
-  width: 100%;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--cream);
-  padding: 0.5rem 0.7rem;
-  font-size: var(--fs-sm);
-  outline: none;
-  border-radius: var(--radius);
-  margin-bottom: 0.6rem;
-  font-family: inherit;
-}
-.group-create-input:focus { border-color: var(--amber); }
-.group-create-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  margin-bottom: 0.75rem;
-}
-.group-create-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Theatre pill container */
-.theatre-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
-}
-
-/* Group pagination */
-.group-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.group-pagination-info {
-  font-size: var(--fs-sm);
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
+/* ── Clubs (/groups, 7f): your clubs and ones to find as cards; Start a club beside them ── */
+.clubs-section { margin-bottom: 1.75rem; }
+.group-search { margin-bottom: 0.9rem; }
+.clubs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+.club-find-card .ui-panel-title { display: inline-flex; align-items: center; gap: 0.55rem; }
+.club-find-card.active { border-color: var(--gold-line); }
+.club-find-desc { margin: 0; color: var(--cream); font-size: var(--fs-sm); line-height: 1.5; }
+.clubs-pages { display: flex; align-items: center; justify-content: center; gap: 0.9rem; margin-top: 1rem; }
+.clubs-start { align-self: flex-start; }
+.clubs-create { display: flex; flex-direction: column; gap: 0.6rem; }
+.clubs-theatres { border: 0; margin: 0; padding: 0; }
+.clubs-create-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 
 .person-bio {
   margin: 0 0 1.25rem;
@@ -1118,13 +965,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   opacity: 0.75;
 }
 
-.group-pending-badge {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  background: rgba(255,255,255,0.05);
-  padding: 0.15rem 0.4rem;
-  border-radius: 3px;
-}
 
 .profile-email {
   font-size: var(--fs-sm);
@@ -1140,12 +980,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   margin-bottom: 0.4rem;
 }
 
-.group-empty {
-  color: var(--muted);
-  font-size: var(--fs-md);
-  text-align: center;
-  padding: 2rem;
-}
 
 /* ══════════════════════════════════════════════════════════════════════
    RESPONSIVE — Tablet / Phone (max-width: 768px)
@@ -1161,19 +995,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   .drawer-header { margin-top: -2.5rem; }
   .drawer-poster-thumb { width: 60px; height: 90px; }
   .drawer-cast-scroll { margin: 0 -0.25rem; padding: 0 0.25rem 0.4rem; }
-
-  /* ── Group Discovery ────────────────────────── */
-  .group-discovery-page { padding: 1rem; }
-  .group-discovery-container { max-width: 100%; }
-  .group-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  .group-card-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
 
   /* ── Profile Menu → wider ───────────────────── */
   .profile-menu {
@@ -1203,7 +1024,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 
   .drawer-title { font-size: var(--fs-lg); }
   .drawer-hero { height: 130px; }
-  .group-section-title { font-size: var(--fs-md); }
 
   .auth-logo { font-size: 2.2rem; }
   .auth-box { padding: 1.25rem; }
@@ -1378,14 +1198,8 @@ button.feed-title:hover { color: var(--amber); }
 .play-section { margin-bottom: 1.5rem; }
 /* Play (R15, layout A): the games beside your kernels and the standings;
    phones: one column, your numbers as chips up top. */
-.play-layout { display: block; }
-.play-side { display: flex; flex-direction: column; gap: 0.75rem; }
-.play-strip { margin-top: -0.25rem; }
-@media (min-width: 1024px) {
-  .play-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.75rem; align-items: start; }
-  .play-side { position: sticky; top: 5rem; }
-  .play-strip { display: none; }
-}
+.play-strip { margin-top: -0.25rem; }          /* the columns: .ui-split */
+@media (min-width: 1024px) { .play-strip { display: none; } }
 .play-board-gap { justify-content: center; color: var(--muted); }
 /* Quiz games on Play (R15) */
 .quiz-games { display: flex; flex-direction: column; gap: 0.75rem; }

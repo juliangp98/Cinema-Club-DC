@@ -96,8 +96,8 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
   const toggle = (on, field) => ({ checked: !!on, onChange: e => run(() => update({ [field]: e.target.checked }), "Saved") });
 
   return (
-    <div className="club-settings">
-      <PageMeta label="Settings sections" items={shown.map(sec => ({ key: sec.id, label: sec.label, to: `?tab=settings#${sec.id}` }))} />
+    <div className="club-settings ui-split side-top" style={{ "--split-side": "200px" }}>
+      <div className="club-settings-main">
       {!isAdmin && <p className="ui-hint">As an organizer you run the club's theatres, join requests and games. Its name,
         picture, roles and the rest are for admins.</p>}
       {(saved || error) && <p className={error ? "share-error" : "club-saved"} role="status">{error || saved}</p>}
@@ -323,6 +323,11 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
           </div>
         </section>
       )}
+      </div>
+      <nav className="ui-split-side sticky" aria-label="Settings sections menu">
+        <PageMeta label="Settings sections" className="section-menu"
+                  items={shown.map(sec => ({ key: sec.id, label: sec.label, to: `?tab=settings#${sec.id}` }))} />
+      </nav>
     </div>
   );
 }

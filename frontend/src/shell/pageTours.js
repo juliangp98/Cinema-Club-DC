@@ -3,6 +3,12 @@
 // topic id). Offered once per page (a card under its header), replayable from
 // its ? button. Steps whose target isn't on screen (no club, a game that's
 // off, phones) are skipped, as in the welcome tour.
+// Which tour the page at `pathname` has (the ? in the top bar), or null.
+const ROUTES = [[/^\/$/, "discover"], [/^\/calendar$/, "calendar"], [/^\/browse$/, "browse"], [/^\/theatres\/[^/]+$/, "theatre"],
+                [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/club$/, "club"],
+                [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/me$/, "me"]];
+export const tourFor = pathname => ROUTES.find(([re]) => re.test(pathname))?.[1] || null;
+
 export const PAGE_TOURS = {
   discover: { title: "Discover", help: "finding", steps: [
     { target: "#site-search", title: "Search, or just ask",

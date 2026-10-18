@@ -39,10 +39,12 @@ export default function PersonPage({ user, apiBase, groupId }) {
 
   const parts = kernels?.breakdown;
   return (
-    <div className="page narrow person-page">
+    <div className="page person-page">
       <PageHeader title={person.name} back={BACK}
                   meta={[kernels && { icon: "🍿", label: `${kernels.kernels} kernel${kernels.kernels === 1 ? "" : "s"}`, gold: true }]} />
 
+      <div className="ui-split" style={{ "--split-side": "400px" }}>
+      <div className="person-main">
       <section className="me-card">
         <Avatar user={person} size={64} />
         <div className="me-card-text">
@@ -68,8 +70,13 @@ export default function PersonPage({ user, apiBase, groupId }) {
         </>
       )}
 
-      <SectionTitle>Lists</SectionTitle>
-      <ProfileLists userId={id} apiBase={apiBase} own={false} onOpen={openShowtime} />
+      </div>
+      {/* Wide screens (7f): their lists beside who they are. */}
+      <aside className="ui-split-side person-side" aria-label="Their lists">
+        <SectionTitle>Lists</SectionTitle>
+        <ProfileLists userId={id} apiBase={apiBase} own={false} onOpen={openShowtime} />
+      </aside>
+      </div>
       {sheet}
     </div>
   );

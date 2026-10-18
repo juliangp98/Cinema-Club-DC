@@ -36,7 +36,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
     <div className="page play-page">
       <PageHeader title="Play" tour="play" />
       <KernelStrip k={k} month={month} viewerId={user.id} />
-      <div className="play-layout">
+      <div className="play-layout ui-split">
         <div className="play-main">
           <section id="trivia" className="play-section">
             <SectionTitle>Trivia</SectionTitle>
@@ -55,7 +55,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
             <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />
           </section>
         </div>
-        <aside className="play-side" aria-label="Kernels and standings">
+        <aside className="play-side ui-split-side sticky" aria-label="Kernels and standings">
           <YourKernels k={k} month={month} viewerId={user.id} />
           <MonthBoard month={month} viewerId={user.id} />
           <Movers week={week} viewerId={user.id} />

@@ -1,7 +1,6 @@
 /* The Club page (R6b) and club settings. */
 .club-page { max-width: 1100px; margin: 0 auto; }
-.club-board, .club-settings { max-width: 820px; }
-.club-hero-title { display: flex; align-items: center; gap: 0.6rem; }
+.club-board { max-width: 820px; }
 .club-hero { display: flex; align-items: center; gap: 1.1rem; margin: 0.5rem 0 1.25rem; }
 .club-hero-text { min-width: 0; }
 .deco.club-hero-name { margin: 0; font-size: clamp(1.45rem, 4vw, 2.3rem); color: var(--amber); line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
@@ -57,12 +56,10 @@
 
 /* Overview (R15): main column beside the club at a glance; on phones one
    column, the games as chips up top. */
-.club-overview { display: block; }
-.club-side { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
+.club-side { margin-top: 1.5rem; }             /* the columns: .ui-split */
 .club-side-games { display: none; }
 @media (min-width: 1024px) {
-  .club-overview { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.75rem; align-items: start; }
-  .club-side { margin-top: 0; position: sticky; top: 5rem; }
+  .club-side { margin-top: 0; }
   .club-side-games { display: block; }
   .club-strip { display: none; }
 }
@@ -121,5 +118,5 @@
 }
 
 /* Settings (R15): grouped sections the chips at the top jump to. */
-.club-settings-section { scroll-margin-top: 5rem; }
+
 .club-settings-sub { margin: 1rem 0 0.4rem; font-size: var(--fs-sm); font-weight: 600; color: var(--cream); }

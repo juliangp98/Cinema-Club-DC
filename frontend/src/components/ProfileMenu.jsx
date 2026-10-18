@@ -266,7 +266,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
       />
 
       <div className="profile-actions">
-        <button className="btn btn-primary btn-block" onClick={handleSave} disabled={saving}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
         </button>
       </div>
@@ -279,7 +279,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
             ✅ Discord linked{user.discord_username ? ` · @${user.discord_username}` : ""}
           </div>
         ) : discordOAuth ? (
-          <a className="btn btn-block" href={`${apiBase}/api/auth/discord/start?mode=connect`}>
+          <a className="btn" href={`${apiBase}/api/auth/discord/start?mode=connect`}>
             🔗 Connect Discord
           </a>
         ) : linkCode ? (
@@ -289,7 +289,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
           </div>
         ) : (
           <button
-            className="btn btn-block"
+            className="btn"
             disabled={linkLoading}
             onClick={async () => {
               setLinkLoading(true);

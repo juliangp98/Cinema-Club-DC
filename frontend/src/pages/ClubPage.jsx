@@ -17,7 +17,7 @@ import ClubBoard from "../components/ClubBoard";
 import { ClubStats, MembersStrip } from "../components/ClubOverview";
 import { monthDay } from "../dates";
 import { useJson, getJson, send } from "../api";
-import { TourButton, TourOffer } from "../ui/PageTourControls";
+import { TourOffer } from "../ui/PageTourControls";
 import "./Club.css";
 
 const ROLE_ORDER = { admin: 0, organizer: 1, member: 2, viewer: 3 };
@@ -61,10 +61,7 @@ export default function ClubPage({ user, apiBase }) {
       <header className="club-hero">
         <ClubBadge group={group} size={84} />
         <div className="club-hero-text">
-          <div className="club-hero-title">
-            <h1 className="deco club-hero-name">{group.name}</h1>
-            <TourButton page="club" />
-          </div>
+          <h1 className="deco club-hero-name">{group.name}</h1>
           {group.description && <p className="club-hero-desc">{group.description}</p>}
           <p className="club-hero-meta">
             {group.member_count} member{group.member_count === 1 ? "" : "s"} · you're {isAdmin ? "an" : "a"} {roleLabel(shell.role).toLowerCase()}
@@ -106,7 +103,7 @@ function Overview({ group, apiBase, user, shell, openShowtime, setTab }) {
   const { data: stats } = useJson(`${apiBase}/api/groups/${group.id}/stats`);
   const { data: members } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
   return (
-    <div className="club-overview">
+    <div className="club-overview ui-split">
       <div className="club-main">
         <GamesStrip summary={play} className="club-strip" />
         <ClubWeek apiBase={apiBase} groupId={group.id} viewerId={user.id} onOpenShowtime={openShowtime}
@@ -116,7 +113,7 @@ function Overview({ group, apiBase, user, shell, openShowtime, setTab }) {
         <SectionTitle>In your calendar</SectionTitle>
         <CalendarLinks apiBase={apiBase} clubId={group.id} />
       </div>
-      <aside className="club-side" aria-label="The club at a glance">
+      <aside className="club-side ui-split-side sticky" aria-label="The club at a glance">
         <MembersStrip members={activeMembers(members)} onAll={() => setTab("members")} />
         <ClubStats stats={stats} onBoard={() => setTab("leaderboard")} />
         <div className="club-side-games"><GamesRail summary={play} /></div>

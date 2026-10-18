@@ -249,7 +249,7 @@
     {
      "id": "page-tours",
      "q": "Is there a tour of each page?",
-     "a": "Yes — every main page has a short one: tap ? next to its title (it's offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour replays from the account menu, [the Me page](me) or the button at the top of Help."
+     "a": "Yes — every main page has a short one: tap ? at the top, beside the bell (it's also offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour — a quick trip through each main page — replays from the account menu, [the Me page](me) or the button at the top of Help."
     },
     {
      "id": "ask-help",

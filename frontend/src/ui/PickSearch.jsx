@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SearchField from "./SearchField";
 
 // Type to search, tap a result to pick it (R13): favorite films and people.
 // `search(text, signal)` resolves to [{key, label, sub?}]; it's asked from two
@@ -15,8 +16,7 @@ export default function PickSearch({ label, placeholder, search, onPick, deps = 
   }, [q, ...deps]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="pick-search">
-      <input type="search" className="share-input" aria-label={label} placeholder={placeholder} value={q}
-             onChange={e => setQ(e.target.value)} />
+      <SearchField label={label} placeholder={placeholder} value={q} onChange={setQ} />
       {results.length > 0 && (
         <ul className="pick-results" aria-label={`${label}: results`}>
           {results.map(r => (
