@@ -194,18 +194,18 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
       )}
 
       <div className="feed-actions">
-        <button type="button" className="feed-action" onClick={onToggle} aria-expanded={expanded}>
+        <button type="button" className="btn btn-sm" onClick={onToggle} aria-expanded={expanded}>
           {expanded ? "Hide discussion" : `💬 Discuss${s.message_count ? ` (${s.message_count})` : ""}`}
         </button>
         {kernelPeople.length > 0 && allowance && (
-          <button type="button" className="feed-action" aria-expanded={kernelsOpen}
+          <button type="button" className="btn btn-sm" aria-expanded={kernelsOpen}
                   onClick={() => { setKernelsOpen(o => !o); setKernelError(null); }}>
             🍿 Kernels
           </button>
         )}
-        <button type="button" className="feed-action" onClick={onOpen}>Open screening</button>
+        <button type="button" className="btn btn-sm" onClick={onOpen}>Open screening</button>
         {s.discord_thread_url && (
-          <a className="feed-action" href={s.discord_thread_url} target="_blank" rel="noreferrer">In Discord ↗</a>
+          <a className="btn btn-sm" href={s.discord_thread_url} target="_blank" rel="noreferrer">In Discord ↗</a>
         )}
       </div>
     </article>
@@ -243,7 +243,7 @@ function WatchlistCard({ card, viewerId, onOpenShowtime, onViewProfile }) {
       </div>
       {next && (
         <div className="feed-actions">
-          <button type="button" className="feed-action" onClick={() => onOpenShowtime(next.showtime_id)}>
+          <button type="button" className="btn btn-sm" onClick={() => onOpenShowtime(next.showtime_id)}>
             Open next showing
           </button>
         </div>
@@ -272,7 +272,7 @@ function PollCard({ card, onOpenPoll }) {
         {open && !card.you_voted && <div className="feed-activity nudge">You haven't voted yet</div>}
       </div>
       <div className="feed-actions">
-        <button type="button" className="feed-action" onClick={onOpenPoll}>
+        <button type="button" className="btn btn-sm" onClick={onOpenPoll}>
           {open ? (card.you_voted ? "Change your picks" : "Vote") : p.status === "scored" ? "See results" : "See poll"}
         </button>
       </div>
@@ -548,7 +548,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         ) : (
           <div className="feed-empty">
             <p>Nothing here yet. RSVP to a screening, add films to your watchlist, or start a discussion and it'll show up here.</p>
-            <button type="button" className="feed-action" onClick={() => navigate("/")}>Find something to see</button>
+            <button type="button" className="btn btn-sm" onClick={() => navigate("/")}>Find something to see</button>
           </div>
         ))}
 
@@ -562,7 +562,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         ))}
 
         {!limit && nextOffset != null && (
-          <button type="button" ref={sentinel} className="feed-more" onClick={loadMore} disabled={loadingMore}>
+          <button type="button" ref={sentinel} className="btn feed-more" onClick={loadMore} disabled={loadingMore}>
             {loadingMore ? "Loading…" : "Load more"}
           </button>
         )}

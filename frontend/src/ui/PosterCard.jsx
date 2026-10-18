@@ -15,7 +15,7 @@ export default function PosterCard({ card, size = "md" }) {
     <Link to={`/films/${movie.id}`} className={`poster-card ${size}`}>
       <div className="poster-card-img">
         <Poster movie={movie} fill />
-        {badge && <span className={`poster-card-badge${club ? "" : " public"}`}>{badge}</span>}
+        {badge && <span className={`ui-badge go poster-card-badge${club ? "" : " public"}`}>{badge}</span>}
       </div>
       <div className="poster-card-title">
         {movie.title}{movie.year ? <span className="poster-card-year"> ({movie.year})</span> : null}

@@ -80,7 +80,7 @@ function PollCard({ poll: p, onOpen }) {
   return (
     <article className={`pv-card status-${p.status}`}>
       <button type="button" className="pv-card-main" onClick={onOpen}>
-        <span className={`pv-status ${p.status}`}>{STATUS[p.status] || p.status}</span>
+        <span className={`ui-badge ${{ open: "go", scored: "gold" }[p.status] || ""}`}>{STATUS[p.status] || p.status}</span>
         <span className="pv-card-title">{p.title}</span>
         <span className="pv-card-meta">
           {TYPE_LABELS[p.poll_type] || "Poll"} · {SCORING_LABELS[p.scoring_mode]} · {total} {total === 1 ? "category" : "categories"}

@@ -58,7 +58,7 @@ function TheatreCard({ t, forYou }) {
       <Link to={`/theatres/${t.slug}`} className="theatre-card-head">
         <span className="theatre-card-dot" aria-hidden="true" />
         <span className="theatre-card-name">{t.name}</span>
-        {p.tonight > 0 && <span className="theatre-card-tonight">{p.tonight} tonight</span>}
+        {p.tonight > 0 && <span className="ui-badge solid">{p.tonight} tonight</span>}
       </Link>
       <p className="theatre-card-meta">
         {p.film_count ? `${p.film_count} film${p.film_count === 1 ? "" : "s"} in the next two weeks` : "Nothing scheduled right now"}

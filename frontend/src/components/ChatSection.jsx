@@ -172,7 +172,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
                   className="chat-name clickable"
                   onClick={() => onViewProfile?.(m.user.id)}
                 >{m.user.name}</span>
-                {m.via_discord && <span className="chat-via" title="Posted in the Discord thread">via Discord</span>}
+                {m.via_discord && <span className="ui-badge discord" title="Posted in the Discord thread">via Discord</span>}
                 <span className="chat-time">{timeAgo(m.created_at)}</span>
                 {m.can_delete && (
                   <button type="button" className="chat-delete" onClick={() => handleDelete(m)}

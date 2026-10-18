@@ -36,6 +36,12 @@
   --radius-sm: 6px;
   --radius-lg: 14px;
   --radius-pill: 999px;
+  /* The one card surface (R15): every widget, panel and section box uses
+     these — the lighter look of Discover, Theatres and Profile. */
+  --card-bg: var(--bg3);
+  --card-border: var(--border);
+  --card-radius: var(--radius-lg);
+  --card-pad: 1rem 1.1rem;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   --topbar-h: 58px;
   --tabbar-h: 62px;
@@ -449,19 +455,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .list-row-text { display: flex; flex-direction: column; min-width: 0; }
 .list-row-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--cream); }
 .list-row-meta { font-size: var(--fs-sm); color: var(--muted); }
-.list-chip {
-  flex-shrink: 0;
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.45rem;
-  border-radius: 2px;
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-.list-chip.going { color: var(--green); border-color: rgba(111, 191, 152, 0.4); }
-.list-chip.maybe { color: var(--amber); border-color: var(--border-strong); }
-.list-chip.went  { color: var(--cream); border-color: var(--muted); }
 
 .compare-section + .compare-section { margin-top: 1rem; }
 .compare-section-title {
@@ -994,9 +987,9 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
   gap: 0.75rem;
 }
 .group-card.active { border-color: var(--amber-dim); }
@@ -1063,9 +1056,9 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 }
 .group-create-toggle:hover { opacity: 0.7; }
 .group-create-form {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
   padding: 1.25rem;
 }
 .group-create-input {
@@ -1260,9 +1253,9 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 }
 .feed-main .attendance-prompt { margin: 0; }
 .feed-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
@@ -1349,19 +1342,7 @@ button.feed-title:hover { color: var(--amber); }
 .feed-discussion .reaction-bar { margin: 0 0 0.5rem; padding-bottom: 0; border-bottom: none; }
 .feed-discussion .chat-section { margin-top: 0; padding-top: 0; border-top: none; }
 .feed-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.feed-action, .feed-more {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0.35rem 0.7rem;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  transition: all 0.15s;
-}
-.feed-action:hover, .feed-more:hover { border-color: var(--amber); color: var(--amber); }
-.feed-more { align-self: center; padding: 0.5rem 1.25rem; }
+.feed-more { align-self: center; }
 .feed-empty {
   display: flex;
   flex-direction: column;
@@ -1388,15 +1369,6 @@ button.feed-title:hover { color: var(--amber); }
   margin-bottom: 0.5rem;
 }
 .chat-discord-link:hover { color: var(--amber); }
-.chat-via {
-  font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #8f9cf2;
-  border: 1px solid rgba(143, 156, 242, 0.35);
-  border-radius: 2px;
-  padding: 0 0.3rem;
-}
 .chat-delete {
   margin-left: auto;
   background: none;
@@ -1412,7 +1384,6 @@ button.feed-title:hover { color: var(--amber); }
 .chat-bubble:hover .chat-delete, .chat-delete:focus-visible { opacity: 1; }
 .chat-delete:hover { color: var(--red); }
 @media (hover: none) { .chat-delete { opacity: 1; } }
-a.feed-action { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* The feed page (R10c) */
 .page.feed-full { max-width: 680px; }        /* one column: header, filters and cards line up */

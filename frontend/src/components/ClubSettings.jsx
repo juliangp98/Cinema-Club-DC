@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { SectionTitle } from "../ui/PageHeader";
 import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
@@ -242,6 +243,10 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
           </li>
         ))}
       </ul>
+
+      <SectionTitle>The site's look</SectionTitle>
+      <p className="ui-hint">Every button, chip, badge and panel the site is built from, on one page.{" "}
+        <Link to="/styleguide">Open the style guide →</Link></p>
 
       <div className="club-danger">
         <div>

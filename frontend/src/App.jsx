@@ -23,6 +23,7 @@ const TheatresPage = lazyPage(() => import("./pages/Theatres"), "TheatresPage");
 const TheatrePage = lazyPage(() => import("./pages/Theatres"), "TheatrePage");
 const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "SpotlightsPage");
 const DoublesPage = lazyPage(() => import("./pages/DiscoverMore"), "DoublesPage");
+const StyleguidePage = lazyPage(() => import("./pages/StyleguidePage"));
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 import { clearCache, getJson } from "./api";
@@ -201,6 +202,7 @@ export default function App() {
           <Route path="/feed" element={
             <RequireSignIn user={user}><FeedPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/styleguide" element={<RequireSignIn user={user}><StyleguidePage /></RequireSignIn>} />
           <Route path="/play" element={
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/club" element={

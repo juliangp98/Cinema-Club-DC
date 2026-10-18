@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Sheet, { SheetTitle } from "./Sheet";
 import { dayDateAt } from "../dates";
 import { send } from "../api";
+import Prompt from "./Prompt";
 
 // Choosing what goes to the club's Discord (R3d). Nothing posts to #movies
 // unless you share it; shared posts stay in step with the site and never
@@ -140,16 +141,17 @@ export function TicketDiscord({ showtime: s, apiBase, groupId }) {
   return (
     <div className="ticket-discord">
       {d.prompt && rsvpd && !d.my_share ? (
-        <div className="share-prompt" role="group" aria-label="Share in Discord">
-          <span>Share in #movies?</span>
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => share(false)}>Share</button>
-          <button type="button" className="btn btn-sm" onClick={() => notNow(false)}>Not now</button>
-          <span className="share-remember">
-            <button type="button" className="share-link" onClick={() => share(true)}>Always share</button>
+        <Prompt question="Share your RSVP in #movies?" label="Share in Discord" onClose={() => notNow(false)}
+                actions={<>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => share(false)}>Share</button>
+                  <button type="button" className="btn btn-sm" onClick={() => notNow(false)}>Not now</button>
+                </>}>
+          <p className="ui-hint">
+            <button type="button" className="linkish" onClick={() => share(true)}>Always share</button>
             {" · "}
-            <button type="button" className="share-link" onClick={() => notNow(true)}>Never ask</button>
-          </span>
-        </div>
+            <button type="button" className="linkish" onClick={() => notNow(true)}>Never ask</button>
+          </p>
+        </Prompt>
       ) : d.my_share ? (
         <div className="share-row">
           <PostState post={d.my_share} label="Your RSVP" />
@@ -203,17 +205,19 @@ export function WatchDiscordPrompt({ apiBase, movieId, onDone }) {
     }
   };
   return (
-    <div className="share-prompt watch-discord-prompt" role="group" aria-label="Mention you in Discord">
-      <span>Mention you in the Discord digest when it's playing?</span>
-      <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes</button>
-      <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No</button>
-      <span className="share-remember">
-        <button type="button" className="share-link" onClick={() => answer(true, true)}>Always</button>
+    <Prompt question="Mention you in the Discord digest when it's playing?" label="Mention you in Discord"
+            onClose={() => onDone?.()}
+            actions={<>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes</button>
+              <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No</button>
+            </>}>
+      <p className="ui-hint">
+        <button type="button" className="linkish" onClick={() => answer(true, true)}>Always</button>
         {" · "}
-        <button type="button" className="share-link" onClick={() => answer(false, true)}>Never ask</button>
-      </span>
+        <button type="button" className="linkish" onClick={() => answer(false, true)}>Never ask</button>
+      </p>
       {error && <p className="share-error">{error}</p>}
-    </div>
+    </Prompt>
   );
 }
 

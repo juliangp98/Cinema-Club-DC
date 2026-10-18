@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PushDevice } from "../components/NotifySettings";
 import { getJson, send } from "../api";
+import Prompt from "./Prompt";
 
 // Notifications are opt-in: these ask once, at the first moment they matter.
 // Nothing leaves the site unless the person picks something here (or in the
@@ -35,10 +36,13 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
     onDone?.();
   }
   return (
-    <div className="share-prompt alert-ask" role="group" aria-label="How to get alerts">
-      <p className="alert-ask-q">{question}</p>
-      <p className="ui-hint">They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise.</p>
-      <div className="alert-ask-ways">
+    <Prompt question={question} label="How to get alerts" onClose={() => onDone?.()}
+            hint="They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise. Change it any time: 🔔 → Notification settings."
+            actions={<>
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
+              <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onDone?.()}>Not now</button>
+            </>}>
+      <div className="ui-prompt-choices">
         {ways.map(([k, label]) => (
           <label key={k} className="notify-row">
             <input type="checkbox" checked={pick[k]} onChange={e => setPick(p => ({ ...p, [k]: e.target.checked }))} />
@@ -53,12 +57,7 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
         )}
         {s.push_ready && <div><span className="notify-name">Push on this device</span><PushDevice apiBase={apiBase} onSettings={setS} /></div>}
       </div>
-      <div className="alert-ask-actions">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onDone?.()}>Not now</button>
-        <span className="ui-hint">Change it any time: 🔔 → Notification settings.</span>
-      </div>
-    </div>
+    </Prompt>
   );
 }
 
@@ -71,10 +70,11 @@ export function AttendanceAsk({ apiBase }) {
     if (yes) await put(apiBase, "/api/me/notifications", { types: { attendance: true } }).catch(() => {});
   };
   return (
-    <div className="share-prompt alert-ask" role="group" aria-label="Did you make it? DMs">
-      <span>Want a Discord DM after screenings you're going to, to log whether you made it?</span>
-      <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes, DM me</button>
-      <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No thanks</button>
-    </div>
+    <Prompt question="A Discord DM after screenings you're going to?" label="Did you make it? DMs"
+            hint="To log whether you made it — one tap. Nothing is sent unless you say yes." onClose={() => setDone(true)}
+            actions={<>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes, DM me</button>
+              <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No thanks</button>
+            </>} />
   );
 }

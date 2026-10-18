@@ -2,7 +2,9 @@
 // they look and space alike:
 //   tone      "gold" (games), "go" (green edge: "Did you make it?"),
 //             "callout" (gold edge, big title, actions beside it),
+//             "prompt" (a question asked in place — use ui/Prompt.jsx),
 //             "tile" (compact, for side-rail summaries)
+// Every tone sits on the one card surface (--card-* in index.css).
 //   title     the heading (`titleId` labels the section); `kicker` makes it
 //             the small uppercase kind
 //   hint      a muted line beside the title
@@ -24,7 +26,7 @@ export default function Panel({ as: Tag = "section", tone, title, titleId, kicke
   );
   return (
     <Tag className={cls} {...rest}>
-      {tone === "callout" ? <div className="ui-panel-body">{head}{children}</div> : <>{head}{children}</>}
+      {tone === "callout" || tone === "prompt" ? <div className="ui-panel-body">{head}{children}</div> : <>{head}{children}</>}
       {actions && <div className="ui-panel-actions">{actions}</div>}
     </Tag>
   );

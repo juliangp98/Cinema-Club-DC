@@ -63,6 +63,19 @@
 }
 .chip.gold { color: var(--amber); border-color: var(--amber); background: var(--gold-wash); }
 a.chip { text-decoration: none; }
+/* A small status label (R15): Going / Open / via Discord / 3 tonight. Tones:
+   go (green), gold, strong (cream), discord, solid (gold fill). */
+.ui-badge {
+  display: inline-flex; align-items: center; flex-shrink: 0; width: fit-content;
+  padding: 0.1rem 0.5rem; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong); color: var(--muted);
+  font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+}
+.ui-badge.go { color: var(--green); border-color: rgba(111, 191, 152, 0.5); }
+.ui-badge.gold { color: var(--amber); border-color: var(--gold-line); }
+.ui-badge.strong { color: var(--cream); border-color: var(--muted); }
+.ui-badge.discord { color: #8f9cf2; border-color: rgba(143, 156, 242, 0.4); }
+.ui-badge.solid { color: var(--bg); background: var(--amber); border-color: var(--amber); }
 /* A chip you switch on and off (ui/ToggleChip.jsx) */
 .chip-toggle {
   cursor: pointer; background: none; font-family: var(--font-body); min-height: 32px;
@@ -107,8 +120,8 @@ p.ui-hint { margin: 0.35rem 0; }
 
 /* ── Panel: every bordered box (ui/Panel.jsx) ──────────────────────────── */
 .ui-panel {
-  display: flex; flex-direction: column; gap: 0.55rem; margin: 0 0 1rem; padding: 0.8rem 0.9rem;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg2); color: inherit;
+  display: flex; flex-direction: column; gap: 0.55rem; margin: 0 0 1rem; padding: var(--card-pad);
+  border: 1px solid var(--card-border); border-radius: var(--card-radius); background: var(--card-bg); color: inherit;
 }
 .ui-panel > p.ui-hint, .ui-panel-body > p.ui-hint { margin: 0; }
 a.ui-panel { text-decoration: none; }
@@ -118,13 +131,26 @@ a.ui-panel:hover { border-color: var(--amber-dim); }
 .ui-panel-title.kicker { font-weight: 400; font-size: var(--fs-xs); letter-spacing: 0.06em; text-transform: uppercase; }
 .ui-panel-aside { margin-left: auto; }
 .ui-panel-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.ui-panel-gold { border-color: var(--amber-dim); background: none; }
+.ui-panel-gold { border-color: var(--amber-dim); }
 .ui-panel-go { border-left: 2px solid var(--green); }
-.ui-panel-tile { gap: 0.3rem; margin: 0; padding: 0.75rem 0.85rem; background: none; }
-.ui-panel-callout {
+.ui-panel-tile { gap: 0.3rem; margin: 0; padding: 0.75rem 0.85rem; }
+.ui-panel-callout, .ui-panel-prompt {
   flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.25rem;
-  padding: 0.9rem 1.1rem; margin-bottom: 1.5rem; border-radius: var(--radius-lg);
-  background: var(--bg3); border-left: 3px solid var(--amber);
+  border-left: 3px solid var(--amber);
+}
+.ui-panel-callout { padding: 0.9rem 1.1rem; margin-bottom: 1.5rem; }
+/* A question asked in place (ui/Prompt.jsx): smaller than a callout, with room
+   around it so it never sits flush against the button that raised it. */
+.ui-panel-prompt { padding: 0.8rem 0.95rem; margin: 0.75rem 0; gap: 0.6rem 1rem; }
+.ui-panel-prompt .ui-panel-title { font-weight: 600; color: var(--cream); }
+.ui-panel-prompt .ui-panel-body { flex: 1 1 16rem; min-width: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.ui-panel-prompt .ui-panel-actions { align-items: center; }
+.ui-prompt-close { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: var(--fs-lg); line-height: 1; padding: 0 0.15rem; }
+.ui-prompt-choices { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; }
+.ui-prompt-close:hover { color: var(--cream); }
+@media (max-width: 600px) {
+  .ui-panel-prompt .ui-panel-actions { flex: 1 1 100%; }
+  .ui-panel-prompt .ui-panel-actions .btn { flex: 1; }
 }
 .ui-panel-callout .ui-panel-title { color: var(--amber); font-size: var(--fs-lg); font-weight: 400; }
 .ui-panel-callout .ui-panel-body { flex: 1 1 22rem; min-width: 0; }
@@ -341,10 +367,6 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .notify-name { font-weight: 600; }
 .notify-search { cursor: default; align-items: baseline; justify-content: space-between; }
 .notify-search .notify-name { color: inherit; }
-.alert-ask { flex-direction: column; align-items: stretch; gap: 0.45rem; text-align: left; }
-.alert-ask-q { font-weight: 600; }
-.alert-ask-ways { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0.5rem 1.2rem; }
-.alert-ask-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .notify-push { margin: 0.2rem 0 0.3rem 1.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .linkish { background: none; border: 0; padding: 0; color: var(--amber); font: inherit; cursor: pointer; text-decoration: underline; }
 .profile-notify-title { font-size: var(--fs-md, 1rem); color: var(--amber); }
@@ -355,7 +377,10 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
   .topbar-nav, .topbar-avatar, .topbar-spacer { display: none; }
   .topbar-logo { flex-shrink: 0; }
   .topbar-groupmenu { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
-  .topbar-group { max-width: 100%; min-width: 0; font-size: var(--fs-xs); padding: 0.25rem 0.7rem 0.25rem 0.3rem; }
+  /* Phones (R15): just the club's badge (its initials when it has no picture) and the caret. */
+  .topbar-group { max-width: 100%; min-width: 0; gap: 0.35rem; padding: 0.25rem 0.55rem 0.25rem 0.25rem; }
+  .topbar-group-short { display: none; }
+  .topbar-group-badge.initials { display: inline-flex; }
   .topbar-bell { width: 34px; height: 34px; }
   .tabbar {
     display: flex; flex-shrink: 0;
@@ -381,7 +406,7 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .me-card {
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
   padding: 1rem 1.15rem; margin-bottom: 1.5rem;
-  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--card-radius);
 }
 .me-card-text { flex: 1; min-width: 160px; }
 .me-name { font-family: var(--font-serif); font-size: var(--fs-xl); font-weight: 700; }
@@ -420,8 +445,8 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 
 /* ── Ticket stub (one screening) ───────────────────────────────────────── */
 .ticket {
-  display: flex; background: var(--bg3); border: 1px solid var(--border);
-  border-radius: var(--radius-lg);          /* no overflow clip: menus open out of it */
+  display: flex; background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);          /* no overflow clip: menus open out of it */
 }
 .ticket + .ticket { margin-top: 0.75rem; }
 .ticket-stub {
@@ -472,10 +497,7 @@ a.feed-poster { display: block; }
 }
 .poster-card:hover .poster-card-img { transform: translateY(-2px); border-color: var(--amber); }
 .poster-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.poster-card-badge {
-  position: absolute; top: 6px; left: 6px; padding: 2px 8px; border-radius: var(--radius-pill);
-  background: rgba(31, 7, 12, 0.85); color: var(--green); font-size: var(--fs-xs); font-weight: 500;
-}
+.poster-card-badge { position: absolute; top: 6px; left: 6px; background: rgba(31, 7, 12, 0.85); }
 .poster-card-title { font-family: var(--font-serif); font-weight: 700; font-size: var(--fs-sm); line-height: 1.25;
                      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .poster-card:hover .poster-card-title { color: var(--amber); }
@@ -524,13 +546,6 @@ a.feed-poster { display: block; }
 
 /* ── Sharing to Discord (R3d) ──────────────────────────────────────────── */
 .ticket-discord { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.15rem; font-size: var(--fs-xs); }
-.share-prompt {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem;
-  padding: 0.45rem 0.6rem; border-radius: var(--radius);
-  background: var(--gold-wash); border: 1px solid var(--border-strong); color: var(--cream);
-}
-.share-remember { color: var(--muted); }
-.watch-discord-prompt { margin-top: 0.6rem; }
 .share-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; color: var(--muted); }
 .share-link {
   background: none; border: none; padding: 0; cursor: pointer; font: inherit;
@@ -577,8 +592,8 @@ a.share-state { color: var(--green); }
 
 .poll-discord {
   display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;
-  padding: 0.75rem 0.9rem; border-radius: var(--radius-lg);
-  background: var(--bg3); border: 1px solid var(--border);
+  padding: 0.75rem 0.9rem; border-radius: var(--card-radius);
+  background: var(--card-bg); border: 1px solid var(--card-border);
 }
 .poll-discord-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; font-size: var(--fs-sm); }
 .poll-discord-row.nudge .share-state { color: var(--amber); }
@@ -661,7 +676,7 @@ a.share-state { color: var(--green); }
 .install-card {
   position: fixed; z-index: 60; right: 1rem; bottom: 1rem; width: min(420px, calc(100vw - 2rem));
   display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.8rem 0.9rem;
-  background: var(--bg2); border: 1px solid var(--gold-line); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  background: var(--card-bg); border: 1px solid var(--gold-line); border-radius: var(--card-radius); box-shadow: var(--shadow);
 }
 .install-icon { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
 .install-text { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--fs-sm); }

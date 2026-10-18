@@ -4,8 +4,8 @@ import { ClubBadge, shortNameOf } from "../ui/Avatar";
 import { UsersIcon, CompassIcon } from "../ui/icons";
 
 // The club pill in the top bar: the club's picture and name — the full name
-// on wide screens, its short name (or initials) when space is tight — and a
-// menu to switch clubs or open the club's page.
+// on wide screens, its short name (or initials) when space is tight, only its
+// badge on phones — and a menu to switch clubs or open the club's page.
 export default function GroupSwitcher({ groups, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
   const active = groups.find(g => g.id === activeGroupId);

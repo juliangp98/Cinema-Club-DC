@@ -24,6 +24,7 @@ function useList(url) {
 }
 
 const STATUS_LABEL = { going: "Going", maybe: "Maybe", went: "Saw it" };
+const BADGE_TONE = { going: "go", maybe: "gold", went: "strong" };
 
 // One screening in a list: title, when + where, and an optional status chip.
 // Clickable rows open the screening's drawer.
@@ -36,7 +37,7 @@ function ScreeningRow({ item, status, onOpen }) {
           {formatWhen(item.start_time)} · {item.theatre}{item.format_label ? ` · ${item.format_label}` : ""}
         </span>
       </span>
-      {status && <span className={`list-chip ${status}`}>{STATUS_LABEL[status] || status}</span>}
+      {status && <span className={`ui-badge ${BADGE_TONE[status] || ""}`}>{STATUS_LABEL[status] || status}</span>}
     </>
   );
   return (

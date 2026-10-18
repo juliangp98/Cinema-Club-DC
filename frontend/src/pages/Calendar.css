@@ -90,7 +90,7 @@ a.cal-theatre:hover { color: var(--amber); }
 .cal-col-sub { font-size: var(--fs-xs); color: var(--muted); font-weight: 400; }
 .cal-col-empty { font-size: var(--fs-xs); color: var(--muted); padding: 0 0.5rem; }
 .cal-card {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--card-radius);
   padding: 0.45rem 0.5rem; display: flex; flex-direction: column; gap: 0.35rem;
 }
 .cal-card.mine { border-color: rgba(111, 191, 152, 0.5); }

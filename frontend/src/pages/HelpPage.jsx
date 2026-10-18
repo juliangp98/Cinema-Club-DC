@@ -45,7 +45,7 @@ const SECTIONS = [
   ] },
   { id: "club", title: "Your club", items: [
     ["What's in the feed?", "What the club's been up to: plans, check-ins, comments, watchlist adds, polls and games, newest first, with a marker for what's new since your last visit and a recap every Monday. Filter it by kind at the top. On wide screens a side panel shows what's waiting for you; on phones it's the row of chips."],
-    ["What's on the Club page?", "An overview, the members list, the leaderboard and — for admins — the club's settings."],
+    ["What's on the Club page?", "An overview, the members list, the leaderboard and — for admins — the club's settings (with a link to the style guide: every button, chip and panel the site uses)."],
     ["What are screening notes?", "If your club turns them on, people who checked in to a screening can tag the night — gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."],
   ] },
   { id: "games", title: "Play: polls, trivia, bingo and kernels", items: [
