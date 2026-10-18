@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# The club's clock: showtimes are stored as the theatres' wall-clock times and
+# compared with datetime.now(), so the container must run on DC time (the
+# image's default is UTC, which made tonight's shows look started at 4 PM).
+ENV TZ=America/New_York
+
 WORKDIR /app
 
 # Install system deps for lxml (used by BeautifulSoup)
