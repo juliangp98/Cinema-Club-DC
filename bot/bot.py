@@ -791,16 +791,21 @@ def api_failure(e, fallback=None, missing=None):
     return fallback.replace('{status}', str(e.status)) if fallback else api_error_text(e)
 
 
+async def tell(interaction, msg, ephemeral=True, **kwargs):
+    """A message as the reply, or as a follow-up once the interaction was
+    answered (deferred)."""
+    if interaction.response.is_done():
+        await interaction.followup.send(msg, ephemeral=ephemeral, **kwargs)
+    else:
+        await interaction.response.send_message(msg, ephemeral=ephemeral, **kwargs)
+
+
 async def reply_failure(interaction, e, what, fallback=None, missing=None, ephemeral=True):
     """Say an internal call failed (api_failure's wording) — as the reply, or
     a follow-up after a defer — logging anything the server didn't refuse."""
     if not isinstance(e, ApiError):
         print(f'{what} failed: {e}')
-    msg = api_failure(e, fallback, missing)
-    if interaction.response.is_done():
-        await interaction.followup.send(msg, ephemeral=ephemeral)
-    else:
-        await interaction.response.send_message(msg, ephemeral=ephemeral)
+    await tell(interaction, api_failure(e, fallback, missing), ephemeral=ephemeral)
 
 
 # ─── Announce loop ────────────────────────────────────────────────────────────
@@ -928,13 +933,14 @@ class AttendanceButton(discord.ui.DynamicItem[discord.ui.Button],
         return cls(match['status'], int(match['sid']))
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         try:
             result = await api.post('/api/internal/attendance', {
                 **discord_identity(interaction), 'showtime_id': self.showtime_id, 'status': self.status})
         except Exception as e:
             await reply_failure(interaction, e, 'attendance answer', "Couldn't save that ({status}).", GONE_MSG)
             return
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             view=answered_view(interaction.message, self.showtime_id, self.status, result))
         if self.status == 'went':
             await interaction.followup.send(
@@ -1097,13 +1103,14 @@ class NotifyView(discord.ui.View):
         return callback
 
     async def save(self, interaction, change):
+        await interaction.response.defer()
         try:
             s = await api.post('/api/internal/notifications/settings', {**self.ident, **change})
         except Exception as e:
             print(f'/notifications save failed: {e}')
-            await interaction.response.send_message("Couldn't save that — try again in a bit.", ephemeral=True)
+            await tell(interaction, "Couldn't save that — try again in a bit.")
             return
-        await interaction.response.edit_message(embed=embeds.notify_settings_embed(s), view=NotifyView(self.ident, s))
+        await interaction.edit_original_response(embed=embeds.notify_settings_embed(s), view=NotifyView(self.ident, s))
 
 
 class AskView(discord.ui.View):
@@ -1123,14 +1130,15 @@ class AskView(discord.ui.View):
 
     def _save(self, button, change):
         async def callback(interaction):
+            await interaction.response.defer()
             try:
                 await api.post('/api/internal/notifications/settings', {**self.ident, **change})
             except Exception as e:
                 print(f'opt-in save failed: {e}')
-                await interaction.response.send_message("Couldn't save that — try `/notifications`.", ephemeral=True)
+                await tell(interaction, "Couldn't save that — try `/notifications`.")
                 return
             button.disabled, button.label = True, f'✓ {button.label}'
-            await interaction.response.edit_message(view=self)
+            await interaction.edit_original_response(view=self)
         return callback
 
     async def _done(self, interaction):
@@ -1787,14 +1795,15 @@ class ProfileView(discord.ui.View):
 
     @staticmethod
     async def save(interaction, ident, fields):
+        await interaction.response.defer()
         try:
             profile = await api.post('/api/internal/profile', {**ident, **fields})
         except Exception as e:
             print(f'/profile save failed: {e}')
-            await interaction.response.send_message("Couldn't save that — try again in a bit.", ephemeral=True)
+            await tell(interaction, "Couldn't save that — try again in a bit.")
             return
-        await interaction.response.edit_message(embed=embeds.profile_embed(profile, own=True),
-                                                view=ProfileView(ident, profile))
+        await interaction.edit_original_response(embed=embeds.profile_embed(profile, own=True),
+                                                 view=ProfileView(ident, profile))
 
 
 @client.tree.command(name='profile', description="Your Cinema Club profile (genres, bio, Letterboxd) — or a member's")
@@ -2393,7 +2402,9 @@ def _vote_error(err):
 async def handle_vote(interaction, act, pid, idx, arg, page, values):
     """Every ballot click: open, navigate, pick, stake, rank, clear."""
     opening = act == 'open'
-    if opening:
+    if interaction.response.is_done():             # /vote answered already, while it found the poll
+        pass
+    elif opening:
         await interaction.response.defer(ephemeral=True, thinking=True)
     else:
         await interaction.response.defer()
@@ -2500,21 +2511,21 @@ async def vote_poll_autocomplete(interaction: discord.Interaction, current: str)
 @app_commands.autocomplete(poll=vote_poll_autocomplete)
 async def vote(interaction: discord.Interaction, poll: str = None):
     if poll is None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             open_polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID)
         except Exception as e:
             await reply_failure(interaction, e, '/vote list')
             return
         if not open_polls:
-            await interaction.response.send_message(
-                'No open polls right now. Use `/vote poll:` to look back at recent results.', ephemeral=True)
+            await tell(interaction, 'No open polls right now. Use `/vote poll:` to look back at recent results.')
             return
         if len(open_polls) > 1:
-            await interaction.response.send_message('Which poll?', view=vote_open_view(open_polls), ephemeral=True)
+            await tell(interaction, 'Which poll?', view=vote_open_view(open_polls))
             return
         poll = str(open_polls[0]['id'])
     if not poll.isdigit():
-        await interaction.response.send_message('Pick a poll from the list.', ephemeral=True)
+        await tell(interaction, 'Pick a poll from the list.')
         return
     await handle_vote(interaction, 'open', int(poll), 0, 0, 0, [])
 
@@ -2793,18 +2804,19 @@ class SpinButton(discord.ui.DynamicItem[discord.ui.Button], template=SURPRISE_ID
         return cls(match['when'], match['where'], [int(x) for x in match['ex'].split(',') if x])
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         try:
             pick = await api.get('/api/internal/discover/surprise', **viewer_args(interaction), when=self.when,
                                  where=_where_value(self.where_code), exclude=','.join(map(str, self.seen)))
         except ApiError as e:
             msg = ("That's everything playing — no more spins left." if e.status == 404
                    else f'Spin failed ({e.status}).')
-            await interaction.response.send_message(msg, ephemeral=True)
+            await tell(interaction, msg)
             return
         except Exception as e:
             await reply_failure(interaction, e, 'spin')
             return
-        await interaction.response.edit_message(
+        await interaction.edit_original_response(
             embed=embeds.surprise_embed(pick, self.when, spun_by=interaction.user.display_name),
             view=surprise_view(pick, self.when, self.where_code, self.seen))
 
@@ -2975,6 +2987,7 @@ class QuoteModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         payload = {**self.ident, 'text': self.text.value, 'movie': self.movie.value,
                    'character': self.character.value}
+        await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             if self.existing:
                 quote = await api.put(f"/api/internal/quotes/{self.existing['id']}", payload)
@@ -2984,14 +2997,14 @@ class QuoteModal(discord.ui.Modal):
             body = _api_error_json(e)
             msg = (f"That line is already in the list (#{body.get('id')})." if body.get('error') == 'duplicate'
                    else api_failure(e, body.get('error') or "Couldn't save that ({status})."))
-            await interaction.response.send_message(msg, ephemeral=True)
+            await tell(interaction, msg)
             return
         except Exception as e:
             await reply_failure(interaction, e, '/quote save')
             return
         invalidate_quotes()
         verb = 'Updated' if self.existing else 'Added'
-        await interaction.response.send_message(f"{verb} ✓\n{_quote_summary(quote)}", ephemeral=True)
+        await tell(interaction, f"{verb} ✓\n{_quote_summary(quote)}")
 
 
 @quote_cmds.command(name='add', description='Add a movie quote (only the line is ever shown)')
@@ -3534,6 +3547,7 @@ class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'gam
         return cls(match['action'], int(match['pid']))
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         try:
             post = await api.post(f'/api/internal/games/post/{self.post_id}',
                                   {**discord_identity(interaction), 'action': self.action})
@@ -3541,8 +3555,8 @@ class GameReviewButton(discord.ui.DynamicItem[discord.ui.Button], template=r'gam
             await reply_failure(interaction, e, 'game review')
             return
         embed, _ = game_post_message(post)
-        await interaction.response.edit_message(content=embeds.review_note(post, post.get('error')), embed=embed,
-                                                view=review_view(post))
+        await interaction.edit_original_response(content=embeds.review_note(post, post.get('error')), embed=embed,
+                                                 view=review_view(post))
 
 
 DIGEST_COOLDOWN_SEC = 30 * 60

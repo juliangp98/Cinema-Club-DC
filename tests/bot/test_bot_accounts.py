@@ -50,12 +50,15 @@ class Interaction:
                 outer.log.append(('modal', None, None, None, modal))
 
             def is_done(self):
-                return False
+                return any(e[0] in ('defer', 'reply', 'edit', 'modal') for e in outer.log)
 
         class F:
             async def send(self, content=None, ephemeral=False, embed=None, view=None, **k):
                 outer.log.append(('followup', ephemeral, content, embed, view))
         self.response, self.followup = R(), F()
+
+    async def edit_original_response(self, embed=None, view=None, **k):     # the edit after a defer
+        self.log.append(('edit', None, None, embed, view))
 
     def last(self):
         return self.log[-1]

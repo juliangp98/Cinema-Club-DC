@@ -99,6 +99,9 @@ class FakeInteraction:
 
         self.response, self.followup = Response(), Followup()
 
+    async def edit_original_response(self, content=None, **kw):     # the edit after a defer
+        self.sent.append(('edit', content, kw))
+
     @property
     def last(self):
         return self.sent[-1]

@@ -72,7 +72,7 @@ def test_an_approved_question_goes_up_once_without_pinging(bot):
     assert kw['allowed_mentions'].everyone is False and kw['allowed_mentions'].roles is False
 
 
-def test_an_admin_reviews_by_dm(bot):
+def test_an_admin_reviews_by_dm(bot, monkeypatch):
     switch(bot, trivia_enabled=True, trivia_post='ask')
     run(bot.games_loop.coro())
     assert bot.sent == []                                                     # waiting for an OK
@@ -96,22 +96,34 @@ def test_an_admin_reviews_by_dm(bot):
     assert review[0].startswith('👀 Waiting for your OK') and 'The answer:' in review[0]
     labels = [i.label for i in items_of(review[2])]
     assert labels == ['Post it', 'Try another', 'Skip']
-    edits = []
+    edits, order = [], []
 
-    class Response:
-        async def edit_message(self, content=None, embed=None, view=None, **k):
-            edits.append((content, embed, view))
+    class Response:                                                   # answered first (a defer), then edited
+        async def defer(self, **k):
+            order.append('defer')
 
         def is_done(self):
-            return False
+            return 'defer' in order
 
-        async def send_message(self, content=None, **k):              # a failure would land here
+    class Followup:
+        async def send(self, content=None, **k):                      # a failure would land here
             edits.append((f'FAILED: {content}', None, None))
+
+    async def edit_original_response(content=None, embed=None, view=None, **k):
+        edits.append((content, embed, view))
+    real_post = bot.api.post
+
+    async def post(path, *a, **k):
+        order.append('backend')
+        return await real_post(path, *a, **k)
+    monkeypatch.setattr(bot.api, 'post', post)
     it = types.SimpleNamespace(user=types.SimpleNamespace(id=9801, name='adm', display_name='Adm', display_avatar=None),
-                               guild_id=None, channel_id=1, response=Response())
+                               guild_id=None, channel_id=1, response=Response(), followup=Followup(),
+                               edit_original_response=edit_original_response)
     button = lambda view, label: next(c for c in view.children if getattr(c, 'item', c).label == label)
     another = button(review[2], 'Try another')
     run(another.callback(it))
+    assert order == ['defer', 'backend']                                      # Discord hears back within its 3 s
     assert edits[-1][1].description != review[1].description                 # a different question
     post = button(edits[-1][2], 'Post it')
     run(post.callback(it))

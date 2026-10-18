@@ -58,6 +58,9 @@ class Interaction:
                 outer.log.append(('followup', ephemeral, content, embed, view))
         self.response, self.followup = R(), F()
 
+    async def edit_original_response(self, view=None, **k):     # the edit after a defer
+        self.log.append(('edit', None, None, None, view))
+
 
 def label(c):
     return getattr(c, 'item', c).label
@@ -142,7 +145,8 @@ def test_answering_in_the_dm(asked):
     ids = [c.custom_id for c in view.children]
     went_sid, missed_sid = int(ids[0].split(':')[2]), int(ids[2].split(':')[2])
     it = answer(asked, 'went', went_sid, view)
-    edit, follow = it.log[0], it.log[1]
+    assert it.log[0][0] == 'defer'                                                        # Discord hears back first
+    edit, follow = it.log[1], it.log[2]
     new_view = edit[4]
     labels = [label(c) for c in new_view.children]
     first = getattr(new_view.children[0], 'item', new_view.children[0])
@@ -150,9 +154,9 @@ def test_answering_in_the_dm(asked):
     assert all(not getattr(c, 'item', c).disabled for c in new_view.children[1:])           # the other stays clickable
     assert follow[1] and f'showtime={went_sid}' in follow[2]                                 # "went": a link to discuss it
     it2 = answer(asked, 'missed', missed_sid, new_view)
-    final = [(label(c), getattr(c, 'item', c).disabled) for c in it2.log[0][4].children]
+    final = [(label(c), getattr(c, 'item', c).disabled) for c in it2.log[1][4].children]
     assert final == [(labels[0], True), ("❌ Didn't go · HAMNET", True)]
-    assert len(it2.log) == 1                                                                 # "didn't go": nothing extra
+    assert len(it2.log) == 2                                                                 # "didn't go": nothing extra
 
 
 def test_closed_dms_ask_after_the_next_command(asked):

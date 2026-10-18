@@ -111,10 +111,16 @@ class Interaction:
             async def edit_message(self, view=None, **k):
                 outer.log.append(('edit', view))
 
+            def is_done(self):
+                return any(e[0] in ('defer', 'reply', 'edit') for e in outer.log)
+
         class F:
             async def send(self, content=None, ephemeral=False, embed=None, view=None, **k):
                 outer.log.append(('followup', ephemeral, content, view))
         self.response, self.followup = R(), F()
+
+    async def edit_original_response(self, view=None, **k):     # the edit after a defer
+        self.log.append(('edit', view))
 
 
 @pytest.fixture

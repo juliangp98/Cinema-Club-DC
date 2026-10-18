@@ -77,6 +77,9 @@ class Interaction:
             async def send_message(self, content=None, ephemeral=False, view=None, embed=None, **k):
                 outer.log.append(('reply', ephemeral, content, embed, view))
 
+            def is_done(self):
+                return any(e[0] in ('defer', 'reply') for e in outer.log)
+
         class F:
             async def send(self, content=None, ephemeral=False, embed=None, view=None, **k):
                 outer.log.append(('followup', ephemeral, content, embed, view))

@@ -86,7 +86,7 @@ def test_surprise_and_spin_again_until_none_are_left(bot_with_films):
     button = run(bot.SpinButton.from_custom_id(None, None, re.fullmatch(bot.SURPRISE_ID, spin.custom_id)))
     it3 = FakeInteraction()
     run(button.callback(it3))
-    assert it3.last[0] == 'message' and 'no more spins' in it3.last[1]
+    assert it3.last[0] == 'followup' and 'no more spins' in it3.last[1] and it3.last[2]['ephemeral']
 
 
 def test_surprise_with_nothing_playing(bot_with_films):
