@@ -1626,7 +1626,7 @@ async def polls(interaction: discord.Interaction):
     except ApiError:
         open_polls = []
     if not open_polls:
-        await interaction.followup.send(f'No open polls right now. Start one: {SITE_URL}/polls')
+        await interaction.followup.send(f'No open polls right now. Start one: {SITE_URL}/play#polls')
         return
     lines = [f"🗳️ **{p['title']}** — {p.get('category_count', 0)} categories · {SITE_URL}/polls/{p['id']}"
              for p in open_polls[:10]]

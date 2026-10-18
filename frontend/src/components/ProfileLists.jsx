@@ -1,18 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { accountLabel } from "../accountLabel";
-import Sheet from "../ui/Sheet";
-import Avatar from "../ui/Avatar";
 import { fullDate, dayDateTime } from "../dates";
 import { attend, getJson } from "../api";
-import TasteChips, { TasteMatch } from "../ui/TasteChips";
+import { TasteMatch } from "../ui/TasteChips";
+
+// A member's lists (R15: shared by their page, /people/<id>, and your own Me
+// page): watchlist, going, watch history, and — on someone else's — Compare.
+// `onOpen(showtimeId)` opens a screening in place.
 
 const formatDate = fullDate, formatWhen = dayDateTime;
-
-// Outside the calendar, opening a screening means going there (its deep link).
-function openOnCalendar(showtimeId) {
-  window.location.assign(`/calendar?showtime=${showtimeId}`);
-}
 
 function useList(url) {
   const [data, setData] = useState(null);
@@ -156,7 +152,7 @@ export function HistoryTab({ userId, apiBase, onOpen, onChange }) {
 }
 
 // Where you and this member line up — for planning outings together.
-function CompareTab({ userId, apiBase, onOpen }) {
+export function CompareTab({ userId, apiBase, onOpen }) {
   const [data] = useList(`${apiBase}/api/users/${userId}/compare`);
   if (!data || data.error) return <ListState data={data} />;
   const name = data.name;
@@ -184,120 +180,29 @@ function CompareTab({ userId, apiBase, onOpen }) {
   ))}</>;
 }
 
-export default function UserProfileDrawer({ userId, viewerId, apiBase, onClose, onAttendanceChange, onOpenShowtime }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [kernels, setKernels] = useState(null);
-  const own = viewerId != null && viewerId === userId;
+// The tab bar over a member's lists — yours on Me (Watchlist, Going,
+// History), someone's on their page (Compare first). `refreshKey` reloads the
+// lists (after an RSVP or check-in elsewhere on the page).
+export default function ProfileLists({ userId, apiBase, own, onOpen, onChange, refreshKey = 0 }) {
   const tabs = own ? ["Watchlist", "Going", "History"] : ["Compare", "Watchlist", "Going", "History"];
   const [tab, setTab] = useState(tabs[0]);
-  const onOpen = onOpenShowtime || openOnCalendar;
-
-  useEffect(() => {
-    setTab(own ? "Watchlist" : "Compare");
-  }, [userId, own]);
-
-  useEffect(() => {
-    if (!userId) return;
-    setLoading(true);
-    setError("");
-    setUser(null);
-    setKernels(null);
-    Promise.all([
-      getJson(`${apiBase}/api/users/${userId}/profile`)
-        .catch(e => { throw new Error(e.data?.error || "Could not load profile"); }),
-      getJson(`${apiBase}/api/users/${userId}/kernels`).catch(() => null),
-    ])
-      .then(([userData, kernelData]) => {
-        setUser(userData);
-        if (kernelData) setKernels(kernelData);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [userId, apiBase]);
-
+  useEffect(() => setTab(own ? "Watchlist" : "Compare"), [userId, own]);
   return (
-    <Sheet onClose={onClose} label={user ? user.name : "Profile"} className="drawer">
-
-        {loading && (
-          <div className="drawer-content drawer-state">Loading profile…</div>
-        )}
-
-        {error && (
-          <div className="drawer-content drawer-state error" role="alert">{error}</div>
-        )}
-
-        {!loading && !error && user && (
-          <div className="drawer-content">
-            <div className="user-profile-header">
-              <Avatar user={user} size={72} />
-              <div className="user-profile-name">{user.name}</div>
-              <div className="user-profile-email">{accountLabel(user)}</div>
-              {kernels !== null && (
-                <div className="profile-kernels-pill">🍿 {kernels.kernels} kernel{kernels.kernels !== 1 ? "s" : ""}</div>
-              )}
-              {kernels?.breakdown && (
-                <small className="profile-kernels-parts">
-                  polls {kernels.breakdown.polls} · going out {kernels.breakdown.going_out}
-                  {kernels.breakdown.trivia ? ` · trivia ${kernels.breakdown.trivia}` : ""}
-                  {kernels.breakdown.bingo ? ` · bingo ${kernels.breakdown.bingo}` : ""} · from members {kernels.breakdown.members}
-                </small>
-              )}
-            </div>
-
-            {user.taste && (
-              <div className="user-profile-section">
-                <div className="drawer-section-label">Taste</div>
-                <TasteMatch match={user.taste_match} />
-                <TasteChips taste={user.taste} empty={<p className="ui-hint">Nothing picked yet.</p>} />
-              </div>
-            )}
-
-            <div className="user-profile-section">
-              <div className="drawer-section-label">Bio</div>
-              <div className="user-profile-bio">
-                {user.bio || "No bio yet."}
-              </div>
-            </div>
-
-            {user.letterboxd_username && (
-              <div className="user-profile-section">
-                <a
-                  className="user-profile-letterboxd"
-                  href={`https://letterboxd.com/${user.letterboxd_username}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  ▤ {user.letterboxd_username} on Letterboxd
-                </a>
-              </div>
-            )}
-
-            <div className="profile-tabs" role="tablist">
-              {tabs.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === t}
-                  className={`profile-tab${tab === t ? " active" : ""}`}
-                  onClick={() => setTab(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <div className="profile-tab-panel" role="tabpanel">
-              {tab === "Compare" && <CompareTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
-              {tab === "Watchlist" && <WatchlistTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
-              {tab === "Going" && <GoingTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
-              {tab === "History" && (
-                <HistoryTab userId={userId} apiBase={apiBase} onOpen={onOpen} onChange={onAttendanceChange} />
-              )}
-            </div>
-          </div>
-        )}
-    </Sheet>
+    <>
+      <div className="profile-tabs" role="tablist">
+        {tabs.map(t => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t}
+                  className={`profile-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <div className="profile-tab-panel" role="tabpanel" key={`${tab}-${refreshKey}`}>
+        {tab === "Compare" && <CompareTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
+        {tab === "Watchlist" && <WatchlistTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
+        {tab === "Going" && <GoingTab userId={userId} apiBase={apiBase} onOpen={onOpen} />}
+        {tab === "History" && <HistoryTab userId={userId} apiBase={apiBase} onOpen={onOpen} onChange={onChange} />}
+      </div>
+    </>
   );
 }

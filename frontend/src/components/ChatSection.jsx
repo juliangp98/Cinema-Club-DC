@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useShell } from "../shell/AppShell";
 import { shareToDiscord } from "../ui/DiscordShare";
+import { Link } from "react-router-dom";
 import { AvatarFace, initialsStyle } from "../ui/Avatar";
+import PersonLink, { personPath } from "../ui/PersonLink";
 import { ago } from "../dates";
 import { getJson, send } from "../api";
 
@@ -18,7 +20,7 @@ function writeLast(on) { try { localStorage.setItem(LAST_CHOICE, on ? "1" : "0")
 // `discord` (the screening's Discord block; absent outside the Discord
 // server's group) turns on the Discord choices: with a thread, an "also post
 // in the Discord thread" box; without one, "Start a Discord thread".
-export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfile, discordThreadUrl, discord, readOnly = false }) {
+export default function ChatSection({ showtimeId, groupId, apiBase, discordThreadUrl, discord, readOnly = false }) {
   const shell = useShell();
   const pref = shell?.user?.share_prefs?.comment || "ask";
   const [threadUrl, setThreadUrl] = useState(discordThreadUrl);
@@ -159,19 +161,13 @@ export default function ChatSection({ showtimeId, groupId, apiBase, onViewProfil
         )}
         {messages.map(m => (
           <div key={m.id} className="chat-bubble">
-            <div
-              className="chat-avatar clickable"
-              style={initialsStyle(m.user.avatar_color)}
-              onClick={() => onViewProfile?.(m.user.id)}
-            >
+            <Link className="chat-avatar clickable" style={initialsStyle(m.user.avatar_color)}
+                  to={personPath(m.user.id)} aria-label={`${m.user.name}'s profile`}>
               <AvatarFace user={m.user} />
-            </div>
+            </Link>
             <div className="chat-bubble-content">
               <div className="chat-bubble-header">
-                <span
-                  className="chat-name clickable"
-                  onClick={() => onViewProfile?.(m.user.id)}
-                >{m.user.name}</span>
+                <PersonLink user={m.user} className="chat-name" />
                 {m.via_discord && <span className="ui-badge discord" title="Posted in the Discord thread">via Discord</span>}
                 <span className="chat-time">{timeAgo(m.created_at)}</span>
                 {m.can_delete && (

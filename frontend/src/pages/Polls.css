@@ -6,7 +6,8 @@
 .pv-desc { color: var(--cream); margin: -0.5rem 0 1rem; }
 
 /* List */
-.pv-cards { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.5rem; }
+.pv-cards { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+.pv-past-title { margin: 0.5rem 0 0.6rem; font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .pv-card {
   display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 0.9rem;
   background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--card-radius);

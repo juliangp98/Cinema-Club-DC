@@ -4,12 +4,12 @@ import { getJson, send } from "../api";
 import PageHeader from "../ui/PageHeader";
 import Sheet, { SheetTitle } from "../ui/Sheet";
 import Avatar from "../ui/Avatar";
+import PersonLink from "../ui/PersonLink";
 import { Segmented } from "../ui/TicketRow";
 import { PollDiscord } from "../ui/DiscordShare";
-import { SCORING_LABELS, TYPE_LABELS } from "./PollsPage";
+import { SCORING_LABELS, TYPE_LABELS, POLL_STATUS as STATUS } from "../components/PollList";
 import "./Polls.css";
 
-const STATUS = { open: "Open", closed: "Voting closed", scored: "Results in" };
 const LAYOUTS = [{ status: "one", label: "One at a time" }, { status: "all", label: "All" }];
 const LAYOUT_KEY = "cinemaclub_ballot_layout";
 
@@ -289,7 +289,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
     if (!window.confirm("Delete this poll? This cannot be undone.")) return;
     try {
       await send(`${apiBase}/api/polls/${pollId}`, "DELETE");
-      navigate("/polls");
+      navigate("/play#polls");
     } catch { /* ignore */ }
   }
 
@@ -332,7 +332,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
   const chooseLayout = v => { if (!v) return; setLayout(v); try { localStorage.setItem(LAYOUT_KEY, v); } catch { /* private mode */ } };
 
   if (loading) return null;
-  if (!poll) { navigate("/polls"); return null; }
+  if (!poll) { navigate("/play#polls"); return null; }
 
   const cats = poll.categories || [];
   const mode = poll.scoring_mode;
@@ -356,7 +356,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
 
   return (
     <div className="page narrow polls">
-      <PageHeader title={poll.title} back={{ to: "/polls", label: "Polls" }}
+      <PageHeader title={poll.title} back={{ to: "/play#polls", label: "Play" }}
                   meta={[{ label: STATUS[poll.status] || poll.status, gold: poll.status === "open" },
                          { label: TYPE_LABELS[poll.poll_type] || "Poll" }, { label: SCORING_LABELS[mode] },
                          { label: `${totalCategories} ${totalCategories === 1 ? "category" : "categories"}` }]} />
@@ -492,8 +492,8 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
           {leaderboard.map((entry, i) => (
             <div key={entry.user.id} className={`pv-board-row${entry.user.id === user.id ? " me" : ""}`}>
               <span className="pv-board-rank">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
-              <Avatar user={entry.user} size={28} />
-              <span className="pv-board-name">{entry.user.name}</span>
+              <Avatar user={entry.user} size={28} link />
+              <PersonLink user={entry.user} className="pv-board-name" />
               <span className="pv-board-stats">{entry.correct}/{entry.total} correct</span>
               <span className="pv-board-kernels">{entry.kernels} 🍿</span>
             </div>

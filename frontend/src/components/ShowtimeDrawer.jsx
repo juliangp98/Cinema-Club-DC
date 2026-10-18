@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Sheet from "../ui/Sheet";
 import TicketRow from "../ui/TicketRow";
 import Avatar from "../ui/Avatar";
+import { personPath } from "../ui/PersonLink";
 import ReactionBar from "./ReactionBar";
 import ScreeningNotes from "../ui/ScreeningNotes";
 import ChatSection from "./ChatSection";
@@ -42,7 +43,7 @@ function dedupeUsers(showtimes, field) {
 // club, R5a) there's no discussion or who's going, just anonymous counts; your
 // RSVP, watchlist and reactions are personal (a visitor's first one makes a
 // private guest profile, R5b).
-export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onAttendance, onViewProfile }) {
+export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onClose, onRsvp, onAttendance }) {
   const primary = showtimes[0];
   const { movie, theatre } = primary;
   const [reactions, setReactions] = useState(primary.reactions || {});
@@ -164,11 +165,10 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
                 <span className="drawer-section-label">{label} ({list.length})</span>
                 <div className="attendee-list">
                   {list.map(a => (
-                    <button key={a.id} type="button" className={`attendee-chip clickable${label === "Maybe" ? " maybe" : ""}`}
-                            onClick={() => onViewProfile?.(a.id)}>
+                    <Link key={a.id} to={personPath(a.id)} className={`attendee-chip clickable${label === "Maybe" ? " maybe" : ""}`}>
                       <Avatar user={a} size={24} />
                       {a.name}
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -192,7 +192,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
         {club && <Collapsible title="Reactions & discussion" defaultOpen>
           <ReactionBar reactions={reactions} showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onUpdate={setReactions}
                        readOnly={readOnly} />
-          <ChatSection showtimeId={primary.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
+          <ChatSection showtimeId={primary.id} groupId={groupId} apiBase={apiBase}
                        discordThreadUrl={primary.discord_thread_url} discord={readOnly ? null : primary.discord} readOnly={readOnly} />
         </Collapsible>}
 

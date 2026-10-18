@@ -29,7 +29,7 @@ const SECTIONS = [
   ] },
   { id: "lists", title: "Your lists", items: [
     ["What's the watchlist for?", "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can get an alert; your club can see what you want to see too."],
-    ["Where are my plans and history?", "On the Me page: your watchlist, what you're going to, and your watch history. On someone's profile, Compare shows what you both want to see and are going to."],
+    ["Where are my plans and history?", "On the Me page: your watchlist, what you're going to, and your watch history. Tap anyone's picture or name to open their page — its Compare shows what you both want to see and are going to."],
   ] },
   { id: "taste", title: "Your taste", items: [
     ["What is Your taste?", "What you like, so the site can pick films for you: genres you love and ones you're not into, how you like to watch (on film, 70mm and IMAX, Q&As, classics, late shows…), favorite theatres, and favorite films, directors, actors and writers. Pick as much or as little as you like."],
@@ -49,8 +49,8 @@ const SECTIONS = [
     ["What are screening notes?", "If your club turns them on, people who checked in to a screening can tag the night — gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."],
   ] },
   { id: "games", title: "Play: polls, trivia, bingo and kernels", items: [
-    ["Where are the games?", "On the Play page (Play in the menu). Polls are always there; trivia and bingo appear once a club admin turns them on in Club settings."],
-    ["How do polls work?", "Pick your answers before a poll closes. Some polls are scored once the results are in: single picks, confidence (stake 1–10 kernels on each pick) or ranked. Organizers and admins make polls."],
+    ["Where are the games?", "On the Play page (Play in the menu). Every poll is there — open ones to vote in, and past ones with their results; trivia and bingo appear once a club admin turns them on in Club settings."],
+    ["How do polls work?", "Pick your answers before a poll closes. Some polls are scored once the results are in: single picks, confidence (stake 1–10 kernels on each pick) or ranked. Organizers and admins make polls (＋ New poll on Play)."],
     ["How does trivia work?", "A question of the day for the whole club (+2 kernels for a right answer), and — if your club allows it — anytime questions whenever you like (+1 each, up to 5 a day). One try each. Questions come from the films on the calendar and classic movie quotes."],
     ["How does repertory bingo work?", "One card a month for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more."],
     ["Do the games post in the club's Discord?", "Only if a club admin says so, in Club settings: the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Posts never ping anyone."],

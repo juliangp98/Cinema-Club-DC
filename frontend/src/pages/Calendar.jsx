@@ -7,7 +7,6 @@ import SearchBox from "../ui/SearchBox";
 import Avatar from "../ui/Avatar";
 import { Segmented } from "../ui/TicketRow";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
-import UserProfileDrawer from "../components/UserProfileDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
 import "./DiscoverPage.css";        // the Filters sheet looks the same as Browse's
 import "./Calendar.css";
@@ -214,7 +213,6 @@ export default function Calendar({ user, apiBase, groupId }) {
   const [theatreNames, setTheatreNames] = useState({});
   const [members, setMembers] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [profileUserId, setProfileUserId] = useState(null);
   const [attendanceKey, setAttendanceKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expanded, setExpanded] = useState(new Set());   // Week days showing every film
@@ -510,14 +508,7 @@ export default function Calendar({ user, apiBase, groupId }) {
 
       {selected && (
         <ShowtimeDrawer showtimes={selected} user={user} groupId={groupId} apiBase={apiBase}
-                        onClose={() => setSelected(null)} onRsvp={handleRsvp} onAttendance={handleAttendance}
-                        onViewProfile={setProfileUserId} />
-      )}
-      {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user?.id} apiBase={apiBase}
-                           onClose={() => setProfileUserId(null)}
-                           onAttendanceChange={() => setAttendanceKey(k => k + 1)}
-                           onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }} />
+                        onClose={() => setSelected(null)} onRsvp={handleRsvp} onAttendance={handleAttendance} />
       )}
     </div>
   );

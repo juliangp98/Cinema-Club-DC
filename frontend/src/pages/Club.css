@@ -14,7 +14,7 @@
 .club-row {
   width: 100%; display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0.75rem;
   background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
-  color: var(--cream); text-align: left; font: inherit;
+  color: var(--cream); text-align: left; font: inherit; text-decoration: none;
 }
 .club-row.clickable { cursor: pointer; }
 .club-row.clickable:hover { border-color: var(--border-strong); }

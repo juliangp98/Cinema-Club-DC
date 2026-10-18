@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
-import { SectionTitle } from "../ui/PageHeader";
+import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
+import { Link, useParams } from "react-router-dom";
+import { BackLink, SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
-import UserProfileDrawer from "../components/UserProfileDrawer";
+import PersonLink from "../ui/PersonLink";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
 import Poster from "../ui/Poster";
@@ -19,15 +19,16 @@ import { longDayDate, time, monthDay } from "../dates";
 const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
 
-function People({ label, people, onView }) {
+function People({ label, people }) {
   if (!people.length) return null;
   return (
     <div className="film-club-group">
       <span className="film-club-label">{label}</span>
       <div className="film-club-people">
-        {people.slice(0, 8).map(p => <Avatar key={p.id} user={p} size={28} onClick={() => onView(p.id)} />)}
+        {people.slice(0, 8).map(p => <Avatar key={p.id} user={p} size={28} link />)}
         <span className="film-club-names">
-          {people.slice(0, 3).map(p => p.name).join(", ")}{people.length > 3 ? ` +${people.length - 3}` : ""}
+          {people.slice(0, 3).map((p, i) => <Fragment key={p.id}>{i > 0 && ", "}<PersonLink user={p} /></Fragment>)}
+          {people.length > 3 ? ` +${people.length - 3}` : ""}
         </span>
       </div>
     </div>
@@ -38,13 +39,11 @@ function People({ label, people, onView }) {
 // and where the club stands on it. Showings open the screening sheet to RSVP.
 export default function FilmPage({ user, apiBase, groupId }) {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [theatre, setTheatre] = useState("all");
   const [showAll, setShowAll] = useState(false);       // a crowded film's every showtime at once
   const [watching, setWatching] = useState(false);
   const [watchPrompt, setWatchPrompt] = useState(null);     // {alerts, digest}: what to ask after a watchlist add
   const [copied, setCopied] = useState(false);
-  const [profileUserId, setProfileUserId] = useState(null);
   const shell = useShell();
 
   const { data, error: loadError, reload: load } = useJson(`${apiBase}/api/films/${id}?${groupParam(groupId)}`);
@@ -53,7 +52,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const missing = loadError?.status === 404;
 
   const { openShowtime, sheet } = useShowtimeSheet({
-    user, apiBase, groupId, onViewProfile: setProfileUserId, onChange: load,
+    user, apiBase, groupId, onChange: load,
   });
 
   const theatres = useMemo(() => {
@@ -114,7 +113,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
     return (
       <div className="page narrow film-empty">
         <p>That film isn't in our listings.</p>
-        <button className="btn" onClick={() => navigate(-1)}>‹ Back</button>
+        <Link className="btn" to="/">Go to Discover</Link>
       </div>
     );
   }
@@ -129,7 +128,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
       <section className={`film-hero${movie.backdrop_url ? "" : " no-backdrop"}`}>
         {movie.backdrop_url && <img className="film-backdrop" src={movie.backdrop_url} alt="" />}
         <div className="film-hero-inner">
-          <button className="ui-page-back" onClick={() => navigate(-1)}>‹ Back</button>
+          <BackLink />
           <div className="film-hero-row">
             <Poster movie={movie} className="film-poster" loading="eager" />
             <div className="film-hero-text">
@@ -166,9 +165,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
       <div className="page film-body">
         {hasClub > 0 && (
           <section className="film-club">
-            <People label="Going" people={club.going} onView={setProfileUserId} />
-            <People label="Want to see it" people={club.wanters} onView={setProfileUserId} />
-            <People label="Seen it" people={club.seen} onView={setProfileUserId} />
+            <People label="Going" people={club.going} />
+            <People label="Want to see it" people={club.wanters} />
+            <People label="Seen it" people={club.seen} />
           </section>
         )}
 
@@ -260,11 +259,6 @@ export default function FilmPage({ user, apiBase, groupId }) {
       </div>
 
       {sheet}
-      {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user?.id} apiBase={apiBase}
-                           onClose={() => setProfileUserId(null)}
-                           onOpenShowtime={sid => { setProfileUserId(null); openShowtime(sid); }} />
-      )}
     </div>
   );
 }

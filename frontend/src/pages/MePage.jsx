@@ -5,25 +5,20 @@ import Avatar from "../ui/Avatar";
 import Panel from "../ui/Panel";
 import { EditIcon, LogoutIcon, CompassIcon, HelpIcon, TheatreIcon } from "../ui/icons";
 import { ClubBadge } from "../ui/Avatar";
-import { WatchlistTab, GoingTab, HistoryTab } from "../components/UserProfileDrawer";
-import UserProfileDrawer from "../components/UserProfileDrawer";
+import ProfileLists from "../components/ProfileLists";
 import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { accountLabel } from "../accountLabel";
 import CalendarLinks from "../components/CalendarLinks";
-
-const TABS = ["Watchlist", "Going", "History"];
 
 // "Me": your profile, your lists, and your group's pages — one place to find
 // what used to hide in the avatar and group dropdowns.
 export default function MePage({ user, apiBase, groupId }) {
   const { editProfile, logout, group, startTour } = useShell();
   const navigate = useNavigate();
-  const [tab, setTab] = useState("Watchlist");
-  const [profileUserId, setProfileUserId] = useState(null);
   const [listKey, setListKey] = useState(0);   // refresh lists after RSVP / check-in changes
   const { openShowtime, sheet } = useShowtimeSheet({
-    user, apiBase, groupId, onViewProfile: setProfileUserId, onChange: () => setListKey(k => k + 1),
+    user, apiBase, groupId, onChange: () => setListKey(k => k + 1),
   });
 
   return (
@@ -51,21 +46,8 @@ export default function MePage({ user, apiBase, groupId }) {
       </section>
 
       <SectionTitle>Your lists</SectionTitle>
-      <div className="profile-tabs" role="tablist">
-        {TABS.map(t => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t}
-                  className={`profile-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
-            {t}
-          </button>
-        ))}
-      </div>
-      <div className="profile-tab-panel" role="tabpanel" key={`${tab}-${listKey}`}>
-        {tab === "Watchlist" && <WatchlistTab userId={user.id} apiBase={apiBase} onOpen={openShowtime} />}
-        {tab === "Going" && <GoingTab userId={user.id} apiBase={apiBase} onOpen={openShowtime} />}
-        {tab === "History" && (
-          <HistoryTab userId={user.id} apiBase={apiBase} onOpen={openShowtime} onChange={() => setListKey(k => k + 1)} />
-        )}
-      </div>
+      <ProfileLists userId={user.id} apiBase={apiBase} own onOpen={openShowtime}
+                    onChange={() => setListKey(k => k + 1)} refreshKey={listKey} />
 
       {!user.is_guest && (
         <div className="me-block">
@@ -112,11 +94,6 @@ export default function MePage({ user, apiBase, groupId }) {
       </div>
 
       {sheet}
-      {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user.id} apiBase={apiBase}
-                           onClose={() => setProfileUserId(null)}
-                           onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }} />
-      )}
     </div>
   );
 }

@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
-import UserProfileDrawer from "../components/UserProfileDrawer";
 import ReactionBar from "../components/ReactionBar";
 import ChatSection from "../components/ChatSection";
 import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
+import PersonLink, { personPath } from "../ui/PersonLink";
 import { ago, dayDateTime } from "../dates";
 import { getJson, send, rsvp, attend } from "../api";
 import { stars } from "../ui/stars";
@@ -15,13 +15,20 @@ import { NOTE_TAGS } from "../ui/ScreeningNotes";
 const timeAgo = ago, formatWhen = dayDateTime;
 
 // "You, Ana +2" — the viewer reads as "You".
-function names(users, viewerId, max = 2) {
-  const labels = users.map(u => (u.id === viewerId ? "You" : u.name));
-  if (labels.length <= max) {
-    return labels.length === 2 ? `${labels[0]} and ${labels[1]}` : labels.join("");
-  }
-  return `${labels.slice(0, max).join(", ")} +${labels.length - max}`;
+// Members by name, each a link to their page (R15): "You", "Ana and Bo",
+// "Ana, Bo and Cy", "Ana, Bo +3".
+function Names({ users, viewerId, max = 2 }) {
+  const shown = users.slice(0, max);
+  const extra = users.length - shown.length;
+  return <>{shown.map((u, i) => (
+    <Fragment key={u.id}>
+      {i > 0 && (i === shown.length - 1 && !extra ? " and " : ", ")}
+      {u.id === viewerId ? "You" : <PersonLink user={u} />}
+    </Fragment>
+  ))}{extra > 0 && ` +${extra}`}</>;
 }
+
+const Who = ({ user, viewerId }) => (user.id === viewerId ? "You" : <PersonLink user={user} />);
 
 const pluralVerb = (users, viewerId, one, many) =>
   users.length === 1 && users[0].id !== viewerId ? one : many;
@@ -52,7 +59,7 @@ export function KernelPanel({ people, allowance, error, busy, onToss }) {
       <ul className="kernel-rows">
         {people.map(p => (
           <li key={p.user.id} className="kernel-row">
-            <span className="kernel-who"><strong>{p.user.name}</strong> {DID[p.did]}</span>
+            <span className="kernel-who"><strong><PersonLink user={p.user} /></strong> {DID[p.did]}</span>
             <span className="kernel-net" title="Kernels from members for this screening">🍿 {signed(p.net)}</span>
             <span className="kernel-buttons" role="group" aria-label={`Kernels for ${p.user.name}`}>
               <button type="button" className="kernel-btn" onClick={() => onToss(p.user.id, -1)}
@@ -71,20 +78,14 @@ export function KernelPanel({ people, allowance, error, busy, onToss }) {
   );
 }
 
-function Avatars({ users, onViewProfile, max = 5 }) {
+function Avatars({ users, max = 5 }) {
   return (
     <span className="feed-avatars">
       {users.slice(0, max).map(u => (
-        <button
-          key={u.id}
-          type="button"
-          className="feed-avatar"
-          style={initialsStyle(u.avatar_color)}
-          title={u.discord_only ? `${u.name} (Discord)` : u.name}
-          onClick={() => onViewProfile(u.id)}
-        >
+        <Link key={u.id} to={personPath(u.id)} className="feed-avatar" style={initialsStyle(u.avatar_color)}
+              title={u.discord_only ? `${u.name} (Discord)` : u.name} aria-label={`${u.name}'s profile`}>
           <AvatarFace user={u} />
-        </button>
+        </Link>
       ))}
     </span>
   );
@@ -99,7 +100,7 @@ function CardHead({ at, children }) {
   );
 }
 
-function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, onOpen, onViewProfile, onReactions,
+function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, onOpen, onReactions,
                         allowance, onToss }) {
   const [kernelsOpen, setKernelsOpen] = useState(false);
   const [kernelError, setKernelError] = useState(null);
@@ -110,13 +111,15 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
   const going = s.attendees || [];
   const maybes = s.maybes || [];
   let headline;
-  if (past && card.went.length) headline = `🍿 ${names(card.went, viewerId)} went`;
-  else if (past && going.length) headline = `🎟️ ${names(going, viewerId)} ${pluralVerb(going, viewerId, "was", "were")} going`;
-  else if (going.length || maybes.length) {
-    headline = [
-      going.length && `🎟️ ${names(going, viewerId)} ${pluralVerb(going, viewerId, "is", "are")} going`,
-      maybes.length && `${names(maybes, viewerId)} maybe`,
-    ].filter(Boolean).join(" · ");
+  if (past && card.went.length) headline = <>🍿 <Names users={card.went} viewerId={viewerId} /> went</>;
+  else if (past && going.length) {
+    headline = <>🎟️ <Names users={going} viewerId={viewerId} /> {pluralVerb(going, viewerId, "was", "were")} going</>;
+  } else if (going.length || maybes.length) {
+    headline = <>
+      {going.length > 0 && <>🎟️ <Names users={going} viewerId={viewerId} /> {pluralVerb(going, viewerId, "is", "are")} going</>}
+      {going.length > 0 && maybes.length > 0 && " · "}
+      {maybes.length > 0 && <><Names users={maybes} viewerId={viewerId} /> maybe</>}
+    </>;
   } else headline = "💬 Talking about";
   const latest = card.activity[0];
   const reactions = Object.entries(s.reactions || {});
@@ -135,10 +138,10 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
             {formatWhen(s.start_time)} · <TheatreLink theatre={s.theatre} short />
             {s.format_label ? ` · ${s.format_label}` : ""}
           </div>
-          {people.length > 0 && <Avatars users={people} onViewProfile={onViewProfile} />}
+          {people.length > 0 && <Avatars users={people} />}
           {latest && (
             <div className="feed-activity">
-              {latest.user.id === viewerId ? "You" : latest.user.name} {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId, viewerId)}
+              <Who user={latest.user} viewerId={viewerId} /> {ACTIVITY[latest.kind]?.(latest, latest.user.id === viewerId, viewerId)}
             </div>
           )}
           {card.notes?.length > 0 && (
@@ -149,7 +152,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {card.letterboxd?.length > 0 && (
             <div className="feed-activity feed-diary">
               📓 {card.letterboxd.map((r, i) => (
-                <span key={r.user.id}>{i > 0 && " · "}{r.user.id === viewerId ? "You" : r.user.name}{" "}
+                <span key={r.user.id}>{i > 0 && " · "}<Who user={r.user} viewerId={viewerId} />{" "}
                   {r.link ? <a href={r.link} target="_blank" rel="noreferrer">{stars(r.rating) || "on Letterboxd"}</a> : stars(r.rating)}
                 </span>
               ))}
@@ -161,7 +164,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
       {expanded ? (
         <div className="feed-discussion">
           <ReactionBar reactions={s.reactions || {}} showtimeId={s.id} groupId={groupId} apiBase={apiBase} onUpdate={onReactions} />
-          <ChatSection showtimeId={s.id} groupId={groupId} apiBase={apiBase} onViewProfile={onViewProfile}
+          <ChatSection showtimeId={s.id} groupId={groupId} apiBase={apiBase}
                        discordThreadUrl={s.discord_thread_url} discord={s.discord} />
         </div>
       ) : (
@@ -212,14 +215,14 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
   );
 }
 
-function WatchlistCard({ card, viewerId, onOpenShowtime, onViewProfile }) {
+function WatchlistCard({ card, viewerId, onOpenShowtime }) {
   const { movie, users, next } = card;
   const youAdded = users.some(u => u.id === viewerId);
   const whose = users.length === 1 ? (youAdded ? "your watchlist" : "their watchlist") : "their watchlists";
   const others = card.wanters - users.length;
   return (
     <article className="feed-card">
-      <CardHead at={card.at}>🎯 {names(users, viewerId)} added this to {whose}</CardHead>
+      <CardHead at={card.at}>🎯 <Names users={users} viewerId={viewerId} /> added this to {whose}</CardHead>
       <div className="feed-card-main">
         <Link className="feed-poster" to={`/films/${movie.id}`} aria-label={movie.title}>
           <Poster movie={movie} className="feed-poster-img" />
@@ -231,7 +234,7 @@ function WatchlistCard({ card, viewerId, onOpenShowtime, onViewProfile }) {
           <div className="feed-meta">
             {next ? `Next: ${formatWhen(next.start_time)} · ${next.theatre}` : "No showings scheduled yet"}
           </div>
-          <Avatars users={users} onViewProfile={onViewProfile} />
+          <Avatars users={users} />
           {(others > 0 || (card.viewer_wants && !youAdded)) && (
             <div className="feed-activity">
               {others > 0 && `${others} more ${others === 1 ? "member wants" : "members want"} to see it`}
@@ -280,13 +283,13 @@ function PollCard({ card, onOpenPoll }) {
   );
 }
 
-function JoinedCard({ card, viewerId, onViewProfile }) {
+function JoinedCard({ card, viewerId }) {
   const viaDiscord = card.users.filter(u => u.discord_only).length;
   return (
     <article className="feed-card">
-      <CardHead at={card.at}>👋 {names(card.users, viewerId, 3)} joined the club</CardHead>
+      <CardHead at={card.at}>👋 <Names users={card.users} viewerId={viewerId} max={3} /> joined the club</CardHead>
       <div className="feed-card-body">
-        <Avatars users={card.users} onViewProfile={onViewProfile} max={8} />
+        <Avatars users={card.users} max={8} />
         {viaDiscord > 0 && (
           <div className="feed-activity">
             {viaDiscord === card.users.length ? "via Discord" : `${viaDiscord} via Discord`}
@@ -298,23 +301,23 @@ function JoinedCard({ card, viewerId, onViewProfile }) {
 }
 
 // Who got bingo on a month's card (R10e).
-function BingoFeedCard({ card, viewerId, onViewProfile }) {
+function BingoFeedCard({ card, viewerId }) {
   const lines = card.winners.filter(w => w.kind === "line").map(w => w.user);
   const full = card.winners.filter(w => w.kind === "full").map(w => w.user);
   return (
     <article className="feed-card feed-recap">
       <CardHead at={card.at}>🎱 Repertory bingo · {card.month_label}</CardHead>
       <div className="feed-card-body">
-        <Avatars users={card.winners.map(w => w.user)} onViewProfile={onViewProfile} max={8} />
-        {full.length > 0 && <div className="feed-activity">🎉🎉 {names(full, viewerId, 3)} filled the whole card</div>}
-        {lines.length > 0 && <div className="feed-activity">🎉 {names(lines, viewerId, 3)} got bingo</div>}
+        <Avatars users={card.winners.map(w => w.user)} max={8} />
+        {full.length > 0 && <div className="feed-activity">🎉🎉 <Names users={full} viewerId={viewerId} max={3} /> filled the whole card</div>}
+        {lines.length > 0 && <div className="feed-activity">🎉 <Names users={lines} viewerId={viewerId} max={3} /> got bingo</div>}
       </div>
     </article>
   );
 }
 
 // Monday's "last week in the club" (R10c).
-function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
+function RecapCard({ card, viewerId, onOpenShowtime }) {
   const r = card.recap;
   const monday = new Date(`${r.week_of}T00:00`);
   const from = new Date(monday.getTime() - 7 * 864e5);
@@ -335,15 +338,13 @@ function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
             <button type="button" className="linkish" onClick={() => onOpenShowtime(r.top.screening.showtime_id)}>
               {r.top.screening.title}
             </button>{" "}
-            ({r.top.screening.theatre}) — {names(r.top.users, viewerId, 3)}
+            ({r.top.screening.theatre}) — <Names users={r.top.users} viewerId={viewerId} max={3} />
           </li>
         )}
         {r.kernels.length > 0 && (
           <li>🍿 Most kernels from members: {r.kernels.map((k, i) => (
             <span key={k.user.id}>{i > 0 && ", "}
-              <button type="button" className="linkish" onClick={() => onViewProfile(k.user.id)}>
-                {k.user.id === viewerId ? "you" : k.user.name}
-              </button> +{k.amount}</span>
+              {k.user.id === viewerId ? "you" : <PersonLink user={k.user} />} +{k.amount}</span>
           ))}</li>
         )}
         {r.polls.map(p => (
@@ -353,8 +354,8 @@ function RecapCard({ card, viewerId, onViewProfile, onOpenShowtime }) {
           <li>{[r.plans > 0 && `🎟️ ${plural(r.plans, "plan")} made`, r.comments > 0 && `💬 ${plural(r.comments, "comment")}`]
             .filter(Boolean).join(" · ")}</li>
         )}
-        {r.bingo?.length > 0 && <li>🎱 Bingo: {names(r.bingo, viewerId, 4)}</li>}
-        {r.joined.length > 0 && <li>👋 Welcome, {names(r.joined, viewerId, 4)}</li>}
+        {r.bingo?.length > 0 && <li>🎱 Bingo: <Names users={r.bingo} viewerId={viewerId} max={4} /></li>}
+        {r.joined.length > 0 && <li>👋 Welcome, <Names users={r.joined} viewerId={viewerId} max={4} /></li>}
       </ul>
     </article>
   );
@@ -376,7 +377,6 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
   const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState(null);     // one open discussion at a time
   const [selected, setSelected] = useState(null);     // showtimes for the drawer
-  const [profileUserId, setProfileUserId] = useState(null);
   const [allowance, setAllowance] = useState(null);   // this week's kernels to give / take
   const [lastSeen] = useState(() => (divider ? readSeen(groupId) : null));   // as of this visit
   const [loadingMore, setLoadingMore] = useState(false);
@@ -505,7 +505,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
   }
 
   function renderCard(card) {
-    const common = { card, viewerId: user.id, onViewProfile: setProfileUserId };
+    const common = { card, viewerId: user.id };
     switch (card.type) {
       case "screening":
         return (
@@ -580,20 +580,9 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
           onClose={() => setSelected(null)}
           onRsvp={handleRsvp}
           onAttendance={handleAttendance}
-          onViewProfile={setProfileUserId}
         />
       )}
 
-      {profileUserId && (
-        <UserProfileDrawer
-          userId={profileUserId}
-          viewerId={user.id}
-          apiBase={apiBase}
-          onClose={() => setProfileUserId(null)}
-          onAttendanceChange={reload}
-          onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }}
-        />
-      )}
     </div>
   );
 }

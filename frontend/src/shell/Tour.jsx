@@ -32,7 +32,7 @@ const STEPS = [
   { target: "nav:/feed", page: "/feed", title: "Feed", club: true,
     body: "What the club's up to — plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
   { target: "nav:/play", page: "/play", title: "Play", club: true,
-    body: "Polls, plus trivia and bingo when your club turns them on — with your kernels and the leaderboard." },
+    body: "Every poll, open and past, plus trivia and bingo when your club turns them on — with your kernels and the leaderboard." },
   { target: "nav:/theatres", page: "/theatres", title: "Theatres",
     body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
   { target: ".topbar-groupmenu", title: "Your clubs", club: true,

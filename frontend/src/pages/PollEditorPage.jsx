@@ -5,7 +5,7 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import { Segmented } from "../ui/TicketRow";
 import { ShareWhen } from "../ui/DiscordShare";
 import { useShell } from "../shell/AppShell";
-import { SCORING_LABELS } from "./PollsPage";
+import { SCORING_LABELS } from "../components/PollList";
 import "./Polls.css";
 
 const TYPES = [{ status: "standard", label: "Opinion" }, { status: "prediction", label: "Prediction" }];
@@ -109,7 +109,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   if (!canRun) {
     return (
       <div className="page narrow">
-        <PageHeader title="New poll" back={{ to: "/polls", label: "Polls" }} />
+        <PageHeader title="New poll" back={{ to: "/play#polls", label: "Play" }} />
         <p className="pv-empty">Organizers and admins make polls. Ask a club admin for the Organizer role.</p>
       </div>
     );
@@ -117,7 +117,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
 
   return (
     <div className="page narrow polls">
-      <PageHeader title="New poll" back={{ to: "/polls", label: "Polls" }} />
+      <PageHeader title="New poll" back={{ to: "/play#polls", label: "Play" }} />
 
       <form className="pv-ask" onSubmit={draft}>
         <label className="pv-label" htmlFor="pv-ask">Describe the poll you want</label>
@@ -201,7 +201,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
         )}
         {error && <p className="share-error">{error}</p>}
         <div className="pv-form-foot">
-          <Link className="btn btn-ghost" to="/polls">Cancel</Link>
+          <Link className="btn btn-ghost" to="/play#polls">Cancel</Link>
           <button className="btn btn-primary" onClick={create} disabled={!ready || saving || (announce.when === "later" && !announce.at)}>
             {saving ? "Creating…" : "Create poll"}
           </button>

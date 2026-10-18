@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SectionTitle } from "../ui/PageHeader";
 import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
+import PersonLink from "../ui/PersonLink";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
 import ToggleChip from "../ui/ToggleChip";
@@ -11,7 +12,7 @@ import { ROLES } from "../roles";
 
 // A club's settings, for its admins (R6b): picture and short name, details and
 // theatres, invites, join requests, members' roles, and deleting the club.
-export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDeleted, onViewProfile }) {
+export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDeleted }) {
   const base = `${apiBase}/api/groups/${group.slug}`;
   const [name, setName] = useState(group.name || "");
   const [description, setDescription] = useState(group.description || "");
@@ -202,7 +203,7 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
           <ul className="club-rows">
             {pending.map(m => (
               <li key={m.id} className="club-row">
-                <Avatar user={m.user} size={34} onClick={() => onViewProfile(m.user.id)} />
+                <Avatar user={m.user} size={34} />{/* not a member yet: no page to open */}
                 <span className="club-row-name">{m.user.name}</span>
                 <span className="club-row-actions">
                   <button className="btn btn-sm btn-primary" onClick={() => run(() => memberAction(`${m.user.id}/approve`))}>Approve</button>
@@ -219,8 +220,8 @@ export default function ClubSettings({ group, apiBase, viewerId, onChanged, onDe
       <ul className="club-rows">
         {active.map(m => (
           <li key={m.id} className="club-row">
-            <Avatar user={m.user} size={34} onClick={() => onViewProfile(m.user.id)} />
-            <span className="club-row-name">{m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}
+            <Avatar user={m.user} size={34} link />
+            <span className="club-row-name"><PersonLink user={m.user} />{m.user.id === viewerId && <span className="club-you"> (you)</span>}
               {m.user.letterboxd_connected && (
                 <small className="club-row-sub">📓 Letterboxd @{m.user.letterboxd_username} ·{" "}
                   <button type="button" className="linkish" onClick={() => {

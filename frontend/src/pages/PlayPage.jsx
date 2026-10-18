@@ -1,40 +1,19 @@
-import { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import TriviaCard from "../ui/TriviaCard";
 import BingoCard from "../ui/BingoCard";
 import Avatar from "../ui/Avatar";
+import PersonLink from "../ui/PersonLink";
+import PollList from "../components/PollList";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
+import useHashScroll from "../useHashScroll";
 
-// Play (R10): the one home for the club's games — trivia, bingo, polls — and
-// your kernels with the standings. The feed's rail and strip (and /play in
-// Discord) lead here.
+// Play (R10): the one home for the club's games — trivia, bingo, polls (R15:
+// all of them, here — /polls leads here) — and your kernels with the
+// standings. The feed's rail and strip (and /play in Discord) lead here.
 
 const PARTS = [["polls", "polls"], ["going_out", "going out"], ["trivia", "trivia"], ["bingo", "bingo"], ["members", "from members"]];
-
-function Polls({ summary, role }) {
-  const polls = summary?.polls || [];
-  return (
-    <>
-      {polls.length ? (
-        <ul className="play-polls">
-          {polls.map(p => (
-            <li key={p.id}>
-              <Link to={`/polls/${p.id}`}>{p.title}</Link>
-              {p.you_voted ? <span className="chip">✓ Voted</span>
-                : <Link to={`/polls/${p.id}`} className="chip gold" aria-label={`Vote in ${p.title}`}>Vote</Link>}
-            </li>
-          ))}
-        </ul>
-      ) : <p className="ui-hint">No open polls right now.</p>}
-      <p className="play-links">
-        <Link to="/polls">All polls and results →</Link>
-        {(role === "organizer" || role === "admin") && <> · <Link to="/polls/new">Make a poll</Link></>}
-      </p>
-    </>
-  );
-}
 
 function Kernels({ apiBase, groupId, viewerId }) {
   const { data: k } = useJson(`${apiBase}/api/kernels?group_id=${groupId}`);
@@ -68,8 +47,8 @@ function Kernels({ apiBase, groupId, viewerId }) {
             {board.slice(0, 5).map((row, i) => (
               <li key={row.user.id} className={row.user.id === viewerId ? "me" : ""}>
                 <span className="club-rank">{i + 1}</span>
-                <Avatar user={row.user} size={26} />
-                <span className="play-board-name">{row.user.name}</span>
+                <Avatar user={row.user} size={26} link />
+                <PersonLink user={row.user} className="play-board-name" />
                 <strong>🍿 {row.kernels}</strong>
               </li>
             ))}
@@ -83,15 +62,11 @@ function Kernels({ apiBase, groupId, viewerId }) {
 
 export default function PlayPage({ user, apiBase, groupId }) {
   const { role } = useShell() || {};
-  const { hash } = useLocation();
+  const canRun = role === "organizer" || role === "admin";
+  // /play#polls and friends land on that game once the page has drawn (the
+  // summary — the feed rail's, so usually cached — says the games are in).
   const { data: summary } = useJson(groupId ? `${apiBase}/api/play?group_id=${groupId}` : null);
-
-  // /play#trivia and friends: land on that game once the page has drawn.
-  useEffect(() => {
-    if (!hash || !summary) return undefined;
-    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: "start" }), 150);
-    return () => clearTimeout(t);
-  }, [hash, summary]);
+  useHashScroll(!!summary);
 
   if (!groupId) {
     return (
@@ -113,8 +88,8 @@ export default function PlayPage({ user, apiBase, groupId }) {
         <BingoCard apiBase={apiBase} groupId={groupId} role={role} offNote />
       </section>
       <section id="polls" className="play-section">
-        <SectionTitle>Polls</SectionTitle>
-        <Polls summary={summary} role={role} />
+        <SectionTitle link={canRun ? { to: "/polls/new", label: "＋ New poll" } : undefined}>Polls</SectionTitle>
+        <PollList apiBase={apiBase} groupId={groupId} canRun={canRun} />
       </section>
       <section id="kernels" className="play-section">
         <SectionTitle>Kernels</SectionTitle>

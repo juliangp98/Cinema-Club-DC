@@ -9,7 +9,6 @@ const Calendar = lazyPage(() => import("./pages/Calendar"));
 const Login = lazyPage(() => import("./pages/Login"));
 const GroupDiscovery = lazyPage(() => import("./pages/GroupDiscovery"));
 const ClubPage = lazyPage(() => import("./pages/ClubPage"));
-const PollsPage = lazyPage(() => import("./pages/PollsPage"));
 const PollDetailPage = lazyPage(() => import("./pages/PollDetailPage"));
 const PollEditorPage = lazyPage(() => import("./pages/PollEditorPage"));
 const VerifySignin = lazyPage(() => import("./pages/VerifySignin"));
@@ -24,6 +23,7 @@ const TheatrePage = lazyPage(() => import("./pages/Theatres"), "TheatrePage");
 const SpotlightsPage = lazyPage(() => import("./pages/DiscoverMore"), "SpotlightsPage");
 const DoublesPage = lazyPage(() => import("./pages/DiscoverMore"), "DoublesPage");
 const StyleguidePage = lazyPage(() => import("./pages/StyleguidePage"));
+const PersonPage = lazyPage(() => import("./pages/PersonPage"));
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 import { clearCache, getJson } from "./api";
@@ -202,6 +202,8 @@ export default function App() {
           <Route path="/feed" element={
             <RequireSignIn user={user}><FeedPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/help" element={<HelpPage />} />
+          <Route path="/people/:id" element={
+            <RequireSignIn user={user}><PersonPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/styleguide" element={<RequireSignIn user={user}><StyleguidePage /></RequireSignIn>} />
           <Route path="/play" element={
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
@@ -210,10 +212,8 @@ export default function App() {
           {/* The Club page has the old Members and Leaderboard pages as tabs (R6b). */}
           <Route path="/members" element={<Navigate to="/club?tab=members" replace />} />
           <Route path="/leaderboard" element={<Navigate to="/club?tab=leaderboard" replace />} />
-          <Route path="/polls" element={
-            <RequireSignIn user={user}>
-              <PollsPage apiBase={API_BASE} activeGroupId={scopeGroupId} />
-            </RequireSignIn>} />
+          {/* Polls live on Play (R15). */}
+          <Route path="/polls" element={<Navigate to="/play#polls" replace />} />
           <Route path="/polls/new" element={
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/polls/:pollId" element={

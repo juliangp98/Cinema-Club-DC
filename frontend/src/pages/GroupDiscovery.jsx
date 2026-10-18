@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { getJson, send } from "../api";
 import ToggleChip from "../ui/ToggleChip";
 import { ClubBadge } from "../ui/Avatar";
-import UserProfileDrawer from "../components/UserProfileDrawer";
 import PageHeader from "../ui/PageHeader";
 
 export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, setGroupId }) {
@@ -32,7 +31,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
 
 
   // Profile drawer
-  const [profileUserId, setProfileUserId] = useState(null);
 
   // User profile menu
 
@@ -309,16 +307,6 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
           )}
         </section>
       </div>
-
-      {/* User profile drawer */}
-      {profileUserId && (
-        <UserProfileDrawer
-          userId={profileUserId}
-          viewerId={user.id}
-          apiBase={apiBase}
-          onClose={() => setProfileUserId(null)}
-        />
-      )}
     </div>
   );
 }

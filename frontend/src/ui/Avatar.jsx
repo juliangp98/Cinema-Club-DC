@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { personPath } from "./PersonLink";
 
 // Initials readable on any avatar color (R9e, WCAG AA 4.5:1): dark ink on
 // light colors, ivory on dark ones; a mid-tone color that suits neither is
@@ -20,8 +22,9 @@ export function initialsStyle(bg) {
 }
 
 // A member's picture (R6b): their photo (an upload or their Discord picture),
-// an emoji, or their initials on their chosen color.
-export default function Avatar({ user, size = 32, onClick, title }) {
+// an emoji, or their initials on their chosen color. `link`: it opens their
+// page (R15).
+export default function Avatar({ user, size = 32, onClick, title, link = false }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [user?.avatar_url]);
   const label = title || user?.name || "";
@@ -33,6 +36,9 @@ export default function Avatar({ user, size = 32, onClick, title }) {
     ? <img src={user.avatar_url} alt="" onError={() => setBroken(true)} />
     : emoji || (user?.name || "?").slice(0, 2).toUpperCase();
   const cls = `ui-avatar${photo ? " photo" : emoji ? " emoji" : ""}`;
+  if (link && user?.id) {
+    return <Link to={personPath(user.id)} className={cls} style={style} title={label} aria-label={`${label}'s profile`}>{inner}</Link>;
+  }
   return onClick ? (
     <button type="button" className={cls} style={style} onClick={onClick} title={label} aria-label={label}>{inner}</button>
   ) : (

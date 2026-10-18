@@ -3,7 +3,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { SectionTitle } from "../ui/PageHeader";
 import Tabs from "../ui/Tabs";
 import Avatar, { ClubBadge } from "../ui/Avatar";
-import UserProfileDrawer from "../components/UserProfileDrawer";
 import ClubSettings from "../components/ClubSettings";
 import CalendarLinks from "../components/CalendarLinks";
 import Feed from "./Feed";
@@ -12,6 +11,7 @@ import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { roleLabel } from "../roles";
 import TheatreLink from "../ui/TheatreLink";
+import { personPath } from "../ui/PersonLink";
 import { GamesStrip } from "../ui/GamesSummary";
 import { useJson, getJson, send } from "../api";
 import "./Club.css";
@@ -27,14 +27,13 @@ export default function ClubPage({ user, apiBase }) {
   const navigate = useNavigate();
   const group = shell?.group;
   const [params, setParams] = useSearchParams();
-  const [profileUserId, setProfileUserId] = useState(null);
   const [theatreBySlug, setTheatreBySlug] = useState({});
   const isAdmin = shell?.role === "admin";
   const tabs = [{ key: "overview", label: "Overview" }, { key: "members", label: "Members" },
                 { key: "leaderboard", label: "Leaderboard" }, ...(isAdmin ? [{ key: "settings", label: "Settings" }] : [])];
   const tab = tabs.some(t => t.key === params.get("tab")) ? params.get("tab") : "overview";
   const setTab = key => setParams(key === "overview" ? {} : { tab: key }, { replace: true });
-  const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId: group?.id, onViewProfile: setProfileUserId });
+  const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId: group?.id });
 
   useEffect(() => {
     getJson(`${apiBase}/api/theatres`)
@@ -81,30 +80,25 @@ export default function ClubPage({ user, apiBase }) {
         )}
         {tab === "members" && (
           <>
-            <Members group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />
+            <Members group={group} apiBase={apiBase} viewerId={user.id} />
             <LeaveClub group={group} apiBase={apiBase} userId={user.id}
                        onLeft={async () => { await shell.refreshGroups?.(); navigate("/", { replace: true }); }} />
           </>
         )}
-        {tab === "leaderboard" && <Leaderboard group={group} apiBase={apiBase} viewerId={user.id} onOpen={setProfileUserId} />}
+        {tab === "leaderboard" && <Leaderboard group={group} apiBase={apiBase} viewerId={user.id} />}
         {tab === "settings" && isAdmin && (
-          <ClubSettings group={group} apiBase={apiBase} viewerId={user.id} onViewProfile={setProfileUserId}
+          <ClubSettings group={group} apiBase={apiBase} viewerId={user.id}
                         onChanged={() => shell.refreshGroups?.()}
                         onDeleted={async () => { await shell.refreshGroups?.(); navigate("/groups"); }} />
         )}
       </div>
 
       {sheet}
-      {profileUserId && (
-        <UserProfileDrawer userId={profileUserId} viewerId={user.id} apiBase={apiBase}
-                           onClose={() => setProfileUserId(null)}
-                           onOpenShowtime={id => { setProfileUserId(null); openShowtime(id); }} />
-      )}
     </div>
   );
 }
 
-function Members({ group, apiBase, viewerId, onOpen }) {
+function Members({ group, apiBase, viewerId }) {
   const { data, error } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
   if (error) return <p className="pv-empty">Couldn't load members right now.</p>;
   if (!data) return <p className="pv-empty">Loading…</p>;
@@ -114,14 +108,14 @@ function Members({ group, apiBase, viewerId, onOpen }) {
     <ul className="club-rows">
       {active.map(m => (
         <li key={m.id}>
-          <button type="button" className="club-row clickable" onClick={() => onOpen(m.user.id)}>
+          <Link className="club-row clickable" to={personPath(m.user.id)}>
             <Avatar user={m.user} size={38} />
             <span className="club-row-name">
               {m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}
               {m.user.bio && <small className="club-row-sub">{m.user.bio}</small>}
             </span>
             {m.role !== "member" && <span className={`chip${m.role === "admin" ? " gold" : ""}`}>{roleLabel(m.role)}</span>}
-          </button>
+          </Link>
         </li>
       ))}
     </ul>
@@ -165,7 +159,7 @@ function ClubGames({ apiBase, groupId }) {
   );
 }
 
-function Leaderboard({ group, apiBase, viewerId, onOpen }) {
+function Leaderboard({ group, apiBase, viewerId }) {
   const { data: rows, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard`);
   if (!rows && !error) return <p className="pv-empty">Loading…</p>;
   if (error || !rows.length) {
@@ -178,7 +172,7 @@ function Leaderboard({ group, apiBase, viewerId, onOpen }) {
       <ol className="club-rows">
         {rows.map((r, i) => (
           <li key={r.user.id}>
-            <button type="button" className={`club-row clickable${r.user.id === viewerId ? " me" : ""}`} onClick={() => onOpen(r.user.id)}>
+            <Link className={`club-row clickable${r.user.id === viewerId ? " me" : ""}`} to={personPath(r.user.id)}>
               <span className="club-rank">{(r.kernels || r.attendance) && MEDALS[i] ? MEDALS[i] : i + 1}</span>
               <Avatar user={r.user} size={34} />
               <span className="club-row-name">{r.user.name}</span>
@@ -191,7 +185,7 @@ function Leaderboard({ group, apiBase, viewerId, onOpen }) {
                 )}
                 <small>{r.correct} correct · {r.attendance} attended</small>
               </span>
-            </button>
+            </Link>
           </li>
         ))}
       </ol>

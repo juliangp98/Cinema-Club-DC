@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 // Page titles and section titles: the marquee font with gold double-rule trim.
 // `back` ({to, label}) adds a small link above the title for sub-pages;
@@ -41,6 +41,17 @@ export function PageMeta({ items, label = "About this page", className = "" }) {
       })}
     </ul>
   );
+}
+
+// "‹ Back" to wherever you came from, for pages reached from everywhere (a
+// film) — or, opened from a link with nothing behind it on the site, the
+// `fallback` page (R15).
+export function BackLink({ fallback = { to: "/", label: "Discover" } }) {
+  const navigate = useNavigate();
+  if ((window.history.state?.idx ?? 0) > 0) {
+    return <button type="button" className="ui-page-back" onClick={() => navigate(-1)}>‹ Back</button>;
+  }
+  return <Link className="ui-page-back" to={fallback.to}>‹ {fallback.label}</Link>;
 }
 
 // A section's heading. `link` ({to, label}, or {onClick, label}) is the gold

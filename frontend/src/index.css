@@ -681,7 +681,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.profile-kernels-parts { display: block; margin-top: 0.3rem; font-size: var(--fs-xs); color: var(--muted); }
 .profile-kernels-pill {
   display: inline-flex;
   align-items: center;
@@ -696,6 +695,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   border-radius: 10px;
   padding: 0.15rem 0.5rem;
 }
+.profile-kernels-parts { display: block; margin-top: 0.3rem; font-size: var(--fs-xs); color: var(--muted); }
 
 .profile-field-label {
   font-size: var(--fs-xs);
@@ -788,18 +788,6 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   color: var(--muted);
 }
 
-.user-profile-letterboxd {
-  display: inline-block;
-  font-size: var(--fs-sm);
-  letter-spacing: 0.06em;
-  color: #9ab97a;
-  text-decoration: none;
-  border: 1px solid #9ab97a44;
-  border-radius: var(--radius);
-  padding: 0.3rem 0.6rem;
-  transition: all 0.15s;
-}
-.user-profile-letterboxd:hover { border-color: #9ab97a; background: #9ab97a11; }
 
 /* ── Reaction Bar ──────────────────────────────────────────────────────── */
 .reaction-bar {
@@ -1109,29 +1097,9 @@ button.list-row:hover .list-row-title { color: var(--amber); }
   color: var(--muted);
 }
 
-.user-profile-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 2rem 0 1.5rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 1.2rem;
-}
 
-.user-profile-name {
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--cream);
-}
-.user-profile-email {
-  font-size: var(--fs-md);
-  color: var(--muted);
-}
-.user-profile-section {
-  margin-bottom: 1.5rem;
-}
-.user-profile-bio {
+.person-bio {
+  margin: 0 0 1.25rem;
   font-size: var(--fs-md);
   color: var(--cream);
   line-height: 1.5;
@@ -1408,8 +1376,6 @@ button.feed-title:hover { color: var(--amber); }
 .mini-bingo span { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
 .mini-bingo span.on { background: var(--green); border-color: var(--green); }
 .play-section { margin-bottom: 1.5rem; }
-.play-polls { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-.play-polls li { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 .play-links { margin: 0.25rem 0 0; font-size: var(--fs-sm); }
 .play-kernels { display: flex; flex-direction: column; gap: 0.75rem; }
 .play-kernels-total { display: flex; flex-direction: column; gap: 0.25rem; }
