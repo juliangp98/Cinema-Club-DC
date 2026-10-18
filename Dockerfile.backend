@@ -16,6 +16,8 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
+# The Help guide (7f): one copy, the site's — help_ai.py answers ✨ Ask from it.
+COPY frontend/src/help.json help.json
 
 # Ensure instance directory exists for SQLite
 RUN mkdir -p /app/instance

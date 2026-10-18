@@ -1,5 +1,7 @@
 """The database: every table, as a SQLAlchemy model (R9b: split out of
 app.py, which re-exports them, so `from app import User` still works)."""
+import json
+
 import app as core
 from app import (datetime, db, timezone)
 
@@ -48,6 +50,7 @@ class User(db.Model):
     letterboxd_clues = db.Column(db.Boolean, default=True)    # R15: diary reviews may be quiz clues (unnamed)
     letterboxd_synced_at = db.Column(db.DateTime)
     tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
+    tours_json = db.Column(db.Text)          # 7f: the page tours offered and done/declined (a JSON list of pages)
     # R13: show your taste (favorite genres, films, people…) on your profile to
     # people in your clubs. Off by default; recommendations use it either way.
     taste_public = db.Column(db.Boolean, default=False)
@@ -76,12 +79,19 @@ class User(db.Model):
             'share_prefs': core.share_prefs(self),
             'is_guest': bool(self.is_guest),
             'tour_seen': self.tour_seen_at is not None,
+            'tours_seen': self.tours_seen(),
             'taste_public': bool(self.taste_public),
         }
 
     # What other members see: no email (unless they're an admin of a club you
     # share), and none of your private settings.
-    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen', 'taste_public')
+    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen', 'tours_seen', 'taste_public')
+
+    def tours_seen(self):
+        try:
+            return [p for p in json.loads(self.tours_json or '[]') if isinstance(p, str)]
+        except ValueError:
+            return []
 
     def public_dict(self, with_email=False):
         d = {k: v for k, v in self.to_dict().items() if k not in self.PRIVATE}

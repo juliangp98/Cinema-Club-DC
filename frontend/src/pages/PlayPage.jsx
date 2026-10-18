@@ -7,7 +7,6 @@ import QuizGames from "../components/QuizGames";
 import { GamesRunPanel, KernelStrip, Movers, MonthBoard, YourKernels } from "../components/PlaySide";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
-import useHashScroll from "../useHashScroll";
 import { runsClub } from "../roles";
 // Play (R10; laid out in R15): the club's games — trivia, bingo, every poll —
 // in the main column, beside your kernels, this month's standings and this
@@ -24,7 +23,6 @@ export default function PlayPage({ user, apiBase, groupId }) {
   // /play#polls and friends land on that game once the page has drawn (the
   // summary — the feed rail's, so usually cached — says the games are in).
   const { data: summary } = useJson(groupId ? `${apiBase}/api/play?group_id=${groupId}` : null);
-  useHashScroll(!!summary);
 
   if (!groupId) {
     return (
@@ -36,7 +34,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
   }
   return (
     <div className="page play-page">
-      <PageHeader title="Play" />
+      <PageHeader title="Play" tour="play" />
       <KernelStrip k={k} month={month} viewerId={user.id} />
       <div className="play-layout">
         <div className="play-main">

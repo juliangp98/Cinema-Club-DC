@@ -201,7 +201,7 @@ export default function App() {
             </RequireSignIn>} />
           <Route path="/feed" element={
             <RequireSignIn user={user}><FeedPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
-          <Route path="/help" element={<HelpPage />} />
+          <Route path="/help" element={<HelpPage apiBase={API_BASE} />} />
           <Route path="/people/:id" element={
             <RequireSignIn user={user}><PersonPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/styleguide" element={<RequireSignIn user={user}><StyleguidePage /></RequireSignIn>} />

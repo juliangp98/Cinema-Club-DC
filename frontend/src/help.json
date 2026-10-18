@@ -1,0 +1,587 @@
+{
+ "stopwords": [
+  "a",
+  "about",
+  "an",
+  "and",
+  "any",
+  "are",
+  "at",
+  "be",
+  "can",
+  "do",
+  "does",
+  "for",
+  "from",
+  "get",
+  "getting",
+  "got",
+  "how",
+  "i",
+  "if",
+  "in",
+  "into",
+  "is",
+  "it",
+  "just",
+  "know",
+  "me",
+  "more",
+  "most",
+  "much",
+  "my",
+  "need",
+  "of",
+  "on",
+  "or",
+  "some",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "they",
+  "this",
+  "to",
+  "want",
+  "way",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "will",
+  "with",
+  "you",
+  "your"
+ ],
+ "places": {
+  "discover": {
+   "label": "Discover",
+   "to": "/"
+  },
+  "discover-for-you": {
+   "label": "For you on Discover",
+   "to": "/#shelf-for-you"
+  },
+  "discover-surprise": {
+   "label": "Surprise me",
+   "to": "/#surprise"
+  },
+  "search": {
+   "label": "the search box",
+   "to": "/#site-search"
+  },
+  "calendar": {
+   "label": "the Calendar",
+   "to": "/calendar"
+  },
+  "calendar-tickets": {
+   "label": "the Calendar's ticket chips",
+   "to": "/calendar#calendar-tickets"
+  },
+  "calendar-filters": {
+   "label": "the Calendar's quick filters",
+   "to": "/calendar#calendar-filters"
+  },
+  "browse": {
+   "label": "Browse",
+   "to": "/browse?when=2weeks"
+  },
+  "browse-filters": {
+   "label": "Browse's filters",
+   "to": "/browse?when=2weeks#browse-filters"
+  },
+  "browse-tickets": {
+   "label": "Browse's ticket chips",
+   "to": "/browse?when=2weeks#browse-tickets"
+  },
+  "theatres": {
+   "label": "Theatres",
+   "to": "/theatres"
+  },
+  "feed": {
+   "label": "the feed",
+   "to": "/feed"
+  },
+  "feed-filters": {
+   "label": "the feed's filters",
+   "to": "/feed#feed-filters"
+  },
+  "play": {
+   "label": "Play",
+   "to": "/play"
+  },
+  "play-trivia": {
+   "label": "trivia on Play",
+   "to": "/play#trivia"
+  },
+  "play-bingo": {
+   "label": "bingo on Play",
+   "to": "/play#bingo"
+  },
+  "play-polls": {
+   "label": "polls on Play",
+   "to": "/play#polls"
+  },
+  "play-games": {
+   "label": "the quiz games on Play",
+   "to": "/play#games"
+  },
+  "play-kernels": {
+   "label": "your kernels on Play",
+   "to": "/play#kernels"
+  },
+  "new-poll": {
+   "label": "＋ New poll",
+   "to": "/polls/new"
+  },
+  "club": {
+   "label": "the Club page",
+   "to": "/club"
+  },
+  "club-members": {
+   "label": "Members on the Club page",
+   "to": "/club?tab=members"
+  },
+  "club-leave": {
+   "label": "Leave this club",
+   "to": "/club?tab=members#leave-club"
+  },
+  "club-leaderboard": {
+   "label": "the leaderboard",
+   "to": "/club?tab=leaderboard"
+  },
+  "club-settings": {
+   "label": "Club settings",
+   "to": "/club?tab=settings"
+  },
+  "club-settings-theatres": {
+   "label": "Club settings → Theatres",
+   "to": "/club?tab=settings#settings-theatres"
+  },
+  "club-settings-members": {
+   "label": "Club settings → Members & roles",
+   "to": "/club?tab=settings#settings-members"
+  },
+  "club-settings-games": {
+   "label": "Club settings → Games",
+   "to": "/club?tab=settings#settings-games"
+  },
+  "club-settings-discord": {
+   "label": "Club settings → Discord",
+   "to": "/club?tab=settings#settings-discord"
+  },
+  "club-game-posts": {
+   "label": "game posts waiting for an OK",
+   "to": "/club?tab=settings#game-posts"
+  },
+  "clubs": {
+   "label": "the Clubs page",
+   "to": "/groups"
+  },
+  "me": {
+   "label": "the Me page",
+   "to": "/me"
+  },
+  "me-lists": {
+   "label": "your lists on Me",
+   "to": "/me#me-lists"
+  },
+  "me-calendar": {
+   "label": "Me → In your calendar",
+   "to": "/me#me-calendar"
+  },
+  "edit-profile": {
+   "label": "Edit profile",
+   "to": "/me?profile=1"
+  },
+  "profile-taste": {
+   "label": "Your taste",
+   "to": "/me?taste=1"
+  },
+  "profile-discord": {
+   "label": "Edit profile → Connect Discord",
+   "to": "/me?profile=1#profile-discord"
+  },
+  "profile-sharing": {
+   "label": "Edit profile → Sharing to Discord",
+   "to": "/me?profile=1#profile-sharing"
+  },
+  "profile-letterboxd": {
+   "label": "Edit profile → Letterboxd",
+   "to": "/me?profile=1#profile-letterboxd"
+  },
+  "notify-settings": {
+   "label": "Notification settings",
+   "to": "/me?profile=1#profile-notify"
+  },
+  "notify-which": {
+   "label": "Notification settings → Which alerts",
+   "to": "/me?profile=1#notify-which"
+  },
+  "notify-searches": {
+   "label": "your saved searches",
+   "to": "/me?profile=1#notify-searches"
+  },
+  "bell": {
+   "label": "the 🔔 bell",
+   "to": "/?alerts=1"
+  },
+  "help": {
+   "label": "Help",
+   "to": "/help"
+  }
+ },
+ "sections": [
+  {
+   "id": "start",
+   "title": "Getting started",
+   "items": [
+    {
+     "id": "about",
+     "q": "What is Cinema Club DC?",
+     "a": "Everything playing at the DC area's independent and repertory theatres — AFI, Suns, Alamo, the Smithsonian and more — in one place, plus a club to plan outings with: who's going, what to see, and what you thought."
+    },
+    {
+     "id": "page-tours",
+     "q": "Is there a tour of each page?",
+     "a": "Yes — every main page has a short one: tap ? next to its title (it's offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour replays from the account menu, [the Me page](me) or the button at the top of Help."
+    },
+    {
+     "id": "ask-help",
+     "q": "Can I ask Help a question in my own words?",
+     "a": "Yes — signed in, type it in the search box at the top of Help and tap ✨ Ask. The answer comes only from these topics, with links straight to the right place (which lights up when you land on it), and the topics it came from underneath. Without an account, the search box finds topics by their words."
+    },
+    {
+     "id": "need-account",
+     "q": "Do I need an account?",
+     "a": "No — anyone can browse. The first time you RSVP, add to a watchlist or react, you get a private guest profile in this browser. Keep it by adding an email or signing in with Discord ([account menu → Keep your profile](me)); otherwise it stays on this device only."
+    },
+    {
+     "id": "sign-in",
+     "q": "How do I sign in?",
+     "a": "With an email link (no passwords — we send you a link that signs you in) or with Discord."
+    },
+    {
+     "id": "clubs",
+     "q": "How do clubs work?",
+     "a": "A club picks the theatres it follows, and its members see each other's plans, comments and games. Find or start one on [the Clubs page](clubs); asking to join sends a request a club admin approves. In more than one club? Switch from the top bar."
+    },
+    {
+     "id": "leave-club",
+     "q": "How do I leave a club?",
+     "a": "[Club page → Members → Leave this club](club-leave). You stop seeing its plans, feed and games; your own lists and history stay yours, and you can ask to join again later. A club's only admin has to make someone else an admin first."
+    },
+    {
+     "id": "roles",
+     "q": "What can each club role do?",
+     "a": "Read-only members see the club. Members RSVP, vote, comment and play. Organizers also run polls, the club's theatres and games (which are on, what they post in Discord, and okaying those posts) and answer join requests. Admins can do all that, plus the club's name and picture, invites, roles and removing members."
+    }
+   ]
+  },
+  {
+   "id": "finding",
+   "title": "Finding films",
+   "items": [
+    {
+     "id": "where-to-start",
+     "q": "Where do I start?",
+     "a": "[Discover](discover) shows what's worth seeing over the next two weeks: rare screenings and film prints, spotlights, double features, what the club wants to see, and more. ['Surprise me'](discover-surprise) picks one for you."
+    },
+    {
+     "id": "search",
+     "q": "How do I search or filter?",
+     "a": "Type in [the search box](search) for films, people, theatres or genres — or describe what you want (\"a 70mm epic this weekend\") and tap ✨. [Browse has the full filters](browse-filters): theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."
+    },
+    {
+     "id": "tickets",
+     "q": "Can I hide sold-out showings — or see what's coming?",
+     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) — [watchlist one](help:watchlist) to hear the moment tickets go on sale. Discover's suggestions only ever pick showings you can still get into."
+    },
+    {
+     "id": "film-theatre-pages",
+     "q": "What's on a film or theatre page?",
+     "a": "A film page has every showing, ratings, cast and the trailer. A [theatre](theatres) page has what's on, a map, and — if your club uses screening notes — what members say about the screenings there."
+    }
+   ]
+  },
+  {
+   "id": "plans",
+   "title": "Making plans",
+   "items": [
+    {
+     "id": "rsvp",
+     "q": "How do I RSVP?",
+     "a": "Tap a screening and choose Going or Maybe. Your club sees who's going; tap again to change or remove it. From the screening you can also discuss it with the club (and its Discord thread, if it has one)."
+    },
+    {
+     "id": "check-in",
+     "q": "What's “Did you make it?”",
+     "a": "After a screening you said you were going to, you're asked whether you went (in Discord, any time from 🎞️ History on your /profile too). Checking in keeps your watch history right and [earns kernels](help:earn-kernels)."
+    },
+    {
+     "id": "plans-calendar",
+     "q": "Can I see my plans in my own calendar?",
+     "a": "Yes — [Me → In your calendar](me-calendar): subscribe once in Google Calendar or Apple / Outlook and your plans (or the club's) stay in sync. Anyone with the link can see it, so keep it to yourself; New link turns the old one off."
+    }
+   ]
+  },
+  {
+   "id": "lists",
+   "title": "Your lists",
+   "items": [
+    {
+     "id": "watchlist",
+     "q": "What's the watchlist for?",
+     "a": "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can [get an alert](help:alert-kinds); your club can see what you want to see too."
+    },
+    {
+     "id": "plans-history",
+     "q": "Where are my plans and history?",
+     "a": "On [the Me page](me-lists): your watchlist, what you're going to, and your watch history. Tap anyone's picture or name to open their page — its Compare shows what you both want to see and are going to."
+    }
+   ]
+  },
+  {
+   "id": "taste",
+   "title": "Your taste",
+   "items": [
+    {
+     "id": "taste-what",
+     "q": "What is Your taste?",
+     "a": "What you like, so the site can pick films for you: genres you love and ones you're not into, how you like to watch (on film, 70mm and IMAX, Q&As, classics, late shows…), favorite theatres, and favorite films, directors, actors and writers. Pick as much or as little as you like."
+    },
+    {
+     "id": "taste-where",
+     "q": "Where do I set it?",
+     "a": "[Edit profile → Your taste](profile-taste) (it's also offered at the end of the welcome tour). Changes save as you make them. Genres can also be picked in Discord with /profile (its ✨ Your taste button opens the rest here)."
+    },
+    {
+     "id": "taste-who",
+     "q": "Who can see my taste?",
+     "a": "Only you, unless you switch on “Show my taste on my profile” — then people in your clubs see it on your profile and with /profile in Discord."
+    },
+    {
+     "id": "for-you",
+     "q": "What's “For you”?",
+     "a": "A row near the top of [Discover](discover-for-you) (and “For you here” on each theatre's page) with films playing in the next two weeks that fit your taste — each says why: a favorite director, a genre you love, on 35mm, at a theatre you like. It also learns from what you watchlist, plan, see and rate well on Letterboxd. Films you've already seen are left out. [Theatres](theatres) shows how many are for you at each one."
+    },
+    {
+     "id": "not-for-me",
+     "q": "A pick isn't for me — can I get rid of it?",
+     "a": "Tap “Not for me” under it: it's gone from For you. You'll find it under Not for me in [Your taste](profile-taste) if you change your mind."
+    },
+    {
+     "id": "not-into",
+     "q": "What does “Not into” do?",
+     "a": "Films in a genre you're not into rank lower — they only show up when something else about them is a strong fit (say, a favorite director's)."
+    },
+    {
+     "id": "favorites-booked",
+     "q": "Will I hear when a favorite's film is booked?",
+     "a": "Yes — when a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in [the 🔔 bell](bell) (by DM, email or push too only if you've turned those on). Switch it off under [Notification settings → A favorite's film is booked](notify-which)."
+    },
+    {
+     "id": "taste-match",
+     "q": "What's taste match?",
+     "a": "If someone shows their taste, their profile (and Compare — on the site, or 🤝 Compare on their /profile in Discord) shows how alike your tastes are, and what you both love."
+    },
+    {
+     "id": "picks-discord",
+     "q": "Can I see my picks in Discord?",
+     "a": "Yes — /foryou shows your For you picks privately, with why each one is there."
+    },
+    {
+     "id": "genres",
+     "q": "Which genres are there?",
+     "a": "The ones TMDB and IMDb use for films — action to western, plus film noir, musical, biography and sport — so what you pick matches how every film is labelled."
+    }
+   ]
+  },
+  {
+   "id": "club",
+   "title": "Your club",
+   "items": [
+    {
+     "id": "feed",
+     "q": "What's in the feed?",
+     "a": "What the club's been up to: plans, check-ins, comments, watchlist adds, polls and games, newest first, with a marker for what's new since your last visit and a recap every Monday. [Filter it by kind](feed-filters) at the top. On wide screens a side panel shows what's waiting for you; on phones it's the row of chips."
+    },
+    {
+     "id": "club-page",
+     "q": "What's on the Club page?",
+     "a": "[An overview](club) (this week, recent activity, the members, the month's numbers and your games), [every member as a tile](club-members) (tap one for their page), [the leaderboard](club-leaderboard), and — for organizers and admins — [the club's settings](club-settings) (admins also find the style guide there: every button, chip and panel the site uses)."
+    },
+    {
+     "id": "leaderboard",
+     "q": "How does the leaderboard work?",
+     "a": "On [the leaderboard](club-leaderboard), switch between this month, this year and all time: kernels count in the period they were earned, shown as a bar by where they came from. Tap Stats on anyone for their screenings, film prints, theatres, late shows, crew nights, streaks, trivia and bingo. The period's titles — Night owl, Purist, Explorer, Early bird, Critic, Sharpshooter, Regular — go to whoever leads once they reach a minimum."
+    },
+    {
+     "id": "screening-notes",
+     "q": "What are screening notes?",
+     "a": "If your club turns them on, people who checked in to a screening can tag the night — gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."
+    }
+   ]
+  },
+  {
+   "id": "games",
+   "title": "Play: polls, trivia, bingo and kernels",
+   "items": [
+    {
+     "id": "where-games",
+     "q": "Where are the games?",
+     "a": "On [the Play page](play) (Play in the menu), beside [your kernels](play-kernels), this month's standings and this week's movers. [Every poll](play-polls) is there — open ones to vote in, and past ones with their results; trivia and bingo appear once a club organizer or admin turns them on in [Club settings → Games](club-settings-games)."
+    },
+    {
+     "id": "polls",
+     "q": "How do polls work?",
+     "a": "Pick your answers before a poll closes. Some polls are scored once the results are in: single picks, confidence (stake 1–10 kernels on each pick) or ranked. Organizers and admins make polls ([＋ New poll](new-poll) on Play)."
+    },
+    {
+     "id": "trivia",
+     "q": "How does trivia work?",
+     "a": "[A question of the day](play-trivia) for the whole club, and — if your club allows it — anytime questions whenever you like (up to 5 kernels a day). One try each. Each question is rated easy, medium or hard: the question of the day pays +1, +2 or +3, anytime ones +1, +1 or +2. The wrong answers are look-alikes — the same era, genre and fame — so you'll have to know it."
+    },
+    {
+     "id": "trivia-films",
+     "q": "Where do trivia's films come from?",
+     "a": "Your club chooses, in [Club settings → Games](club-settings-games): films that have played at the club's theatres, the 5,000 best-known films on TMDB, or both (the default). Classic movie quotes too."
+    },
+    {
+     "id": "quiz-games",
+     "q": "What are the quiz games?",
+     "a": "Quick games on [Play](play-games) (and /play in Discord), each one your club's choice in [Club settings → Games](club-settings-games): Higher or lower (did the next film come out before or after? keep the streak going), Who said it (a line, and four of the film's characters) and Emoji plot (a film's story in emojis, written by AI) — +1 kernel a right call — and Guess the still and Guess from the reviews, which pay 3, 2 or 1 by how much you needed to see. Up to 5 kernels a day from each game. Your rounds are private."
+    },
+    {
+     "id": "bingo",
+     "q": "How does repertory bingo work?",
+     "a": "[One card a month](play-bingo) for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more. If the club counts Letterboxd diaries ([Club settings → Games](club-settings-games)), films you log that month fill the film squares too — era, genre, length, your watchlist — marked 🏠; a line that needs one is +3, the full card +10. Anything seen in person counts first."
+    },
+    {
+     "id": "games-discord",
+     "q": "Do the games post in the club's Discord?",
+     "a": "Only if a club organizer or admin says so, in [Club settings → Discord](club-settings-discord): the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an organizer or admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Skipped one by mistake? Post it after all (on Play, in [Club settings](club-game-posts) or from the DM) until 10 PM for the question, or the month's end for the card. Posts never ping anyone."
+    },
+    {
+     "id": "join-requests",
+     "q": "Can organizers get join requests by email?",
+     "a": "Yes, if they want them: [Notification settings → Someone asks to join your club](notify-which). It's off until you turn it on (admins always get one). Requests also wait in [Club settings → Members & roles](club-settings-members)."
+    },
+    {
+     "id": "bingo-win-name",
+     "q": "Will a bingo win post name me?",
+     "a": "Only if your [Edit profile → Sharing to Discord](profile-sharing) says Always for My game wins (it starts at Never) — otherwise the post just says someone got bingo."
+    },
+    {
+     "id": "game-reminders",
+     "q": "Can I get reminders about the games?",
+     "a": "Yes, each one your own choice in [Notification settings](notify-which): the question of the day is up, yesterday's answer, a new bingo card, and your own bingo (that one's on in the bell to start with). By DM, email or push only if you've turned those on."
+    },
+    {
+     "id": "earn-kernels",
+     "q": "How do I earn kernels?",
+     "a": "[Check in](help:check-in) after a screening (+5, and +2 more if you'd said you were going); be the first to say you're going to a screening others join (+1 each, up to 5); crew nights where 3+ members went (+3 each); right picks in [scored polls](help:polls); [trivia](help:trivia) and [bingo](help:bingo); and [kernels other members give you](help:give-kernels)."
+    },
+    {
+     "id": "give-kernels",
+     "q": "Can I give kernels to people?",
+     "a": "Yes — tap 🍿 Kernels on a screening in [the feed](feed) (or, in Discord, 🍿 Give kernels on someone's /profile). Each week you have 10 to give and 3 to take (up to 3 to a person per screening, or take 1). Nobody loses more than 5 a week or goes below zero, and it always shows who gave or took."
+    }
+   ]
+  },
+  {
+   "id": "alerts",
+   "title": "Notifications and alerts",
+   "items": [
+    {
+     "id": "email-messages",
+     "q": "Will you email or message me?",
+     "a": "Not unless you say so. Nothing is emailed, sent by Discord DM or pushed until you turn that on in [Notification settings](notify-settings). Alerts always land in [the 🔔 bell](bell) on the site."
+    },
+    {
+     "id": "alert-kinds",
+     "q": "What can I get alerts about?",
+     "a": "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits [a search you saved](help:save-search), a favorite's film being booked (from [Your taste](profile-taste)), the club's games (if you turn those on), and (Discord members) a “Did you make it?” DM after screenings."
+    },
+    {
+     "id": "save-search",
+     "q": "How do I save a search?",
+     "a": "On [Browse](browse-filters), pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage [your saved searches](notify-searches) in Notification settings."
+    },
+    {
+     "id": "phone-push",
+     "q": "Can I get notifications on my phone?",
+     "a": "Yes — in [Notification settings](notify-settings), turn on push for this device. On iPhone, add the site to your Home Screen first."
+    }
+   ]
+  },
+  {
+   "id": "discord",
+   "title": "Discord",
+   "items": [
+    {
+     "id": "link-discord",
+     "q": "How do I link Discord?",
+     "a": "[Edit profile → Connect Discord](profile-discord) (or sign in with Discord). Linking puts your site and Discord activity together."
+    },
+    {
+     "id": "discord-shows",
+     "q": "What shows up in the club's Discord?",
+     "a": "Only what you choose. In [Edit profile → Sharing to Discord](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Only members who've linked Discord and are in the club's server ever appear there."
+    },
+    {
+     "id": "bot",
+     "q": "What can the bot do?",
+     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button — plus /poll list, /poll vote and /leaderboard. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel."
+    }
+   ]
+  },
+  {
+   "id": "letterboxd",
+   "title": "Letterboxd",
+   "items": [
+    {
+     "id": "letterboxd-connect",
+     "q": "How do I connect Letterboxd?",
+     "a": "[Edit profile → Letterboxd](profile-letterboxd) → enter your username. We read your public diary feed every few hours — nothing else, and we never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
+    },
+    {
+     "id": "diary-sync",
+     "q": "What does the diary sync do?",
+     "a": "When your diary has a film you said you were going to (that day or the next), you choose what happens: Ask (your [“Did you make it?”](help:check-in) prompt says so), Always (you're checked in automatically) or Never. And if your club counts diaries for [bingo](help:bingo), the films you log that month can fill its film squares (🏠)."
+    },
+    {
+     "id": "reviews-in-games",
+     "q": "Can my reviews end up in a game?",
+     "a": "Guess from the reviews may use one sentence of a review in your diary — never with your name, and never one that names the film, its year or its people. Don't want that? [Edit profile → Letterboxd](profile-letterboxd) → turn off “Let a line from my reviews be a quiz clue”."
+    },
+    {
+     "id": "ratings-shown",
+     "q": "Will people see my ratings?",
+     "a": "Only if you turn on “Show my star ratings with my check-ins” in [Edit profile → Letterboxd](profile-letterboxd) — then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."
+    }
+   ]
+  },
+  {
+   "id": "privacy",
+   "title": "Privacy",
+   "items": [
+    {
+     "id": "members-see",
+     "q": "What can other members see?",
+     "a": "Your name, picture, bio, your plans and check-ins in clubs you share, your Letterboxd link if you added one, and your taste only if you switch on showing it. Your email is only visible to admins of clubs you're in, and your settings are private."
+    },
+    {
+     "id": "public",
+     "q": "Is anything public?",
+     "a": "What's playing is public. Your plans, comments and lists are only shown to members of your clubs (a guest profile's are private to you). [Calendar subscription links](me-calendar) work for anyone who has them — New link turns an old one off."
+    }
+   ]
+  }
+ ]
+}

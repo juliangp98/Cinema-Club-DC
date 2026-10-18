@@ -1505,6 +1505,7 @@ def migrate():
         "ALTER TABLE user ADD COLUMN letterboxd_synced_at DATETIME",
         "ALTER TABLE 'group' ADD COLUMN notes_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE user ADD COLUMN tour_seen_at DATETIME",
+        "ALTER TABLE user ADD COLUMN tours_json TEXT",              # 7f: page tours
         # R7a: theatre maps, calendar subscriptions
         "ALTER TABLE theatre ADD COLUMN latitude FLOAT",
         "ALTER TABLE theatre ADD COLUMN longitude FLOAT",
@@ -1835,7 +1836,7 @@ if os.environ.get('WARM_PUBLIC_CACHE') == '1':
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 # Each area registers its routes on `app` when imported (routes/*.py).
-from routes import (alerts, auth, clubs, discord, internal, people, plans, polls,  # noqa: E402,F401
+from routes import (alerts, auth, clubs, discord, help, internal, people, plans, polls,  # noqa: E402,F401
                     quizzes, schedule, social)
 
 

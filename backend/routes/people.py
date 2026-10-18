@@ -2,6 +2,8 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
+import re
+
 from app import (GroupMembership, User, Watchlist, _profile_target, _screening_item, _upload, app,
     compare_members, current_user, db, guest_blocked, jsonify, next_showings, request, require_auth,
     role_at_least, send_from_directory, upcoming_rsvps)
@@ -206,10 +208,21 @@ def sync_my_letterboxd():
 @app.route('/api/me/tour', methods=['POST'])
 @require_auth
 def finish_tour():
-    """The welcome tour was finished or skipped (R11): don't show it again
-    on its own (it can always be replayed)."""
+    """The welcome tour was finished or skipped (R11) — or, with {page}, a
+    page's tour was taken or turned down (7f): don't offer it again on its
+    own (both can always be replayed)."""
+    import json
     from app import _utcnow_naive
     user = current_user()
+    page = (request.json or {}).get('page') if request.is_json else None
+    if page:
+        if not isinstance(page, str) or not re.fullmatch(r'[a-z-]{1,20}', page):
+            return jsonify({'error': 'Unknown page'}), 400
+        seen = user.tours_seen()
+        if page not in seen:
+            user.tours_json = json.dumps(seen + [page])
+            db.session.commit()
+        return jsonify({'tours_seen': user.tours_seen()})
     if not user.tour_seen_at:
         user.tour_seen_at = _utcnow_naive()
         db.session.commit()

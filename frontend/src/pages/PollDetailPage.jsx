@@ -356,7 +356,7 @@ export default function PollDetailPage({ user, setUser, apiBase }) {
 
   return (
     <div className="page narrow polls">
-      <PageHeader title={poll.title} back={{ to: "/play#polls", label: "Play" }}
+      <PageHeader title={poll.title} back={{ to: "/play#polls", label: "Play" }} tour="poll"
                   meta={[{ label: STATUS[poll.status] || poll.status, gold: poll.status === "open" },
                          { label: TYPE_LABELS[poll.poll_type] || "Poll" }, { label: SCORING_LABELS[mode] },
                          { label: `${totalCategories} ${totalCategories === 1 ? "category" : "categories"}` }]} />

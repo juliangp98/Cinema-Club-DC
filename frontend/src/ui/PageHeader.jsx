@@ -1,19 +1,26 @@
 import { Link, useNavigate } from "react-router-dom";
+import { TourButton, TourOffer } from "./PageTourControls";
 
 // Page titles and section titles: the marquee font with gold double-rule trim.
 // `back` ({to, label}) adds a small link above the title for sub-pages;
 // `meta` puts the page's at-a-glance facts under it as chips (PageMeta).
+// `tour` (a pageTours.js key) adds the page's ? tour button by the title, and
+// the one-time offer of it under the header (7f).
 
-export default function PageHeader({ title, meta, actions, back, children }) {
+export default function PageHeader({ title, meta, actions, back, tour, children }) {
   return (
     <header className="ui-page-header">
       {back && <Link className="ui-page-back" to={back.to}>‹ {back.label}</Link>}
       <div className="ui-page-header-row">
-        <h1 className="ui-page-title"><span className="deco">{title}</span></h1>
+        <div className="ui-page-titlebox">
+          <h1 className="ui-page-title"><span className="deco">{title}</span></h1>
+          {tour && <TourButton page={tour} />}
+        </div>
         {actions && <div className="ui-page-actions">{actions}</div>}
       </div>
       {meta && <PageMeta items={meta} />}
       {children}
+      {tour && <TourOffer page={tour} />}
     </header>
   );
 }

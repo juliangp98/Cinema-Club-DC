@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { getJson, send } from "../api";
 import Panel from "../ui/Panel";
-import useHashScroll from "../useHashScroll";
 
 // Game posts waiting for an organizer's or admin's OK (R14): each exactly as it'll look in
 // #movies — the question of the day (with its answer, for checking) or the
@@ -83,7 +82,6 @@ export function SkippedPosts({ skipped, busy, act }) {
 
 export default function GamePostsWaiting({ apiBase, slug }) {
   const { posts, error, busy, act } = useGamePosts(apiBase, slug);
-  useHashScroll(!!posts?.waiting.length);       // the bell's link: /club?tab=settings#game-posts
   if (!posts || (!posts.waiting.length && !posts.skipped.length)) return null;
   return (
     <section id="game-posts" aria-labelledby="game-posts-title">

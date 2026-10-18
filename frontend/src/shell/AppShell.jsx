@@ -11,9 +11,12 @@ import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
 import { clearCache, send } from "../api";
+import useArrival from "../arrive";
+import { PAGE_TOURS } from "./pageTours";
 
 const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
+const PageTour = lazyPage(() => import("./Tour"), "PageTour");                  // 7f, on demand
 const TasteEditor = lazyPage(() => import("../components/TasteEditor"));          // R13, on demand
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
@@ -59,6 +62,19 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     const t = setTimeout(() => setTouring(true), 900);
     return () => clearTimeout(t);
   }, [user?.id, user?.tour_seen]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Page tours (7f): offered once per page (TourOffer, under its header) to
+  // accounts that have had the welcome tour; taking or declining one is
+  // remembered on the account. The ? button replays it any time.
+  const [pageTour, setPageTour] = useState(null);
+  const markPageTour = useCallback(page => {
+    if (!user || user.is_guest || user.tours_seen?.includes(page)) return;
+    send(`${apiBase}/api/me/tour`, "POST", { page }).catch(() => {});
+    setUser({ ...user, tours_seen: [...(user.tours_seen || []), page] });
+  }, [user, apiBase, setUser]);
+  const offerPageTour = page => !!user && !user.is_guest && user.tour_seen !== false && !touring && !pageTour
+    && !!PAGE_TOURS[page] && !(user.tours_seen || []).includes(page);
+  const startPageTour = page => { if (PAGE_TOURS[page]) { markPageTour(page); setPageTour(page); } };
+
   const finishTour = useCallback(() => {
     setTouring(false);
     if (user && user.tour_seen === false) {
@@ -89,24 +105,29 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     }
   }, [apiBase, setUser, navigate, user]);
 
+  useArrival();                                   // any #link glows on arrival (7f)
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
-  // A push about several alerts opens the bell (?alerts=1).
+  // Links that open something the address can't show (7f, places in
+  // help.json): ?alerts=1 the bell (a push about several alerts), ?taste=1
+  // Your taste (Discord's /profile), ?profile=1 Edit profile — with any
+  // #anchor kept, so the arrival glow finds its section inside.
   useEffect(() => {
-    if (!user || !new URLSearchParams(window.location.search).has("alerts")) return;
-    activity.open("mine");
-    window.history.replaceState(null, "", window.location.pathname);
-  }, [user]);   // eslint-disable-line react-hooks/exhaustive-deps
-  // A link to Your taste (?taste=1, e.g. from Discord's /profile) opens it.
-  useEffect(() => {
-    if (!user || !new URLSearchParams(window.location.search).has("taste")) return;
-    setTasting(true);
-    window.history.replaceState(null, "", window.location.pathname);
-  }, [user]);
+    const q = new URLSearchParams(search);
+    const opener = ["alerts", "taste", "profile"].find(k => q.has(k));
+    if (!user || !opener) return;
+    if (opener === "alerts") activity.open("mine");
+    else if (opener === "taste") setTasting(true);
+    else setEditing(true);
+    q.delete(opener);
+    const rest = q.toString();
+    navigate(`${pathname}${rest ? `?${rest}` : ""}${window.location.hash}`, { replace: true });
+  }, [user, search]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Your role in the club you're viewing (R5c): read-only members see, but don't post.
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
                   editProfile: () => setEditing(true), startTour: () => setTouring(true),
+                  startPageTour, offerPageTour, markPageTour,
                   editTaste: () => setTasting(true), tasteVersion,
                   openActivity: () => activity.open("club") };
 
@@ -155,6 +176,9 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         </nav>
 
         <InstallPrompt />
+
+        {pageTour && <Suspense fallback={null}>
+          <PageTour tour={PAGE_TOURS[pageTour]} onFinish={() => setPageTour(null)} /></Suspense>}
 
         {touring && <Suspense fallback={null}>
           <Tour inClub={!!groupId} onFinish={finishTour} onTaste={() => setTasting(true)} /></Suspense>}

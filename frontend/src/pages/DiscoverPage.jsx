@@ -45,7 +45,7 @@ function Surprise({ apiBase, groupId }) {
   }
 
   return (
-    <section className="surprise">
+    <section className="surprise" id="surprise">
       <div className="surprise-head">
         <span className="deco surprise-title">Surprise me</span>
         <div className="surprise-when" role="group" aria-label="When">
@@ -393,8 +393,8 @@ export default function DiscoverPage({ user, apiBase, groupId }) {
 
   return (
     <div className="page discover">
-      <PageHeader title="Discover" />
-      <SearchBox apiBase={apiBase} groupId={groupId} onSearch={q => q && navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} />
+      <PageHeader title="Discover" tour="discover" />
+      <div id="site-search"><SearchBox apiBase={apiBase} groupId={groupId} onSearch={q => q && navigate(`/browse?q=${encodeURIComponent(q)}&when=month`)} /></div>
       <Coverage apiBase={apiBase} group={groupId ? shell.group : null} />
 
       {groupId && shell.canParticipate && user && (

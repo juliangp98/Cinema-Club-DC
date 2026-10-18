@@ -23,7 +23,7 @@ export default function MePage({ user, apiBase, groupId }) {
 
   return (
     <div className="page narrow">
-      <PageHeader title="Me" />
+      <PageHeader title="Me" tour="me" />
 
       {user.is_guest && (
         <Panel tone="callout" title="Keep your profile"
@@ -45,12 +45,12 @@ export default function MePage({ user, apiBase, groupId }) {
         </div>
       </section>
 
-      <SectionTitle>Your lists</SectionTitle>
+      <div id="me-lists"><SectionTitle>Your lists</SectionTitle></div>
       <ProfileLists userId={user.id} apiBase={apiBase} own onOpen={openShowtime}
                     onChange={() => setListKey(k => k + 1)} refreshKey={listKey} />
 
       {!user.is_guest && (
-        <div className="me-block">
+        <div className="me-block" id="me-calendar">
           <SectionTitle>In your calendar</SectionTitle>
           <p className="ui-hint">Subscribe once and your plans stay in sync with Google, Apple or Outlook Calendar.</p>
           <CalendarLinks apiBase={apiBase} />

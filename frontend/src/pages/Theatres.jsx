@@ -7,7 +7,6 @@ import { Shelf, DoubleFeatures, Spotlights, Announced, LAYOUT } from "./Discover
 import { useEffect } from "react";
 import { useJson, hideFilm } from "../api";
 import { useShell } from "../shell/AppShell";
-import useHashScroll from "../useHashScroll";
 import { groupParam } from "../scope";
 import { TheatreNotes } from "../ui/ScreeningNotes";
 import "./DiscoverPage.css";
@@ -94,7 +93,6 @@ export function TheatrePage({ apiBase, groupId }) {
   const disc = useJson(`${apiBase}/api/discover?${groupParam(groupId)}theatres=${slug}`);
   const shell = useShell() || {};
   useEffect(() => { if (shell.tasteVersion) disc.reload(); }, [shell.tasteVersion]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useHashScroll(!!disc.data);                  // e.g. #shelf-for-you from the Theatres page
   const [params, setParams] = useSearchParams();
   const tickets = params.get("tickets");
   const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest${tickets ? `&tickets=${tickets}` : ""}`);
@@ -131,7 +129,7 @@ export function TheatrePage({ apiBase, groupId }) {
 
   return (
     <div className="page theatre-page" style={{ "--tcolor": t.color }}>
-      <PageHeader title={t.name} back={{ to: "/theatres", label: "Theatres" }}
+      <PageHeader title={t.name} back={{ to: "/theatres", label: "Theatres" }} tour="theatre"
                   meta={[t.region && { icon: "📍", label: t.region },
                          { icon: "🎬", label: t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "Nothing scheduled right now" },
                          t.films > 0 && { label: "Browse them →", to: `/browse?theatres=${t.slug}&when=month`, more: true }]} />

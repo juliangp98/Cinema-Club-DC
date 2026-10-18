@@ -15,6 +15,7 @@ import { groupParam } from "../scope";
 import { WatchDiscordPrompt } from "../ui/DiscordShare";
 import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
 import { longDayDate, time, monthDay } from "../dates";
+import { TourButton, TourOffer } from "../ui/PageTourControls";
 
 const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
@@ -151,7 +152,9 @@ export default function FilmPage({ user, apiBase, groupId }) {
                 {(movie.trailer_key || movie.trailer_link) && (
                   <a className="btn btn-ghost" href="#trailer">▶ Trailer</a>
                 )}
+                <TourButton page="film" />
               </div>
+              <TourOffer page="film" />
               {watching && watchPrompt && (
                 (watchPrompt.alerts
             ? <WatchAlertPrompt apiBase={apiBase} movieId={movie.id} digest={watchPrompt.digest} onDone={() => setWatchPrompt(null)} />

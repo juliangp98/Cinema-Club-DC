@@ -171,7 +171,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
 
   return (
     <div className="page browse">
-      <PageHeader title={title} back={{ to: "/", label: "Discover" }} />
+      <PageHeader title={title} back={{ to: "/", label: "Discover" }} tour="browse" />
       <SearchBox initial={query.q || ""} apiBase={apiBase} groupId={groupId} showNote={false}
                  onSearch={q => set("q", q || null)} onApply={applySearch} />
       {searchNote && <p className="searchbox-note browse-search-note" role="status">{searchNote}</p>}
@@ -180,9 +180,9 @@ export default function BrowsePage({ apiBase, groupId, user }) {
         {WHEN.map(([k, label]) => <Choice key={k} k="when" v={k}>{label}</Choice>)}
       </div>
 
-      <div className="browse-tickets"><TicketChips value={query.tickets} onChange={v => set("tickets", v)} /></div>
+      <div className="browse-tickets" id="browse-tickets"><TicketChips value={query.tickets} onChange={v => set("tickets", v)} /></div>
 
-      <div className="browse-bar">
+      <div className="browse-bar" id="browse-filters">
         <button className="btn btn-sm" onClick={() => setFiltersOpen(true)}>
           Filters{nFilters ? ` (${nFilters})` : ""}
         </button>

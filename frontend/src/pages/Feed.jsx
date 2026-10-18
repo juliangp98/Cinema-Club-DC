@@ -201,7 +201,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
           {expanded ? "Hide discussion" : `💬 Discuss${s.message_count ? ` (${s.message_count})` : ""}`}
         </button>
         {kernelPeople.length > 0 && allowance && (
-          <button type="button" className="btn btn-sm" aria-expanded={kernelsOpen}
+          <button type="button" className="btn btn-sm feed-kernels-btn" aria-expanded={kernelsOpen}
                   onClick={() => { setKernelsOpen(o => !o); setKernelError(null); }}>
             🍿 Kernels
           </button>

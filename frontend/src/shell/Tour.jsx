@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
-// The welcome tour (R11): a few slides with the essentials, then a spotlight
-// on the real navigation for the rest — each step opens the page it points
-// at (`page`), and the tour ends back where it started. New accounts (and everyone once, the
-// first time it shipped) see it on their own; anyone can replay it from the
-// account menu, the Me page or Help. Steps for things you can't use yet (no
-// club) or that aren't on screen (phones show fewer tabs) are skipped.
+// The welcome tour (R11, short since 7f): a few slides with the essentials,
+// one spotlight on the menu, then Your taste. Each page has its own tour
+// (PageTour, pageTours.js) — offered the first time you open it, replayable
+// from its ? button. New accounts see the welcome tour on their own; anyone
+// can replay it from the account menu, the Me page or Help. Steps for things
+// that aren't on screen (no club, phones) are skipped.
 
 const SLIDES = [
   { emoji: "🎬", title: "Welcome to Cinema Club DC",
@@ -25,27 +25,14 @@ const TASTE = { emoji: "✨", title: "Make it yours",
   body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Edit profile." };
 
 const STEPS = [
-  { target: "nav:/", page: "/", title: "Discover",
-    body: "What's worth seeing: films picked for you, rare screenings, film prints, spotlights and double features. Search, or describe what you're in the mood for and tap ✨." },
-  { target: "nav:/calendar", page: "/calendar", title: "Calendar",
-    body: "Every showtime at your club's theatres. Filter by theatre, format or time; tap one to RSVP, see who's going, or add it to your own calendar." },
-  { target: "nav:/feed", page: "/feed", title: "Feed", club: true,
-    body: "What the club's up to — plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
-  { target: "nav:/play", page: "/play", title: "Play", club: true,
-    body: "Every poll, open and past, plus trivia, bingo and quiz games when your club turns them on — beside your kernels, this month's standings and this week's movers." },
-  { target: "nav:/theatres", page: "/theatres", title: "Theatres",
-    body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
-  { target: ".topbar-groupmenu", title: "Your clubs", club: true,
-    body: "In more than one club? Switch here — the calendar, feed and games follow." },
-  { target: ".topbar-bell", title: "The bell",
-    body: "Club activity and your alerts. Alerts are opt-in: watchlist a film, or tap 🔔 Alert me on a Browse search, to hear when a theatre books it." },
-  { target: "account", page: "/me", title: "You",
-    body: "Your profile and lists: link Discord, connect Letterboxd, choose your notifications. Replay this tour, or find Help, here any time." },
+  { target: "menu", title: "Find your way around",
+    body: "Discover, the Calendar, your club's feed, Play and Theatres. Each page has its own short tour — tap ? next to its title any time — and Help has the rest." },
 ];
 
 const visible = el => el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
 
 function findTarget(target) {
+  if (target === "menu") return [document.querySelector(".topbar-nav"), document.querySelector(".tabbar")].find(visible) || null;
   if (target.startsWith("nav:")) {
     const href = target.slice(4);
     return [...document.querySelectorAll(`.topbar-nav a[href="${href}"], .tabbar a[href="${href}"]`)].find(visible) || null;
@@ -53,8 +40,7 @@ function findTarget(target) {
   if (target === "account") {
     return [document.querySelector(".topbar-avatar"), document.querySelector('.tabbar a[href="/me"]')].find(visible) || null;
   }
-  const el = document.querySelector(target);
-  return visible(el) ? el : null;
+  return [...document.querySelectorAll(target)].find(visible) || null;
 }
 
 const PAD = 6;     // room around the target…
@@ -82,6 +68,11 @@ function Spotlight({ step, index, count, onNext, onBack, onSkip }) {
     setBar(el?.closest(".topbar, .tabbar")?.getBoundingClientRect() || null);
   }, [step]);
   useLayoutEffect(() => {
+    const el = findTarget(step.target);                 // a page's widget may be below the fold
+    if (el && !el.closest(".topbar, .tabbar")) {
+      const r = el.getBoundingClientRect();
+      if (r.top < 70 || r.bottom > window.innerHeight - 200) el.scrollIntoView?.({ block: r.height > window.innerHeight * 0.5 ? "start" : "center" });
+    }
     measure();
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
@@ -144,25 +135,11 @@ function Slides({ slides, index, onNext, onBack, onSkip, final, skipLabel = "Ski
   );
 }
 
-export default function Tour({ inClub, onFinish: finished, onTaste }) {
+export default function Tour({ inClub, onFinish, onTaste }) {
   const slides = SLIDES.filter(s => !s.club || inClub);
   const [phase, setPhase] = useState("slides");
   const [i, setI] = useState(0);
   const [steps, setSteps] = useState([]);
-  const navigate = useNavigate();
-  const { pathname, search } = useLocation();
-  const [start] = useState(pathname + search);            // where to come back to
-  const toured = useRef(false);
-  const onFinish = useCallback(() => {
-    if (toured.current) navigate(start, { replace: true });
-    finished();
-  }, [finished, navigate, start]);
-  const step = phase === "spotlight" ? steps[i] : null;
-  useEffect(() => {
-    if (!step?.page) return;
-    toured.current = true;
-    navigate(step.page, { replace: true });
-  }, [step, navigate]);
 
   const toTaste = () => (onTaste ? setPhase("taste") : onFinish());       // the last card, if there's a sheet to open
   const startSpotlight = () => {
@@ -193,6 +170,35 @@ export default function Tour({ inClub, onFinish: finished, onTaste }) {
       ) : (
         <Spotlight step={steps[i]} index={i} count={steps.length} onSkip={onFinish} onBack={() => setI(i - 1)}
                    onNext={() => (i === steps.length - 1 ? toTaste() : setI(i + 1))} />
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+
+// A page's tour (7f): its steps (pageTours.js) on the page as it is, then a
+// card to its part of Help.
+export function PageTour({ tour, onFinish }) {
+  const navigate = useNavigate();
+  const [steps] = useState(() => tour.steps.filter(st => findTarget(st.target)));
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") { e.preventDefault(); onFinish(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onFinish]);
+  const toHelp = () => { onFinish(); navigate(`/help#${tour.help}`); };
+  const card = { emoji: "📖", title: "There's more in Help",
+                 body: `Everything about ${tour.title} — with links straight to each thing — is in Help.` };
+  return createPortal(
+    <div className={`tour-layer tour-${i < steps.length ? "spotlight" : "slides"}`}>
+      {i < steps.length ? (
+        <Spotlight step={steps[i]} index={i} count={steps.length + 1} onSkip={onFinish} onBack={() => setI(i - 1)}
+                   onNext={() => setI(i + 1)} />
+      ) : (
+        <Slides slides={[card]} index={0} onSkip={onFinish} skipLabel="Done" help={false}
+                final={{ label: "Open Help", onClick: toHelp }} />
       )}
     </div>,
     document.body,

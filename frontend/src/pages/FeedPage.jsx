@@ -29,11 +29,11 @@ export default function FeedPage({ user, apiBase, groupId }) {
   }
   return (
     <div className="page feed-full">
-      <PageHeader title="Club feed" />
+      <PageHeader title="Club feed" tour="feed" />
       <GamesStrip summary={summary} className="feed-strip" />
       <div className="feed-layout">
         <div className="feed-col">
-          <div className="feed-filters" role="group" aria-label="Show">
+          <div className="feed-filters" id="feed-filters" role="group" aria-label="Show">
             {FILTERS.map(([k, label]) => (
               <ToggleChip key={label} on={type === k} onClick={() => setParams(k ? { type: k } : {}, { replace: true })}>
                 {label}

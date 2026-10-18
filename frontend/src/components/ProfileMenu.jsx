@@ -35,7 +35,7 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
   }, [apiBase, user?.discord_linked]);
   if (state && !state.available && UNAVAILABLE[state.reason]) {
     return (
-      <div className="profile-sharing">
+      <div className="profile-sharing" id="profile-sharing">
         <div className="profile-section-label">Sharing to Discord</div>
         <p className="profile-sharing-hint">{UNAVAILABLE[state.reason]}</p>
       </div>
@@ -51,7 +51,7 @@ function SharingPrefs({ user, apiBase, onUpdate }) {
     }
   }
   return (
-    <div className="profile-sharing">
+    <div className="profile-sharing" id="profile-sharing">
       <div className="profile-section-label">Sharing to Discord</div>
       <p className="profile-sharing-hint">Nothing you do here posts to #movies unless you choose to. Shared posts never ping anyone.</p>
       {SHARE_KINDS.map(([kind, label, hint, options = ASK_ALWAYS_NEVER]) => (
@@ -98,7 +98,7 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
 
   if (!s.connected) {
     return (
-      <div className="profile-sharing">
+      <div className="profile-sharing" id="profile-letterboxd">
         <div className="profile-section-label">Letterboxd</div>
         <p className="profile-sharing-hint">Connect your diary and screenings you log there can count as check-ins here
           — you choose how. We only read your public diary feed.</p>
@@ -112,7 +112,7 @@ function LetterboxdSection({ user, apiBase, onUpdate }) {
     );
   }
   return (
-    <div className="profile-sharing">
+    <div className="profile-sharing" id="profile-letterboxd">
       <div className="profile-section-label">Letterboxd</div>
       <p className="profile-sharing-hint">
         📓 Connected to <a href={`https://letterboxd.com/${s.username}/`} target="_blank" rel="noreferrer">@{s.username}</a>
@@ -273,7 +273,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
 
       <hr className="profile-divider" />
 
-      <div className="profile-discord">
+      <div className="profile-discord" id="profile-discord">
         {user.discord_linked && !linkCode ? (
           <div className="profile-discord-linked">
             ✅ Discord linked{user.discord_username ? ` · @${user.discord_username}` : ""}
@@ -310,7 +310,7 @@ export default function ProfileEditor({ user, apiBase, onUpdate }) {
       <LetterboxdSection user={user} apiBase={apiBase} onUpdate={onUpdate} />
 
       <hr className="profile-divider" />
-      <div className="profile-section-label profile-notify-title">Notifications</div>
+      <div className="profile-section-label profile-notify-title" id="profile-notify">Notifications</div>
       <NotifySettings apiBase={apiBase} key={`${user.discord_linked}-${!!user.email}`} />
     </div>
   );

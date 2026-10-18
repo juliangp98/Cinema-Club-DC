@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { PageMeta, SectionTitle } from "../ui/PageHeader";
-import useHashScroll from "../useHashScroll";
 import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
@@ -42,7 +41,6 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
   const [error, setError] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [invite, setInvite] = useState(null);
-  useHashScroll(members.length > 0);                // the jump chips: ?tab=settings#settings-games
 
   useEffect(() => {
     setName(group.name || "");

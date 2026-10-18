@@ -17,6 +17,7 @@ import ClubBoard from "../components/ClubBoard";
 import { ClubStats, MembersStrip } from "../components/ClubOverview";
 import { monthDay } from "../dates";
 import { useJson, getJson, send } from "../api";
+import { TourButton, TourOffer } from "../ui/PageTourControls";
 import "./Club.css";
 
 const ROLE_ORDER = { admin: 0, organizer: 1, member: 2, viewer: 3 };
@@ -60,7 +61,10 @@ export default function ClubPage({ user, apiBase }) {
       <header className="club-hero">
         <ClubBadge group={group} size={84} />
         <div className="club-hero-text">
-          <h1 className="deco club-hero-name">{group.name}</h1>
+          <div className="club-hero-title">
+            <h1 className="deco club-hero-name">{group.name}</h1>
+            <TourButton page="club" />
+          </div>
           {group.description && <p className="club-hero-desc">{group.description}</p>}
           <p className="club-hero-meta">
             {group.member_count} member{group.member_count === 1 ? "" : "s"} · you're {isAdmin ? "an" : "a"} {roleLabel(shell.role).toLowerCase()}
@@ -70,6 +74,7 @@ export default function ClubPage({ user, apiBase }) {
         </div>
       </header>
 
+      <TourOffer page="club" />
       <Tabs tabs={tabs} value={tab} onChange={setTab} label="Club" />
       <div role="tabpanel" className="club-panel">
         {tab === "overview" && <Overview group={group} apiBase={apiBase} user={user} shell={shell}
@@ -169,7 +174,7 @@ export function LeaveClub({ group, apiBase, userId, onLeft }) {
     } finally { setBusy(false); }
   }
   return (
-    <div className="club-leave">
+    <div className="club-leave" id="leave-club">
       <button type="button" className="btn btn-sm btn-ghost club-leave-btn" disabled={busy} onClick={leave}>Leave this club</button>
       {error && <p className="ui-hint" role="status">{error}</p>}
     </div>

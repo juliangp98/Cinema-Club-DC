@@ -182,7 +182,8 @@ button.ui-page-back { background: none; border: 0; padding: 0; font-family: inhe
 .ui-page-back:hover { color: var(--amber); }
 .ui-page-header-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
                       padding-bottom: 0.6rem; border-bottom: 3px double var(--gold-line); }
-.ui-page-title { font-size: var(--fs-2xl); color: var(--amber); font-weight: 400; line-height: 1.1; flex: 1; min-width: 0; }
+.ui-page-titlebox { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; }
+.ui-page-title { font-size: var(--fs-2xl); color: var(--amber); font-weight: 400; line-height: 1.1; min-width: 0; }
 .ui-page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .ui-page-meta { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .ui-page-meta-more { font-size: var(--fs-sm); color: var(--amber); text-decoration: none; margin-left: 0.15rem; white-space: nowrap; }
@@ -747,6 +748,25 @@ a.share-state { color: var(--green); }
 }
 @media (prefers-reduced-motion: reduce) { .tour-hole { transition: none; } }
 
+/* The arrival glow (7f, arrive.js): whatever a #link points at, lit gold for
+   2.5 s when you land on it. It never blocks: no overlay, no pointer events. */
+[id] { scroll-margin-top: 76px; }
+.arrive-glow { animation: arrive-glow 2.5s ease-out forwards; outline: 2px solid var(--amber); outline-offset: 3px; }
+@keyframes arrive-glow {
+  0%, 36%, 72% { box-shadow: 0 0 0 3px var(--gold-line), 0 0 22px 6px rgba(220, 177, 92, 0.5); }
+  18%, 54%     { box-shadow: 0 0 0 2px var(--gold-wash), 0 0 8px 2px rgba(220, 177, 92, 0.2); }
+  100%         { box-shadow: 0 0 0 0 transparent; outline-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrive-glow { animation: none; box-shadow: 0 0 0 3px var(--gold-line); }
+}
+
+/* Page tours (7f): the ? by a page's title, and its one-time offer. */
+.btn.tour-q { width: 1.9rem; max-width: 1.9rem; height: 1.9rem; min-height: 0; padding: 0; border-radius: 50%; flex: none; align-self: center;
+          font: 700 var(--fs-sm)/1 var(--font-body); color: var(--amber); border: 1px solid var(--gold-line); }
+.btn.tour-q:hover { background: var(--gold-wash); border-color: var(--amber); }
+.tour-offer { margin-top: 0.7rem; }
+
 /* Help (R11) */
 .help-tools { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.9rem; }
 .help-search { flex: 1; margin: 0; }
@@ -757,3 +777,10 @@ a.share-state { color: var(--green); }
 .help-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 0.45rem; background: var(--bg3); }
 .help-item summary { cursor: pointer; font-weight: 600; color: var(--cream); }
 .help-item p { margin: 0.5rem 0 0.15rem; font-size: var(--fs-sm); line-height: 1.6; color: var(--cream); }
+/* Links in Help's answers (7f): straight to the place, which glows on arrival. */
+.rich-link { color: var(--amber); text-decoration: underline; text-decoration-color: var(--gold-line); text-underline-offset: 2px; }
+.rich-link:hover { text-decoration-color: var(--amber); }
+.help-answer { margin-bottom: 1rem; }
+.help-answer p { margin: 0.2rem 0 0.5rem; line-height: 1.6; }
+.help-answer-topics { margin: 0.3rem 0 0; padding-left: 1.1rem; font-size: var(--fs-sm); line-height: 1.7; }
+.help-answer-topics a { color: var(--amber); }

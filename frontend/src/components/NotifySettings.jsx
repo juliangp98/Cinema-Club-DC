@@ -116,14 +116,14 @@ export default function NotifySettings({ apiBase }) {
           {key === "push" && <PushDevice apiBase={apiBase} onSettings={setS} />}
         </div>
       ))}
-      <div className="profile-section-label">Which alerts</div>
+      <div className="profile-section-label" id="notify-which">Which alerts</div>
       {s.types_info.map(t => (
         <label key={t.key} className="notify-row">
           <input type="checkbox" checked={s.types[t.key]} onChange={e => save({ types: { [t.key]: e.target.checked } })} />
           <span><span className="notify-name">{t.label}</span><span className="ui-hint">{t.hint}</span></span>
         </label>
       ))}
-      <div className="profile-section-label">Saved searches</div>
+      <div className="profile-section-label" id="notify-searches">Saved searches</div>
       {s.searches?.length ? s.searches.map(x => (
         <div key={x.id} className="notify-row notify-search">
           <Link to={x.path} className="notify-name">{x.label}</Link>

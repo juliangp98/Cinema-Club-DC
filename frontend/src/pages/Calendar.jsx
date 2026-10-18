@@ -372,7 +372,7 @@ export default function Calendar({ user, apiBase, groupId }) {
 
   return (
     <div className={`page calendar view-${view}`}>
-      <PageHeader title={title} meta={[{ icon: "🎬", label: loading ? "Loading…" : `${filmCount} film${filmCount === 1 ? "" : "s"}` },
+      <PageHeader title={title} tour="calendar" meta={[{ icon: "🎬", label: loading ? "Loading…" : `${filmCount} film${filmCount === 1 ? "" : "s"}` },
                                        !loading && filmCount > 0 && { label: "Browse them →", to: browseLink, more: true }]} />
 
       <div className="cal-bar">
@@ -388,9 +388,9 @@ export default function Calendar({ user, apiBase, groupId }) {
         </button>
       </div>
 
-      <div className="cal-tickets"><TicketChips value={query.tickets} onChange={v => update({ tickets: v })} /></div>
+      <div className="cal-tickets" id="calendar-tickets"><TicketChips value={query.tickets} onChange={v => update({ tickets: v })} /></div>
 
-      <div className={`cal-quick${allPills ? " open" : ""}`} role="group" aria-label="Quick filters">
+      <div className={`cal-quick${allPills ? " open" : ""}`} id="calendar-filters" role="group" aria-label="Quick filters">
         {(() => {
           const pill = ([k, v, label], i, extra = false) => {
             const on = MULTI.has(k) ? listOf(query[k]).includes(v) : query[k] === v;
