@@ -24,7 +24,7 @@ TYPES = {
     'trivia_result': ('Trivia: yesterday\u2019s answer', 'The answer, whether you got it, and how the club did.'),
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
-    'reviews': ('A game post is waiting for your OK', 'Club admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
+    'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
 }
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert

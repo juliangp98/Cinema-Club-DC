@@ -209,14 +209,18 @@ def progress(card, user_id):
             'kernels': (LINE_KERNELS if line_at else 0) + (FULL_KERNELS if full_at else 0)}
 
 
-def kernels_for(user_ids, group_id=None):
-    """{uid: bingo kernels} across the clubs' cards (one club's, or all)."""
+def kernels_for(user_ids, group_id=None, since=None):
+    """{uid: bingo kernels} across the clubs' cards (one club's, or all;
+    with `since`, cards from that month on)."""
     from app import BingoCard, GroupMembership
     out = {}
+    first = month_of(since) if since else None
     for uid in user_ids:
         groups = [group_id] if group_id else [m.group_id for m in GroupMembership.query.filter_by(user_id=uid,
                                                                                                status='active')]
         for card in BingoCard.query.filter(BingoCard.group_id.in_(groups)) if groups else []:
+            if first and card.month < first:
+                continue
             k = progress(card, uid)['kernels']
             if k:
                 out[uid] = out.get(uid, 0) + k

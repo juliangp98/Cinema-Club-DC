@@ -1385,8 +1385,8 @@ def internal_game_review(post_id):
     if not post:
         return jsonify({'error': 'That post is gone.'}), 404
     if request.method == 'GET':
-        if not role_at_least(_active_membership(user, post.group_id), 'admin'):
-            return jsonify({'error': 'Only club admins can do that.'}), 403
+        if not role_at_least(_active_membership(user, post.group_id), 'organizer'):
+            return jsonify({'error': 'Only club organizers and admins can do that.'}), 403
         return jsonify(game_posts.preview(post))
     view, err = game_posts.decide(post, user, data.get('action'))
     if view is None:

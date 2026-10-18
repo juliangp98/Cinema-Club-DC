@@ -15,7 +15,7 @@ const SLIDES = [
   { emoji: "🎟️", title: "Make plans together",
     body: "Tap any screening to say you're Going or Maybe. Your club sees who's going and can talk about it; afterwards, check in to say you went." },
   { emoji: "🍿", title: "Your club", club: true,
-    body: "The feed shows what your club is up to. Earn kernels by going out, in polls and in games — and give a few to each other." },
+    body: "The feed shows what your club is up to, and the Club page who's in it and how the month's going. Earn kernels by going out, in polls and in games — and give a few to each other." },
   { emoji: "🔕", title: "Nothing sent without a yes",
     body: "No emails, Discord DMs or push notifications unless you turn them on — and nothing posts to Discord unless you choose to. It's all in your profile." },
 ];

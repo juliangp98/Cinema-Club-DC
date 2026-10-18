@@ -190,7 +190,7 @@ def test_who_can_give_to_whom(active):
 
 def test_the_leaderboard_adds_it_all_up(active):
     toss(active, 'Bo', 'Ana')
-    rows = client(active['Ana']).get(f"/api/groups/{active['G']}/leaderboard").json
+    rows = client(active['Ana']).get(f"/api/groups/{active['G']}/leaderboard").json['rows']
     top = rows[0]
     assert top['user']['name'] == 'Ana' and top['kernels'] == 9
     assert top['breakdown'] == {'polls': 0, 'going_out': 8, 'trivia': 0, 'bingo': 0, 'members': 1}

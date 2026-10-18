@@ -5,6 +5,7 @@ import BingoCard from "../ui/BingoCard";
 import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import PollList from "../components/PollList";
+import { kernelParts } from "../kernels";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
 import useHashScroll from "../useHashScroll";
@@ -13,11 +14,9 @@ import useHashScroll from "../useHashScroll";
 // all of them, here — /polls leads here) — and your kernels with the
 // standings. The feed's rail and strip (and /play in Discord) lead here.
 
-const PARTS = [["polls", "polls"], ["going_out", "going out"], ["trivia", "trivia"], ["bingo", "bingo"], ["members", "from members"]];
-
 function Kernels({ apiBase, groupId, viewerId }) {
   const { data: k } = useJson(`${apiBase}/api/kernels?group_id=${groupId}`);
-  const { data: board } = useJson(`${apiBase}/api/groups/${groupId}/leaderboard`);
+  const board = useJson(`${apiBase}/api/groups/${groupId}/leaderboard`).data?.rows;
   if (!k) return null;
   const r = k.rules;
   const earn = [
@@ -34,14 +33,14 @@ function Kernels({ apiBase, groupId, viewerId }) {
     <div className="play-kernels">
       <div className="play-kernels-total">
         <span className="rail-big">🍿 {k.kernels}</span>
-        <span className="ui-hint">{PARTS.filter(([key]) => !["trivia", "bingo"].includes(key) || k[key]).map(([key, label]) => `${label} ${k[key]}`).join(" · ")}</span>
+        <span className="ui-hint">{kernelParts(k)}</span>
         <span className="ui-hint">This week: {k.allowance.give_left} to give · {k.allowance.take_left} to take (on the feed's 🍿 Kernels buttons)</span>
       </div>
       <details className="play-earn">
         <summary>How to earn kernels</summary>
         <ul>{earn.map(e => <li key={e}>{e}</li>)}</ul>
       </details>
-      {Array.isArray(board) && board.length > 0 && (
+      {board?.length > 0 && (
         <>
           <ol className="play-board">
             {board.slice(0, 5).map((row, i) => (

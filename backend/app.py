@@ -1225,8 +1225,9 @@ def poll_scores(poll):
     return board
 
 
-def calc_user_kernels(user_id, group_id=None):
-    """Total popcorn kernels + correct picks across scored polls (optionally one group's)."""
+def calc_user_kernels(user_id, group_id=None, since=None):
+    """Total popcorn kernels + correct picks across scored polls (optionally one
+    group's; with `since`, only polls scored since then)."""
     total, correct = 0, 0
     votes = PollVote.query.filter_by(user_id=user_id).all()
     for vote in votes:
@@ -1238,30 +1239,19 @@ def calc_user_kernels(user_id, group_id=None):
             continue
         if group_id and poll.group_id != group_id:
             continue
+        if since and (poll.scored_at or poll.closed_at or poll.created_at) < since:
+            continue
         total += vote_kernels(poll.scoring_mode, vote, cat.correct_option_id)
         correct += vote.option_id == cat.correct_option_id
     return total, correct
 
 
 def build_leaderboard(group):
-    """The club's standings: one kernel total each (polls + going out + from
-    members, R10b), with where it came from; ties by correct picks, then
+    """The club's all-time standings (rows of club_stats.leaderboard): one
+    kernel total each, with where it came from; ties by correct picks, then
     screenings attended."""
-    import kernels
-    members = [m for m in group.memberships if m.status == 'active' and m.user]
-    counts = kernels.breakdowns([m.user_id for m in members], group.id)
-    rows = []
-    for m in members:
-        k = counts[m.user_id]
-        rows.append({
-            'user': m.user.public_dict(),
-            'kernels': k['kernels'],
-            'correct': k['correct'],
-            'attendance': len(attended_showtime_ids(m.user_id, {group.id})),
-            'breakdown': {part: k[part] for part in kernels.PARTS},
-        })
-    rows.sort(key=lambda r: (-r['kernels'], -r['correct'], -r['attendance']))
-    return rows
+    import club_stats
+    return club_stats.leaderboard(group, 'all')['rows']
 
 
 # ─── Routes: Internal API (Discord bot) ───────────────────────────────────────

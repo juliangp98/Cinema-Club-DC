@@ -257,6 +257,15 @@ def get_group(slug):
     return jsonify(d)
 
 
+# What organizers may change in a club's settings (R15): its theatres and its
+# games (switches and what they post in Discord). The rest — name, picture,
+# details — is admins'.
+def organizer_fields():
+    import game_posts
+    return {'theatres', 'trivia_enabled', 'trivia_anytime', 'bingo_enabled', 'notes_enabled',
+            *game_posts.SETTINGS.values()}
+
+
 @app.route('/api/groups/<slug>', methods=['PUT'])
 @require_auth
 def update_group(slug):
@@ -264,14 +273,12 @@ def update_group(slug):
     if not group:
         return jsonify({'error': 'Group not found'}), 404
 
-    user = current_user()
-    admin_membership = GroupMembership.query.filter_by(
-        user_id=user.id, group_id=group.id, role='admin', status='active'
-    ).first()
-    if not admin_membership:
-        return jsonify({'error': 'Admin access required'}), 403
-
     data = request.json or {}
+    membership, err = require_role(current_user(), group.id, 'organizer')
+    if err:
+        return err
+    if not role_at_least(membership, 'admin') and set(data) - organizer_fields():
+        return jsonify({'error': "Only admins can change the club's name, picture and details.", 'code': 'role'}), 403
 
     name = (data.get('name') or '').strip()
     if name:
@@ -328,7 +335,7 @@ def club_game_posts(slug):
     group = Group.query.filter_by(slug=slug).first()
     if not group:
         return jsonify({'error': 'Group not found'}), 404
-    _, err = require_role(current_user(), group.id, 'admin')
+    _, err = require_role(current_user(), group.id, 'organizer')
     if err:
         return err
     return jsonify({'waiting': game_posts.waiting(group)})
@@ -467,11 +474,9 @@ def approve_member(slug, uid):
     if not group:
         return jsonify({'error': 'Group not found'}), 404
 
-    admin_membership = GroupMembership.query.filter_by(
-        user_id=user.id, group_id=group.id, role='admin', status='active'
-    ).first()
-    if not admin_membership:
-        return jsonify({'error': 'Admin access required'}), 403
+    _, err = require_role(user, group.id, 'organizer')       # organizers answer join requests too (R15)
+    if err:
+        return err
 
     target = GroupMembership.query.filter_by(user_id=uid, group_id=group.id, status='pending').first()
     if not target:
@@ -496,11 +501,9 @@ def deny_member(slug, uid):
     if not group:
         return jsonify({'error': 'Group not found'}), 404
 
-    admin_membership = GroupMembership.query.filter_by(
-        user_id=user.id, group_id=group.id, role='admin', status='active'
-    ).first()
-    if not admin_membership:
-        return jsonify({'error': 'Admin access required'}), 403
+    _, err = require_role(user, group.id, 'organizer')       # organizers answer join requests too (R15)
+    if err:
+        return err
 
     target = GroupMembership.query.filter_by(user_id=uid, group_id=group.id, status='pending').first()
     if not target:

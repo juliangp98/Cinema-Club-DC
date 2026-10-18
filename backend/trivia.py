@@ -327,9 +327,10 @@ def answer(group, user, question_id, choice, source='site'):
     return {**as_dict(q, user), 'earned': earned, 'anytime_on': bool(group.trivia_anytime)}, None
 
 
-def kernels_for(user_ids, group_id=None):
+def kernels_for(user_ids, group_id=None, since=None):
     """{uid: trivia kernels}: +2 per right answer to a question of the day,
-    +1 per right anytime answer up to ANYTIME_DAILY_CAP a day (per club)."""
+    +1 per right anytime answer up to ANYTIME_DAILY_CAP a day (per club);
+    with `since`, only questions from that day on."""
     from app import db, TriviaAnswer, TriviaQuestion
     if not user_ids:
         return {}
@@ -338,6 +339,8 @@ def kernels_for(user_ids, group_id=None):
          .filter(TriviaAnswer.user_id.in_(list(user_ids)), TriviaAnswer.correct.is_(True)))
     if group_id:
         q = q.filter(TriviaQuestion.group_id == group_id)
+    if since:
+        q = q.filter(TriviaQuestion.day >= since.date())
     out, anytime = {}, {}
     for uid, gid, day, slot in q:
         if slot == 'daily':

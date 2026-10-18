@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import json as _json
 from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote,
-    _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes, build_leaderboard,
+    _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes,
     build_poll, can_share, current_user, datetime, db, jsonify, os, poll_scores,
     post_dict, queue_poll_post, request, require_auth, require_group_member, require_role, role_at_least,
     share_prefs, timezone)
@@ -313,14 +313,36 @@ def user_kernels(user_id):
 @app.route('/api/groups/<int:group_id>/leaderboard')
 @require_auth
 def group_leaderboard(group_id):
-    """Season-long standings: kernels across all scored polls + attendance."""
+    """?period=month | year | all (the default): {period, since, rows,
+    superlatives} — kernels earned in the period and each member's stats
+    (club_stats.py)."""
+    import club_stats
     group = db.session.get(Group, group_id)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
     err = require_group_member(group_id)
     if err:
         return err
-    return jsonify(build_leaderboard(group))
+    period = request.args.get('period', 'all')
+    if period not in club_stats.PERIODS:
+        return jsonify({'error': 'period must be month, year or all'}), 400
+    return jsonify(club_stats.leaderboard(group, period))
+
+
+@app.route('/api/groups/<int:group_id>/stats')
+@require_auth
+def group_stats(group_id):
+    """The Club page's numbers (club_stats.overview): this month together, the
+    most-wanted film, the busiest theatre, the top three, and each member's
+    screenings this month."""
+    import club_stats
+    group = db.session.get(Group, group_id)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    err = require_group_member(group_id)
+    if err:
+        return err
+    return jsonify(club_stats.overview(group))
 
 
 # ─── Daily trivia (R10d) ──────────────────────────────────────────────────────

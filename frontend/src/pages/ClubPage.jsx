@@ -12,16 +12,20 @@ import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { roleLabel } from "../roles";
 import TheatreLink from "../ui/TheatreLink";
 import { personPath } from "../ui/PersonLink";
-import { GamesStrip } from "../ui/GamesSummary";
+import { GamesRail, GamesStrip } from "../ui/GamesSummary";
+import ClubBoard from "../components/ClubBoard";
+import { ClubStats, MembersStrip } from "../components/ClubOverview";
+import { monthDay } from "../dates";
 import { useJson, getJson, send } from "../api";
 import "./Club.css";
 
-const MEDALS = ["🥇", "🥈", "🥉"];
 const ROLE_ORDER = { admin: 0, organizer: 1, member: 2, viewer: 3 };
 
-// The club's page (R6b): who it is, this week and recent activity, members,
-// the leaderboard, and (for admins) its settings. ?tab= picks the tab, so the
-// old /members and /leaderboard links land on theirs.
+// The club's page (R6b; rebuilt in R15): who it is; an Overview (this week and
+// recent activity, beside the members, the month's numbers and the games);
+// members as tiles; the leaderboard by period; and settings for organizers
+// (theatres, join requests, games) and admins (everything). ?tab= picks the
+// tab, so the old /members and /leaderboard links land on theirs.
 export default function ClubPage({ user, apiBase }) {
   const shell = useShell();
   const navigate = useNavigate();
@@ -29,8 +33,9 @@ export default function ClubPage({ user, apiBase }) {
   const [params, setParams] = useSearchParams();
   const [theatreBySlug, setTheatreBySlug] = useState({});
   const isAdmin = shell?.role === "admin";
+  const canManage = isAdmin || shell?.role === "organizer";
   const tabs = [{ key: "overview", label: "Overview" }, { key: "members", label: "Members" },
-                { key: "leaderboard", label: "Leaderboard" }, ...(isAdmin ? [{ key: "settings", label: "Settings" }] : [])];
+                { key: "leaderboard", label: "Leaderboard" }, ...(canManage ? [{ key: "settings", label: "Settings" }] : [])];
   const tab = tabs.some(t => t.key === params.get("tab")) ? params.get("tab") : "overview";
   const setTab = key => setParams(key === "overview" ? {} : { tab: key }, { replace: true });
   const { openShowtime, sheet } = useShowtimeSheet({ user, apiBase, groupId: group?.id });
@@ -67,17 +72,8 @@ export default function ClubPage({ user, apiBase }) {
 
       <Tabs tabs={tabs} value={tab} onChange={setTab} label="Club" />
       <div role="tabpanel" className="club-panel">
-        {tab === "overview" && (
-          <>
-            <ClubWeek apiBase={apiBase} groupId={group.id} viewerId={user.id} onOpenShowtime={openShowtime}
-                      onOpenActivity={shell.openActivity} />
-            <ClubGames apiBase={apiBase} groupId={group.id} />
-            <SectionTitle>In your calendar</SectionTitle>
-            <CalendarLinks apiBase={apiBase} clubId={group.id} />
-            <SectionTitle link={{ to: "/feed", label: "See the full feed →" }}>Recent activity</SectionTitle>
-            <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} limit={3} /></div>
-          </>
-        )}
+        {tab === "overview" && <Overview group={group} apiBase={apiBase} user={user} shell={shell}
+                                         openShowtime={openShowtime} setTab={setTab} />}
         {tab === "members" && (
           <>
             <Members group={group} apiBase={apiBase} viewerId={user.id} />
@@ -85,9 +81,9 @@ export default function ClubPage({ user, apiBase }) {
                        onLeft={async () => { await shell.refreshGroups?.(); navigate("/", { replace: true }); }} />
           </>
         )}
-        {tab === "leaderboard" && <Leaderboard group={group} apiBase={apiBase} viewerId={user.id} />}
-        {tab === "settings" && isAdmin && (
-          <ClubSettings group={group} apiBase={apiBase} viewerId={user.id}
+        {tab === "leaderboard" && <ClubBoard group={group} apiBase={apiBase} viewerId={user.id} />}
+        {tab === "settings" && canManage && (
+          <ClubSettings group={group} apiBase={apiBase} viewerId={user.id} isAdmin={isAdmin}
                         onChanged={() => shell.refreshGroups?.()}
                         onDeleted={async () => { await shell.refreshGroups?.(); navigate("/groups"); }} />
         )}
@@ -98,23 +94,57 @@ export default function ClubPage({ user, apiBase }) {
   );
 }
 
+// The overview: what's on and what happened (main column) beside the club's
+// people, numbers and games (side column; on phones the games come first).
+function Overview({ group, apiBase, user, shell, openShowtime, setTab }) {
+  const { data: play } = useJson(`${apiBase}/api/play?group_id=${group.id}`);
+  const { data: stats } = useJson(`${apiBase}/api/groups/${group.id}/stats`);
+  const { data: members } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
+  return (
+    <div className="club-overview">
+      <div className="club-main">
+        <GamesStrip summary={play} className="club-strip" />
+        <ClubWeek apiBase={apiBase} groupId={group.id} viewerId={user.id} onOpenShowtime={openShowtime}
+                  onOpenActivity={shell.openActivity} />
+        <SectionTitle link={{ to: "/feed", label: "See the full feed →" }}>Recent activity</SectionTitle>
+        <div className="club-feed"><Feed user={user} apiBase={apiBase} groupId={group.id} limit={3} /></div>
+        <SectionTitle>In your calendar</SectionTitle>
+        <CalendarLinks apiBase={apiBase} clubId={group.id} />
+      </div>
+      <aside className="club-side" aria-label="The club at a glance">
+        <MembersStrip members={activeMembers(members)} onAll={() => setTab("members")} />
+        <ClubStats stats={stats} onBoard={() => setTab("leaderboard")} />
+        <div className="club-side-games"><GamesRail summary={play} /></div>
+      </aside>
+    </div>
+  );
+}
+
+const activeMembers = data => (data || []).filter(m => m.status === "active" && m.user)
+  .sort((a, b) => (ROLE_ORDER[a.role] ?? 2) - (ROLE_ORDER[b.role] ?? 2) || a.user.name.localeCompare(b.user.name));
+
+// Members as poster-style tiles: picture, name, role, and how often they've
+// been out this month (or when they last were).
 function Members({ group, apiBase, viewerId }) {
   const { data, error } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
+  const { data: stats } = useJson(`${apiBase}/api/groups/${group.id}/stats`);
   if (error) return <p className="pv-empty">Couldn't load members right now.</p>;
   if (!data) return <p className="pv-empty">Loading…</p>;
-  const active = data.filter(m => m.status === "active" && m.user)
-    .sort((a, b) => (ROLE_ORDER[a.role] ?? 2) - (ROLE_ORDER[b.role] ?? 2) || a.user.name.localeCompare(b.user.name));
+  const stat = uid => {
+    const s = stats?.members?.[uid];
+    if (!s) return null;
+    if (s.screenings) return `🎟️ ${s.screenings} this month`;
+    return s.last_out ? `Last out ${monthDay(s.last_out)}` : "No screenings yet";
+  };
   return (
-    <ul className="club-rows">
-      {active.map(m => (
+    <ul className="club-tiles">
+      {activeMembers(data).map(m => (
         <li key={m.id}>
-          <Link className="club-row clickable" to={personPath(m.user.id)}>
-            <Avatar user={m.user} size={38} />
-            <span className="club-row-name">
-              {m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}
-              {m.user.bio && <small className="club-row-sub">{m.user.bio}</small>}
-            </span>
-            {m.role !== "member" && <span className={`chip${m.role === "admin" ? " gold" : ""}`}>{roleLabel(m.role)}</span>}
+          <Link className={`club-tile${m.user.id === viewerId ? " me" : ""}`} to={personPath(m.user.id)}>
+            <Avatar user={m.user} size={72} />
+            <span className="club-tile-name">{m.user.name}{m.user.id === viewerId && <span className="club-you"> (you)</span>}</span>
+            <span className={`ui-badge${m.role === "admin" ? " gold" : m.role === "organizer" ? " go" : ""}`}>{roleLabel(m.role || "member")}</span>
+            {stat(m.user.id) && <span className="club-tile-stat">{stat(m.user.id)}</span>}
           </Link>
         </li>
       ))}
@@ -143,52 +173,5 @@ export function LeaveClub({ group, apiBase, userId, onLeft }) {
       <button type="button" className="btn btn-sm btn-ghost club-leave-btn" disabled={busy} onClick={leave}>Leave this club</button>
       {error && <p className="ui-hint" role="status">{error}</p>}
     </div>
-  );
-}
-
-// The club's games in one row (R10 Play): today's trivia, bingo, polls to
-// vote in, your kernels — each opens on the Play page.
-function ClubGames({ apiBase, groupId }) {
-  const { data } = useJson(`${apiBase}/api/play?group_id=${groupId}`);
-  if (!data) return null;
-  return (
-    <>
-      <SectionTitle link={{ to: "/play", label: "Play →" }}>Games</SectionTitle>
-      <GamesStrip summary={data} className="club-games" />
-    </>
-  );
-}
-
-function Leaderboard({ group, apiBase, viewerId }) {
-  const { data: rows, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard`);
-  if (!rows && !error) return <p className="pv-empty">Loading…</p>;
-  if (error || !rows.length) {
-    return <p className="pv-empty">No standings yet — vote in a scored poll or log a screening you went to. 🍿</p>;
-  }
-  return (
-    <>
-      <p className="ui-hint">Kernels from scored polls, going out (check in after a screening, be first to go, crew nights),
-        trivia and bingo (when they're on) and what members give each other. Ties: correct picks, then screenings attended.</p>
-      <ol className="club-rows">
-        {rows.map((r, i) => (
-          <li key={r.user.id}>
-            <Link className={`club-row clickable${r.user.id === viewerId ? " me" : ""}`} to={personPath(r.user.id)}>
-              <span className="club-rank">{(r.kernels || r.attendance) && MEDALS[i] ? MEDALS[i] : i + 1}</span>
-              <Avatar user={r.user} size={34} />
-              <span className="club-row-name">{r.user.name}</span>
-              <span className="club-score">
-                <strong>🍿 {r.kernels}</strong>
-                {r.breakdown && (
-                  <small>polls {r.breakdown.polls} · going out {r.breakdown.going_out}
-                    {r.breakdown.trivia ? ` · trivia ${r.breakdown.trivia}` : ""}
-                    {r.breakdown.bingo ? ` · bingo ${r.breakdown.bingo}` : ""} · members {r.breakdown.members}</small>
-                )}
-                <small>{r.correct} correct · {r.attendance} attended</small>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ol>
-    </>
   );
 }

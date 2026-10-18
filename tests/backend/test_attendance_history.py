@@ -84,7 +84,7 @@ def test_watch_history(answered):
 
 
 def test_the_leaderboard_counts_attendance(answered):
-    board = {r['user']['id']: r['attendance'] for r in client(answered['ana']).get('/api/groups/1/leaderboard').json}
+    board = {r['user']['id']: r['attendance'] for r in client(answered['ana']).get('/api/groups/1/leaderboard').json['rows']}
     assert board[answered['ana']] == 3          # went + unanswered going − missed
     assert board[answered['bo']] == 1           # a confirmed visit counts without an RSVP
 

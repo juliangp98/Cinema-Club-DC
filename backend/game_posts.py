@@ -1,18 +1,18 @@
 """What the club games post in Discord, and who hears about them (R14).
 
 Club posts in #movies — each its own choice in Club settings, all off until
-an admin picks otherwise (Group.trivia_post / bingo_card_post / bingo_wins_post):
+an organizer or admin picks otherwise (Group.trivia_post / bingo_card_post / bingo_wins_post):
   · the question of the day (after 11 AM) and the month's bingo card:
-    never | ask (an admin OKs it first — on the site, or with the buttons in
-    the DM the bot sends admins who take DMs) | always
+    never | ask (an organizer or admin OKs it first — on the site, or with the
+    buttons in the DM the bot sends those who take DMs) | always
   · bingo wins: never | always — naming the winner only if their Sharing to
     Discord says Always for "My game wins" (else "Someone got bingo")
 Unapproved posts lapse: the question at 10 PM, the card when its month ends.
-Before saying yes, an admin can swap the question (until someone answers it)
+Before saying yes, they can swap the question (until someone answers it)
 or reshuffle the card.
 
 Personal notices (notify.TYPES, each person's own switch): the question of
-the day, yesterday's answer, a new card, your bingo, and — for admins — a
+the day, yesterday's answer, a new card, your bingo, and — for organizers and admins — a
 post waiting for their OK.
 
 tick() does all of it and is safe to run any number of times: after each
@@ -40,9 +40,12 @@ def mode(group, kind):
     return value if on and value in MODES[kind] else 'never'
 
 
-def _admins(group):
+def _reviewers(group):
+    """Who can OK a game post (and hears it's waiting): organizers and admins (R15)."""
     from app import GroupMembership
-    return [m.user for m in GroupMembership.query.filter_by(group_id=group.id, status='active', role='admin') if m.user]
+    return [m.user for m in GroupMembership.query.filter(GroupMembership.group_id == group.id,
+                                                         GroupMembership.status == 'active',
+                                                         GroupMembership.role.in_(('organizer', 'admin'))) if m.user]
 
 
 def _players(group):
@@ -72,7 +75,7 @@ def _notify(users, kind, payload, type_=None):
 
 def _post(group, kind, ref, payload=None):
     """The GamePost for (group, kind, ref), made on first sight: approved when
-    the club says Always; waiting (and its admins told) when it says Ask."""
+    the club says Always; waiting (and its organizers and admins told) when it says Ask."""
     from sqlalchemy.exc import IntegrityError
     from app import db, GamePost
     post = GamePost.query.filter_by(group_id=group.id, kind=kind, ref=ref).first()
@@ -90,7 +93,7 @@ def _post(group, kind, ref, payload=None):
     if post.status == 'waiting':
         import bingo
         label = bingo.month_bounds(ref)[0].strftime('%B') if kind == 'bingo_card' else None
-        _notify(_admins(group), 'game_review', {'post_id': post.id, 'post_kind': kind, 'month_label': label,
+        _notify(_reviewers(group), 'game_review', {'post_id': post.id, 'post_kind': kind, 'month_label': label,
                                                 'group': group.slug}, type_='reviews')
     return post
 
@@ -270,8 +273,8 @@ def decide(post, user, action):
     import trivia
     from app import db, Group, TriviaQuestion, role_at_least, _active_membership
     group = db.session.get(Group, post.group_id)
-    if not role_at_least(_active_membership(user, group.id), 'admin'):
-        return None, 'Only club admins can do that.'
+    if not role_at_least(_active_membership(user, group.id), 'organizer'):
+        return None, 'Only club organizers and admins can do that.'
     if post.status != 'waiting':
         return preview(post), {'posted': 'It’s already posted.', 'approved': 'It’s already on its way.',
                                'skipped': 'It was skipped.', 'expired': 'It’s too late for that one.'}.get(post.status)

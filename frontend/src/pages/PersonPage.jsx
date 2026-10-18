@@ -7,6 +7,7 @@ import ProfileLists from "../components/ProfileLists";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { accountLabel } from "../accountLabel";
 import { useJson } from "../api";
+import { kernelParts } from "../kernels";
 
 const BACK = { to: "/club?tab=members", label: "Members" };
 
@@ -46,12 +47,7 @@ export default function PersonPage({ user, apiBase, groupId }) {
         <Avatar user={person} size={64} />
         <div className="me-card-text">
           <div className="me-sub">{accountLabel(person)}</div>
-          {parts && (
-            <small className="profile-kernels-parts">
-              polls {parts.polls} · going out {parts.going_out}{parts.trivia ? ` · trivia ${parts.trivia}` : ""}
-              {parts.bingo ? ` · bingo ${parts.bingo}` : ""} · from members {parts.members}
-            </small>
-          )}
+          {parts && <small className="profile-kernels-parts">{kernelParts(parts)}</small>}
         </div>
         {person.letterboxd_username && (
           <div className="me-card-actions">

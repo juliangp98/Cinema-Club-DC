@@ -42,15 +42,32 @@ def _groups_of(user_ids):
                                                                   GroupMembership.status == 'active')})
 
 
-def going_out(user_ids, group_id=None):
+def _since_filter(since):
+    """showtime id -> whether it screened since `since` (everything when None)."""
+    from app import db, Showtime
+    if since is None:
+        return lambda sid: True
+    cache = {}
+
+    def ok(sid):
+        if sid not in cache:
+            s = db.session.get(Showtime, sid)
+            cache[sid] = bool(s and s.start_time >= since)
+        return cache[sid]
+    return ok
+
+
+def going_out(user_ids, group_id=None, since=None):
     """{uid: {'went', 'planned', 'trailblazer', 'crew'}} — kernels from going
-    to screenings, in one club (or overall: each screening counted once)."""
+    to screenings, in one club (or overall: each screening counted once);
+    with `since`, only screenings since then."""
     from app import Attendance, RSVP, member_ids
     out = {u: {'went': 0, 'planned': 0, 'trailblazer': 0, 'crew': 0} for u in user_ids}
     if not out:
         return out
+    in_period = _since_filter(since)
     answers = Attendance.query.filter(Attendance.user_id.in_(list(out)), Attendance.status.isnot(None)).all()
-    went = {(a.user_id, a.showtime_id) for a in answers if a.status == 'went'}
+    went = {(a.user_id, a.showtime_id) for a in answers if a.status == 'went' and in_period(a.showtime_id)}
     missed = {(a.user_id, a.showtime_id) for a in answers if a.status == 'missed'}
     for uid, _ in went:
         out[uid]['went'] += WENT
@@ -70,6 +87,8 @@ def going_out(user_ids, group_id=None):
             if r.user_id in members:
                 going.setdefault(r.showtime_id, []).append(r.user_id)
         for sid, uids in going.items():
+            if not in_period(sid):
+                continue
             lead = uids[0]
             if lead in out and len(uids) > 1 and (lead, sid) not in missed:
                 trail[(lead, sid)] = max(trail.get((lead, sid), 0), min(TRAIL_MAX, (len(uids) - 1) * TRAIL_EACH))
@@ -77,7 +96,7 @@ def going_out(user_ids, group_id=None):
         for a in Attendance.query.filter(Attendance.user_id.in_(list(members)), Attendance.status == 'went'):
             checked_in.setdefault(a.showtime_id, set()).add(a.user_id)
         for sid, uids in checked_in.items():
-            if len(uids) >= CREW_MIN:
+            if len(uids) >= CREW_MIN and in_period(sid):
                 for uid in uids & set(out):
                     crew[(uid, sid)] = CREW
     for (uid, _), k in trail.items():
@@ -87,8 +106,8 @@ def going_out(user_ids, group_id=None):
     return out
 
 
-def from_members(user_ids, group_id=None):
-    """{uid: net kernels other members gave (minus took)}."""
+def from_members(user_ids, group_id=None, since=None):
+    """{uid: net kernels other members gave (minus took)} (given since `since`)."""
     from app import db, KernelGift
     if not user_ids:
         return {}
@@ -96,22 +115,27 @@ def from_members(user_ids, group_id=None):
          .filter(KernelGift.recipient_id.in_(list(user_ids))))
     if group_id:
         q = q.filter(KernelGift.group_id == group_id)
+    if since:
+        q = q.filter(KernelGift.created_at >= since)
     return {uid: int(n or 0) for uid, n in q.group_by(KernelGift.recipient_id)}
 
 
-def breakdowns(user_ids, group_id=None):
+def breakdowns(user_ids, group_id=None, since=None):
     """{uid: {kernels, correct, polls, going_out, trivia, members, detail}} —
-    `kernels` is the one total; the rest say where it came from."""
+    `kernels` is the one total; the rest say where it came from. `since` (a
+    local datetime): only what was earned since then — screenings by their
+    date, polls by when they were scored, trivia by the question's day, bingo
+    by the card's month, gifts by when they were given."""
     import bingo
     import trivia
     from app import calc_user_kernels
     user_ids = list(dict.fromkeys(user_ids))
-    out_k, gifts = going_out(user_ids, group_id), from_members(user_ids, group_id)
-    quizzes = trivia.kernels_for(user_ids, group_id)
-    cards = bingo.kernels_for(user_ids, group_id)
+    out_k, gifts = going_out(user_ids, group_id, since), from_members(user_ids, group_id, since)
+    quizzes = trivia.kernels_for(user_ids, group_id, since)
+    cards = bingo.kernels_for(user_ids, group_id, since)
     result = {}
     for uid in user_ids:
-        polls, correct = calc_user_kernels(uid, group_id=group_id)
+        polls, correct = calc_user_kernels(uid, group_id=group_id, since=since)
         go, quiz = sum(out_k[uid].values()), quizzes.get(uid, 0)
         card = cards.get(uid, 0)
         result[uid] = {'kernels': polls + go + quiz + card + gifts.get(uid, 0), 'correct': correct, 'polls': polls,

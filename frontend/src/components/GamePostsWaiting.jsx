@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { getJson, send } from "../api";
 import Panel from "../ui/Panel";
-import { SectionTitle } from "../ui/PageHeader";
 import useHashScroll from "../useHashScroll";
 
 // Game posts waiting for an admin's OK (R14): each exactly as it'll look in
@@ -57,7 +56,7 @@ export default function GamePostsWaiting({ apiBase, slug }) {
   }
   return (
     <section id="game-posts" aria-labelledby="game-posts-title">
-      <SectionTitle><span id="game-posts-title">Waiting for your OK</span></SectionTitle>
+      <h3 className="club-settings-sub" id="game-posts-title">Waiting for your OK</h3>
       {error && <p className="share-error" role="alert">{error}</p>}
       {posts.map(post => (
         <Panel key={post.id} tone="gold" className="game-preview" titleId={`game-post-${post.id}`}
