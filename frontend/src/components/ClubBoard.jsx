@@ -36,6 +36,7 @@ function Stats({ s }) {
     ["Comments", s.comments],
     ["Trivia", t.answered ? `${t.correct}/${t.answered} · ${t.accuracy}%` : "—"], ["Trivia streak", t.streak],
     ["Bingo", s.bingo.lines || s.bingo.cards ? `${s.bingo.lines} line${s.bingo.lines === 1 ? "" : "s"} · ${s.bingo.cards} card${s.bingo.cards === 1 ? "" : "s"}` : "—"],
+    ...(s.quizzes?.rounds ? [["Quiz games", s.quizzes.rounds], ["Best streak", s.quizzes.best_streak]] : []),
   ];
   return (
     <dl className="club-board-stats">

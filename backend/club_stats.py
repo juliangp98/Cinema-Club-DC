@@ -128,6 +128,21 @@ def _bingo(group, user_ids, since):
     return out
 
 
+def _quizzes(group, user_ids, since):
+    """{uid: {rounds, best_streak}} — quiz games played (R15), and the longest
+    higher-or-lower run."""
+    from app import QuizRound
+    q = QuizRound.query.filter(QuizRound.group_id == group.id, QuizRound.user_id.in_(list(user_ids)))
+    if since:
+        q = q.filter(QuizRound.day >= since.date())
+    out = {uid: {'rounds': 0, 'best_streak': 0} for uid in user_ids}
+    for r in q:
+        out[r.user_id]['rounds'] += 1
+        if r.kind == 'higher_lower':
+            out[r.user_id]['best_streak'] = max(out[r.user_id]['best_streak'], r.score)
+    return out
+
+
 def _comments(group, user_ids, since):
     from app import db, Message
     q = (db.session.query(Message.user_id, db.func.count(Message.id))
@@ -150,6 +165,7 @@ def member_stats(group, user_ids, since=None, now=None):
             together.setdefault(s.id, set()).add(uid)
     first, quiz = _first_going(group, member_ids(group.id), since), _trivia(group, user_ids, since)
     cards, talk = _bingo(group, user_ids, since), _comments(group, user_ids, since)
+    played = _quizzes(group, user_ids, since)
     out = {}
     for uid in user_ids:
         ss = shows.get(uid, [])
@@ -164,6 +180,7 @@ def member_stats(group, user_ids, since=None, now=None):
             'comments': talk.get(uid, 0),
             'trivia': quiz[uid],
             'bingo': cards[uid],
+            'quizzes': played[uid],
             'last_out': ss[-1].start_time.isoformat() if ss else None,
         }
     return out

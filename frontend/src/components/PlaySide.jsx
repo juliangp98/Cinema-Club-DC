@@ -22,6 +22,7 @@ function earnList(r) {
     "Right picks in scored polls",
     r.trivia && `Trivia question of the day: ${byLevel(r.trivia)} for a right answer`,
     r.trivia_anytime && `Anytime trivia: ${byLevel(r.trivia_anytime.each)} each, up to ${r.trivia_anytime.per_day} a day`,
+    ...(r.games || []).map(g => `${g.label}: +${g.each} a right call, up to ${g.per_day} a day`),
     r.bingo && `Repertory bingo: +${r.bingo.line} for a line, +${r.bingo.full} for the full card`,
     `Members can give you kernels for what you do (up to ${r.give} a week each), or take a few back`,
   ].filter(Boolean);

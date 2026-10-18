@@ -45,6 +45,7 @@ class Film:
     director: str | None = None
     tagline: str | None = None
     cast: list = field(default_factory=list)
+    characters: list = field(default_factory=list)            # who the top billed play (who said it, R15)
     poster_url: str | None = None
     pool: object = None                       # its PoolFilm row, if it has one
 
@@ -80,10 +81,19 @@ def _cast(cast_json, n=6):
     return [r['name'] if isinstance(r, dict) else r for r in rows[:n] if (r.get('name') if isinstance(r, dict) else r)]
 
 
+def _characters(cast_json, n=10):
+    try:
+        rows = json.loads(cast_json or '[]')
+    except ValueError:
+        return []
+    return [r['character'].split(' / ')[0].strip() for r in rows[:n]
+            if isinstance(r, dict) and (r.get('character') or '').strip()]
+
+
 def from_pool(p):
     return Film(key=f'tmdb:{p.tmdb_id}', title=p.title, year=p.year, genres=_genres(p.genres), votes=p.vote_count or 0,
                 tmdb_id=p.tmdb_id, director=p.director, tagline=p.tagline, cast=_cast(p.cast_json),
-                poster_url=p.poster_url, pool=p)
+                characters=_characters(p.cast_json), poster_url=p.poster_url, pool=p)
 
 
 def from_movie(m, pool_row=None):
@@ -91,7 +101,7 @@ def from_movie(m, pool_row=None):
     return Film(key=f'film:{m.id}', title=pool_row.title if pool_row else nice_title(m.title),
                 year=_year(m.release_year), genres=_genres(m.genres), votes=(pool_row.vote_count or 0) if pool_row else 0,
                 movie_id=m.id, tmdb_id=m.tmdb_id, director=m.director, tagline=m.tagline, cast=_cast(m.cast_json),
-                poster_url=m.poster_url, pool=pool_row)
+                characters=_characters(m.cast_json), poster_url=m.poster_url, pool=pool_row)
 
 
 def films(source='both'):
@@ -161,10 +171,11 @@ def ensure_details(f):
         return f
     p = f.pool
     p.director, p.tagline = d.get('director'), d.get('tagline')
-    p.cast_json = json.dumps([c['name'] for c in json.loads(d.get('cast_json') or '[]') if c.get('name')])
+    p.cast_json = json.dumps([{'name': c['name'], 'character': c.get('character') or ''}
+                              for c in json.loads(d.get('cast_json') or '[]') if c.get('name')])
     p.details_at = _utcnow_naive()
     db.session.commit()
-    f.director, f.tagline, f.cast = p.director, p.tagline, _cast(p.cast_json)
+    f.director, f.tagline, f.cast, f.characters = p.director, p.tagline, _cast(p.cast_json), _characters(p.cast_json)
     return f
 
 

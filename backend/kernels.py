@@ -9,6 +9,8 @@
              on): +2 for the question of the day, +1 anytime (up to 5 a day)
   bingo      repertory bingo (bingo.py; off unless the club turned it on):
              +5 for a first line on the month's card, +15 for the full card
+  games      the quiz games (quizzes.py; each off unless the club turned it
+             on): +1 a right call, at most 5 a day from each game
   members    what other members gave you (or took) for your activity
 
 Everything but the gifts is worked out from the source tables, like poll
@@ -132,25 +134,28 @@ def breakdowns(user_ids, group_id=None, since=None):
     user_ids = list(dict.fromkeys(user_ids))
     out_k, gifts = going_out(user_ids, group_id, since), from_members(user_ids, group_id, since)
     quizzes = trivia.kernels_for(user_ids, group_id, since)
+    games = __import__('quizzes').kernels_for(user_ids, group_id, since)
     cards = bingo.kernels_for(user_ids, group_id, since)
     result = {}
     for uid in user_ids:
         polls, correct = calc_user_kernels(uid, group_id=group_id, since=since)
         go, quiz = sum(out_k[uid].values()), quizzes.get(uid, 0)
-        card = cards.get(uid, 0)
-        result[uid] = {'kernels': polls + go + quiz + card + gifts.get(uid, 0), 'correct': correct, 'polls': polls,
-                       'going_out': go, 'trivia': quiz, 'bingo': card, 'members': gifts.get(uid, 0),
+        card, game = cards.get(uid, 0), games.get(uid, 0)
+        result[uid] = {'kernels': polls + go + quiz + card + game + gifts.get(uid, 0), 'correct': correct,
+                       'polls': polls, 'going_out': go, 'trivia': quiz, 'bingo': card, 'games': game,
+                       'members': gifts.get(uid, 0),
                        'detail': out_k[uid]}
     return result
 
 
-PARTS = ('polls', 'going_out', 'trivia', 'bingo', 'members')     # a breakdown's parts, in the order they're shown
+PARTS = ('polls', 'going_out', 'trivia', 'bingo', 'games', 'members')   # a breakdown's parts, in the order they're shown
 
 
 def rules(group_id=None):
     """How kernels are earned, for /kernels and the site (trivia: only when
     the club has it on)."""
     import bingo
+    import quizzes
     import trivia
     from app import db, Group
     group = db.session.get(Group, group_id) if group_id else None
@@ -159,7 +164,9 @@ def rules(group_id=None):
             'trivia': trivia.DAILY_KERNELS if group and group.trivia_enabled else None,      # by difficulty (R15)
             'trivia_anytime': {'each': trivia.ANYTIME_KERNEL_TABLE, 'per_day': trivia.ANYTIME_DAILY_CAP}
             if group and group.trivia_anytime else None,
-            'bingo': {'line': bingo.LINE_KERNELS, 'full': bingo.FULL_KERNELS} if group and group.bingo_enabled else None}
+            'bingo': {'line': bingo.LINE_KERNELS, 'full': bingo.FULL_KERNELS} if group and group.bingo_enabled else None,
+            'games': [{'label': quizzes.GAMES[k][1], 'each': quizzes.GAMES[k][3], 'per_day': quizzes.DAILY_CAP}
+                      for k, v in quizzes.switches(group).items() if v] if group else []}
 
 
 def breakdown(user_id, group_id=None):

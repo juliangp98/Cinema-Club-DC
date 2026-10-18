@@ -113,6 +113,7 @@ class CinemaClubBot(discord.Client):
         self.add_dynamic_items(TriviaButton, TriviaMoreButton)    # trivia (R10d)
         self.add_dynamic_items(PlayButton)                        # /play (R10)
         self.add_dynamic_items(GameReviewButton)                  # admins' OK for game posts (R14)
+        self.add_dynamic_items(QuizButton)                        # quiz games (R15)
         announce_loop.start()
         share_loop.start()
         digest_loop.start()
@@ -3425,6 +3426,80 @@ async def bingo_flow(interaction):
             "Bingo is off for this club — a club admin can turn it on in Club settings on the site.", ephemeral=True)
         return
     await interaction.followup.send(embed=embeds.bingo_embed(b), ephemeral=True)
+
+
+# ─── Quiz games (R15) ─────────────────────────────────────────────────────────
+# The backend runs the games (quizzes.py): each its own switch in Club
+# settings. /games lists the ones that are on; a round plays out privately
+# with buttons — a start, an answer (and for higher or lower, the next call).
+
+QUIZ_OFF_MSG = ("No quiz games are on in this club yet — an organizer or admin can turn them on in "
+                "Club settings → Games on the site.")
+
+
+class QuizButton(discord.ui.DynamicItem[discord.ui.Button],
+                 template=r'quiz:(?P<act>start|ans):(?P<ref>[a-z_]+|[0-9]+)(?::(?P<choice>[a-z0-9]+))?'):
+    """▶ Play under /games (quiz:start:<game>), and the answers under a round
+    (quiz:ans:<round>:<choice>) — Before / After, or A–D."""
+    def __init__(self, act, ref, choice=None, label=None, style=discord.ButtonStyle.secondary):
+        cid = f'quiz:{act}:{ref}' + (f':{choice}' if choice is not None else '')
+        super().__init__(discord.ui.Button(label=label or '▶ Play', style=style, custom_id=cid))
+        self.act, self.ref, self.choice = act, ref, choice
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['act'], match['ref'], match['choice'], label=item.label, style=item.style)
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.act == 'start':
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            payload = {'action': 'start', 'kind': self.ref}
+        else:
+            await interaction.response.defer()
+            choice = int(self.choice) if str(self.choice).isdigit() else self.choice
+            payload = {'action': 'answer', 'round_id': int(self.ref), 'choice': choice}
+        try:
+            r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), **payload})
+        except Exception as e:
+            await reply_failure(interaction, e, 'quiz game')
+            return
+        if self.act == 'start':
+            await interaction.followup.send(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r), ephemeral=True)
+        else:
+            await interaction.edit_original_response(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r))
+
+
+def quiz_round_view(r):
+    """A round's buttons: its answers while it's on; Play again once it's over."""
+    view = discord.ui.View(timeout=None)
+    if r['done']:
+        view.add_item(QuizButton('start', r['kind'], label='🔁 Play again', style=discord.ButtonStyle.primary))
+    elif r['kind'] == 'higher_lower':
+        y = r['current']['year']
+        view.add_item(QuizButton('ans', r['id'], 'before', label=f'⬅️ Before {y}'))
+        view.add_item(QuizButton('ans', r['id'], 'after', label=f'After {y} ➡️'))
+    else:
+        for i in range(len(r['options'])):
+            view.add_item(QuizButton('ans', r['id'], str(i), label=embeds.LETTERS[i]))
+    return view
+
+
+@client.tree.command(name='games', description='Quiz games — higher or lower, who said it… (the ones your club has on)')
+async def games_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        g = await api.get('/api/internal/quizzes', **discord_identity(interaction))
+    except Exception as e:
+        await reply_failure(interaction, e, '/games')
+        return
+    games = g.get('games') or []
+    if not games:
+        await interaction.followup.send(QUIZ_OFF_MSG, ephemeral=True)
+        return
+    view = discord.ui.View(timeout=None)
+    for x in games:
+        view.add_item(QuizButton('start', x['kind'], label=f"{x['emoji']} {x['label']}", style=discord.ButtonStyle.primary))
+    await interaction.followup.send(embed=embeds.quiz_games_embed(games), view=view, ephemeral=True)
 
 
 # ─── Play (R10) ───────────────────────────────────────────────────────────────

@@ -135,6 +135,7 @@ class Group(db.Model):
     bingo_enabled = db.Column(db.Boolean, default=False)
     bingo_home = db.Column(db.Boolean, default=False)       # R15: Letterboxd diaries fill film squares
     trivia_source = db.Column(db.String(8), default='both')  # R15: local | tmdb | both (film_pool.SOURCES)
+    quizzes_json = db.Column(db.Text)                        # R15: {game: on} — each quiz game's switch (quizzes.GAMES)
     # R14: what the games post in the club's Discord (game_posts.py), each its
     # own choice, all off by default: the question of the day and the month's
     # card 'never' | 'ask' (an admin OKs it first) | 'always'; wins 'never' | 'always'.
@@ -164,6 +165,7 @@ class Group(db.Model):
             'bingo': {'enabled': bool(self.bingo_enabled), 'card_post': self.bingo_card_post or 'never',
                       'wins_post': self.bingo_wins_post or 'never', 'home': bool(self.bingo_home)},
             'notes': {'enabled': bool(self.notes_enabled)},
+            'quizzes': __import__('quizzes').switches(self),
         }
         if include_members:
             d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']
@@ -633,6 +635,24 @@ class TriviaQuestion(db.Model):
     __table_args__ = (db.UniqueConstraint('group_id', 'day', 'slot'),)
 
 
+class QuizRound(db.Model):
+    """One go at a quiz game (R15, quizzes.py): a higher-or-lower run, a
+    who-said-it question… `state_json` holds what it shows and its answers;
+    `earned` the kernels it paid (within each game's daily cap)."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    day = db.Column(db.Date, nullable=False)
+    state_json = db.Column(db.Text, nullable=False, default='{}')
+    status = db.Column(db.String(8), nullable=False, default='open')     # open | done
+    score = db.Column(db.Integer, nullable=False, default=0)             # right calls (a streak's length)
+    earned = db.Column(db.Integer, nullable=False, default=0)
+    source = db.Column(db.String(10))                                    # 'site' | 'discord'
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    finished_at = db.Column(db.DateTime)
+
+
 class PoolFilm(db.Model):
     """A well-known film from TMDB (R15, film_pool.py): trivia's wider pool
     and its look-alike wrong answers. Refreshed weekly; who directed it, its
@@ -648,7 +668,7 @@ class PoolFilm(db.Model):
     refreshed_at = db.Column(db.DateTime)
     director = db.Column(db.String(200))
     tagline = db.Column(db.String(500))
-    cast_json = db.Column(db.Text)                            # JSON: [name, …] (top billed)
+    cast_json = db.Column(db.Text)                            # JSON: [{name, character}, …] (top billed)
     details_at = db.Column(db.DateTime)
 
 

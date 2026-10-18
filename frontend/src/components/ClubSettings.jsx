@@ -9,6 +9,7 @@ import { getJson, send } from "../api";
 import ToggleChip from "../ui/ToggleChip";
 import { NEVER_ALWAYS, POST_MODES, Segmented } from "../ui/TicketRow";
 import GamePostsWaiting from "./GamePostsWaiting";
+import { QUIZ_GAMES } from "./QuizGames";
 import { ROLES } from "../roles";
 
 // A club's settings (R6b; grouped in R15): the club itself, its theatres,
@@ -246,6 +247,13 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                          onChange={v => v && run(() => update({ trivia_source: v }), "Saved")} />
             </div>
           )}
+          {QUIZ_GAMES.map(q => (
+            <label key={q.key} className="notify-row">
+              <input type="checkbox" checked={!!group.quizzes?.[q.key]}
+                     onChange={e => run(() => update({ quizzes: { [q.key]: e.target.checked } }), "Saved")} />
+              <span><span className="notify-name">{q.label}</span><span className="ui-hint">{q.hint}</span></span>
+            </label>
+          ))}
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.bingo?.enabled, "bingo_enabled")} />
             <span><span className="notify-name">Repertory bingo</span>

@@ -5,10 +5,11 @@ export const KERNEL_PARTS = [
   { key: "going_out", label: "going out" },
   { key: "trivia", label: "trivia" },
   { key: "bingo", label: "bingo" },
+  { key: "games", label: "games" },
   { key: "members", label: "from members" },
 ];
 
-// "polls 2 · going out 10 · from members 1" — trivia and bingo only when there are some.
+// "polls 2 · going out 10 · from members 1" — trivia, bingo and games only when there are some.
 export const kernelParts = breakdown => KERNEL_PARTS
-  .filter(({ key }) => !["trivia", "bingo"].includes(key) || breakdown[key])
+  .filter(({ key }) => !["trivia", "bingo", "games"].includes(key) || breakdown[key])
   .map(({ key, label }) => `${label} ${breakdown[key]}`).join(" · ");

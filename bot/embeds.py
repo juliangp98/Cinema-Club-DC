@@ -772,6 +772,7 @@ HELP_SECTIONS = [
         ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
         ('/play', 'your day in the club: trivia, bingo, polls to vote in, kernels'),
         ('/bingo', "this month's repertory bingo card (if your club has bingo on)"),
+        ('/games', 'quiz games — higher or lower, who said it… (the ones your club has on)'),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -833,8 +834,8 @@ def kernel_parts(k):
     from (trivia and bingo only once there's some)."""
     return ' · '.join(f'{label} {k[key]}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
                                                               ('trivia', 'trivia'), ('bingo', 'bingo'),
-                                                              ('members', 'from members'))
-                      if key not in ('trivia', 'bingo') or k.get(key))
+                                                              ('games', 'games'), ('members', 'from members'))
+                      if key not in ('trivia', 'bingo', 'games') or k.get(key))
 
 
 def kernels_embed(k):
@@ -856,6 +857,7 @@ def kernels_embed(k):
           if r.get('trivia_anytime') else []),
         *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/bingo`)"]
           if r.get('bingo') else []),
+        *[f"• {g['label']}: **+{g['each']}** a right call, up to {g['per_day']} a day (`/games`)" for g in r.get('games') or []],
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
@@ -902,6 +904,40 @@ def bingo_win_embed(post):
 
 
 LEVELS = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'}
+
+
+def quiz_games_embed(games):
+    """/games (R15): the quiz games the club has on, what you've earned today."""
+    lines = [f"{g['emoji']} **{g['label']}** — {g['blurb']}\n-# +{g['each']} 🍿 a right call · "
+             f"{g['earned_today']}/{g['cap']} today" + (f" · best {g['best']}" if g.get('best') else '') for g in games]
+    return discord.Embed(title='🎮 Quiz games', colour=AMBER, url=f'{SITE_URL}/play#games', description='\n\n'.join(lines))
+
+
+def _year_film(f):
+    return f"**{f['title']}**" + (f" ({f['year']})" if f.get('year') else '')
+
+
+def quiz_round_embed(r):
+    """A quiz round (R15): what to answer — or, once it's over, how it went."""
+    last = r.get('last') or {}
+    paid = f" +{last['paid']} 🍿" if last.get('paid') else ''
+    said = f"✅ Right!{paid}" if last.get('right') else '❌ Not quite.' if last else ''
+    if r['kind'] == 'higher_lower':
+        cur, nxt = r['current'], r['next']
+        if r['done']:
+            body = (f"{said}\n{_year_film(nxt)} came out in **{nxt['year']}** — "
+                    f"{'before' if nxt['year'] < cur['year'] else 'after'} {_year_film(cur)}.\n\n"
+                    f"Streak: **{r['score']}**")
+        else:
+            body = (f"{said + chr(10) if said else ''}{_year_film(cur)}\n\nDid **{nxt['title']}** come out before or after "
+                    f"{cur['year']}?\n-# Streak: {r['score']}")
+    else:
+        opts = '\n'.join(f"**{LETTERS[i]}.** {o}" + (' ✅' if r['done'] and i == r.get('answer') else '')
+                         for i, o in enumerate(r['options']))
+        body = (f"{said + chr(10) if said else ''}“{r['quote']}”\n\nWho says it in {_year_film(r['film'])}?\n\n{opts}")
+    embed = discord.Embed(title=f"{r['emoji']} {r['label']}", colour=AMBER, url=f'{SITE_URL}/play#games', description=body)
+    embed.set_footer(text=f"+{r['each']} 🍿 a right call · {r['left_today']} left to earn today · only you see this")
+    return embed
 
 
 def by_level(table):

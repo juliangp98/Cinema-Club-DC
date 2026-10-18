@@ -3,6 +3,7 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import TriviaCard from "../ui/TriviaCard";
 import BingoCard from "../ui/BingoCard";
 import PollList from "../components/PollList";
+import QuizGames from "../components/QuizGames";
 import { GamesRunPanel, KernelStrip, Movers, MonthBoard, YourKernels } from "../components/PlaySide";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
@@ -46,6 +47,10 @@ export default function PlayPage({ user, apiBase, groupId }) {
           <section id="bingo" className="play-section">
             <SectionTitle>Bingo</SectionTitle>
             <BingoCard apiBase={apiBase} groupId={groupId} role={role} offNote />
+          </section>
+          <section id="games" className="play-section">
+            <SectionTitle>More games</SectionTitle>
+            <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />
           </section>
           <section id="polls" className="play-section">
             <SectionTitle link={canRun ? { to: "/polls/new", label: "＋ New poll" } : undefined}>Polls</SectionTitle>

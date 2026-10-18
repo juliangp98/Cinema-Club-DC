@@ -1387,6 +1387,17 @@ button.feed-title:hover { color: var(--amber); }
   .play-strip { display: none; }
 }
 .play-board-gap { justify-content: center; color: var(--muted); }
+/* Quiz games on Play (R15) */
+.quiz-games { display: flex; flex-direction: column; gap: 0.75rem; }
+.quiz-pair { display: flex; align-items: center; gap: 0.75rem; }
+.quiz-film { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; text-align: center; }
+.quiz-film-poster { width: 84px; aspect-ratio: 2 / 3; border-radius: var(--radius); object-fit: cover; }
+.quiz-film-title { font-weight: 600; font-size: var(--fs-sm); }
+.quiz-film-year { font-family: var(--font-display, inherit); font-size: var(--fs-lg); color: var(--amber); }
+.quiz-vs { color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; }
+.quiz-answers { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+.quiz-quote { margin: 0; font-family: var(--font-serif); font-size: var(--fs-md); font-style: italic; }
+.quiz-result { margin: 0; font-weight: 600; }
 .play-run .chip { align-self: flex-start; }
 .play-run-links { font-size: var(--fs-xs); color: var(--muted); }
 .game-skipped { list-style: none; margin: 0 0 0.5rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
