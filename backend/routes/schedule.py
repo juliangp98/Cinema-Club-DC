@@ -299,7 +299,7 @@ def discover_browse():
 
 
 BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time', 'rarity',
-                 'club', 'runtime', 'mood', 'shelf', 'q', 'person', 'sort')
+                 'club', 'runtime', 'mood', 'shelf', 'q', 'person', 'sort', 'tickets')
 
 
 def _discover_more(name, build):
@@ -415,7 +415,8 @@ CALENDAR_PAST_DAYS = 60          # the Calendar can look back this far
 def discover_calendar():
     """The Calendar's screenings: every showing of the films matching Browse's
     filters (same parameters, from/to = the days shown), each marked rare as
-    Discover would, plus facet counts for the Filters sheet."""
+    Discover would, plus facet counts for the Filters sheet — and the
+    announced films expected on those days (tickets not on sale yet)."""
     import discover
     user, group, err = _discover_group()
     if err:
@@ -443,6 +444,7 @@ def discover_calendar():
             theatres.setdefault(s.theatre_id, d.pop('theatre'))
             d['movie_id'], d['theatre_id'] = s.movie_id, s.theatre_id
         return {'showtimes': dicts, 'movies': movies, 'theatres': theatres, 'total': len(films), 'facets': discover.facets(films),
+                'announced': discover.announced_matching(group, params),
                 'regions': discover.REGIONS,
                 'title': discover.SHELF_TITLES.get(params.get('shelf'))
                 or discover.MOODS.get(params.get('mood') or '', {}).get('label')}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
-import PageHeader from "../ui/PageHeader";
+import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import SearchBox from "../ui/SearchBox";
 import FilterSheet, { FILTER_LABEL as LABEL, listOf } from "../ui/FilterSheet";
@@ -11,11 +11,12 @@ import { WatchAlertPrompt } from "../ui/AlertPrompts";
 import { useJson, getJson, send } from "../api";
 import ToggleChip from "../ui/ToggleChip";
 import { groupParam } from "../scope";
+import TicketChips, { AnnouncedCard } from "../ui/TicketChips";
 
 // Every filter lives in the URL, so any view is a shareable link (and the
 // bot's /find answers can link straight to the same view).
 const KEYS = ["when", "from", "to", "theatres", "regions", "genres", "decade", "format", "time",
-              "rarity", "club", "runtime", "mood", "shelf", "q", "person", "sort"];
+              "rarity", "club", "runtime", "mood", "shelf", "q", "person", "sort", "tickets"];
 const MULTI = new Set(["theatres", "regions", "genres", "format"]);
 
 const WHEN = [["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["weekend", "This weekend"],
@@ -110,6 +111,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
   const [more, setMore] = useState({ url: null, films: [], meta: null });
   const extra = more.url === url ? more : { films: [], meta: null };
   const films = [...(first.data?.films || []), ...extra.films];
+  const soon = first.data?.announced || [];          // announced films that fit (tickets not on sale yet)
   const meta = extra.meta || first.data;
   const loading = first.loading && !first.data;
   const failed = !!first.error && !first.data;
@@ -148,7 +150,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
   // Active filters as removable chips (not when / q / sort, which have their own controls).
   const active = [];
   for (const k of KEYS) {
-    if (["when", "from", "to", "q", "sort"].includes(k) || !query[k]) continue;
+    if (["when", "from", "to", "q", "sort", "tickets"].includes(k) || !query[k]) continue;
     for (const v of MULTI.has(k) ? listOf(query[k]) : [query[k]]) {
       const label = k === "theatres" ? (theatreNames[v] || v) : k === "decade" ? `${v}s`
         : k === "shelf" ? (meta?.title || v) : k === "person" ? (meta?.title || v) : LABEL[`${k}:${v}`] || v.replace(/\b\w/g, c => c.toUpperCase());
@@ -177,6 +179,8 @@ export default function BrowsePage({ apiBase, groupId, user }) {
       <div className="browse-when" role="group" aria-label="When">
         {WHEN.map(([k, label]) => <Choice key={k} k="when" v={k}>{label}</Choice>)}
       </div>
+
+      <div className="browse-tickets"><TicketChips value={query.tickets} onChange={v => set("tickets", v)} /></div>
 
       <div className="browse-bar">
         <button className="btn btn-sm" onClick={() => setFiltersOpen(true)}>
@@ -210,7 +214,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
         <LoadError what="films" onRetry={first.reload} />
       ) : loading ? (
         <Loading context="browse" />
-      ) : films.length === 0 ? (
+      ) : films.length === 0 && !soon.length ? (
         <div className="discover-empty">
           <p>Nothing matches. Try a wider window or fewer filters.</p>
           <div className="browse-when">
@@ -219,9 +223,16 @@ export default function BrowsePage({ apiBase, groupId, user }) {
           </div>
         </div>
       ) : (
-        <div className="poster-grid">
-          {films.map(c => <PosterCard key={c.movie.id} card={c} />)}
-        </div>
+        <>
+          {soon.length > 0 && (
+            <>
+              <SectionTitle>Announced — tickets soon</SectionTitle>
+              <div className="poster-grid browse-soon">{soon.map(a => <AnnouncedCard key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}</div>
+            </>
+          )}
+          {films.length > 0 && soon.length > 0 && <SectionTitle>Playing</SectionTitle>}
+          {films.length > 0 && <div className="poster-grid">{films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>}
+        </>
       )}
       {meta?.next_offset != null && !loading && (
         <div className="browse-more"><button className="btn" onClick={loadMore}>Load more</button></div>

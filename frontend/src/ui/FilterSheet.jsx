@@ -1,5 +1,6 @@
 import Sheet, { SheetTitle } from "./Sheet";
 import ToggleChip from "./ToggleChip";
+import { TICKET_OPTIONS } from "./TicketChips";
 
 // The one Filters sheet, shared by Browse and the Calendar: same filters,
 // same URL parameter names (the server applies them the same way too).
@@ -10,6 +11,7 @@ export const FILTER_OPTIONS = {
   rarity: [["rare", "Rare"], ["repertory", "Repertory (5+ years old)"], ["wide", "Wide release"]],
   club: [["going", "Friends going"], ["wanted", "The club wants it"], ["mine", "Mine"]],
   runtime: [["short", "Under 95 min"], ["long", "Over 2½ hours"]],
+  tickets: TICKET_OPTIONS.filter(o => o.status !== "all").map(o => [o.status, o.label]),
   mood: [["scare-me", "Scare me"], ["laugh", "Make me laugh"], ["mind-bender", "Mind-bender"], ["date-night", "Date night"],
          ["tissues", "Bring tissues"], ["feel-good", "Feel-good"], ["thrills", "Pure thrills"]],
 };
@@ -78,8 +80,8 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
             <div className="filter-chips">{decades.map(([d, n]) => <Choice key={d} k="decade" v={d} count={n}>{d}s</Choice>)}</div>
           </fieldset>
         )}
-        {["format", "time", "rarity", ...(club ? ["club"] : []), "runtime"].map(k => (
-          <fieldset key={k}><legend>{{ format: "Format", time: "Time of day", rarity: "Rarity", club: "The club", runtime: "Length" }[k]}</legend>
+        {["tickets", "format", "time", "rarity", ...(club ? ["club"] : []), "runtime"].map(k => (
+          <fieldset key={k}><legend>{{ tickets: "Tickets", format: "Format", time: "Time of day", rarity: "Rarity", club: "The club", runtime: "Length" }[k]}</legend>
             <div className="filter-chips">{FILTER_OPTIONS[k].map(([v, l]) => <Choice key={v} k={k} v={v}>{l}</Choice>)}</div>
           </fieldset>
         ))}

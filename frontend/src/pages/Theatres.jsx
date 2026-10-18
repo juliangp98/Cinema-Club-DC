@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import PosterCard from "../ui/PosterCard";
 import Poster from "../ui/Poster";
@@ -13,6 +13,7 @@ import { TheatreNotes } from "../ui/ScreeningNotes";
 import "./DiscoverPage.css";
 import "./Theatres.css";
 import { dayShortTime } from "../dates";
+import TicketChips, { AnnouncedCard } from "../ui/TicketChips";
 
 const REGION_ORDER = ["DC", "Maryland", "Virginia"];
 const dayTime = dayShortTime;
@@ -94,7 +95,10 @@ export function TheatrePage({ apiBase, groupId }) {
   const shell = useShell() || {};
   useEffect(() => { if (shell.tasteVersion) disc.reload(); }, [shell.tasteVersion]);   // eslint-disable-line react-hooks/exhaustive-deps
   useHashScroll(!!disc.data);                  // e.g. #shelf-for-you from the Theatres page
-  const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest`);
+  const [params, setParams] = useSearchParams();
+  const tickets = params.get("tickets");
+  const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest${tickets ? `&tickets=${tickets}` : ""}`);
+  const setTickets = v => setParams(prev => { const n = new URLSearchParams(prev); v ? n.set("tickets", v) : n.delete("tickets"); return n; }, { replace: true });
   const t = info.data;
 
   if (info.error?.status === 404) {
@@ -166,8 +170,13 @@ export function TheatrePage({ apiBase, groupId }) {
         <SectionTitle link={all.data?.total > 0 ? { to: `/browse?when=month${scope}`, label: `Browse all ${all.data.total} →` } : null}>
           Playing in the next month
         </SectionTitle>
+        <div className="browse-tickets"><TicketChips value={tickets} onChange={setTickets} /></div>
+        {/* Announced films have their own shelf above; here only when that's what you asked for. */}
         {!all.data ? (all.error ? <LoadError what="the schedule" onRetry={all.reload} /> : <Loading context="theatre" />)
-          : !all.data.films?.length ? <p className="pv-empty">Nothing on the schedule yet — check back soon.</p>
+          : tickets === "soon" ? (all.data.announced?.length
+            ? <div className="poster-grid">{all.data.announced.map(a => <AnnouncedCard key={a.movie.id} a={a} />)}</div>
+            : <p className="pv-empty">Nothing announced here right now.</p>)
+          : !all.data.films?.length ? <p className="pv-empty">{tickets ? "Nothing matches — try All." : "Nothing on the schedule yet — check back soon."}</p>
           : <div className="poster-grid">{all.data.films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>}
       </section>
     </div>

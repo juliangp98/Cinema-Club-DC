@@ -20,6 +20,7 @@ const SECTIONS = [
   { id: "finding", title: "Finding films", items: [
     ["Where do I start?", "Discover shows what's worth seeing over the next two weeks: rare screenings and film prints, spotlights, double features, what the club wants to see, and more. 'Surprise me' picks one for you."],
     ["How do I search or filter?", "Type in the search box for films, people, theatres or genres — or describe what you want (\"a 70mm epic this weekend\") and tap ✨. Browse has the full filters: theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."],
+    ["Can I hide sold-out showings — or see what's coming?", "Use the ticket chips on the Calendar, Browse and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) — watchlist one to hear the moment tickets go on sale. Discover's suggestions only ever pick showings you can still get into."],
     ["What's on a film or theatre page?", "A film page has every showing, ratings, cast and the trailer. A theatre page has what's on, a map, and — if your club uses screening notes — what members say about the screenings there."],
   ] },
   { id: "plans", title: "Making plans", items: [

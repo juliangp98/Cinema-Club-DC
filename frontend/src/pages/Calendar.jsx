@@ -15,6 +15,7 @@ import Loading, { LoadError } from "../ui/Loading";
 import { getJson, cachedJson, rsvp, attend } from "../api";
 import ToggleChip from "../ui/ToggleChip";
 import { time, dayDate, monthDay, monthYear } from "../dates";
+import TicketChips from "../ui/TicketChips";
 
 // The server sends each film and theatre once (R7b); put them back on each screening.
 const hydrate = d => (d?.movies ? { ...d, showtimes: d.showtimes.map(s => ({ ...s, movie: d.movies[s.movie_id], theatre: d.theatres[s.theatre_id] })) } : d);
@@ -42,7 +43,8 @@ const DEEP_LINK = (() => {
 
 const VIEWS = [{ status: "agenda", label: "Agenda" }, { status: "week", label: "Week" }, { status: "month", label: "Month" }];
 const MULTI = new Set(["theatres", "regions", "genres", "format", "members"]);
-const FILTER_KEYS = ["theatres", "regions", "genres", "decade", "format", "time", "rarity", "club", "runtime", "mood", "shelf", "q", "members"];
+const FILTER_KEYS = ["theatres", "regions", "genres", "decade", "format", "time", "rarity", "club", "runtime", "mood", "shelf", "q",
+                     "tickets", "members"];
 // Quick pills: the club's own two, then smart ones after Discover's main
 // sections (shelf pills replace each other). Phones show the first few smart
 // pills and a "+N more" chip.
@@ -169,6 +171,31 @@ function AgendaTile({ entry, onOpen }) {
         {theatres.length > 2 ? ` +${theatres.length - 2}` : ""}
       </div>
     </article>
+  );
+}
+
+// Films a theatre has announced for a day (tickets not on sale yet, R15).
+const byDate = list => (list || []).reduce((m, a) => ({ ...m, [a.date]: [...(m[a.date] || []), a] }), {});
+
+function AnnouncedTile({ a }) {
+  return (
+    <article className="cal-tile announced">
+      <Link to={`/films/${a.movie.id}`} className="cal-tile-poster" aria-label={`${a.movie.title} — announced`}>
+        <PosterImage movie={a.movie} fill />
+        <span className="cal-pill soon">Tickets soon</span>
+      </Link>
+      <Link to={`/films/${a.movie.id}`} className="cal-tile-title">{a.movie.title}</Link>
+      <div className="cal-tile-where"><Link to={`/theatres/${a.theatre.slug}`}>{a.theatre.short_name || a.theatre.name}</Link></div>
+    </article>
+  );
+}
+
+function AnnouncedCardWeek({ a }) {
+  return (
+    <Link className="cal-card announced" to={`/films/${a.movie.id}`}>
+      <span className="cal-card-head"><Poster movie={a.movie} /><span className="cal-card-title">{a.movie.title}</span></span>
+      <span className="cal-card-going">Tickets soon · {a.theatre.short_name || a.theatre.name}</span>
+    </Link>
   );
 }
 
@@ -314,6 +341,7 @@ export default function Calendar({ user, apiBase, groupId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, query.members]);
   const days = useMemo(() => groupByDay(visible, user?.id), [visible, user?.id]);
+  const soon = useMemo(() => byDate(data.announced), [data]);
   const dayList = [];
   for (let d = start; d < end; d = addDays(d, 1)) dayList.push(d);
   const filmCount = new Set(visible.map(s => s.movie.id)).size;
@@ -360,6 +388,8 @@ export default function Calendar({ user, apiBase, groupId }) {
         </button>
       </div>
 
+      <div className="cal-tickets"><TicketChips value={query.tickets} onChange={v => update({ tickets: v })} /></div>
+
       <div className={`cal-quick${allPills ? " open" : ""}`} role="group" aria-label="Quick filters">
         {(() => {
           const pill = ([k, v, label], i, extra = false) => {
@@ -400,14 +430,16 @@ export default function Calendar({ user, apiBase, groupId }) {
           {dayList.map(d => {
             const key = ymd(d);
             const entries = days[key] || [];
+            const announced = soon[key] || [];
             const outside = d.getMonth() !== anchor.getMonth();
             return (
-              <button key={key} type="button" disabled={!entries.length}
+              <button key={key} type="button" disabled={!entries.length && !announced.length}
                       className={`cal-cell${outside ? " outside" : ""}${d < today ? " past" : ""}${key === ymd(today) ? " today" : ""}${entries.some(e => e.youGoing) ? " mine" : ""}`}
                       onClick={() => { setSpan(AGENDA_SPAN); update({ view: "agenda", date: key, only: "1" }, { replace: false }); }}
                       aria-label={`${d.toDateString()}: ${entries.length} films`}>
                 <span className="cal-cell-num">{d.getDate()}</span>
                 {entries.length > 0 && <span className="cal-cell-count">{entries.length} film{entries.length === 1 ? "" : "s"}</span>}
+                {announced.length > 0 && <span className="cal-cell-count soon">+{announced.length} announced</span>}
                 <span className="cal-cell-posters">
                   {entries.slice(0, 3).map(e => <Poster key={e.movie.id} movie={e.movie} />)}
                 </span>
@@ -431,8 +463,9 @@ export default function Calendar({ user, apiBase, groupId }) {
                       !loading && `${entries.length} film${entries.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
                   </span>
                 </h2>
-                {!loading && !entries.length && <p className="cal-col-empty">Nothing matches.</p>}
+                {!loading && !entries.length && !(soon[key] || []).length && <p className="cal-col-empty">Nothing matches.</p>}
                 {(all ? entries : entries.slice(0, WEEK_TOP)).map(e => <WeekCard key={e.movie.id} entry={e} onOpen={open} />)}
+                {(soon[key] || []).map(a => <AnnouncedCardWeek key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}
                 {entries.length > WEEK_TOP && (
                   <button type="button" className="cal-more" onClick={() => setExpanded(prev => {
                     const next = new Set(prev); all ? next.delete(key) : next.add(key); return next;
@@ -455,7 +488,8 @@ export default function Calendar({ user, apiBase, groupId }) {
           {dayList.map(d => {
             const key = ymd(d);
             const entries = days[key] || [];
-            if (!entries.length) return null;
+            const announced = soon[key] || [];
+            if (!entries.length && !announced.length) return null;
             return (
               <section key={key} className="cal-agenda-day">
                 <div className="cal-agenda-head">
@@ -465,11 +499,12 @@ export default function Calendar({ user, apiBase, groupId }) {
                 </div>
                 <div className="cal-tiles">
                   {entries.map(e => <AgendaTile key={e.movie.id} entry={e} onOpen={open} />)}
+                  {announced.map(a => <AnnouncedTile key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}
                 </div>
               </section>
             );
           })}
-          {!loading && !visible.length && (
+          {!loading && !visible.length && !(data.announced || []).length && (
             <div className="cal-empty">
               <p>Nothing matches{dayOnly ? " that day" : " in these two weeks"}.</p>
               {nFilters > 0 && <button type="button" className="btn btn-sm" onClick={clearFilters}>Clear filters</button>}

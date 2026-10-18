@@ -14,6 +14,7 @@ import { useShell } from "../shell/AppShell";
 import { groupParam } from "../scope";
 import "./DiscoverPage.css";
 import { time, dayDate } from "../dates";
+import { AnnouncedCard } from "../ui/TicketChips";
 
 const SURPRISE_WHEN = [["tonight", "Tonight"], ["weekend", "This weekend"], ["week", "This week"]];
 // Home page order (R3c): planning-friendly sections near the top. "@…" are the
@@ -248,16 +249,7 @@ export function Announced({ items }) {
       <SectionTitle>Announced — tickets soon</SectionTitle>
       <p className="shelf-blurb">Coming, but not on sale yet. Watchlist one and we'll tell you the moment tickets are.</p>
       <div className="shelf-row">
-        {items.map(a => (
-          <Link key={`${a.theatre.slug}:${a.movie.id}`} to={`/films/${a.movie.id}`} className="poster-card announced-card">
-            <Poster movie={a.movie} className="poster-card-img" />
-            <span className="poster-card-title">{a.movie.title}</span>
-            <span className="announced-when">
-              <span className="theatre-link-dot" style={{ "--tcolor": a.theatre.color }} aria-hidden="true" />
-              {a.theatre.short_name || a.theatre.name} · {dayLabel(`${a.date}T12:00:00`)}
-            </span>
-          </Link>
-        ))}
+        {items.map(a => <AnnouncedCard key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}
       </div>
     </section>
   );

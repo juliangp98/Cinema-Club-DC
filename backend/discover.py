@@ -108,8 +108,19 @@ class Film:
         return self.shows[0]
 
 
-def _show_ok(s, theatres, formats, time_of_day):
+# Tickets (R15): ?tickets= on Browse and the Calendar — showings you can
+# still get into, sold-out ones, or "soon" (announced films, which have no
+# showings yet). Suggestions (shelves, spotlights, doubles, Surprise me, the
+# digest, chat picks) only ever use showings you can get into: SUGGEST.
+TICKETS = ('available', 'soldout', 'soon')
+TICKET_LABELS = {'available': 'Tickets available', 'soldout': 'Sold out', 'soon': 'Coming soon'}
+SUGGEST = 'available'
+
+
+def _show_ok(s, theatres, formats, time_of_day, tickets=None):
     if theatres and s.theatre.slug not in theatres:
+        return False
+    if tickets == 'soon' or (tickets == 'available' and s.is_sold_out) or (tickets == 'soldout' and not s.is_sold_out):
         return False
     fmt = s.format_label or ''
     if formats:
@@ -126,9 +137,10 @@ def _show_ok(s, theatres, formats, time_of_day):
     return True
 
 
-def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of_day=None):
+def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of_day=None, tickets=None):
     """{movie_id: Film} for the group's showings in [start, end] that pass the
-    screening-level filters, with club interest (members' watchlists, RSVPs)."""
+    screening-level filters (theatres, formats, time of day, tickets), with
+    club interest (members' watchlists, RSVPs)."""
     from sqlalchemy.orm import contains_eager
     from app import (db, Showtime, Watchlist, RSVP, member_ids, _group_showtime_query,
                      rarity, EVENT_WORDS)
@@ -138,7 +150,7 @@ def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of
             .order_by(Showtime.start_time).all())
     films = {}
     for s in rows:
-        if _show_ok(s, theatres, formats, time_of_day):
+        if _show_ok(s, theatres, formats, time_of_day, tickets):
             films.setdefault(s.movie_id, Film(s.movie)).shows.append(s)
     this_year = datetime.now().year
     for f in films.values():
@@ -395,7 +407,7 @@ def discover(group, viewer, per_shelf=12, now=None, theatres=None):
     theatre's own page)."""
     now = now or datetime.now()
     start, end = window('2weeks', now)
-    films = catalog(group, start, end, viewer, theatres=theatres)
+    films = catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST)
     ctx = context(group, viewer, films, now)
     shelves = []
     for key, title, blurb in SHELVES:
@@ -448,7 +460,7 @@ def weekly(group, now=None, days=7, caps=None, plan_min=2):
     window's catalog ({movie_id: Film}), for the digest's people sections."""
     now = now or datetime.now()
     caps = caps or {}
-    films = catalog(group, now, now + timedelta(days=days))
+    films = catalog(group, now, now + timedelta(days=days), tickets=SUGGEST)
     ctx = context(group, None, films, now)
     used, picks = set(), {}
 
@@ -469,7 +481,7 @@ def for_you_by_theatre(group, viewer, now=None):
     """{slug: how many films for you there} over the next two weeks (the
     Theatres page's "N for you", R13)."""
     now = now or datetime.now()
-    films = catalog(group, *window('2weeks', now), viewer)
+    films = catalog(group, *window('2weeks', now), viewer, tickets=SUGGEST)
     out = {}
     for f, _ in shelf('for-you', films, context(group, viewer, films, now)):
         for slug in f.venues:
@@ -484,7 +496,7 @@ def theatre_previews(group, now=None, posters=5):
     showings and the next one."""
     now = now or datetime.now()
     start, end = window('2weeks', now)
-    films = catalog(group, start, end)
+    films = catalog(group, start, end, tickets=SUGGEST)
     ctx = context(group, None, films, now)
     tonight_end = window('tonight', now)[1]
     out = {}
@@ -517,7 +529,7 @@ def select(group, viewer, params, now=None, past_days=0):
     """The films matching Browse's filters, sorted, as (films, ctx, reasons,
     start, end). `params` is a dict of the URL filters: when/from/to,
     theatres, regions, genres, decade, format, time, rarity, club, runtime,
-    mood, shelf, q, sort. Browse and the Calendar both use this, so a filter
+    mood, shelf, q, sort, tickets. Browse and the Calendar both use this, so a filter
     means the same thing on both."""
     now = now or datetime.now()
     p = {k: v for k, v in params.items() if v not in (None, '')}
@@ -526,7 +538,7 @@ def select(group, viewer, params, now=None, past_days=0):
     theatres = split('theatres') | {slug for slug, region in REGIONS.items()
                                     if region.lower() in split('regions')} or None
     films = catalog(group, start, end, viewer, theatres=theatres, formats=split('format') or None,
-                    time_of_day=p.get('time'))
+                    time_of_day=p.get('time'), tickets=p.get('tickets') if p.get('tickets') in TICKETS else None)
     ctx = context(group, viewer, films, now)
     reasons = {}
     if p.get('shelf'):
@@ -580,6 +592,41 @@ def select(group, viewer, params, now=None, past_days=0):
     return out, ctx, reasons, start, end
 
 
+# Filters an announced film can't be checked against (it has no showings yet):
+# with any of these set, Browse and the Calendar leave announced films out.
+SHOWING_FILTERS = ('format', 'time', 'rarity', 'club', 'runtime', 'shelf', 'person')
+
+
+def announced_matching(group, params, now=None):
+    """The announced films (tickets not on sale yet) to show with Browse's
+    filters (R15): with no ticket filter ("All") or Coming soon, in the window,
+    at the chosen theatres, matching genres / decade / words; never with
+    Available or Sold out, or a filter only showings can answer."""
+    now = now or datetime.now()
+    p = {k: v for k, v in params.items() if v not in (None, '')}
+    if p.get('tickets') not in (None, 'soon') or any(k in p for k in SHOWING_FILTERS):
+        return []
+    from app import db, Movie
+    split = lambda k: {x.strip().lower() for x in str(p.get(k, '')).split(',') if x.strip()}
+    start, end = window(p.get('when', 'week'), now, p.get('from'), p.get('to'))
+    theatres = split('theatres') | {slug for slug, region in REGIONS.items() if region.lower() in split('regions')}
+    genres = split('genres') | (MOODS.get(p.get('mood'), {}).get('genres') or set())
+    q, decade = normalize(p.get('q', '')), p.get('decade')
+    out = []
+    for a in announced(group, theatres or None, now=now):
+        if not start.date() <= datetime.fromisoformat(a['date']).date() <= end.date():
+            continue
+        m = db.session.get(Movie, a['movie']['id'])
+        if genres and not {g.strip().lower() for g in (m.genres or '').split(',') if g.strip()} & genres:
+            continue
+        if decade and not (a['movie']['year'] and str(a['movie']['year']).startswith(str(decade)[:3])):
+            continue
+        if q and q not in normalize(f'{m.title} {m.director or ""}'):
+            continue
+        out.append(a)
+    return out
+
+
 def facets(films):
     """Counts per genre, theatre and decade (for the Filters sheet)."""
     out = {'genres': {}, 'theatres': {}, 'decades': {}}
@@ -595,13 +642,15 @@ def facets(films):
 
 
 def browse(group, viewer, params, now=None, limit=24, offset=0):
-    """Filtered, sorted films (a page of cards) + facet counts."""
+    """Filtered, sorted films (a page of cards) + facet counts, and (on the
+    first page) the announced films that fit (announced_matching)."""
     p = {k: v for k, v in params.items() if v not in (None, '')}
     out, ctx, reasons, start, end = select(group, viewer, p, now)
+    soon = announced_matching(group, p, now) if offset == 0 else []
     page = out[offset:offset + limit]
     return {'films': [card(f, reasons.get(f.movie.id) or (f.rare_reasons if f.rare_score >= ctx['rare_min'] else []))
                       for f in page],
-            'total': len(out), 'next_offset': offset + limit if len(out) > offset + limit else None,
+            'total': len(out), 'next_offset': offset + limit if len(out) > offset + limit else None, 'announced': soon,
             'facets': facets(out), 'regions': REGIONS, 'window': {'start': start.isoformat(), 'end': end.isoformat()},
             'title': SHELF_TITLES.get(p.get('shelf')) or MOODS.get(p.get('mood'), {}).get('label') or _person_name(out, p)}
 
@@ -622,7 +671,7 @@ def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random, th
     now = now or datetime.now()
     for w in (when, 'week') if when != 'week' else ('week',):
         start, end = window(w, now)
-        films = [f for f in catalog(group, start, end, viewer, theatres=theatres).values()
+        films = [f for f in catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST).values()
                  if f.movie.id not in set(exclude)]
         if films:
             break
@@ -720,7 +769,7 @@ def spotlights(group, viewer, now=None, limit=6, theatres=None, films_each=6):
     (at `theatres`, if given). limit=None: all of them (the Spotlights page)."""
     now = now or datetime.now()
     start, end = window('month', now)
-    films = catalog(group, start, end, viewer, theatres=theatres)
+    films = catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST)
     found = {}
     for f in films.values():
         for who in people(f):
@@ -738,7 +787,7 @@ def every_double(group, viewer, now=None, theatres=None):
     now = now or datetime.now()
     start, end = window('6weeks', now)
     return {'window': {'start': start.isoformat(), 'end': end.isoformat()},
-            'doubles': double_features(catalog(group, start, end, viewer, theatres=theatres), every=True)}
+            'doubles': double_features(catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST), every=True)}
 
 
 # ─── Discord: /find, /surprise and the chatbot (R3b) ─────────────────────────
@@ -775,6 +824,8 @@ def describe(params, title=None, when=True):
         bits.append('On film')
     if params.get('club') == 'mine':
         bits.append('Your list')
+    if params.get('tickets') in TICKET_LABELS:
+        bits.append(TICKET_LABELS[params['tickets']])
     if params.get('q'):
         bits.append(f"“{params['q']}”")
     if params.get('person') and not title:
@@ -970,7 +1021,7 @@ def chat_picks(group, viewer, text, now=None, limit=10):
     plus anything playing that the message names. `link` says whether the
     reply should carry a "more like this" Browse link."""
     now = now or datetime.now()
-    films = catalog(group, *window('2weeks', now), viewer)
+    films = catalog(group, *window('2weeks', now), viewer, tickets=SUGGEST)
     genres = {g for f in films.values() for g in f.genres}
     p = parse_request(text, genres)
     t = normalize(text).replace('’', "'")
@@ -1014,7 +1065,7 @@ def chat_picks(group, viewer, text, now=None, limit=10):
             start, end = window(params['when'], now)
             theatres = {x for x in (p.get('theatres') or '').split(',') if x} | \
                 {s for s, r in REGIONS.items() if r.lower() in (p.get('regions') or '').split(',')}
-            scoped = catalog(group, start, end, viewer, theatres=theatres or None)
+            scoped = catalog(group, start, end, viewer, theatres=theatres or None, tickets=SUGGEST)
             _mix(scoped, group, viewer, now, add)
             total = len(scoped)
     else:

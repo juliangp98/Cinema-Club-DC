@@ -149,3 +149,11 @@ a.cal-theatre:hover { color: var(--amber); }
 .cal-tile.past, .cal-card.past { opacity: 0.55; }
 .cal-tile.past:hover, .cal-card.past:hover { opacity: 0.85; }
 .cal-col.past .cal-col-head { opacity: 0.7; }
+
+/* Tickets (R15): the status chips, and films announced for a day (tickets soon). */
+.cal-tickets { margin: 0 0 0.6rem; overflow-x: auto; scrollbar-width: none; }
+.cal-tickets::-webkit-scrollbar { display: none; }
+.cal-pill.soon { top: 6px; left: 6px; background: rgba(20, 8, 12, 0.85); color: var(--amber); border: 1px solid var(--gold-line); }
+.cal-tile.announced .cal-tile-poster img { opacity: 0.8; }
+.cal-card.announced { text-decoration: none; color: inherit; border-style: dashed; }
+.cal-cell-count.soon { color: var(--amber); }
