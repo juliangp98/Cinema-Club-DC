@@ -51,3 +51,12 @@ test("the server's reason when an answer is refused; read-only members can't ans
   expect(await screen.findByText("Read-only members can't answer.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Hitchcock/ })).toBeDisabled();
 });
+
+test("how hard a question is, and what a hard one pays (R15)", async () => {
+  mockApi({ [URL]: { enabled: true, daily: true, anytime: false,
+                     question: { ...QUESTION, difficulty: "hard", kernels: 3 } } });
+  renderPage(<TriviaCard apiBase="" groupId={1} role="member" />);
+  const card = await screen.findByRole("region", { name: /Question of the day/ });
+  expect(card.querySelector(".ui-panel-aside .ui-badge")).toHaveTextContent("hard");
+  expect(screen.getByText("One try · +3 🍿 if you're right")).toBeInTheDocument();
+});

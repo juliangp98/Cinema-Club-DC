@@ -76,11 +76,11 @@ def test_kernels_explains_trivia_when_its_on(bot):
     it = FakeInteraction(uid=9601, name='ana')
     run(bot.kernels_cmd.callback(it))
     how = {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
-    assert 'Trivia question of the day: **+2**' in how and 'Anytime' not in how
+    assert 'Trivia question of the day: **+1** easy · **+2** medium · **+3** hard' in how and 'Anytime' not in how
     switch(bot, trivia_anytime=True)
     it = FakeInteraction(uid=9601, name='ana')
     run(bot.kernels_cmd.callback(it))
-    assert 'Anytime trivia: **+1** each, up to 5 a day' in {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
+    assert 'Anytime trivia: **+1** easy · **+1** medium · **+2** hard each, up to 5 a day' in {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
 
 
 def press(bot, custom_id, template):

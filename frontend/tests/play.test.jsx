@@ -10,7 +10,8 @@ import { mockApi, renderPage } from "./support";
 const row = (id, kernels) => ({ user: { id, name: `M${id}` }, kernels });
 const month = [row(1, 50), row(2, 40), row(3, 30), row(4, 20), row(5, 10), row(6, 5), row(7, 3)];
 const k = { kernels: 42, polls: 2, going_out: 30, trivia: 4, bingo: 5, members: 1, allowance: { give_left: 8, take_left: 3 },
-  rules: { went: 5, planned: 2, trailblazer_max: 5, crew_min: 3, crew: 3, give: 10, trivia: 2, trivia_anytime: null, bingo: null } };
+  rules: { went: 5, planned: 2, trailblazer_max: 5, crew_min: 3, crew: 3, give: 10, trivia: { easy: 1, medium: 2, hard: 3 },
+           trivia_anytime: null, bingo: null } };
 
 test("your kernels: all time by source, this month's place, what's left to give", () => {
   renderPage(<YourKernels k={k} month={month} viewerId={7} />);

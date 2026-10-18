@@ -59,7 +59,8 @@ def test_trivia_and_bingo_once_theyre_on(club):
     s = summary(club).json
     assert s['trivia'] == {'daily': True, 'anytime': False, 'to_answer': False, 'waiting': False,
                            'answered': True, 'correct': True}
-    assert s['todo'] == 1 and s['kernels']['trivia'] == 2 and s['kernels']['kernels'] == 2
+    worth = __import__('trivia').worth('daily', q['difficulty'])
+    assert s['todo'] == 1 and s['kernels']['trivia'] == worth and s['kernels']['kernels'] == worth
     assert json.dumps(s)                                                        # plain JSON all the way down
 
 

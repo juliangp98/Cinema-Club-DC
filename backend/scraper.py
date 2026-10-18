@@ -130,6 +130,13 @@ if __name__ == '__main__':
         print(f"Letterboxd diaries read: {letterboxd.sync_due()}")
     except Exception as e:
         print(f"  ERROR reading Letterboxd diaries: {e}")
+    try:                                   # trivia's TMDB film pool, weekly (R15)
+        import film_pool
+        n = film_pool.refresh_if_due()
+        if n is not None:
+            print(f"Trivia film pool refreshed: {n} films")
+    except Exception as e:
+        print(f"  ERROR refreshing the trivia film pool: {e}")
     try:                                   # the club games' posts and notices (R14)
         import game_posts
         print(f"Game posts checked for {game_posts.tick()} club(s)")

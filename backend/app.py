@@ -134,7 +134,7 @@ def email_signin_link(to_email, link_url, purpose):
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
     DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
-    Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PushSubscription, Quote, RSVP, Reaction,
+    Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, Quote, RSVP, Reaction,
     GamePost, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
     TriviaAnswer, TriviaQuestion, User, Watchlist)
 
@@ -1428,6 +1428,10 @@ def migrate():
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
+        # R15: trivia difficulty and sources (film_pool.py)
+        "ALTER TABLE trivia_question ADD COLUMN difficulty VARCHAR(8)",
+        "ALTER TABLE trivia_question ADD COLUMN tmdb_id INTEGER",
+        "ALTER TABLE 'group' ADD COLUMN trivia_source VARCHAR(8) DEFAULT 'both'",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
@@ -1675,6 +1679,8 @@ def _migrate_trivia_slots():
             ref VARCHAR(200),
             discord_message_id VARCHAR(30),
             created_at DATETIME,
+            difficulty VARCHAR(8),
+            tmdb_id INTEGER,
             UNIQUE (group_id, day, slot)
         )
     """))

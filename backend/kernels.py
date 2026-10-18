@@ -156,8 +156,8 @@ def rules(group_id=None):
     group = db.session.get(Group, group_id) if group_id else None
     return {'went': WENT, 'planned': PLANNED, 'trailblazer_max': TRAIL_MAX, 'crew_min': CREW_MIN, 'crew': CREW,
             'give': GIVE_PER_WEEK, 'take': TAKE_PER_WEEK,
-            'trivia': trivia.TRIVIA_KERNELS if group and group.trivia_enabled else None,
-            'trivia_anytime': {'each': trivia.ANYTIME_KERNELS, 'per_day': trivia.ANYTIME_DAILY_CAP}
+            'trivia': trivia.DAILY_KERNELS if group and group.trivia_enabled else None,      # by difficulty (R15)
+            'trivia_anytime': {'each': trivia.ANYTIME_KERNEL_TABLE, 'per_day': trivia.ANYTIME_DAILY_CAP}
             if group and group.trivia_anytime else None,
             'bingo': {'line': bingo.LINE_KERNELS, 'full': bingo.FULL_KERNELS} if group and group.bingo_enabled else None}
 

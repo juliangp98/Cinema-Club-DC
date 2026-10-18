@@ -851,8 +851,8 @@ def kernels_embed(k):
         f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
         f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
         '• Right picks in scored polls',
-        *([f"• Trivia question of the day: **+{r['trivia']}** for a right answer (`/trivia`)"] if r.get('trivia') else []),
-        *([f"• Anytime trivia: **+{r['trivia_anytime']['each']}** each, up to {r['trivia_anytime']['per_day']} a day"]
+        *([f"• Trivia question of the day: {by_level(r['trivia'])} for a right answer (`/trivia`)"] if r.get('trivia') else []),
+        *([f"• Anytime trivia: {by_level(r['trivia_anytime']['each'])} each, up to {r['trivia_anytime']['per_day']} a day"]
           if r.get('trivia_anytime') else []),
         *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/bingo`)"]
           if r.get('bingo') else []),
@@ -865,8 +865,8 @@ LETTERS = 'ABCD'
 
 
 def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
-    """The question of the day (R10d): the options lettered, and yesterday's
-    answer underneath when there was one."""
+    """The question of the day (R10d): the options lettered, how hard it is
+    and what it's worth (R15), and yesterday's answer underneath when there was one."""
     embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/feed', description='\n'.join(
         [q['prompt'], ''] + [f"**{LETTERS[i]}.** {o}" for i, o in enumerate(q['options'])]))
     if yesterday and yesterday.get('answer') is not None:
@@ -877,7 +877,8 @@ def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
     left = q.get('kernels_left_today')
     worth = (f"+{q.get('kernels', 2)} 🍿 for a right answer" if left is None or left > 0
              else "just for fun (today's anytime kernels are used up)")
-    embed.set_footer(text=f"One try · {worth} · your answer stays private")
+    level = LEVELS.get(q.get('difficulty'))
+    embed.set_footer(text=f"{level + ' · ' if level else ''}One try · {worth} · your answer stays private")
     return embed
 
 
@@ -898,6 +899,14 @@ def bingo_win_embed(post):
     what = 'filled the whole card 🎉🎉' if post.get('which') == 'full' else 'got bingo 🎉'
     return discord.Embed(title=f"🎱 {who} {what}", colour=AMBER, url=f'{SITE_URL}/play#bingo',
                          description=f"{post.get('month_label', 'This month')}'s repertory bingo · /bingo for your card")
+
+
+LEVELS = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'}
+
+
+def by_level(table):
+    """{'easy': 1, 'medium': 2, 'hard': 3} → "**+1** easy · **+2** medium · **+3** hard" (trivia's kernels, R15)."""
+    return ' · '.join(f"**+{table[k]}** {k}" for k in LEVELS if k in table)
 
 
 def review_note(post, error=None):

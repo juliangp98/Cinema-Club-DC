@@ -15,6 +15,10 @@ import { ROLES } from "../roles";
 // members and roles, its games, what the games post in Discord, the site's
 // look, and deleting it. Organizers get Theatres, join requests, Games and
 // Discord; the rest is admins' (the server checks the same split).
+// Where trivia's films come from (R15, film_pool.SOURCES).
+const TRIVIA_SOURCES = [{ status: "local", label: "Our showings" }, { status: "tmdb", label: "Well-known films" },
+                        { status: "both", label: "Both" }];
+
 const SECTIONS = [
   { id: "settings-club", label: "Club", admin: true },
   { id: "settings-theatres", label: "Theatres" },
@@ -224,15 +228,24 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.trivia?.enabled, "trivia_enabled")} />
             <span><span className="notify-name">Trivia: question of the day</span>
-              <span className="ui-hint">One question a day, the same for everyone, made from the films on your calendar
-                and classic quotes (and /trivia in Discord). A right answer is worth 2 kernels.</span></span>
+              <span className="ui-hint">One question a day, the same for everyone, about films and classic quotes (and
+                /trivia in Discord). A right answer is worth 1, 2 or 3 kernels — easy, medium or hard.</span></span>
           </label>
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.trivia?.anytime, "trivia_anytime")} />
             <span><span className="notify-name">Trivia: play anytime</span>
               <span className="ui-hint">Members can ask for extra questions whenever they like (on the feed, or /trivia
-                in Discord). +1 kernel for a right one, up to 5 a day — after that they're just for fun.</span></span>
+                in Discord). +1 kernel for a right one (+2 if it's hard), up to 5 a day — after that they're just for fun.</span></span>
           </label>
+          {(group.trivia?.enabled || group.trivia?.anytime) && (
+            <div className="notify-row club-trivia-sub club-post-choice">
+              <span><span className="notify-name">Trivia's films</span><span className="ui-hint"> Our showings: films that have
+                played at the club's theatres. Well-known films: TMDB's 5,000 most-voted. Wrong answers are always
+                look-alikes (same era, genre, fame) — and each question is rated easy, medium or hard.</span></span>
+              <Segmented label="Trivia's films" options={TRIVIA_SOURCES} value={group.trivia?.source || "both"}
+                         onChange={v => v && run(() => update({ trivia_source: v }), "Saved")} />
+            </div>
+          )}
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.bingo?.enabled, "bingo_enabled")} />
             <span><span className="notify-name">Repertory bingo</span>

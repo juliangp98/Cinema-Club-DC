@@ -16,8 +16,20 @@ import json
 import random
 from datetime import datetime, timedelta
 
-TRIVIA_KERNELS = 2                     # a right answer to the question of the day
-ANYTIME_KERNELS, ANYTIME_DAILY_CAP = 1, 5   # anytime questions: +1 each, at most 5 kernels a day
+import film_pool
+
+# Kernels for a right answer by difficulty (R15; questions from before it count as medium).
+DAILY_KERNELS = {'easy': 1, 'medium': 2, 'hard': 3}        # the question of the day
+ANYTIME_KERNEL_TABLE = {'easy': 1, 'medium': 1, 'hard': 2}  # anytime questions…
+ANYTIME_DAILY_CAP = 5                                       # …at most this many kernels a day
+TRIVIA_KERNELS = DAILY_KERNELS['medium']                    # what the question of the day is usually worth
+ANYTIME_KERNELS = ANYTIME_KERNEL_TABLE['medium']
+
+
+def worth(slot, difficulty):
+    """Kernels a right answer earns (before the anytime cap)."""
+    table = DAILY_KERNELS if slot == 'daily' else ANYTIME_KERNEL_TABLE
+    return table.get(difficulty or 'medium', table['medium'])
 REPEAT_AFTER = timedelta(days=90)      # the same film / quote isn't asked again for this long
 CALENDAR_DAYS = 21                     # "on the calendar": playing at the club's theatres this soon
 FAVOR_CALENDAR = 0.7
@@ -27,108 +39,130 @@ def today():
     return datetime.now().date()
 
 
-def _label(m, year=True):
-    y = (m.release_year or '')[:4]
-    return f'{m.title} ({y})' if year and y else m.title
-
-
-def _cast(m, n=6):
-    try:
-        return [c['name'] for c in json.loads(m.cast_json or '[]')[:n] if c.get('name')]
-    except (ValueError, TypeError):
-        return []
-
-
-def _year(m):
-    try:
-        return int((m.release_year or '')[:4])
-    except ValueError:
-        return None
-
-
-def _distinct(rng, values, exclude, k):
-    """k different values (case-insensitive), none of them in `exclude`."""
-    seen = {v.lower() for v in exclude}
-    out = []
-    for v in rng.sample(values, len(values)):
-        if v and v.lower() not in seen:
-            seen.add(v.lower())
-            out.append(v)
-            if len(out) == k:
-                return out
-    return None
-
-
-def _choose(rng, candidates, on_calendar, recent, ref):
-    """A candidate not asked recently, from the calendar most of the time."""
-    fresh = [c for c in candidates if ref(c) not in recent]
-    playing = [c for c in fresh if getattr(c, 'id', None) in on_calendar]
-    pool = playing if playing and rng.random() < FAVOR_CALENDAR else fresh
+def _choose(rng, subjects, c, ok=lambda f: True):
+    """A film not asked about recently (and passing `ok`): from the club's
+    calendar most of the time when the club asks about its own films, a
+    third of the time when it asks about both, never for the TMDB pool."""
+    fresh = [f for f in subjects if f.key not in c['recent'] and ok(f)]
+    playing = [f for f in fresh if f.movie_id in c['on_calendar']]
+    favor = {'local': FAVOR_CALENDAR, 'both': 0.35}.get(c['source'], 0)
+    pool = playing if playing and rng.random() < favor else fresh
     return rng.choice(pool) if pool else None
 
 
-def _question(rng, kind, prompt, right, wrong, ref, movie_id=None):
+def _choose_detailed(rng, c, has):
+    """A film with the people a question needs (`has`): pool films' are
+    looked up (a few tries at most) when one comes up without them."""
+    tried = set()
+    for _ in range(film_pool.DETAILS_PER_QUESTION + 1):
+        f = _choose(rng, c['subjects'], c, ok=lambda x: x.key not in tried and (has(x) or (x.pool and not x.pool.details_at
+                                                                                          and not x.movie_id)))
+        if not f:
+            return None
+        film_pool.ensure_details(f)
+        if has(f):
+            return f
+        tried.add(f.key)
+    return None
+
+
+def _alike_people(rng, f, c, people_of, exclude, k=3, top=15):
+    """k different people (directors, actors) from the films most like `f` —
+    none of them in `exclude` — each with the film they're from."""
+    seen = {p.lower() for p in exclude}
+    ranked = sorted((x for x in c['everyone'] if x.key != f.key and people_of(x)),
+                    key=lambda x: -film_pool.similarity(f, x))
+    order = rng.sample(ranked[:top], min(top, len(ranked))) + ranked[top:]
+    picks = []
+    for x in order:
+        for p in people_of(x):
+            if p and p.lower() not in seen:
+                seen.add(p.lower())
+                picks.append((p, x))
+                break
+        if len(picks) == k:
+            return picks
+    return None
+
+
+def _known(f, c):
+    """-1 for a film on the club's calendar (members have seen it listed: a step easier)."""
+    return -1 if f.movie_id and f.movie_id in c['on_calendar'] else 0
+
+
+def _question(rng, kind, prompt, right, wrong, film=None, ref=None, difficulty=film_pool.MEDIUM):
     options = [right, *wrong]
     rng.shuffle(options)
     return {'kind': kind, 'prompt': prompt, 'options': options, 'answer': options.index(right),
-            'ref': ref, 'movie_id': movie_id}
+            'ref': ref or film.key, 'movie_id': film.movie_id if film else None,
+            'tmdb_id': film.tmdb_id if film and not film.movie_id else None, 'difficulty': difficulty}
 
 
-def _director(rng, films, on_calendar, recent, quotes):
-    m = _choose(rng, [f for f in films if f.director], on_calendar, recent, lambda f: f'film:{f.id}')
-    if not m:
+def _director(rng, c):
+    f = _choose_detailed(rng, c, lambda x: bool(x.director))
+    picks = f and _alike_people(rng, f, c, lambda x: [x.director] if x.director else [], [f.director])
+    return picks and _question(rng, 'director', f'Who directed {f.label}?', f.director, [p for p, _ in picks], f,
+                               difficulty=film_pool.difficulty(f, [x for _, x in picks], _known(f, c)))
+
+
+def _cast_q(rng, c):
+    f = _choose_detailed(rng, c, lambda x: len(x.cast) >= 3)
+    if not f:
         return None
-    wrong = _distinct(rng, sorted({f.director for f in films if f.director}), [m.director], 3)
-    return wrong and _question(rng, 'director', f'Who directed {_label(m)}?', m.director, wrong, f'film:{m.id}', m.id)
+    right = rng.choice(f.cast[:3])                                # the top billed: fair to know
+    picks = _alike_people(rng, f, c, lambda x: x.cast[:3], f.cast)
+    return picks and _question(rng, 'cast', f'Who’s in {f.label}?', right, [p for p, _ in picks], f,
+                               difficulty=film_pool.difficulty(f, [x for _, x in picks], _known(f, c)))
 
 
-def _cast_q(rng, films, on_calendar, recent, quotes):
-    m = _choose(rng, [f for f in films if len(_cast(f)) >= 3], on_calendar, recent, lambda f: f'film:{f.id}')
-    if not m:
+def _first(rng, c, top=20):
+    f = _choose(rng, c['subjects'], c, ok=lambda x: bool(x.year))
+    if not f:
         return None
-    right = rng.choice(_cast(m, 4))
-    others = sorted({name for f in films if f.id != m.id for name in _cast(f, 4)})
-    wrong = _distinct(rng, others, _cast(m, 50), 3)
-    return wrong and _question(rng, 'cast', f'Who’s in {_label(m)}?', right, wrong, f'film:{m.id}', m.id)
-
-
-def _first(rng, films, on_calendar, recent, quotes):
-    dated = [f for f in films if _year(f)]
-    m = _choose(rng, dated, on_calendar, recent, lambda f: f'film:{f.id}')
-    if not m:
+    ranked = sorted((x for x in c['everyone'] if x.year and x.key != f.key), key=lambda x: -film_pool.similarity(f, x))
+    picks, years, titles = [f], {f.year}, {f.title.lower()}
+    for x in rng.sample(ranked[:top], min(top, len(ranked))) + ranked[top:]:
+        if x.year not in years and x.title.lower() not in titles:
+            picks.append(x)
+            years.add(x.year)
+            titles.add(x.title.lower())
+            if len(picks) == 4:
+                break
+    if len(picks) < 4:
         return None
-    by_year = {}
-    for f in rng.sample(dated, len(dated)):
-        if f.id != m.id and _year(f) != _year(m):
-            by_year.setdefault(_year(f), f)
-    if len(by_year) < 3:
-        return None
-    picks = [m, *rng.sample(list(by_year.values()), 3)]
-    if len({_year(f) for f in picks}) < 4 or len({f.title.lower() for f in picks}) < 4:
-        return None
-    oldest = min(picks, key=_year)
-    return _question(rng, 'first', 'Which came out first?', _label(oldest, year=False),
-                     [_label(f, year=False) for f in picks if f is not oldest], f'film:{m.id}', oldest.id)
+    oldest = min(picks, key=lambda x: x.year)
+    close = 1 if max(years) - min(years) <= 8 else 0              # years this close are hard to call
+    return _question(rng, 'first', 'Which came out first?', oldest.title, [x.title for x in picks if x is not oldest],
+                     oldest, ref=f.key, difficulty=film_pool.difficulty(f, picks[1:], extra=close + _known(f, c)))
 
 
-def _tagline(rng, films, on_calendar, recent, quotes):
-    def usable(f):
-        words = {w for w in f.title.lower().split() if len(w) > 3}
-        return f.tagline and not any(w in f.tagline.lower() for w in words)
-    m = _choose(rng, [f for f in films if usable(f)], on_calendar, recent, lambda f: f'film:{f.id}')
-    if not m:
-        return None
-    wrong = _distinct(rng, sorted({_label(f) for f in films if f.id != m.id}), [_label(m)], 3)
-    return wrong and _question(rng, 'tagline', f'Which film’s tagline is “{m.tagline}”?', _label(m), wrong,
-                               f'film:{m.id}', m.id)
+def _tagline(rng, c):
+    def usable(x):
+        words = {w for w in x.title.lower().split() if len(w) > 3}
+        return bool(x.tagline) and not any(w in x.tagline.lower() for w in words)
+    f = _choose_detailed(rng, c, usable)
+    others = f and film_pool.lookalikes(f, c['everyone'], rng)
+    return others and _question(rng, 'tagline', f'Which film’s tagline is “{f.tagline}”?', f.label,
+                                [x.label for x in others], f, difficulty=film_pool.difficulty(f, others, _known(f, c)))
 
 
-def _quote(rng, films, on_calendar, recent, quotes):
-    q = _choose(rng, [q for q in quotes if q.movie], set(), recent, lambda q: f'quote:{q.id}')
-    if not q:
+def _quote(rng, c):
+    import discover
+    fresh = [x for x in c['quotes'] if x.movie and f'quote:{x.id}' not in c['recent']]
+    if not fresh:
         return None
-    wrong = _distinct(rng, sorted({x.movie for x in quotes if x.movie}), [q.movie], 3)
-    return wrong and _question(rng, 'quote', f'Which film is this line from? “{q.text}”', q.movie, wrong, f'quote:{q.id}')
+    q = rng.choice(fresh)
+    want = discover.normalize(q.movie)
+    films = [x for x in c['everyone'] if discover.normalize(x.title) == want]
+    f = max(films, key=lambda x: x.votes) if films else None
+    prompt = f'Which film is this line from? “{q.text}”'
+    if f:
+        others = film_pool.lookalikes(f, c['everyone'], rng)
+        return others and _question(rng, 'quote', prompt, f.label, [x.label for x in others], f, ref=f'quote:{q.id}',
+                                    difficulty=film_pool.difficulty(f, others))
+    names = sorted({x.movie for x in c['quotes'] if x.movie and x.movie.lower() != q.movie.lower()})
+    wrong = rng.sample(names, 3) if len(names) >= 3 else None
+    return wrong and _question(rng, 'quote', prompt, q.movie, wrong, ref=f'quote:{q.id}')
 
 
 BUILDERS = (_director, _cast_q, _first, _tagline, _quote)
@@ -138,8 +172,10 @@ def make_question(group, day, rng=None, recent=None):
     """A question for a club (not saved). The question of the day: the same
     club and day always give the same one, and nothing about the same film or
     quote as the club's other recent daily questions (REPEAT_AFTER). Anytime
-    questions pass their own `rng` and `recent`."""
-    from app import Movie, Quote, Showtime, TriviaQuestion, _group_showtime_query
+    questions pass their own `rng` and `recent`. Its film comes from the
+    club's source (film_pool: our films, TMDB's best known, or both); its
+    wrong answers are look-alikes from both, and it carries a difficulty."""
+    from app import Quote, Showtime, TriviaQuestion, _group_showtime_query
     rng = rng or random.Random(f'{group.id}:{day.isoformat()}')
     if recent is None:
         recent = {q.ref for q in TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id,
@@ -148,12 +184,17 @@ def make_question(group, day, rng=None, recent=None):
     now = datetime.now()
     on_calendar = {mid for (mid,) in _group_showtime_query(group).with_entities(Showtime.movie_id).filter(
         Showtime.start_time >= now, Showtime.start_time < now + timedelta(days=CALENDAR_DAYS)).distinct()}
-    films = Movie.query.filter(Movie.tmdb_id.isnot(None)).order_by(Movie.id).all()
-    quotes = Quote.query.filter(Quote.deleted_at.is_(None)).order_by(Quote.id).all()
+    source = group.trivia_source if group.trivia_source in film_pool.SOURCES else 'both'
+    subjects, everyone = film_pool.films(source)
+    if not subjects:                                          # the pool isn't filled yet: our films for now
+        source = 'local'
+        subjects, everyone = film_pool.films('local')
+    c = {'subjects': subjects, 'everyone': everyone, 'on_calendar': on_calendar, 'recent': recent, 'source': source,
+         'quotes': Quote.query.filter(Quote.deleted_at.is_(None)).order_by(Quote.id).all()}
     builders = list(BUILDERS)
     rng.shuffle(builders)
     for build in builders:
-        q = build(rng, films, on_calendar, recent, quotes)
+        q = build(rng, c)
         if q:
             return q
     return None
@@ -196,6 +237,7 @@ def swap(q):
         return "There isn't another question to ask today."
     q.kind, q.prompt, q.options_json, q.answer = made['kind'], made['prompt'], json.dumps(made['options']), made['answer']
     q.movie_id, q.ref = made['movie_id'], made['ref']
+    q.tmdb_id, q.difficulty = made.get('tmdb_id'), made.get('difficulty')
     db.session.commit()
     return None
 
@@ -204,7 +246,8 @@ def _save(group, day, slot, made, asked_by=None):
     from app import db, TriviaQuestion
     q = TriviaQuestion(group_id=group.id, day=day, slot=slot, asked_by=asked_by, kind=made['kind'],
                        prompt=made['prompt'], options_json=json.dumps(made['options']), answer=made['answer'],
-                       movie_id=made['movie_id'], ref=made['ref'])
+                       movie_id=made['movie_id'], ref=made['ref'], tmdb_id=made.get('tmdb_id'),
+                       difficulty=made.get('difficulty'))
     db.session.add(q)
     return q
 
@@ -250,12 +293,14 @@ def another(group, user):
 
 
 def as_dict(q, user=None, reveal=False):
-    """A question for showing: the right answer, the tally and the film only
-    once you've answered (or it's an earlier day's)."""
-    from app import db, Movie, TriviaAnswer
+    """A question for showing: how hard it is and what it's worth; the right
+    answer, the tally and the film only once you've answered (or it's an
+    earlier day's)."""
+    from app import db, Movie, PoolFilm, TriviaAnswer
     anytime = q.slot != 'daily'
     out = {'id': q.id, 'day': q.day.isoformat(), 'kind': q.kind, 'prompt': q.prompt, 'anytime': anytime,
-           'options': json.loads(q.options_json), 'kernels': ANYTIME_KERNELS if anytime else TRIVIA_KERNELS}
+           'options': json.loads(q.options_json), 'kernels': worth(q.slot, q.difficulty),
+           'difficulty': q.difficulty or film_pool.MEDIUM}
     if anytime and user:
         out['kernels_left_today'] = max(0, ANYTIME_DAILY_CAP - _anytime_today(user.id, q.group_id))
     mine = TriviaAnswer.query.filter_by(question_id=q.id, user_id=user.id).first() if user else None
@@ -266,8 +311,11 @@ def as_dict(q, user=None, reveal=False):
         out['answer'] = q.answer
         out['stats'] = {'answered': len(answers), 'correct': sum(a.correct for a in answers)}
         m = db.session.get(Movie, q.movie_id) if q.movie_id else None
+        p = PoolFilm.query.filter_by(tmdb_id=q.tmdb_id).first() if q.tmdb_id and not m else None
         if m:
-            out['movie'] = {'id': m.id, 'title': m.title, 'poster_url': m.poster_url}
+            out['movie'] = {'id': m.id, 'title': film_pool.nice_title(m.title), 'poster_url': m.poster_url}
+        elif p:                                               # a TMDB pool film (no page of ours yet)
+            out['movie'] = {'id': None, 'tmdb_id': p.tmdb_id, 'title': p.title, 'poster_url': p.poster_url}
     return out
 
 
@@ -315,9 +363,9 @@ def answer(group, user, question_id, choice, source='site'):
     if not right:
         earned = 0
     elif q.slot == 'daily':
-        earned = TRIVIA_KERNELS
+        earned = worth('daily', q.difficulty)
     else:
-        earned = max(0, min(ANYTIME_KERNELS, ANYTIME_DAILY_CAP - _anytime_today(user.id, group.id)))
+        earned = max(0, min(worth(q.slot, q.difficulty), ANYTIME_DAILY_CAP - _anytime_today(user.id, group.id)))
     db.session.add(TriviaAnswer(question_id=q.id, user_id=user.id, choice=choice, correct=right, source=source))
     try:
         db.session.commit()
@@ -328,13 +376,15 @@ def answer(group, user, question_id, choice, source='site'):
 
 
 def kernels_for(user_ids, group_id=None, since=None):
-    """{uid: trivia kernels}: +2 per right answer to a question of the day,
-    +1 per right anytime answer up to ANYTIME_DAILY_CAP a day (per club);
-    with `since`, only questions from that day on."""
+    """{uid: trivia kernels}: a right answer to a question of the day is
+    worth its difficulty (DAILY_KERNELS), anytime ones too (ANYTIME_KERNEL_TABLE)
+    up to ANYTIME_DAILY_CAP a day (per club); with `since`, only questions
+    from that day on."""
     from app import db, TriviaAnswer, TriviaQuestion
     if not user_ids:
         return {}
-    q = (db.session.query(TriviaAnswer.user_id, TriviaQuestion.group_id, TriviaQuestion.day, TriviaQuestion.slot)
+    q = (db.session.query(TriviaAnswer.user_id, TriviaQuestion.group_id, TriviaQuestion.day, TriviaQuestion.slot,
+                          TriviaQuestion.difficulty)
          .join(TriviaQuestion, TriviaAnswer.question_id == TriviaQuestion.id)
          .filter(TriviaAnswer.user_id.in_(list(user_ids)), TriviaAnswer.correct.is_(True)))
     if group_id:
@@ -342,11 +392,11 @@ def kernels_for(user_ids, group_id=None, since=None):
     if since:
         q = q.filter(TriviaQuestion.day >= since.date())
     out, anytime = {}, {}
-    for uid, gid, day, slot in q:
+    for uid, gid, day, slot, level in q:
         if slot == 'daily':
-            out[uid] = out.get(uid, 0) + TRIVIA_KERNELS
+            out[uid] = out.get(uid, 0) + worth('daily', level)
         else:
-            anytime[(uid, gid, day)] = anytime.get((uid, gid, day), 0) + ANYTIME_KERNELS
+            anytime[(uid, gid, day)] = anytime.get((uid, gid, day), 0) + worth(slot, level)
     for (uid, _, _), k in anytime.items():
         out[uid] = out.get(uid, 0) + min(k, ANYTIME_DAILY_CAP)
     return out
@@ -355,7 +405,7 @@ def kernels_for(user_ids, group_id=None, since=None):
 def _anytime_today(user_id, group_id):
     """Kernels from anytime questions today (toward the daily cap)."""
     from app import TriviaAnswer, TriviaQuestion
-    n = (TriviaAnswer.query.join(TriviaQuestion, TriviaAnswer.question_id == TriviaQuestion.id)
-         .filter(TriviaAnswer.user_id == user_id, TriviaAnswer.correct.is_(True), TriviaQuestion.group_id == group_id,
-                 TriviaQuestion.slot != 'daily', TriviaQuestion.day == today()).count())
-    return min(n * ANYTIME_KERNELS, ANYTIME_DAILY_CAP)
+    rows = (TriviaQuestion.query.join(TriviaAnswer, TriviaAnswer.question_id == TriviaQuestion.id)
+            .filter(TriviaAnswer.user_id == user_id, TriviaAnswer.correct.is_(True), TriviaQuestion.group_id == group_id,
+                    TriviaQuestion.slot != 'daily', TriviaQuestion.day == today()).all())
+    return min(sum(worth(q.slot, q.difficulty) for q in rows), ANYTIME_DAILY_CAP)

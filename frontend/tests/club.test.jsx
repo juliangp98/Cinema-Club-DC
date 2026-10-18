@@ -85,3 +85,12 @@ test("the overview's side: members (to their pages) and the month's numbers", as
   expect(screen.getByText(/7 screenings · 2 together/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "VERTIGO" })).toHaveAttribute("href", "/films/5");
 });
+
+test("where trivia's films come from: ours, well-known ones, or both", async () => {
+  const calls = settingsApi();
+  renderPage(<ClubSettings group={group} apiBase="" viewerId={3} isAdmin={false} onChanged={() => {}} />, { route: "/club?tab=settings" });
+  const choice = await screen.findByRole("group", { name: "Trivia's films" });
+  expect(within(choice).getByRole("button", { name: "Both" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(within(choice).getByRole("button", { name: "Well-known films" }));
+  expect(calls.find(c => c.method === "PUT").body).toEqual({ trivia_source: "tmdb" });
+});

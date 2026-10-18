@@ -11,6 +11,8 @@ import { kernelParts } from "../kernels";
 // the games they run. On phones a strip of your numbers sits on top instead.
 
 const rankOf = (rows, id) => (rows ? rows.findIndex(r => r.user.id === id) : -1);
+// Trivia's kernels by difficulty (R15): "+1 easy · +2 medium · +3 hard".
+const byLevel = t => ["easy", "medium", "hard"].filter(k => k in t).map(k => `+${t[k]} ${k}`).join(" · ");
 
 function earnList(r) {
   return [
@@ -18,8 +20,8 @@ function earnList(r) {
     `Be first going to a screening: +1 for each member who joins (up to ${r.trailblazer_max})`,
     `Crew night — ${r.crew_min}+ members check in to the same screening: +${r.crew} each`,
     "Right picks in scored polls",
-    r.trivia && `Trivia question of the day: +${r.trivia} for a right answer`,
-    r.trivia_anytime && `Anytime trivia: +${r.trivia_anytime.each} each, up to ${r.trivia_anytime.per_day} a day`,
+    r.trivia && `Trivia question of the day: ${byLevel(r.trivia)} for a right answer`,
+    r.trivia_anytime && `Anytime trivia: ${byLevel(r.trivia_anytime.each)} each, up to ${r.trivia_anytime.per_day} a day`,
     r.bingo && `Repertory bingo: +${r.bingo.line} for a line, +${r.bingo.full} for the full card`,
     `Members can give you kernels for what you do (up to ${r.give} a week each), or take a few back`,
   ].filter(Boolean);

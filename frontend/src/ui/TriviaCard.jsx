@@ -9,6 +9,8 @@ import Panel from "./Panel";
 // club allows it — anytime questions, one at a time. One try each; the
 // answer shows once you've answered.
 const LETTERS = "ABCD";
+// How hard a question is (R15) — and so what it's worth.
+const LEVEL_TONE = { easy: "go", medium: "gold", hard: "strong" };
 
 export default function TriviaCard({ apiBase, groupId, role, offNote = false }) {
   const { data, reload } = useJson(`${apiBase}/api/trivia/today?group_id=${groupId}`);
@@ -58,6 +60,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   return (
     <Panel tone="gold" className="trivia-card" aria-labelledby="trivia-title" titleId="trivia-title"
            title={q.anytime ? "🎲 Anytime trivia" : "🧠 Question of the day"}
+           aside={q.difficulty && <span className={`ui-badge ${LEVEL_TONE[q.difficulty] || ""}`}>{q.difficulty}</span>}
            hint={answered ? (q.anytime || !data.anytime ? "" : "Want more? Play an anytime question")
              : q.anytime && q.kernels_left_today === 0 ? "One try · just for fun (today's anytime kernels are used up)"
              : `One try · +${q.kernels} 🍿 if you're right`}>
@@ -77,7 +80,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
         <p className="trivia-result" role="status">
           {q.mine.correct ? `✅ Right!${earned ? ` +${earned} 🍿` : ""}` : `❌ It was ${q.options[q.answer]}.`}
           {!q.anytime && ` ${q.stats.correct} of ${q.stats.answered} got it so far.`}
-          {q.movie && <> <Link to={`/films/${q.movie.id}`}>About the film →</Link></>}
+          {q.movie?.id && <> <Link to={`/films/${q.movie.id}`}>About the film →</Link></>}
         </p>
       )}
       {answered && another}

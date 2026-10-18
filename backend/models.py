@@ -134,6 +134,7 @@ class Group(db.Model):
     # Repertory bingo (R10e): a monthly card for the club, off until an admin turns it on.
     bingo_enabled = db.Column(db.Boolean, default=False)
     bingo_home = db.Column(db.Boolean, default=False)       # R15: Letterboxd diaries fill film squares
+    trivia_source = db.Column(db.String(8), default='both')  # R15: local | tmdb | both (film_pool.SOURCES)
     # R14: what the games post in the club's Discord (game_posts.py), each its
     # own choice, all off by default: the question of the day and the month's
     # card 'never' | 'ask' (an admin OKs it first) | 'always'; wins 'never' | 'always'.
@@ -159,7 +160,7 @@ class Group(db.Model):
             'short_name': self.short_name or '',
             'discord': core.discord_group(self.id),        # the club's Discord server's group
             'trivia': {'enabled': bool(self.trivia_enabled), 'anytime': bool(self.trivia_anytime),
-                       'post': self.trivia_post or 'never'},
+                       'post': self.trivia_post or 'never', 'source': self.trivia_source or 'both'},
             'bingo': {'enabled': bool(self.bingo_enabled), 'card_post': self.bingo_card_post or 'never',
                       'wins_post': self.bingo_wins_post or 'never', 'home': bool(self.bingo_home)},
             'notes': {'enabled': bool(self.notes_enabled)},
@@ -627,7 +628,28 @@ class TriviaQuestion(db.Model):
     ref = db.Column(db.String(200))                           # what it's about, so it isn't asked again soon
     discord_message_id = db.Column(db.String(30))
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    difficulty = db.Column(db.String(8))                      # easy | medium | hard (R15; None: before, = medium)
+    tmdb_id = db.Column(db.Integer)                           # about a film from the TMDB pool, not one of ours
     __table_args__ = (db.UniqueConstraint('group_id', 'day', 'slot'),)
+
+
+class PoolFilm(db.Model):
+    """A well-known film from TMDB (R15, film_pool.py): trivia's wider pool
+    and its look-alike wrong answers. Refreshed weekly; who directed it, its
+    tagline and cast are looked up only when a question needs them."""
+    id = db.Column(db.Integer, primary_key=True)
+    tmdb_id = db.Column(db.Integer, unique=True, nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    year = db.Column(db.Integer)
+    genres = db.Column(db.Text)
+    popularity = db.Column(db.Float)
+    vote_count = db.Column(db.Integer)
+    poster_url = db.Column(db.String(500))
+    refreshed_at = db.Column(db.DateTime)
+    director = db.Column(db.String(200))
+    tagline = db.Column(db.String(500))
+    cast_json = db.Column(db.Text)                            # JSON: [name, …] (top billed)
+    details_at = db.Column(db.DateTime)
 
 
 class TriviaAnswer(db.Model):

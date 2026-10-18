@@ -71,14 +71,14 @@ def answer(c, who, q, choice):
 def test_trivia_starts_off(club):
     assert today(club) == {'enabled': False}
     assert client(club['Bo']).get(f"/api/groups/{club['slug']}").json['trivia'] == {'enabled': False, 'anytime': False,
-                                                                                   'post': 'never'}
+                                                                                   'post': 'never', 'source': 'both'}
     r = client(club['Bo']).post('/api/trivia/answer', json={'group_id': club['G'], 'question_id': 1, 'choice': 0})
     assert r.status_code == 400 and 'off' in r.json['error']
 
 
 def test_only_club_admins_switch_it(club):
     assert client(club['Bo']).put(f"/api/groups/{club['slug']}", json={'trivia_enabled': True}).status_code == 403
-    assert turn_on(club, post='ask')['trivia'] == {'enabled': True, 'anytime': False, 'post': 'ask'}
+    assert turn_on(club, post='ask')['trivia'] == {'enabled': True, 'anytime': False, 'post': 'ask', 'source': 'both'}
     bad = client(club['Ana']).put(f"/api/groups/{club['slug']}", json={'trivia_post': 'sometimes'}).json
     assert bad['trivia']['post'] == 'ask'                                         # only never / ask / always
 
@@ -91,7 +91,9 @@ def test_one_question_a_day_the_same_for_everyone(club):
     q = bo['question']
     assert bo['enabled'] and q['id'] == ana['question']['id'] and len(q['options']) == 4 and len(set(q['options'])) == 4
     assert not {'answer', 'stats', 'movie', 'mine'} & set(q)                    # nothing given away before you answer
-    assert q['kernels'] == 2 and bo['yesterday'] is None
+    assert q['difficulty'] in ('easy', 'medium', 'hard') and bo['yesterday'] is None
+    import trivia
+    assert q['kernels'] == trivia.worth('daily', q['difficulty'])              # 1 / 2 / 3 by how hard it is
 
 
 def test_answering_once(club):
@@ -109,7 +111,7 @@ def test_answering_once(club):
     assert answer(club, 'Ana', q, wrong).json['mine'] == {'choice': wrong, 'correct': False}
     with app.app_context():
         import kernels
-        assert kernels.breakdown(club['Bo'], club['G'])['trivia'] == trivia.TRIVIA_KERNELS
+        assert kernels.breakdown(club['Bo'], club['G'])['trivia'] == trivia.worth('daily', q['difficulty'])
         assert kernels.breakdown(club['Ana'], club['G'])['trivia'] == 0
     assert today(club)['question']['stats'] == {'answered': 2, 'correct': 1}
 
@@ -138,22 +140,26 @@ def test_yesterdays_question_is_revealed_and_closed(club):
 
 
 def test_every_kind_asks_something_true(club):
+    import film_pool
     import trivia
     from app import app, Movie, Quote
     with app.app_context():
-        films, quotes = Movie.query.filter(Movie.tmdb_id >= 900000).all(), Quote.query.all()
+        films = [film_pool.from_movie(m) for m in Movie.query.filter(Movie.tmdb_id >= 900000)]
+        c = {'subjects': films, 'everyone': films, 'on_calendar': set(), 'recent': set(), 'source': 'local',
+             'quotes': Quote.query.all()}
         directors = {f.title: f.director for f in films}
+        years = {f.title: f.year for f in films}
         for build in trivia.BUILDERS:
             for seed in range(25):
-                q = build(random.Random(seed), films, set(), set(), quotes)
+                q = build(random.Random(seed), c)
                 assert q, build.__name__
+                assert q['difficulty'] in ('easy', 'medium', 'hard')
                 right = q['options'][q['answer']]
                 assert len(set(q['options'])) == 4
                 if q['kind'] == 'director':
                     title = q['prompt'].removeprefix('Who directed ').rsplit(' (', 1)[0]
                     assert right == directors[title]
                 elif q['kind'] == 'first':
-                    years = {f.title: int(f.release_year) for f in films}
                     assert years[right] == min(years[o] for o in q['options'])
                 elif q['kind'] == 'quote':
                     text = q['prompt'].split('“', 1)[1].rstrip('”')
@@ -191,7 +197,7 @@ def test_kernel_rules_mention_trivia_only_when_on(club):
     rules = lambda: client(club['Bo']).get('/api/kernels', query_string={'group_id': club['G']}).json['rules']
     assert rules()['trivia'] is None
     turn_on(club)
-    assert rules()['trivia'] == 2
+    assert rules()['trivia'] == {'easy': 1, 'medium': 2, 'hard': 3}
 
 
 # ── anytime questions ──
@@ -219,7 +225,9 @@ def test_anytime_is_its_own_switch(club):
     t = today(club)
     assert t['enabled'] and t['anytime'] and not t['daily'] and t['question'] is None
     q = another(club, 'Bo').json
-    assert q['anytime'] and q['kernels'] == 1 and q['kernels_left_today'] == 5 and 'answer' not in q
+    import trivia
+    assert q['anytime'] and q['kernels'] == trivia.worth('anytime', q['difficulty']) and q['kernels_left_today'] == 5
+    assert 'answer' not in q
 
 
 def test_anytime_questions_are_private_and_one_at_a_time(club):
@@ -231,7 +239,8 @@ def test_anytime_questions_are_private_and_one_at_a_time(club):
     assert today(club)['waiting']['id'] == q1['id']
     assert "isn't yours" in answer(club, 'Ana', q1, 0).json['error']
     r = answer(club, 'Bo', q1, right_answer(q1['id'])).json
-    assert r['mine']['correct'] and r['earned'] == 1 and r['anytime_on'] is True and r['kernels_left_today'] == 4
+    assert r['mine']['correct'] and r['earned'] == q1['kernels'] and r['anytime_on'] is True
+    assert r['kernels_left_today'] == 5 - q1['kernels']
     q2 = another(club, 'Bo').json
     assert q2['id'] not in (q1['id'], daily['id']) and q2['prompt'] not in (q1['prompt'], daily['prompt'])
     assert another(club, 'Vi').status_code == 400                               # read-only members don't play
@@ -242,15 +251,17 @@ def test_anytime_kernels_stop_at_five_a_day(club):
     from app import app
     turn_on(club)
     anytime_on(club)
-    earned = []
+    earned, expected, left = [], [], 5
     for _ in range(7):
         q = another(club, 'Bo').json
         earned.append(answer(club, 'Bo', q, right_answer(q['id'])).json['earned'])
-    assert earned == [1, 1, 1, 1, 1, 0, 0]                                      # then just for fun
+        expected.append(min(q['kernels'], left))
+        left -= expected[-1]
+    assert earned == expected and sum(earned) == 5 and earned[-1] == 0          # then just for fun
     daily = today(club)['question']
     answer(club, 'Bo', daily, right_answer(daily['id']))
     with app.app_context():
-        assert kernels.breakdown(club['Bo'], club['G'])['trivia'] == 5 + 2
+        assert kernels.breakdown(club['Bo'], club['G'])['trivia'] == 5 + daily['kernels']
 
 
 def test_trivia_tables_from_before_anytime_are_rebuilt():

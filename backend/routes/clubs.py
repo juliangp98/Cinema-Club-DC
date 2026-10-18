@@ -262,7 +262,7 @@ def get_group(slug):
 # details — is admins'.
 def organizer_fields():
     import game_posts
-    return {'theatres', 'trivia_enabled', 'trivia_anytime', 'bingo_enabled', 'bingo_home', 'notes_enabled',
+    return {'theatres', 'trivia_enabled', 'trivia_anytime', 'trivia_source', 'bingo_enabled', 'bingo_home', 'notes_enabled',
             *game_posts.SETTINGS.values()}
 
 
@@ -317,6 +317,9 @@ def update_group(slug):
         group.bingo_enabled = data['bingo_enabled']
     if isinstance(data.get('bingo_home'), bool):              # diaries fill film squares (R15), off by default
         group.bingo_home = data['bingo_home']
+    import film_pool
+    if data.get('trivia_source') in film_pool.SOURCES:        # where trivia's films come from (R15)
+        group.trivia_source = data['trivia_source']
     if isinstance(data.get('notes_enabled'), bool):           # screening notes (R10f), off by default
         group.notes_enabled = data['notes_enabled']
     import game_posts                                         # what the games post in Discord (R14)
