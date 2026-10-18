@@ -29,6 +29,7 @@ DETAILS_PER_QUESTION = 3                     # TMDB lookups a question may make 
 EASY, MEDIUM, HARD = 'easy', 'medium', 'hard'
 WELL_KNOWN, KNOWN = 6000, 1500               # TMDB votes: famous (pool's top ~15%), known (top ~75%); below: a deep cut
 CLOSE = 0.95                                 # look-alikes this close make it harder (the median is ~0.9)
+ROMAN = re.compile(r'(?=[ivxlc])(x{0,3})(ix|iv|v?i{0,3})', re.I)          # II, III, IV… stay capitals
 SMALL_WORDS = {'a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'on', 'or', 'the', 'to',
                'vs', 'vs.', 'with'}
 
@@ -61,8 +62,12 @@ def nice_title(title):
     t = (title or '').strip()
     if not t or t != t.upper() or not re.search('[A-Z]', t):
         return t
-    words = t.lower().split()
-    return ' '.join(w if i and w in SMALL_WORDS else w[:1].upper() + w[1:] for i, w in enumerate(words))
+    words, out = t.lower().split(), []
+    for i, w in enumerate(words):
+        starts = i == 0 or words[i - 1].endswith(':')          # a title, or a subtitle after a colon
+        out.append(w.upper() if ROMAN.fullmatch(w.strip(':,.')) else w if w in SMALL_WORDS and not starts
+                   else w[:1].upper() + w[1:])
+    return ' '.join(out)
 
 
 def _genres(text):

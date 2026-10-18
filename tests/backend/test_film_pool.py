@@ -60,6 +60,8 @@ def test_theatre_titles_read_like_titles():
     assert film_pool.nice_title('THE BLACK PIRATE') == 'The Black Pirate'
     assert film_pool.nice_title('NIGHT OF THE LIVING DEAD') == 'Night of the Living Dead'
     assert film_pool.nice_title('Paris, Texas') == 'Paris, Texas'                   # already fine: left alone
+    assert film_pool.nice_title('THE GODFATHER PART II') == 'The Godfather Part II'
+    assert film_pool.nice_title('ROCKY IV: THE MOVIE I MEAN') == 'Rocky IV: The Movie I Mean'
 
 
 def test_difficulty_follows_fame_and_how_close_the_others_are(pool):
