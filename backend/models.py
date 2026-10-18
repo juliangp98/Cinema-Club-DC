@@ -433,7 +433,7 @@ class ActivityEvent(db.Model):
 
 
 class Quote(db.Model):
-    """A line the bot drops for "what is thy wisdom", /wisdom and ambient
+    """A line the bot drops for "what is thy wisdom", /quote random and ambient
     triggers. Only `text` is ever shown in the channel; movie and character are
     the silent source, kept for accuracy and visible only when managing quotes.
     Removal is soft (deleted_at) so a mistaken delete can be undone."""

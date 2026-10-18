@@ -132,7 +132,7 @@ def test_an_incomplete_member_list_is_never_sent(synced):
 
 def test_whos_going_and_rsvp_count_the_rest(synced):
     it = Interaction(8801)
-    run(synced.whosgoing.callback(it, days=7))
+    run(synced.showtimes.callback(it, days=7, going=True))
     text = ' '.join(f.value for f in it.last[2].fields)
     assert 'Ana' in text and '+2 on the site' in text and 'Bo' not in text and 'Cy' not in text
     it = Interaction(8801, guild_id=900)

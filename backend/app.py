@@ -1140,7 +1140,7 @@ def _draft_poll(user, group, prompt, scope='playing'):
     return {'id': d.id, 'group_id': group.id, 'prompt': prompt, **data}, 201
 
 
-# ─── Poll voting + scoring rules (shared by the site and Discord's /vote) ─────
+# ─── Poll voting + scoring rules (shared by the site and Discord's /poll vote) ─
 
 RANKED_PICKS = 3
 

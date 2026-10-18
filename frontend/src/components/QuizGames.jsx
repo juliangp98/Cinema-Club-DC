@@ -7,7 +7,7 @@ import { send, useJson } from "../api";
 // The quiz games (R15, quizzes.py): each its own switch in Club settings.
 // QUIZ_GAMES mirrors quizzes.GAMES for the settings switches; Play shows the
 // ones that are on, each playing in place (privately — the same rounds as
-// /games in Discord).
+// /play in Discord).
 export const QUIZ_GAMES = [
   { key: "higher_lower", label: "↕️ Higher or lower",
     hint: "A film and its year — did the next one come out before or after? +1 kernel a right call, up to 5 a day; a miss ends the run." },

@@ -45,7 +45,7 @@ test("admins get every section", async () => {
 
 const stats = { screenings: 3, film_prints: 1, theatres: 2, late: 1, crew_nights: 0, week_streak: 2, first_going: 1,
   comments: 4, trivia: { answered: 10, correct: 9, accuracy: 90, streak: 5 }, bingo: { lines: 1, cards: 0 }, last_out: null };
-const row = (id, name, kernels) => ({ user: { id, name }, kernels, correct: 1, attendance: 3, stats,
+const row = (id, name, kernels, place = id) => ({ user: { id, name }, kernels, place, correct: 1, attendance: 3, stats,
   breakdown: { polls: 1, going_out: kernels - 1, trivia: 0, bingo: 0, members: 0 } });
 
 test("the leaderboard: a period, its superlatives, kernels as a bar, stats a tap away", async () => {
@@ -53,7 +53,7 @@ test("the leaderboard: a period, its superlatives, kernels as a bar, stats a tap
     "GET /api/groups/1/leaderboard?period=month": { period: "month", rows: [row(1, "Ana", 12), row(2, "Bo", 6)],
       superlatives: [{ key: "night_owl", emoji: "🦉", title: "Night owl", what: "screenings at 9:30 PM or later", value: 2,
                        user: { id: 1, name: "Ana" } }] },
-    "GET /api/groups/1/leaderboard?period=year": { period: "year", rows: [row(2, "Bo", 30), row(1, "Ana", 20)], superlatives: [] },
+    "GET /api/groups/1/leaderboard?period=year": { period: "year", rows: [row(2, "Bo", 30, 1), row(1, "Ana", 20, 2)], superlatives: [] },
   });
   renderPage(<ClubBoard group={group} apiBase="" viewerId={2} />);
   expect(await screen.findByText("Night owl")).toBeInTheDocument();
@@ -65,6 +65,15 @@ test("the leaderboard: a period, its superlatives, kernels as a bar, stats a tap
   await userEvent.click(screen.getByRole("button", { name: "This year" }));
   expect(await screen.findByText("Bo", { selector: ".club-board-row:first-child a.person-link" })).toBeInTheDocument();
   expect(calls.map(c => c.path)).toContain("/api/groups/1/leaderboard?period=year");
+});
+
+test("the leaderboard: ties share a place, and nobody medals at 0", async () => {
+  mockApi({ "GET /api/groups/1/leaderboard?period=month": { period: "month", superlatives: [],
+    rows: [row(1, "Ana", 9, 1), row(2, "Bo", 9, 1), row(3, "Cy", 4, 3), row(4, "Di", 0, 4)] } });
+  renderPage(<ClubBoard group={group} apiBase="" viewerId={2} />);
+  await screen.findByText("Cy", { selector: "a.person-link" });
+  const ranks = [...document.querySelectorAll(".club-board-row .club-rank")].map(e => e.textContent);
+  expect(ranks).toEqual(["🥇", "🥇", "🥉", "4"]);
 });
 
 test("the overview's side: members (to their pages) and the month's numbers", async () => {

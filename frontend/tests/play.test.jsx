@@ -7,7 +7,7 @@ import { mockApi, renderPage } from "./support";
 // this week's movers, your numbers as a strip on phones — and the games their
 // organizers run, skipped posts included.
 
-const row = (id, kernels) => ({ user: { id, name: `M${id}` }, kernels });
+const row = (id, kernels, place = id) => ({ user: { id, name: `M${id}` }, kernels, place });
 const month = [row(1, 50), row(2, 40), row(3, 30), row(4, 20), row(5, 10), row(6, 5), row(7, 3)];
 const k = { kernels: 42, polls: 2, going_out: 30, trivia: 4, bingo: 5, members: 1, allowance: { give_left: 8, take_left: 3 },
   rules: { went: 5, planned: 2, trailblazer_max: 5, crew_min: 3, crew: 3, give: 10, trivia: { easy: 1, medium: 2, hard: 3 },
@@ -30,8 +30,13 @@ test("this month: the top five, then you if you're further down", () => {
   expect(screen.getByRole("link", { name: "Full leaderboard →" })).toHaveAttribute("href", "/club?tab=leaderboard");
 });
 
+test("this month: ties share a place", () => {
+  renderPage(<MonthBoard month={[row(1, 9, 1), row(2, 9, 1), row(3, 4, 3)]} viewerId={3} />);
+  expect(screen.getAllByRole("listitem").map(li => li.textContent)).toEqual(["1M1M1🍿 9", "1M2M2🍿 9", "3M3M3🍿 4"]);
+});
+
 test("this week's movers: the three who earned most since Monday", () => {
-  const { unmount } = renderPage(<Movers week={[row(3, 14), row(1, 9), row(2, 2), row(4, 1)]} viewerId={1} />);
+  const { unmount } = renderPage(<Movers week={[row(3, 14, 1), row(1, 9, 2), row(2, 2, 3), row(4, 1, 4)]} viewerId={1} />);
   expect(screen.getAllByRole("listitem").map(li => li.textContent)).toEqual(["1M3M3+14", "2M1M1+9", "3M2M2+2"]);
   unmount();
   renderPage(<Movers week={[row(1, 0)]} viewerId={1} />);

@@ -1,4 +1,4 @@
-"""/quote add · edit · find · remove and /wisdom, over the seeded list of
+"""/quote random · add · edit · find · remove, over the seeded list of
 built-in quotes."""
 import asyncio
 import types
@@ -119,7 +119,7 @@ def test_adding_a_quote(seeded):
     assert ephemeral and content.startswith('Added ✓') and 'Mein Führer! I can walk!' in content    # trimmed
     assert '*Dr. Strangelove (Dr. Strangelove)*' in content
     picks = {run(seeded.random_quote()) for _ in range(400)}
-    assert 'Mein Führer! I can walk!' in picks or len(seeded._quote_cache['texts']) == 303          # /wisdom can draw it
+    assert 'Mein Führer! I can walk!' in picks or len(seeded._quote_cache['texts']) == 303          # /quote random can draw it
 
 
 def test_duplicates_and_strangers_are_refused(seeded):
@@ -171,4 +171,12 @@ def test_who_can_remove_a_quote(seeded):
     rows = run(seeded.api.get('/api/internal/quotes'))
     assert len(rows) == 301 and all(r['id'] not in (new_id, alien['id']) for r in rows)
     seeded._quote_cache.update(texts=[], fetched=-1e9)
-    assert ALIEN not in {run(seeded.random_quote()) for _ in range(400)}       # /wisdom stops drawing it
+    assert ALIEN not in {run(seeded.random_quote()) for _ in range(400)}       # /quote random stops drawing it
+
+
+def test_quote_random_posts_a_line(bot):
+    from helpers import FakeInteraction
+    it = FakeInteraction()
+    run(bot.quote_random.callback(it))
+    kind, content, kw = it.last
+    assert kind == 'message' and content in bot.quotes.QUOTES and not kw.get('ephemeral')   # posted for the channel

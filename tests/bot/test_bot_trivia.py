@@ -1,4 +1,4 @@
-"""Daily trivia in Discord (R10d): /trivia (privately), A–D buttons that
+"""Daily trivia in Discord (R10d): 🧠 Play trivia on /play (privately), A–D buttons that
 answer privately (one try). The daily #movies post is test_bot_game_posts.py."""
 import asyncio
 import re
@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from helpers import FakeInteraction, all_linked_present, client, items_of, patch_bot_api, setup_db
+from helpers import press as tap, FakeInteraction, all_linked_present, client, items_of, patch_bot_api, setup_db
 
 
 @pytest.fixture
@@ -42,14 +42,14 @@ def run(coro):
 
 def test_trivia_is_off_until_the_club_turns_it_on(bot):
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
+    tap(bot.PlayButton, 'play:trivia', it)
     assert it.last[1] == bot.TRIVIA_OFF_MSG
 
 
 def test_answering_privately_once(bot):
     switch(bot, trivia_enabled=True)
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
+    tap(bot.PlayButton, 'play:trivia', it)
     _, _, kw = it.last
     assert kw['ephemeral'] is True and kw['embed'].title == '🧠 Question of the day'
     buttons = items_of(kw['view'])
@@ -67,19 +67,19 @@ def test_answering_privately_once(bot):
     again = run(press(buttons[1].custom_id))
     assert 'already answered' in again.last[1]
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
-    assert it.last[1].startswith(('✅', '❌'))                                     # /trivia now shows your result
+    tap(bot.PlayButton, 'play:trivia', it)
+    assert it.last[1].startswith(('✅', '❌'))                                     # Play trivia now shows your result
 
 
 def test_kernels_explains_trivia_when_its_on(bot):
     switch(bot, trivia_enabled=True)
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.kernels_cmd.callback(it))
+    tap(bot.PlayButton, 'play:kernels', it)
     how = {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
     assert 'Trivia question of the day: **+1** easy · **+2** medium · **+3** hard' in how and 'Anytime' not in how
     switch(bot, trivia_anytime=True)
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.kernels_cmd.callback(it))
+    tap(bot.PlayButton, 'play:kernels', it)
     assert 'Anytime trivia: **+1** easy · **+1** medium · **+2** hard each, up to 5 a day' in {f.name: f.value for f in it.last[2]['embed'].fields}['How to earn']
 
 
@@ -96,7 +96,7 @@ def press(bot, custom_id, template):
 def test_anytime_questions_in_discord(bot):
     switch(bot, trivia_enabled=True, trivia_anytime=True)
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
+    tap(bot.PlayButton, 'play:trivia', it)
     daily = items_of(it.last[2]['view'])
     answered = press(bot, daily[0].custom_id, bot.TriviaButton)                 # today's first…
     more = items_of(answered.last[2]['view'])
@@ -105,17 +105,17 @@ def test_anytime_questions_in_discord(bot):
     _, _, kw = got.last
     assert kw['ephemeral'] is True and kw['embed'].title == '🎲 Anytime trivia' and len(items_of(kw['view'])) == 4
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
-    assert it.last[2]['embed'].title == '🎲 Anytime trivia'                     # /trivia hands back the one you're on
+    tap(bot.PlayButton, 'play:trivia', it)
+    assert it.last[2]['embed'].title == '🎲 Anytime trivia'                     # Play trivia hands back the one you're on
     assert items_of(it.last[2]['view'])[0].custom_id == items_of(kw['view'])[0].custom_id
 
 
 def test_without_anytime_trivia_waits_for_tomorrow(bot):
     switch(bot, trivia_enabled=True)
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
+    tap(bot.PlayButton, 'play:trivia', it)
     answered = press(bot, items_of(it.last[2]['view'])[0].custom_id, bot.TriviaButton)
     assert 'view' not in answered.last[2]                                       # no "Another one"
     it = FakeInteraction(uid=9601, name='ana')
-    run(bot.trivia_cmd.callback(it))
+    tap(bot.PlayButton, 'play:trivia', it)
     assert 'Anytime questions are off' in it.last[1]

@@ -3,7 +3,7 @@ import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import { Segmented } from "../ui/TicketRow";
 import { useJson } from "../api";
-import { KERNEL_PARTS } from "../kernels";
+import { KERNEL_PARTS, medal } from "../kernels";
 
 // The club's leaderboard (R15): this month, this year or all time — kernels
 // earned in the period as a bar by where they came from, the period's
@@ -14,7 +14,6 @@ export const PERIODS = [
   { status: "year", label: "This year" },
   { status: "all", label: "All time" },
 ];
-const MEDALS = ["🥇", "🥈", "🥉"];
 
 export function KernelBar({ breakdown, total, most }) {
   const parts = KERNEL_PARTS.map(p => ({ ...p, n: Math.max(0, breakdown[p.key] || 0) })).filter(p => p.n);
@@ -81,7 +80,7 @@ export default function ClubBoard({ group, apiBase, viewerId }) {
           {rows.map((r, i) => (
             <li key={r.user.id} className={`club-board-row${r.user.id === viewerId ? " me" : ""}`}>
               <div className="club-board-main">
-                <span className="club-rank">{(r.kernels || r.attendance) && MEDALS[i] ? MEDALS[i] : i + 1}</span>
+                <span className="club-rank">{medal(r.place, r.kernels)}</span>
                 <Avatar user={r.user} size={34} link />
                 <span className="club-board-who">
                   <PersonLink user={r.user} className="club-row-name" />

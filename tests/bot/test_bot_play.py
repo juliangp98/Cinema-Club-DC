@@ -1,6 +1,6 @@
-"""/play in Discord (R10): your day in the club, privately — trivia and
-bingo only when the club has them on, polls waiting for your vote (with
-Vote buttons), and your kernels."""
+"""/play in Discord (R10): the one games hub, privately — trivia and bingo
+only when the club has them on, the quiz games (test_bot_quizzes.py), polls
+waiting for your vote (with Vote buttons), and your kernels."""
 import asyncio
 import re
 
@@ -47,10 +47,12 @@ def play(bot):
 def test_play_with_the_games_off(bot):
     kw = play(bot)
     e = kw['embed']
-    assert kw['ephemeral'] is True and e.title.startswith('🎮 Your day at ')
+    assert kw['ephemeral'] is True and e.title.startswith('🎮 Play at ')
     assert 'Waiting for your vote: **Best of fall**' in e.description and '🍿 **0** kernels' in e.description
     assert 'trivia' not in e.description.lower() and 'bingo' not in e.description.lower()
-    assert [b.custom_id for b in items_of(kw['view'])] == [f'vote:b:open:{bot.poll_id}:0:0:0']
+    buttons = items_of(kw['view'])
+    assert [b.custom_id for b in buttons] == ['play:kernels', f'vote:b:open:{bot.poll_id}:0:0:0', None]
+    assert buttons[-1].url.endswith('/play')
 
 
 def test_play_with_trivia_and_bingo_on(bot):
@@ -69,3 +71,4 @@ def test_play_with_trivia_and_bingo_on(bot):
         return it.last[2]
     assert asyncio.run(press('play:trivia'))['embed'].title == '🧠 Question of the day'
     assert asyncio.run(press('play:bingo'))['embed'].title.startswith('🎱 Repertory bingo')
+    assert asyncio.run(press('play:kernels'))['embed'].title == '🍿 Your kernels: 0'

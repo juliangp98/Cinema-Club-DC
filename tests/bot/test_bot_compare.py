@@ -1,4 +1,4 @@
-"""/compare in Discord: the real slash command against the backend. (What
+"""🤝 Compare on someone's /profile in Discord, against the backend. (What
 compare finds is tested in backend/test_compare.py; this is the bot's side.)"""
 import asyncio
 import types
@@ -20,6 +20,9 @@ class Interaction:
             async def defer(self, ephemeral=False, **k):
                 outer.log.append(('defer', ephemeral, None, None))
 
+            def is_done(self):
+                return bool(outer.log)
+
         class F:
             async def send(self, content=None, ephemeral=False, embed=None, **k):
                 outer.log.append(('followup', ephemeral, content, embed))
@@ -31,8 +34,9 @@ def member(uid, name):
 
 
 def compare(bot, uid, other):
+    """Press 🤝 Compare on `other`'s /profile card, as `uid`."""
     it = Interaction(uid)
-    asyncio.run(bot.compare.callback(it, other))
+    asyncio.run(bot.ProfileButton('cmp', other.id).callback(it))
     return it
 
 
@@ -63,8 +67,8 @@ def test_compare_is_a_private_card_for_the_pair(bot):
 
 
 def test_comparing_with_yourself_or_a_stranger(bot):
-    assert compare(bot, 7702, member(7702, 'Bo')).log[-1][2] == 'Pick someone other than yourself.'
-    assert compare(bot, 7702, member(9999, 'Zed')).log[-1][2] == "Zed hasn't used Cinema Club yet."
+    assert "That's you" in compare(bot, 7702, member(7702, 'Bo')).log[-1][2]
+    assert compare(bot, 7702, member(9999, 'Zed')).log[-1][2] == "They haven't used Cinema Club yet."
 
 
 def test_nothing_in_common_gets_a_hint():

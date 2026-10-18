@@ -396,7 +396,7 @@ def for_you(films, user, ctx):
 
 
 
-# ─── Taste match (profiles, Compare, /compare) ────────────────────────────────
+# ─── Taste match (profiles, Compare — on the site and /profile) ───────────────
 
 MATCH_WEIGHTS = {'genre': 1, 'way': 1, 'theatre': 1, 'avoid': 0.5, 'movie': 2, **{k: 2 for k in PEOPLE}}
 

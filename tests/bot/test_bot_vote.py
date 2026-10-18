@@ -1,4 +1,4 @@
-"""/vote ballots: picking a poll, single-pick, confidence and ranked
+"""/poll vote ballots: picking a poll, single-pick, confidence and ranked
 ballots built from dropdowns and buttons (within Discord's limits), scored
 results, closing mid-ballot, who may vote, and the #movies poll posts."""
 import asyncio
@@ -110,9 +110,9 @@ def run(coro):
 
 
 def vote(w, uid, title=None):
-    """/vote [poll]; the ballot it opens becomes this member's message."""
+    """/poll vote [poll]; the ballot it opens becomes this member's message."""
     it = Interaction(uid)
-    run(w.bot.vote.callback(it, **({'poll': str(w.pid[title])} if title else {})))
+    run(w.bot.poll_vote.callback(it, **({'poll': str(w.pid[title])} if title else {})))
     if len(it.last) > 3 and it.last[3] is not None:
         w.state[uid] = it.last[3:5]
     return it
@@ -173,8 +173,11 @@ def test_vote_without_a_poll_asks_which(polls):
 
 def test_polls_lists_open_polls_with_vote_buttons(polls):
     it = Interaction(VEE)
-    run(polls.bot.polls.callback(it))
-    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2]
+    run(polls.bot.poll_list.callback(it))
+    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2] and '`/poll vote`' in it.last[2]
+    assert '/polls/' in it.last[2] and ' 1 categories' not in it.last[2]
+    import embeds
+    assert (embeds.plural(1, 'category', 'categories'), embeds.plural(3, 'category', 'categories')) == ('1 category', '3 categories')
 
 
 def test_autocomplete_lists_open_polls_then_results(polls):

@@ -33,7 +33,8 @@ def test_help_is_a_private_guide(help_embed):
 def test_help_lists_exactly_the_member_commands():
     import embeds
     listed = {cmd for _, rows in embeds.HELP_SECTIONS for cmd, _ in rows if cmd.startswith('/')}
-    hidden = {'/llm', '/llm show', '/llm set', '/help', '/poll', '/quote add', '/quote edit', '/quote remove', '/quote find'}
+    hidden = {'/llm', '/llm show', '/llm set', '/help', '/poll', '/quote random', '/quote add', '/quote edit', '/quote remove',
+              '/quote find'}
     assert listed <= commands()                                   # every command listed exists
     assert commands() - listed <= hidden                          # every member command is listed (admin /llm left out)
 

@@ -161,7 +161,9 @@ def test_other_peoples_profiles(zoe):
     it = Interaction(user(1, 'admin'))
     run(zoe.profile.callback(it, member=ZOE))
     _, ephemeral, _, emb, view = it.last()
-    assert emb.title == '🎬 Zoe' and view is None and ephemeral                 # read-only
+    assert emb.title == '🎬 Zoe' and ephemeral and emb.url.endswith('/people/' + str(emb.url.rsplit('/', 1)[1]))
+    labels = [getattr(getattr(i, 'item', i), 'label', None) for i in view.children]   # no editing someone else's:
+    assert labels == ['🎞️ History', '📋 Watchlist', '🤝 Compare', '🍿 Give kernels', 'Profile on the site']
     it = Interaction(ZOE)
     run(zoe.profile.callback(it, member=user(7777, 'nobody', 'Nobody')))
     assert it.last()[2] == "Nobody hasn't used Cinema Club yet."

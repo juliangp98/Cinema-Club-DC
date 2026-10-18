@@ -96,6 +96,12 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     activity.open("mine");
     window.history.replaceState(null, "", window.location.pathname);
   }, [user]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // A link to Your taste (?taste=1, e.g. from Discord's /profile) opens it.
+  useEffect(() => {
+    if (!user || !new URLSearchParams(window.location.search).has("taste")) return;
+    setTasting(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [user]);
   // Your role in the club you're viewing (R5c): read-only members see, but don't post.
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";

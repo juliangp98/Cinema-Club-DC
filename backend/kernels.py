@@ -152,7 +152,7 @@ PARTS = ('polls', 'going_out', 'trivia', 'bingo', 'games', 'members')   # a brea
 
 
 def rules(group_id=None):
-    """How kernels are earned, for /kernels and the site (trivia: only when
+    """How kernels are earned, for /play's My kernels and the site (trivia: only when
     the club has it on)."""
     import bingo
     import quizzes
@@ -215,6 +215,36 @@ def card_kernels(group_id, showtime_id, viewer_id, now=None):
         if g.giver_id == viewer_id and g.week == week_start(now):
             mine[g.recipient_id] = g.amount
     return {'net': net, 'mine': mine}
+
+
+CARD_DAYS = 30                             # Give kernels in Discord: screenings this close either side
+
+
+def member_cards(group_id, user_id, viewer_id, now=None, limit=10):
+    """The screenings `user_id` did something on lately (the ones you could
+    give them kernels for on the feed), newest first: [{screening, did,
+    mine, net}] — `mine` is what you've given (or taken) this week."""
+    from app import Attendance, Message, RSVP, Reaction, Showtime, _screening_item
+    now = now or datetime.now()
+    ids = {a.showtime_id for a in Attendance.query.filter_by(user_id=user_id, status='went')}
+    ids |= {r.showtime_id for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.user_id == user_id,
+                                                     RSVP.status.in_(('going', 'maybe')))}
+    ids |= {m.showtime_id for m in Message.query.filter_by(group_id=group_id, user_id=user_id) if m.showtime_id}
+    ids |= {r.showtime_id for r in Reaction.query.filter_by(group_id=group_id, user_id=user_id) if r.showtime_id}
+    shows = (Showtime.query.filter(Showtime.id.in_(list(ids)), Showtime.start_time >= now - timedelta(days=CARD_DAYS),
+                                   Showtime.start_time <= now + timedelta(days=CARD_DAYS))
+             .order_by(Showtime.start_time.desc()).all() if ids else [])
+    out = []
+    for s in shows:
+        did = card_people(group_id, s.id).get(user_id)
+        if not did:
+            continue                        # e.g. a check-in the club can't see
+        k = card_kernels(group_id, s.id, viewer_id, now)
+        out.append({'screening': _screening_item(s), 'did': did, 'mine': k['mine'].get(user_id, 0),
+                    'net': k['net'].get(user_id, 0)})
+        if len(out) == limit:
+            break
+    return out
 
 
 def toss(giver, recipient_id, group_id, showtime_id, delta, now=None):

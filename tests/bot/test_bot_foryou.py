@@ -1,5 +1,5 @@
-"""/foryou (R13): your For you picks privately in Discord, with why; and the
-taste match on /compare."""
+"""/foryou (R13): your For you picks privately in Discord, with why; the
+taste match on Compare (/profile); and /theatre, with your picks there."""
 import asyncio
 from datetime import datetime, timedelta
 
@@ -50,12 +50,33 @@ def test_nothing_yet_says_how_to_set_your_taste(bot):
         TasteItem.query.filter_by(user_id=User.query.filter_by(discord_user_id='9502').first().id).delete()
         db.session.commit()
     e = run(bot, 9502)[2]['embed']
-    assert '/profile' in e.description and 'Your taste' in e.description
+    assert '/profile' in e.description and 'Your taste' in e.description and '/me?taste=1' in e.description
 
 
 def test_compare_shows_the_taste_match(bot):
     import types
     other = types.SimpleNamespace(id=9501, display_name='Ana', name='ana', bot=False)
-    e = run(bot, 9502, cmd='compare', member=other)[2]['embed']
+    it = FakeInteraction(uid=9502, name='bo')
+    asyncio.run(bot.ProfileButton('cmp', other.id).callback(it))
+    e = it.last[2]['embed']
     match = next(f for f in e.fields if f.name.startswith('🎨 Taste match'))
     assert match.name == '🎨 Taste match: 50%' and match.value == 'You both love Horror'
+
+
+def test_a_theatre_card(bot):
+    """/theatre afi: the address, what's on this week (pick one for times), your picks there, Map and the page."""
+    _, _, kw = run(bot, 9501, cmd='theatre_cmd', theatre='afi')
+    e, view = kw['embed'], kw['view']
+    assert e.title.startswith('🏛️ AFI') and e.url.endswith('/theatres/afi')
+    fields = {f.name: f.value for f in e.fields}
+    assert 'NIGHT SHIFT' in fields['🎬 This week'] and 'NIGHT SHIFT' in fields['✨ For you here']
+    from helpers import items_of
+    labels = [getattr(b, 'label', None) or getattr(b, 'placeholder', None) for b in items_of(view)]
+    assert labels[0] == 'Pick a film for showtimes…' and labels[-2:] == ['Map', 'Theatre page']
+    assert 'google.com/maps' in items_of(view)[-2].url
+
+
+def test_an_unknown_theatre(bot):
+    it = FakeInteraction(uid=9501, name='x')
+    asyncio.run(bot.theatre_cmd.callback(it, theatre='nowhere'))
+    assert it.last[1] == "I don't know that theatre — pick one from the list."

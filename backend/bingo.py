@@ -293,7 +293,7 @@ def feed_events(group_id, member_ids, since):
 
 
 def view(group, user, month=None):
-    """The card as the site and /bingo show it: every square (and the
+    """The card as the site and /play (My bingo card) show it: every square (and the
     screening — or, R15, the diary entry — that filled it), your lines, and
     how the club is doing."""
     from app import GroupMembership, _screening_item

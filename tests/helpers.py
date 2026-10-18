@@ -112,6 +112,23 @@ def items_of(view):
     return [getattr(c, 'item', c) for c in (view.children if view else [])]
 
 
+def press(cls, custom_id, it, item=None, values=None):
+    """Press a bot button (or pick in a select) by its custom id, as Discord
+    would after a restart: rebuild the DynamicItem `cls` from the id, then
+    run its callback with `it` (a FakeInteraction). Returns `it`."""
+    import asyncio
+    import re
+    m = re.fullmatch(cls.__discord_ui_compiled_template__, custom_id)
+    assert m, f'{custom_id} is not a {cls.__name__}'
+    if values is not None:
+        it.data = {'values': values}
+
+    async def go():
+        await (await cls.from_custom_id(it, item, m)).callback(it)
+    asyncio.run(go())
+    return it
+
+
 def seed_compare_pair():
     """Ana and Bo share the club (group 1); Ana is also in a private club Bo
     isn't; Eve shares nothing. Screenings: SIRÂT (Ana going, Bo maybe),

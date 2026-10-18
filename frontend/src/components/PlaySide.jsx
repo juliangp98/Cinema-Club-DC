@@ -37,7 +37,7 @@ export function YourKernels({ k, month, viewerId }) {
       <span className="rail-big">🍿 {k.kernels}</span>
       <KernelBar breakdown={k} total={k.kernels} most={k.kernels} />
       <span className="ui-hint">{kernelParts(k)}</span>
-      {mine && <span className="ui-hint">This month: 🍿 {mine.kernels} · #{i + 1} in the club</span>}
+      {mine && <span className="ui-hint">This month: 🍿 {mine.kernels} · #{mine.place} in the club</span>}
       <span className="ui-hint">This week: {k.allowance.give_left} to give · {k.allowance.take_left} to take (on the feed's 🍿 Kernels buttons)</span>
       <details className="play-earn">
         <summary>How to earn kernels</summary>
@@ -64,9 +64,9 @@ export function MonthBoard({ month, viewerId }) {
   return (
     <Panel as="div" tone="tile" title="This month" kicker>
       <ol className="play-board">
-        {month.slice(0, 5).map((row, n) => <BoardRow key={row.user.id} row={row} place={n + 1} viewerId={viewerId} value={`🍿 ${row.kernels}`} />)}
+        {month.slice(0, 5).map(row => <BoardRow key={row.user.id} row={row} place={row.place} viewerId={viewerId} value={`🍿 ${row.kernels}`} />)}
         {i >= 5 && <><li className="play-board-gap" aria-hidden="true">⋯</li>
-          <BoardRow row={month[i]} place={i + 1} viewerId={viewerId} value={`🍿 ${month[i].kernels}`} /></>}
+          <BoardRow row={month[i]} place={month[i].place} viewerId={viewerId} value={`🍿 ${month[i].kernels}`} /></>}
       </ol>
       <Link to="/club?tab=leaderboard" className="ui-section-link">Full leaderboard →</Link>
     </Panel>
@@ -80,7 +80,7 @@ export function Movers({ week, viewerId }) {
     <Panel as="div" tone="tile" title="This week's movers" kicker>
       {up.length ? (
         <ol className="play-board">
-          {up.map((row, n) => <BoardRow key={row.user.id} row={row} place={n + 1} viewerId={viewerId} value={`+${row.kernels}`} />)}
+          {up.map(row => <BoardRow key={row.user.id} row={row} place={row.place} viewerId={viewerId} value={`+${row.kernels}`} />)}
         </ol>
       ) : <p className="ui-hint">No kernels yet this week — be the first.</p>}
     </Panel>
@@ -94,7 +94,7 @@ export function KernelStrip({ k, month, viewerId }) {
   return (
     <nav className="games-strip play-strip" aria-label="Your kernels">
       <a href="#kernels" className="chip gold">🍿 {k.kernels}</a>
-      {i >= 0 && <Link to="/club?tab=leaderboard" className="chip">#{i + 1} this month</Link>}
+      {i >= 0 && <Link to="/club?tab=leaderboard" className="chip">#{month[i].place} this month</Link>}
       <span className="chip">{k.allowance.give_left} to give</span>
     </nav>
   );

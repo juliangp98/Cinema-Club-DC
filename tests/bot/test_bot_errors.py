@@ -3,7 +3,7 @@ server couldn't be reached; use the club's server first; you're read-only;
 the command's own words for a missing thing; else the server's reason."""
 import asyncio
 
-from helpers import FakeInteraction, patch_bot_api, setup_db
+from helpers import press, FakeInteraction, patch_bot_api, setup_db
 
 
 def run(coro):
@@ -44,7 +44,9 @@ def test_commands_use_it_when_the_server_is_down(monkeypatch):
     async def down(*a, **k):
         raise ConnectionError('down')
     monkeypatch.setattr(b.api, 'get', down)
-    for cmd in (b.kernels_cmd, b.play_cmd):
+    for cmd in (b.play_cmd, b.club_cmd):
         it = FakeInteraction()
         run(cmd.callback(it))
-        assert it.last == ('followup', b.UNREACHABLE_MSG, {'ephemeral': True})
+        assert it.last[:2] == ('followup', b.UNREACHABLE_MSG)
+    it = press(b.PlayButton, 'play:kernels', FakeInteraction())                  # and the buttons
+    assert it.last == ('followup', b.UNREACHABLE_MSG, {'ephemeral': True})

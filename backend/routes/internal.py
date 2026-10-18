@@ -363,6 +363,11 @@ def internal_showtimes():
     movie_id = request.args.get('movie_id', type=int)
     if movie_id:
         q = q.filter(Showtime.movie_id == movie_id)
+    tickets = request.args.get('tickets')                # the Calendar's ticket chips (discover.TICKETS)
+    if tickets == 'available':
+        q = q.filter(Showtime.is_sold_out.isnot(True))
+    elif tickets == 'soldout':
+        q = q.filter(Showtime.is_sold_out.is_(True))
 
     limit = min(request.args.get('limit', 200, type=int), 500)
     showtimes = q.order_by(Showtime.start_time).limit(limit).all()
@@ -552,6 +557,69 @@ def internal_theatres():
         if slugs:
             theatres = [t for t in theatres if t.slug in slugs]
     return jsonify([t.to_dict() for t in theatres])
+
+
+@app.route('/api/internal/announced')
+@require_internal
+def internal_announced():
+    """/showtimes tickets:Coming soon — films announced with a date whose
+    tickets aren't on sale yet, in a window (start/end, YYYY-MM-DD), at the
+    club's theatres or one (`theatre`, a slug)."""
+    import discover
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    a = request.args
+    params = {'tickets': 'soon', 'theatres': a.get('theatre'), 'from': a.get('start'), 'to': a.get('end')}
+    return jsonify(discover.announced_matching(group, params))
+
+
+@app.route('/api/internal/theatre')
+@require_internal
+def internal_theatre():
+    """/theatre: a theatre's card — where it is, what's on this week, the
+    caller's For you picks there (if they've set a taste) and what members
+    noted about its screenings lately (when the club has notes on)."""
+    import discover
+    import notes
+    t = Theatre.query.filter_by(slug=request.args.get('slug') or '').first()
+    if not t or t.is_active is False:
+        return jsonify({'error': 'Theatre not found'}), 404
+    viewer, group = _internal_discover_args()
+    week = discover.browse(group, viewer, {'theatres': t.slug, 'when': 'week', 'sort': 'soonest'}, limit=8)
+    mine = (discover.browse(group, viewer, {'theatres': t.slug, 'when': '2weeks', 'shelf': 'for-you'}, limit=3)['films']
+            if viewer and taste.is_set(viewer) else [])
+    month = Showtime.query.filter(Showtime.theatre_id == t.id, Showtime.start_time >= datetime.now(),
+                                  Showtime.start_time <= datetime.now() + timedelta(days=30),
+                                  Showtime.is_cancelled.isnot(True))
+    return jsonify({**t.to_dict(), 'region': discover.REGIONS.get(t.slug),
+                    'films_month': month.with_entities(db.func.count(db.distinct(Showtime.movie_id))).scalar() or 0,
+                    'week': week['films'], 'week_total': week['total'], 'announced': week.get('announced') or [],
+                    'for_you': mine, 'notes': notes.theatre(group, t.id),
+                    'week_path': discover.browse_path({'theatres': t.slug, 'when': 'week'})})
+
+
+@app.route('/api/internal/club')
+@require_internal
+def internal_club():
+    """/club: the club at a glance (the Club page's Overview) — who's in it
+    (members in the server by name; the rest counted), its theatres, and the
+    month's numbers."""
+    import club_stats
+    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    members = [m.user for m in group.memberships if m.status == 'active' and m.user and m.user.is_active]
+    shown = present_user_ids()
+    named = sorted((u.name for u in members if u.id in shown), key=str.lower)
+    slugs = [x.strip() for x in (group.theatres or '').split(',') if x.strip()]
+    theatres = Theatre.query.filter(Theatre.is_active.isnot(False))
+    theatres = [t for t in theatres.order_by(Theatre.name) if not slugs or t.slug in slugs]
+    o = club_stats.overview(group)
+    o.pop('members', None)
+    o['top'] = [{'name': r['user']['name'], 'kernels': r['kernels'], 'place': r['place']} for r in o['top'] if r['user']['id'] in shown]
+    return jsonify({'name': group.name, 'emoji': group.emoji, 'description': group.description or '',
+                    'members': len(members), 'named': named, 'on_site': len(members) - len(named),
+                    'theatres': [{'slug': t.slug, 'name': t.name, 'short_name': t.short_name or t.name} for t in theatres],
+                    **o})
 
 
 @app.route('/api/internal/showtime-facets')
@@ -826,7 +894,7 @@ def internal_polls():
         return jsonify({'error': 'group_id required'}), 400
     q = Poll.query.filter_by(group_id=group_id)
     if request.args.get('include_closed'):
-        # /vote's picker: open polls, then ones that closed in the last 60 days
+        # /poll vote's picker: open polls, then ones that closed in the last 60 days
         # (to check your picks and results).
         recent = _utcnow_naive() - timedelta(days=60)
         ended = db.func.coalesce(Poll.scored_at, Poll.closed_at, Poll.created_at)
@@ -1104,9 +1172,9 @@ def internal_leaderboard():
         return jsonify({'error': 'Group not found'}), 404
     shown_ids = present_user_ids()
     board = build_leaderboard(group)
-    rows = [{'place': i + 1, 'user': {'name': r['user']['name']},
-             **{k: r[k] for k in ('kernels', 'correct', 'attendance', 'breakdown')}}
-            for i, r in enumerate(board) if r['user']['id'] in shown_ids]
+    rows = [{'user': {'name': r['user']['name']},
+             **{k: r[k] for k in ('place', 'kernels', 'correct', 'attendance', 'breakdown')}}
+            for r in board if r['user']['id'] in shown_ids]
     return jsonify({'rows': rows, 'hidden': len(board) - len(rows)})
 
 
@@ -1179,13 +1247,16 @@ def internal_members():
 @require_internal
 def internal_watchlist():
     """A member's watchlist (+ each movie's next upcoming showtime), for
-    /watch show. Defaults to the caller; any active member is viewable.
+    /watch show and Watchlist on /profile. Defaults to the caller; any active
+    member is viewable (member_id, or member_discord_id).
     Optional start/end (ISO) keep only movies with a showtime in that window."""
     member_id = request.args.get('member_id', type=int)
     if member_id:
         target = db.session.get(User, member_id)
         if not on_discord(target):            # someone else's: only members in the server
             target = None
+    elif request.args.get('member_discord_id'):   # Watchlist on someone's /profile
+        target = _discord_member(request.args['member_discord_id'])
     else:
         target, err = resolve_discord_user(request.args)
         if err:
@@ -1273,6 +1344,77 @@ def internal_kernels():
                     'rules': kernels.rules(group_id)})
 
 
+def _discord_member(discord_id):
+    """Someone else, by Discord id: an active account in the club's server."""
+    user = User.query.filter_by(discord_user_id=str(discord_id or '')).first()
+    return user if user and user.is_active and on_discord(user) else None
+
+
+@app.route('/api/internal/kernels/cards')
+@require_internal
+def internal_kernel_cards():
+    """Give kernels on /profile @member: the screenings they did something on
+    lately (the feed's cards), what you've given each this week, and your
+    allowance."""
+    import kernels
+    me, err = resolve_discord_user(request.args)
+    if err:
+        return err
+    other = _discord_member(request.args.get('member_discord_id'))
+    group_id = request.args.get('group_id', type=int)
+    if not other:
+        return jsonify({'error': 'unknown_member'}), 404
+    cards = kernels.member_cards(group_id, other.id, me.id)
+    return jsonify({'name': other.name, 'user_id': other.id, 'cards': cards, 'allowance': kernels.allowance(me.id)})
+
+
+@app.route('/api/internal/kernels/toss', methods=['POST'])
+@require_internal
+def internal_kernel_toss():
+    """A +1 / −1 under Give kernels: {discord ident, member_discord_id,
+    showtime_id, delta} — the same rules as the feed's buttons."""
+    import kernels
+    data = request.json or {}
+    me, err = resolve_discord_user(data)
+    if err:
+        return err
+    other = _discord_member(data.get('member_discord_id'))
+    if not other:
+        return jsonify({'error': 'unknown_member'}), 404
+    group_id, showtime_id = _as_int(data.get('group_id')), _as_int(data.get('showtime_id'))
+    row, error = kernels.toss(me, other.id, group_id, showtime_id, _as_int(data.get('delta')))
+    if error:
+        return jsonify({'error': error}), 400
+    try:
+        db.session.commit()
+    except IntegrityError:                  # two quick taps made the week's row twice
+        db.session.rollback()
+        return jsonify({'error': 'Try that again.'}), 409
+    return jsonify({'name': other.name, 'user_id': other.id, 'cards': kernels.member_cards(group_id, other.id, me.id),
+                    'allowance': kernels.allowance(me.id), 'showtime_id': showtime_id, 'mine': row.amount})
+
+
+@app.route('/api/internal/searches', methods=['POST'])
+@require_internal
+def internal_save_search():
+    """🔔 Alert me under /find: save that search (the site's saved searches,
+    R10a) — alerts come when a theatre books a film that fits, by the ways
+    you've chosen (nothing unless you have)."""
+    import notify
+    data = request.json or {}
+    user, err = resolve_discord_user(data)
+    if err:
+        return err
+    s, now_fitting, error = notify.save_search(user, data.get('params') or {}, _as_int(data.get('group_id')))
+    if error:
+        return jsonify({'error': error}), 400
+    alert_prompt = notify.ask_once(user, 'alerts')
+    db.session.commit()
+    p = notify.prefs(user)
+    return jsonify({'search': notify.search_dict(s), 'fitting_now': now_fitting, 'alert_prompt': alert_prompt,
+                    'dm': p['channels']['discord'] and p['types']['searches']})
+
+
 # ─── Daily trivia (R10d) ──────────────────────────────────────────────────────
 
 @app.route('/api/internal/trivia/today')
@@ -1307,7 +1449,7 @@ def internal_trivia_answer():
 @app.route('/api/internal/trivia/another', methods=['POST'])
 @require_internal
 def internal_trivia_another():
-    """/trivia or "🎲 Another one" in Discord: an anytime question for this member."""
+    """Play trivia on /play or "🎲 Another one" in Discord: an anytime question for this member."""
     import trivia
     data = request.json or {}
     user, err = resolve_discord_user(data)
@@ -1322,15 +1464,19 @@ def internal_trivia_another():
 @app.route('/api/internal/play')
 @require_internal
 def internal_play():
-    """/play: this member's day in the club — trivia, bingo, polls, kernels."""
+    """/play: this member's day in the club — trivia, bingo, the quiz games
+    the club has on, polls, kernels."""
     import play
+    import quizzes
     user, err = resolve_discord_user(request.args)
     if err:
         return err
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
-    return jsonify({'club': group.name, **play.summary(group, user)})
+    games = [{k: g[k] for k in ('kind', 'emoji', 'label', 'each', 'cap', 'by_step', 'earned_today')}
+             for g in quizzes.summary(group, user)]
+    return jsonify({'club': group.name, **play.summary(group, user), 'games': games})
 
 
 @app.route('/api/internal/bingo')
@@ -1559,8 +1705,9 @@ def internal_attendance_set():
 @app.route('/api/internal/history')
 @require_internal
 def internal_history():
-    """Watch history for /history: someone else's (member_discord_id) or the
-    caller's own. Only what they saw — RSVPs count from this group."""
+    """Watch history (History on /profile): someone else's (member_discord_id)
+    or the caller's own. Only what they saw — RSVPs count from this group;
+    your own also lists the ones you said you missed, to check in again."""
     group_id = request.args.get('group_id', type=int)
     other = request.args.get('member_discord_id')
     if other:
@@ -1571,14 +1718,15 @@ def internal_history():
         user, err = resolve_discord_user(request.args)
         if err:
             return err
-    items = history_items(user, False, {group_id} if group_id else None)
-    return jsonify({'name': user.name, 'items': items})
+    own = not other                         # your own lists missed ones too, so you can fix them
+    items = history_items(user, own, {group_id} if group_id else None)
+    return jsonify({'name': user.name, 'user_id': user.id, 'own': own, 'items': items})
 
 
 @app.route('/api/internal/compare')
 @require_internal
 def internal_compare():
-    """/compare @member: where the caller and a member line up (this group's RSVPs)."""
+    """Compare on /profile @member: where the caller and a member line up (this group's RSVPs)."""
     me, err = resolve_discord_user(request.args)
     if err:
         return err
@@ -1588,10 +1736,10 @@ def internal_compare():
     if other.id == me.id:
         return jsonify({'error': 'same_person'}), 400
     group_id = request.args.get('group_id', type=int)
-    return jsonify(compare_members(me, other, {group_id} if group_id else set()))
+    return jsonify({**compare_members(me, other, {group_id} if group_id else set()), 'user_id': other.id})
 
 
-# ─── Quotes (/quote, /wisdom) ─────────────────────────────────────────────────
+# ─── Quotes (/quote, /quote random) ───────────────────────────────────────────
 
 def _quote_fields(data):
     """Validated text/movie/character from a request. Returns (fields, error)."""

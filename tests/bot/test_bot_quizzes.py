@@ -1,5 +1,5 @@
-"""Quiz games in Discord (R15): /games lists the ones the club has on, each
-with a Play button; a round plays out privately with its buttons."""
+"""Quiz games in Discord (R15): /play has a button for each one the club has
+on; a round plays out privately with its buttons."""
 import asyncio
 import json
 import re
@@ -35,8 +35,9 @@ def run(coro):
 
 def test_off_until_the_club_turns_one_on(bot):
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.games_cmd.callback(it))
-    assert it.last[1] == bot.QUIZ_OFF_MSG
+    run(bot.play_cmd.callback(it))
+    assert not [b for b in items_of(it.last[2]['view']) if (b.custom_id or '').startswith('quiz:')]
+    assert 'Quiz games' not in it.last[2]['embed'].description
 
 
 def test_a_higher_or_lower_round_with_buttons(bot):
@@ -45,10 +46,10 @@ def test_a_higher_or_lower_round_with_buttons(bot):
         slug = db.session.get(Group, 1).slug
     assert client(bot.test_admin).put(f'/api/groups/{slug}', json={'quizzes': {'higher_lower': True}}).status_code == 200
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.games_cmd.callback(it))
+    run(bot.play_cmd.callback(it))
     kind, _, kw = it.last
-    assert kind == 'followup' and kw['ephemeral'] and kw['embed'].title == '🎮 Quiz games'
-    [play] = items_of(kw['view'])
+    assert kind == 'followup' and kw['ephemeral'] and '🎮 Quiz games: ↕️ Higher or lower — 5 🍿 left to earn today' in kw['embed'].description
+    [play] = [b for b in items_of(kw['view']) if (b.custom_id or '').startswith('quiz:')]
     assert play.custom_id == 'quiz:start:higher_lower' and play.label == '↕️ Higher or lower'
 
     start = run(bot.QuizButton.from_custom_id(None, play, re.fullmatch(bot.QuizButton.__discord_ui_compiled_template__.pattern,

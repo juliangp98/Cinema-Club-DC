@@ -230,12 +230,12 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
             <input type="checkbox" {...toggle(group.trivia?.enabled, "trivia_enabled")} />
             <span><span className="notify-name">Trivia: question of the day</span>
               <span className="ui-hint">One question a day, the same for everyone, about films and classic quotes (and
-                /trivia in Discord). A right answer is worth 1, 2 or 3 kernels — easy, medium or hard.</span></span>
+                /play in Discord). A right answer is worth 1, 2 or 3 kernels — easy, medium or hard.</span></span>
           </label>
           <label className="notify-row">
             <input type="checkbox" {...toggle(group.trivia?.anytime, "trivia_anytime")} />
             <span><span className="notify-name">Trivia: play anytime</span>
-              <span className="ui-hint">Members can ask for extra questions whenever they like (on the feed, or /trivia
+              <span className="ui-hint">Members can ask for extra questions whenever they like (on Play, or /play
                 in Discord). +1 kernel for a right one (+2 if it's hard), up to 5 a day — after that they're just for fun.</span></span>
           </label>
           {(group.trivia?.enabled || group.trivia?.anytime) && (

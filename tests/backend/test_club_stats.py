@@ -212,3 +212,12 @@ def test_this_weeks_movers_count_from_monday(season):
     since = club_stats.since_of('week', NOW)
     assert since.weekday() == 0 and since <= NOW < since + timedelta(days=7)
     assert board(season, 'week')['period'] == 'week'
+
+
+def test_ties_share_a_place(season):
+    """Places go by kernels: equal kernels share one, and the next place skips (1, 1, 3)."""
+    rows = board(season, 'all')['rows']
+    for r in rows:
+        assert r['place'] == 1 + sum(1 for x in rows if x['kernels'] > r['kernels'])
+    zero = [r for r in rows if r['kernels'] == 0]
+    assert len({r['place'] for r in zero}) <= 1                                   # everyone on 0 shares the last place

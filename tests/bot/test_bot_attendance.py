@@ -1,6 +1,6 @@
 """The bot's "Did you make it?" DMs (for members who said yes): daytime
 only, once, buttons that turn into results; members with DMs closed are
-asked after their next command; /history."""
+asked after their next command; History on /profile (and checking in from it)."""
 import asyncio
 import types
 from datetime import datetime as real_datetime, timedelta
@@ -28,7 +28,8 @@ def as_message(view):
     rows = {}
     for item in view.children:
         it = getattr(item, 'item', item)
-        rows.setdefault(item.row, []).append(types.SimpleNamespace(custom_id=item.custom_id, label=it.label, style=it.style))
+        rows.setdefault(item.row, []).append(types.SimpleNamespace(custom_id=item.custom_id, label=it.label, style=it.style,
+                                                                   url=getattr(it, 'url', None)))
     return types.SimpleNamespace(components=[types.SimpleNamespace(children=rows[r]) for r in sorted(rows)])
 
 
@@ -170,9 +171,10 @@ def test_closed_dms_ask_after_the_next_command(asked):
     assert '6603' not in asked._dm_fallback                                                 # marked asked: no retries
 
 
-def history(bot, member=None):
-    it = Interaction(6601)
-    run(bot.history.callback(it, member=member) if member else bot.history.callback(it))
+def history(bot, member=None, uid=6601):
+    """Press 🎞️ History on a /profile card (yours, or `member`'s)."""
+    it = Interaction(uid)
+    run(bot.ProfileButton('hist', member.id if member else uid).callback(it))
     return it.log[-1]
 
 
@@ -181,8 +183,25 @@ def test_history(asked):
     ids = [c.custom_id for c in view.children]
     answer(asked, 'went', int(ids[0].split(':')[2]), view)
     answer(asked, 'missed', int(ids[2].split(':')[2]), view)
-    emb = history(asked)[3]
-    assert '✅ **SIRÂT**' in emb.description and 'HAMNET' not in emb.description          # the missed one left out
+    _, _, _, emb, view = history(asked)
+    assert emb.title == '🎞️ Your watch history'
+    assert '✅ **SIRÂT**' in emb.description and '❌ **HAMNET**' in emb.description       # yours lists the missed one
+    assert [label(c) for c in view.children] == ['On the site']                          # nothing left to check in
     emb = history(asked, types.SimpleNamespace(id=6603, display_name='Cal'))[3]
     assert emb.title == "🎞️ Cal's watch history" and '🎟️' in emb.description            # unanswered RSVPs
-    assert history(asked, types.SimpleNamespace(id=7777, display_name='Nobody'))[2] == "Nobody hasn't been to anything with the club yet."
+    assert history(asked, types.SimpleNamespace(id=7777, display_name='Nobody'))[2] == "They haven't been to anything with the club yet."
+
+
+def test_checking_in_from_history(asked):
+    """Cal never answered (DMs closed): his History has Went / Didn't go for both, and they work there."""
+    _, _, _, emb, view = history(asked, uid=6603)
+    assert 'Check in below' in emb.description
+    ids = [getattr(c, 'item', c).custom_id for c in view.children]
+    assert [i.split(':')[1] for i in ids[:4]] == ['went', 'missed', 'went', 'missed'] and ids[4] is None
+    button = run(asked.AttendanceButton.from_custom_id(None, None, asked.ATTENDANCE_ID_RE.fullmatch(ids[0])))
+    it = Interaction(6603, as_message(view))
+    run(button.callback(it))
+    after = it.log[1][4]
+    assert label(after.children[0]).startswith('✅ Went · ') and getattr(after.children[-1], 'item', after.children[-1]).url
+    emb = history(asked, uid=6603)[3]
+    assert emb.description.count('✅') == 1

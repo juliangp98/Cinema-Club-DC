@@ -1,12 +1,12 @@
-"""Repertory bingo in Discord (R10e): /bingo shows your card privately —
-once the club has bingo on — and /kernels explains what it's worth."""
+"""Repertory bingo in Discord (R10e): 🎱 My bingo card on /play shows your
+card privately — once the club has bingo on — and 🍿 My kernels explains what it's worth."""
 import asyncio
 import json
 from datetime import datetime, timedelta
 
 import pytest
 
-from helpers import FakeInteraction, all_linked_present, client, patch_bot_api, setup_db
+from helpers import press as tap, FakeInteraction, all_linked_present, client, patch_bot_api, setup_db
 
 
 @pytest.fixture
@@ -41,14 +41,14 @@ def bot():
 
 def test_bingo_is_off_until_the_club_turns_it_on(bot):
     it = FakeInteraction(uid=9701, name='ana')
-    asyncio.run(bot.bingo_cmd.callback(it))
+    tap(bot.PlayButton, 'play:bingo', it)
     assert 'Bingo is off' in it.last[1]
 
 
 def test_your_card(bot):
     bot.on()
     it = FakeInteraction(uid=9701, name='ana')
-    asyncio.run(bot.bingo_cmd.callback(it))
+    tap(bot.PlayButton, 'play:bingo', it)
     _, _, kw = it.last
     e = kw['embed']
     assert kw['ephemeral'] is True and e.title.startswith('🎱 Repertory bingo · ')
@@ -60,7 +60,7 @@ def test_your_card(bot):
 def test_kernels_explains_bingo_when_its_on(bot):
     bot.on()
     it = FakeInteraction(uid=9701, name='ana')
-    asyncio.run(bot.kernels_cmd.callback(it))
+    tap(bot.PlayButton, 'play:kernels', it)
     e = it.last[2]['embed']
     assert 'bingo 5' in e.description
     assert 'Repertory bingo: **+5** for a line, **+15** for the full card' in {f.name: f.value for f in e.fields}['How to earn']

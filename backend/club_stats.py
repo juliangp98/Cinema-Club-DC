@@ -209,7 +209,8 @@ def superlatives(rows):
 
 def leaderboard(group, period='all', now=None):
     """{period, since, rows, superlatives}: the standings for a period — kernels
-    (and where they came from), correct poll picks, screenings, and stats."""
+    (and where they came from), correct poll picks, screenings, and stats.
+    Each row's `place` is shared by everyone on the same kernels."""
     import kernels
     since = since_of(period, now)
     members = [m for m in group.memberships if m.status == 'active' and m.user]
@@ -221,6 +222,8 @@ def leaderboard(group, period='all', now=None):
              'breakdown': {part: counts[m.user_id][part] for part in kernels.PARTS},
              'stats': stats[m.user_id]} for m in members]
     rows.sort(key=lambda r: (-r['kernels'], -r['correct'], -r['attendance']))
+    for r in rows:                     # ties share a place: 1, 1, 3
+        r['place'] = 1 + sum(1 for x in rows if x['kernels'] > r['kernels'])
     return {'period': period, 'since': since.isoformat() if since else None, 'rows': rows,
             'superlatives': superlatives(rows)}
 
@@ -266,7 +269,7 @@ def overview(group, now=None):
         'member_screenings': sum(len(ss) for ss in month.values()),
         'most_wanted': most_wanted,
         'busiest_theatre': busiest,
-        'top': [{'user': r['user'], 'kernels': r['kernels']} for r in board['rows'][:3] if r['kernels'] > 0],
+        'top': [{'user': r['user'], 'kernels': r['kernels'], 'place': r['place']} for r in board['rows'][:3] if r['kernels'] > 0],
         'members': {uid: {'screenings': len(month.get(uid, [])),
                           'last_out': ever[uid][-1].start_time.isoformat() if ever.get(uid) else None}
                     for uid in members},
