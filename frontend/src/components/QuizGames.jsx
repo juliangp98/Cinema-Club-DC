@@ -17,6 +17,8 @@ export const QUIZ_GAMES = [
     hint: "A still from a film, close up — zoom out if you need to. 3, 2 or 1 kernels by how much you saw, up to 5 a day." },
   { key: "reviews", label: "📝 Guess from the reviews",
     hint: "A line from a review (members' Letterboxd diaries first, never named; TMDB's after), another if you need it. 3, 2 or 1 kernels, up to 5 a day." },
+  { key: "emoji", label: "🎭 Emoji plot",
+    hint: "A film's story told in emojis (written by AI, once per film): which film? +1 kernel, up to 5 a day." },
 ];
 const FROM = { club: "from a club member's diary", tmdb: "from a review on TMDB" };
 const LETTERS = "ABCD";
@@ -124,7 +126,17 @@ function Reviews({ r, busy, onAnswer }) {
   );
 }
 
-const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews };
+function EmojiPlot({ r, busy, onAnswer }) {
+  return (
+    <>
+      <p className="quiz-emojis" aria-label={`Emoji plot: ${r.emojis}`}>{r.emojis}</p>
+      <Choices r={r} busy={busy} onAnswer={onAnswer} />
+      <Result r={r} />
+    </>
+  );
+}
+
+const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews, emoji: EmojiPlot };
 
 function Game({ g, apiBase, groupId }) {
   const [r, setR] = useState(g.round);

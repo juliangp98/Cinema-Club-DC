@@ -64,7 +64,7 @@ def test_off_until_an_organizer_turns_one_on(club):
     assert client(club['bo']).get('/api/quizzes', query_string={'group_id': club['G']}).json == {'games': []}
     assert 'off' in start(club, 'higher_lower').json['error']
     assert client(club['bo']).put(f"/api/groups/{club['slug']}", json={'quizzes': {'who_said': True}}).status_code == 403
-    assert turn_on(club, higher_lower=True, bogus=True) == {'higher_lower': True, 'who_said': False, 'still': False, 'reviews': False}
+    assert turn_on(club, higher_lower=True, bogus=True) == {'higher_lower': True, 'who_said': False, 'still': False, 'reviews': False, 'emoji': False}
     games = client(club['bo']).get('/api/quizzes', query_string={'group_id': club['G']}).json['games']
     assert [g['kind'] for g in games] == ['higher_lower'] and games[0]['round'] is None
 

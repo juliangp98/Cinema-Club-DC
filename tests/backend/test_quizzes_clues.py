@@ -125,6 +125,46 @@ def test_a_still_close_up_then_wider(club, monkeypatch):
     r = answer(club, r['id'], 'more').json
     assert r['step'] == 3 and r['worth'] == 1
     assert "everything" in answer(club, r['id'], 'more').json['error']
-    wrong = (r['options'].index('Vertigo (1958)') + 1) % 4 if 'Vertigo (1958)' in r['options'] else 0
+    from app import app, db, QuizRound
+    with app.app_context():
+        wrong = (json.loads(db.session.get(QuizRound, r['id']).state_json)['answer'] + 1) % 4
     r = answer(club, r['id'], wrong).json
     assert r['done'] and r['last']['right'] is False and r['film']['title'] and r['image'].endswith('-3.jpg')
+
+
+def test_emoji_plot_asks_the_ai_once_per_film(club, monkeypatch):
+    import ai
+    import quizzes
+    from app import app, db, Group, Movie
+    with app.app_context():
+        g = db.session.get(Group, club['G'])
+        g.quizzes_json = json.dumps({'emoji': True})
+        Movie.query.filter_by(tmdb_id=426).first().description = 'A detective with a fear of heights follows a woman.'
+        db.session.commit()
+    asked = []
+    monkeypatch.setattr(ai, 'chat', lambda messages, **k: asked.append(messages) or 'Vertigo! 🕵️🗼😵‍💫👩‍🦰🌉')
+    import film_pool
+    with app.app_context():
+        f = film_pool.from_movie(Movie.query.filter_by(tmdb_id=426).first())
+        assert quizzes.emoji_for(f) == '🕵️🗼😵‍💫👩‍🦰🌉'                                  # the words dropped
+        assert quizzes.emoji_for(f) == '🕵️🗼😵‍💫👩‍🦰🌉' and len(asked) == 1           # kept, not asked again
+        monkeypatch.setattr(ai, 'chat', lambda *a, **k: (_ for _ in ()).throw(ai.Unavailable()))
+        other = film_pool.from_movie(Movie.query.filter_by(title='PSYCHO').first())
+        other.overview = 'A woman stops at a motel.'
+        assert quizzes.emoji_for(other) is None                                          # no AI: no puzzle
+
+
+def test_an_emoji_round(club, monkeypatch):
+    import quizzes
+    from app import app, db, Group
+    with app.app_context():
+        db.session.get(Group, club['G']).quizzes_json = json.dumps({'emoji': True})
+        db.session.commit()
+    monkeypatch.setattr(quizzes, 'emoji_for', lambda f: '🕵️🗼😵‍💫')
+    r = play(club, 'emoji').json
+    assert r['emojis'] == '🕵️🗼😵‍💫' and len(r['options']) == 4 and 'answer' not in r and 'film' not in r
+    from app import QuizRound
+    with app.app_context():
+        right = json.loads(db.session.get(QuizRound, r['id']).state_json)['answer']
+    r = answer(club, r['id'], right).json
+    assert r['done'] and r['last'] == {'right': True, 'paid': 1} and r['film']['title']

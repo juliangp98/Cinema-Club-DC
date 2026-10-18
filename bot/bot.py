@@ -3487,7 +3487,7 @@ def quiz_round_view(r):
     return view
 
 
-@client.tree.command(name='games', description='Quiz games — higher or lower, who said it, stills… (the ones your club has on)')
+@client.tree.command(name='games', description='Quiz games — higher or lower, who said it, stills, emoji plots… (the ones your club has on)')
 async def games_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     try:

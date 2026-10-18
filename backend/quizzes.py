@@ -11,6 +11,8 @@ and it's done — or, for a streak game, it goes on until a miss.
                 3 / 2 / 1 kernels by how much you needed to see
   reviews       a line from three reviews (club members' diaries first —
                 never named — then TMDB's), revealed one at a time: 3 / 2 / 1
+  emoji         a film's plot told in emojis (the AI's, made once per film
+                and kept): which film? +1
 
 Rounds are private to the member playing (site or Discord). Films come from
 the club's trivia source (film_pool: ours, TMDB's best known, or both).
@@ -30,6 +32,7 @@ GAMES = {
               'The less you see, the more it pays.', 3),
     'reviews': ('📝', 'Guess from the reviews', 'A line from a review — another if you need it. '
                 'The fewer it takes, the more it pays.', 3),
+    'emoji': ('🎭', 'Emoji plot', "A film's story told in emojis: which film is it?", 1),
 }
 STEP_PAY = {1: 3, 2: 2, 3: 1}       # still / reviews: kernels for a right answer at each reveal
 BY_STEP = ('still', 'reviews')      # the games that pay by how much you needed to see
@@ -359,11 +362,74 @@ def _reviews_view(state, done, round_id=None):
     return out
 
 
+# ─── Emoji plot ───────────────────────────────────────────────────────────────
+
+EMOJI_SYSTEM = ("You turn film plots into emoji puzzles. Reply with 4 to 7 emojis and nothing else: no words, "
+                "letters, numbers or flags that spell out the title. Hint at the story — its people, places and "
+                "what happens — not the title itself.")
+
+
+def clean_emojis(text):
+    """Only the emojis of an answer (letters, digits and punctuation dropped
+    so nothing can spell the title); None unless 3–10 are left."""
+    import re as _re
+    left = _re.sub(r'[\w\s.,;:!?\'"()\[\]{}\-–—*#/\\|<>+=~`@$%^&]', '', text or '')
+    marks = [c for c in left if ord(c) > 0x2000]
+    joined = ''.join(marks)
+    singles = [c for c in marks if ord(c) not in range(0xFE00, 0xFE10) and ord(c) != 0x200D
+               and not 0x1F3FB <= ord(c) <= 0x1F3FF]
+    return joined[:80] if 3 <= len(singles) <= 10 else None
+
+
+def emoji_for(f):
+    """A film's emoji plot: the saved one, or the AI's (saved). None when
+    there's no plot to tell or the AI can't answer."""
+    import ai
+    from app import db, EmojiPlot
+    row = EmojiPlot.query.filter_by(key=f.key).first()
+    if row:
+        return row.emojis
+    if not f.overview:
+        return None
+    try:
+        raw = ai.chat([{'role': 'system', 'content': EMOJI_SYSTEM},
+                       {'role': 'user', 'content': f'Film: {f.title} ({f.year})\nPlot: {f.overview[:700]}'}], max_tokens=60)
+    except Exception as e:
+        print(f'  emoji plot: the AI failed for {f.key}: {e}')
+        return None
+    emojis = clean_emojis(raw)
+    if emojis:
+        db.session.add(EmojiPlot(key=f.key, emojis=emojis))
+        db.session.commit()
+    return emojis
+
+
+def _emoji_start(group, rng, tries=4):
+    subjects, everyone = _films(group)
+    films = [f for f in subjects if f.overview or (f.pool and not f.movie_id and not f.pool.details_at)]
+    famous = [f for f in films if f.votes >= film_pool.KNOWN] or films         # a story people may know
+    for f in rng.sample(famous, min(tries, len(famous))):
+        film_pool.ensure_details(f)
+        emojis = emoji_for(f)
+        options = emojis and _options(rng, f, everyone)
+        if options:
+            return {'emojis': emojis, 'film': _brief(f), 'options': options, 'answer': options.index(f.label)}
+    return None
+
+
+def _emoji_view(state, done):
+    out = {'emojis': state['emojis'], 'options': state['options']}
+    if done:
+        out.update(answer=state['answer'], film=state['film'])
+    return out
+
+
 RULES = {
     'higher_lower': (_hl_start, _hl_answer, _hl_view),
     'who_said': (_ws_start, _ws_answer, _ws_view),
     'still': (_still_start, _pick_answer, _still_view),
     'reviews': (_reviews_start, _pick_answer, _reviews_view),
+    'emoji': (_emoji_start, _pick_answer, _emoji_view),
 }
 
 

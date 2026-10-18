@@ -46,6 +46,7 @@ class Film:
     tagline: str | None = None
     cast: list = field(default_factory=list)
     characters: list = field(default_factory=list)            # who the top billed play (who said it, R15)
+    overview: str | None = None                               # the plot (emoji plot, R15)
     poster_url: str | None = None
     pool: object = None                       # its PoolFilm row, if it has one
 
@@ -93,7 +94,7 @@ def _characters(cast_json, n=10):
 def from_pool(p):
     return Film(key=f'tmdb:{p.tmdb_id}', title=p.title, year=p.year, genres=_genres(p.genres), votes=p.vote_count or 0,
                 tmdb_id=p.tmdb_id, director=p.director, tagline=p.tagline, cast=_cast(p.cast_json),
-                characters=_characters(p.cast_json), poster_url=p.poster_url, pool=p)
+                characters=_characters(p.cast_json), overview=p.overview, poster_url=p.poster_url, pool=p)
 
 
 def from_movie(m, pool_row=None):
@@ -101,7 +102,7 @@ def from_movie(m, pool_row=None):
     return Film(key=f'film:{m.id}', title=pool_row.title if pool_row else nice_title(m.title),
                 year=_year(m.release_year), genres=_genres(m.genres), votes=(pool_row.vote_count or 0) if pool_row else 0,
                 movie_id=m.id, tmdb_id=m.tmdb_id, director=m.director, tagline=m.tagline, cast=_cast(m.cast_json),
-                characters=_characters(m.cast_json), poster_url=m.poster_url, pool=pool_row)
+                characters=_characters(m.cast_json), overview=m.description, poster_url=m.poster_url, pool=pool_row)
 
 
 def films(source='both'):
@@ -170,12 +171,13 @@ def ensure_details(f):
     if d is None:
         return f
     p = f.pool
-    p.director, p.tagline = d.get('director'), d.get('tagline')
+    p.director, p.tagline, p.overview = d.get('director'), d.get('tagline'), d.get('description')
     p.cast_json = json.dumps([{'name': c['name'], 'character': c.get('character') or ''}
                               for c in json.loads(d.get('cast_json') or '[]') if c.get('name')])
     p.details_at = _utcnow_naive()
     db.session.commit()
     f.director, f.tagline, f.cast, f.characters = p.director, p.tagline, _cast(p.cast_json), _characters(p.cast_json)
+    f.overview = p.overview
     return f
 
 

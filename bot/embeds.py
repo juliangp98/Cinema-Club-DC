@@ -772,7 +772,7 @@ HELP_SECTIONS = [
         ('/trivia', "a movie trivia question — today's, or another anytime (if your club has trivia on)"),
         ('/play', 'your day in the club: trivia, bingo, polls to vote in, kernels'),
         ('/bingo', "this month's repertory bingo card (if your club has bingo on)"),
-        ('/games', 'quiz games — higher or lower, who said it, stills… (the ones your club has on)'),
+        ('/games', 'quiz games — higher or lower, who said it, stills, emoji plots… (the ones your club has on)'),
         ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
     ]),
     ('👤 You and the club', [
@@ -937,6 +937,8 @@ def quiz_round_embed(r):
                          for i, o in enumerate(r['options']))
         if r['kind'] == 'who_said':
             body = f"{said + chr(10) if said else ''}“{r['quote']}”\n\nWho says it in {_year_film(r['film'])}?\n\n{opts}"
+        elif r['kind'] == 'emoji':
+            body = f"{said + chr(10) if said else ''}# {r['emojis']}\n\nWhich film is this?\n\n{opts}"
         elif r['kind'] == 'reviews':
             frm = {'club': "from a club member's diary", 'tmdb': 'from a review on TMDB'}
             clues = '\n'.join(f"> {c['text']}\n-# — {frm.get(c['from'], '')}" for c in r['clues'])

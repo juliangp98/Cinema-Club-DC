@@ -671,7 +671,17 @@ class PoolFilm(db.Model):
     director = db.Column(db.String(200))
     tagline = db.Column(db.String(500))
     cast_json = db.Column(db.Text)                            # JSON: [{name, character}, …] (top billed)
+    overview = db.Column(db.Text)                             # TMDB's plot summary (emoji plot, R15)
     details_at = db.Column(db.DateTime)
+
+
+class EmojiPlot(db.Model):
+    """A film's plot as emojis (R15, the Emoji plot game): asked of the AI once
+    per film and kept. key: film_pool's ('film:<id>' / 'tmdb:<id>')."""
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(40), unique=True, nullable=False)
+    emojis = db.Column(db.String(80), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
 
 
 class TriviaAnswer(db.Model):

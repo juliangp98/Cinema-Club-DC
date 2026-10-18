@@ -132,7 +132,7 @@ def email_signin_link(to_email, link_url, purpose):
         </div>""")
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
-    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
+    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost, EmojiPlot,
     DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
     Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
     Reaction,
@@ -1436,6 +1436,7 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN quizzes_json TEXT",
         "ALTER TABLE user ADD COLUMN letterboxd_clues BOOLEAN DEFAULT 1",
         "ALTER TABLE letterboxd_entry ADD COLUMN review TEXT",
+        "ALTER TABLE pool_film ADD COLUMN overview TEXT",
         "ALTER TABLE user ADD COLUMN avatar_url TEXT",
         "ALTER TABLE movie ADD COLUMN genres TEXT DEFAULT ''",
         "ALTER TABLE rsvp ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
