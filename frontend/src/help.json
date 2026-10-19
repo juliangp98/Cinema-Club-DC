@@ -566,6 +566,11 @@
      "a": "The week ahead in one card: films members want and nobody's going to yet, rare screenings, what's opening, last chances, open polls — and, at the top, the films on your own watchlist that are playing. A club organizer or admin turns it on in [Club settings → Theatres](club-settings-digest); then it's published every Monday at 10 AM in [the feed](feed-filters), with a note in [the 🔔 bell](bell), and posted in the club's Discord server if one is connected. The bell note is on unless you turn it off; to get it by email, push or Discord DM as well, turn that on in [Settings → Notifications](notify-which)."
     },
     {
+     "id": "clear-alerts",
+     "q": "Can I clear my notifications?",
+     "a": "Yes — open [the 🔔 bell](bell) and tap Clear (it asks first). Anything still waiting on you stays until you've answered it: a game post waiting for your OK, or today's trivia question; those are marked \"Needs your answer\". Clearing only tidies the bell — it doesn't change what you get or where."
+    },
+    {
      "id": "save-search",
      "q": "How do I save a search?",
      "a": "On [Browse](browse-filters), pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage [your saved searches](notify-searches) in Settings → Notifications."

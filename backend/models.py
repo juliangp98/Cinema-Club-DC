@@ -831,6 +831,7 @@ class Notification(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     ready_at = db.Column(db.DateTime)       # the scrape run finished: send it
     read_at = db.Column(db.DateTime)
+    cleared_at = db.Column(db.DateTime)     # cleared from the bell; kept so it isn't sent again
     channels = db.Column(db.String(40), default='')       # where to send it, decided when made
     discord_at = db.Column(db.DateTime)
     email_at = db.Column(db.DateTime)

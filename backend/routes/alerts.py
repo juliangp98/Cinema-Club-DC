@@ -14,12 +14,36 @@ def notifications_list():
     for just the count (the bell polls that)."""
     import notify
     user = current_user()
-    unread = Notification.query.filter_by(user_id=user.id, read_at=None).count()
+    unread = _shown(user).filter_by(read_at=None).count()
     if request.args.get('count'):
         return jsonify({'unread': unread})
-    rows = (Notification.query.filter_by(user_id=user.id)
-            .order_by(Notification.created_at.desc(), Notification.id.desc()).limit(50).all())
+    rows = _shown(user).order_by(Notification.created_at.desc(), Notification.id.desc()).limit(50).all()
     return jsonify({'items': [notify.item(n) for n in rows], 'unread': unread})
+
+
+def _shown(user):
+    """Your alerts still in the bell (not cleared)."""
+    return Notification.query.filter_by(user_id=user.id, cleared_at=None)
+
+
+@app.route('/api/notifications/clear', methods=['POST'])
+@require_auth
+def notifications_clear():
+    """Clear the bell: every alert goes, except those still asking you
+    something (notify.needs_answer). They stay, and the answer says how many."""
+    import notify
+    user = current_user()
+    now, cleared, kept = _utcnow_naive(), 0, []
+    for n in _shown(user):
+        if notify.needs_answer(n):
+            kept.append(n)
+            continue
+        n.cleared_at, n.read_at = now, n.read_at or now
+        cleared += 1
+    db.session.commit()
+    kept.sort(key=lambda n: (n.created_at, n.id), reverse=True)
+    return jsonify({'cleared': cleared, 'items': [notify.item(n) for n in kept],
+                    'unread': sum(1 for n in kept if n.read_at is None)})
 
 
 @app.route('/api/notifications/read', methods=['POST'])

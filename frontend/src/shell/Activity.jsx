@@ -90,9 +90,22 @@ export function ActivityBell({ unread, onOpen }) {
 }
 
 
+// Clear empties the bell after an "Are you sure?" — except alerts still
+// asking you something (a game post waiting for your OK, today's trivia),
+// which stay until they're answered.
+export function clearQuestion(items) {
+  const keep = items.filter(n => n.needs_answer).length;
+  const go = items.length - keep;
+  const what = `${go} notification${go === 1 ? "" : "s"}`;
+  return keep
+    ? `Clear ${what}? ${keep === 1 ? "One still needs" : `${keep} still need`} your answer, so ${keep === 1 ? "it stays" : "they stay"} until you answer.`
+    : `Clear ${go === 1 ? what : `all ${what}`}? You can't bring them back.`;
+}
+
 // Your alerts, newest first; opening them marks them read.
 function ForYou({ apiBase, onSeen, onClose }) {
   const [items, setItems] = useState(null);
+  const [note, setNote] = useState("");
   useEffect(() => {
     getJson(`${apiBase}/api/notifications`, { cache: false })
       .then(d => {
@@ -105,11 +118,25 @@ function ForYou({ apiBase, onSeen, onClose }) {
       .catch(() => setItems([]));
   }, [apiBase]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function clear() {
+    if (!window.confirm(clearQuestion(items))) return;
+    try {
+      const d = await send(`${apiBase}/api/notifications/clear`, "POST", {});
+      setItems(d.items);
+      setNote(d.items.length ? `Cleared. ${d.items.length === 1 ? "This one needs" : "These need"} your answer first.` : "");
+      onSeen();
+    } catch {
+      setNote("Couldn't clear them just now — try again in a bit.");
+    }
+  }
+
   return (
     <div className="alerts">
       <div className="alerts-bar">
+        {items?.some(n => !n.needs_answer) && <button type="button" className="btn btn-sm btn-ghost" onClick={clear}>Clear</button>}
         <Link className="btn btn-sm btn-ghost" to="/me?tab=settings#settings-notify" onClick={onClose}>Notification settings</Link>
       </div>
+      {note && <p className="ui-hint alerts-note" role="status">{note}</p>}
       {items === null ? null : !items.length ? (
         <p className="feed-empty">
           No alerts yet. Add films to your watchlist — even ones that aren't playing — or tap 🔔 Alert me on a
@@ -124,6 +151,7 @@ function ForYou({ apiBase, onSeen, onClose }) {
                   : <Poster movie={{ title: n.title || n.headline, poster_url: n.poster_url }} className="alert-poster" />}
                 <span className="alert-text">
                   <span className="alert-headline">{n.headline}</span>
+                  {n.needs_answer && <span className="ui-badge gold alert-needs">Needs your answer</span>}
                   {n.detail && <span className="alert-detail">{n.detail}</span>}
                   <span className="alert-when">{ago(n.created_at)}</span>
                 </span>

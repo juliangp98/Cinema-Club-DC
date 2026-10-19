@@ -351,7 +351,9 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .activity-tabs { padding: 0 1.1rem; margin-top: 0.4rem; }
 /* For you (R8): your alerts */
 .alerts { padding: 0.6rem 1.1rem 2rem; }
-.alerts-bar { display: flex; justify-content: flex-end; margin-bottom: 0.5rem; }
+.alerts-bar { display: flex; justify-content: flex-end; gap: 0.4rem; margin-bottom: 0.5rem; }
+.alerts-note { margin: 0 0 0.6rem; }
+.alert-needs { align-self: flex-start; }
 .alerts-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
 .alert-link {
   display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.6rem; border-radius: var(--radius);

@@ -23,6 +23,7 @@ def migrate():
         # R15: home bingo — diary entries fill film squares
         "ALTER TABLE 'group' ADD COLUMN bingo_home BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN digest_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE notification ADD COLUMN cleared_at DATETIME",
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",

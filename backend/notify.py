@@ -476,10 +476,30 @@ ICONS = {'digest': '🍿', 'trivia_daily': '🧠', 'trivia_result': '🧠', 'bin
          'game_review': '👀'}
 
 
+def needs_answer(n):
+    """An alert still asking you something, which Clear leaves in the bell: a
+    game post waiting for your OK, or today's trivia question you haven't answered."""
+    p = json.loads(n.payload_json or '{}')
+    if n.kind == 'game_review':
+        from app import db, GamePost
+        post = db.session.get(GamePost, p.get('post_id') or 0)
+        return bool(post and post.status == 'waiting')
+    if n.kind == 'trivia_daily':
+        import trivia
+        from app import Group, TriviaAnswer, TriviaQuestion
+        if p.get('day') != trivia.today().isoformat():
+            return False
+        group = Group.query.filter_by(slug=p.get('group')).first()
+        q = group and TriviaQuestion.query.filter_by(group_id=group.id, slot='daily', day=trivia.today()).first()
+        return bool(q and not TriviaAnswer.query.filter_by(question_id=q.id, user_id=n.user_id).first())
+    return False
+
+
 def item(n):
     """An alert for the bell."""
     p = json.loads(n.payload_json or '{}')
     return {'id': n.id, 'kind': n.kind, **describe(n), 'movie_id': n.movie_id, 'icon': ICONS.get(n.kind),
+            'needs_answer': needs_answer(n),
             'poster_url': p.get('poster_url') or (n.movie.poster_url if n.movie else None),
             'title': p.get('title'), 'theatre_slug': p.get('theatre_slug'),
             'created_at': n.created_at.isoformat() + 'Z' if n.created_at else None,
