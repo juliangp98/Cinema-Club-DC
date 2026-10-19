@@ -130,7 +130,7 @@ def email_signin_link(to_email, link_url, purpose):
         </div>""")
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
-    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
+    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, ClubDigest, DiscordDeletion, DiscordPost,
     DiscordServer, DiscordServerMember, DiscordSetupCode, EmojiPlot, GamePost, Group, GroupMembership,
     KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias, Notification, Poll,
     PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
@@ -1077,7 +1077,8 @@ def _notify_settings(user):
     import notify
     roles = {m.role for m in GroupMembership.query.filter_by(user_id=user.id, status='active')}
     return {**notify.prefs(user), 'available': notify.available(user), 'push_ready': bool(VAPID_PUBLIC_KEY),
-            'types_info': [{'key': k, 'label': label, 'hint': hint, 'group': notify.GROUP_OF[k][0], 'group_label': notify.GROUP_OF[k][1]}
+            'types_info': [{'key': k, 'label': label, 'hint': hint, 'group': notify.GROUP_OF[k][0], 'group_label': notify.GROUP_OF[k][1],
+                            'needs': notify.NEEDS.get(k)}
                            for k, (label, hint) in notify.TYPES.items()
                            if k not in notify.RUNNERS or roles & set(notify.RUNNERS[k])],
             'searches': [notify.search_dict(s) for s in

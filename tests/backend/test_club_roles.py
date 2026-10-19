@@ -180,7 +180,7 @@ def test_alerts_come_in_groups_for_settings(club):
     assert set(notify.GROUP_OF) == set(notify.TYPES)
     info = as_(club, 'olly').get('/api/me/notifications').json['types_info']
     groups = [t['group'] for t in info]
-    assert groups == sorted(groups, key=['films', 'going', 'games', 'running'].index)   # in order, each group together
+    assert groups == sorted(groups, key=[k for k, _, _ in notify.TYPE_GROUPS].index)   # in order, each group together
     assert {t['group_label'] for t in info} >= {'Your films', 'Going out', 'Games', 'Running a club'}
 
 

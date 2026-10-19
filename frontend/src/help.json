@@ -171,6 +171,10 @@
    "label": "Club settings → Games",
    "to": "/club?tab=settings#settings-games"
   },
+  "club-settings-digest": {
+   "label": "Club settings → Theatres",
+   "to": "/club?tab=settings#club-settings-digest"
+  },
   "club-settings-discord": {
    "label": "Club settings → Games",
    "to": "/club?tab=settings#settings-games"
@@ -447,7 +451,7 @@
     {
      "id": "feed",
      "q": "What's in the feed?",
-     "a": "What the club's been up to: plans, check-ins, comments, watchlist adds, polls and games, newest first, with a marker for what's new since your last visit and a recap every Monday. [Filter it by kind](feed-filters) at the top. On wide screens a side panel shows what's waiting for you; on phones it's the row of chips."
+     "a": "What the club's been up to: plans, check-ins, comments, watchlist adds, polls and games, newest first, with a marker for what's new since your last visit a recap of last week every Monday and, if your club has it on, the Monday digest of the week ahead. [Filter it by kind](feed-filters) at the top. On wide screens a side panel shows what's waiting for you; on phones it's the row of chips."
     },
     {
      "id": "club-page",
@@ -555,6 +559,11 @@
      "id": "alert-kinds",
      "q": "What can I get alerts about?",
      "a": "A film on your watchlist being booked or announced (films from your Letterboxd watchlist too, if you said so when you imported it), tickets going on sale, a newly booked film that fits [a search you saved](help:save-search), a favorite's film being booked (from [Your taste](profile-taste)), the club's games (if you turn those on), and (Discord members) a “Did you make it?” DM after screenings."
+    },
+    {
+     "id": "monday-digest",
+     "q": "What's the Monday digest?",
+     "a": "The week ahead in one card: films members want and nobody's going to yet, rare screenings, what's opening, last chances, open polls — and, at the top, the films on your own watchlist that are playing. A club organizer or admin turns it on in [Club settings → Theatres](club-settings-digest); then it's published every Monday at 10 AM in [the feed](feed-filters), with a note in [the 🔔 bell](bell), and posted in the club's Discord server if one is connected. The bell note is on unless you turn it off; to get it by email, push or Discord DM as well, turn that on in [Settings → Notifications](notify-which)."
     },
     {
      "id": "save-search",

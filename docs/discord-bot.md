@@ -14,7 +14,9 @@ joins it to a site account later.
 
 - **Slash commands** — below; `/help` lists them in Discord.
 - **The Monday digest** (10:00 ET) — who's going where, rare screenings, what each theatre added, open
-  polls, and members whose watchlisted films are playing (only those who said yes to being tagged).
+  polls, and members whose watchlisted films are playing (only those who said yes to being tagged). Only
+  for clubs that have it on (Club settings → Theatres: on for the home club, off for new ones); the site
+  publishes the same picks in the Feed and the bell at the same time. With it off, `/digest` only previews.
 - **Schedule drops** — "AFI just added 23 showtimes", only for theatres the club turned on
   (`/announcements` or Club → Settings). All start off.
 - **Screening threads** — a card in the channel (poster, time, who's going, Going / Maybe buttons) with a
@@ -40,7 +42,7 @@ joins it to a site account later.
 | **Make plans** | `/rsvp` Going / Maybe / Can't go · `/discuss` open a screening's thread · `/watch` add to, remove from or show a watchlist · `/notifications` your alerts and where they go |
 | **Play, polls & kernels** | `/play` the games hub · `/poll list` · `/poll vote` your private ballot · `/poll make` describe a poll and the AI drafts it (organizers) · `/leaderboard` |
 | **You and the club** | `/profile` yours or @someone's (history, watchlist, compare, give kernels) · `/club` the club at a glance · `/link` connect an existing site account |
-| **Extras** | `/digest` this week's digest (or a private preview) · `/announcements` which theatres post drops · `/quote` a random line, or add, fix and find quotes |
+| **Extras** | `/digest` this week's digest (if the club has it on), or a private preview · `/announcements` which theatres post drops · `/quote` a random line, or add, fix and find quotes |
 | **Server admins** | `/setup` connect this server to your club (with a code from Club settings), or move the bot's channel · `/llm show` / `/llm set` the AI models — the whole site's, so only in the home server (Manage Server by default; grant them to other roles in Server Settings → Integrations) |
 
 Filters depend on each other: pick a film and the date and theatre options narrow to where it's showing.
@@ -63,8 +65,8 @@ For a club on this site (a club admin and a server admin — often the same pers
    Manage Webhooks, Create Public Threads and Send Messages in Threads.
 2. **Make a code** in the same place (it works once, for 30 minutes), and in the channel the bot should post
    in, run `/setup code:…`. The page updates when it's connected.
-3. **Choose what it posts** in Club settings: which theatres' new showtimes (Theatres), and each game's
-   posts (Games). Members choose what they share themselves. Everything starts off.
+3. **Choose what it posts** in Club settings: the Monday digest and which theatres' new showtimes
+   (Theatres), and each game's posts (Games). Members choose what they share themselves. Everything starts off.
 
 Move the bot to another channel: run `/setup` there (no code needed). Disconnect: Club settings → Discord
 (the bot stays in the server, unconnected; your choices are kept). Removing the bot from the server also

@@ -4,7 +4,7 @@ watchlists, saved searches, account linking and the weekly digest.
 import app as core
 import html as _html
 import taste
-from app import (DIGEST_CAPS, FRONTEND_URL, Group, Message, Movie, PLAN_MIN_WATCHERS, Poll, ScrapeEvent, Showtime,
+from app import (DIGEST_CAPS, FRONTEND_URL, Group, Message, Movie, PLAN_MIN_WATCHERS, Poll, Showtime,
     ShowtimeThread, Theatre, User, Watchlist, _as_int, _group_showtime_query, _utcnow_naive, app, apply_rsvp,
     attended_showtime_ids, datetime, db, jsonify, merge_users, movie_for_tmdb, on_discord, poll_scores,
     present_user_ids, public_showtimes, request, require_role, share_prefs, split_present, timedelta,
@@ -249,11 +249,6 @@ def internal_showtime_facets():
 DIGEST_RETAG_AFTER = timedelta(days=14)  # tag someone about a watchlisted film at most fortnightly
 
 
-def _showtime_brief(s):
-    return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
-            'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
-
-
 def digest_recap(group, members, now):
     """Last week in a line or two: check-ins, the most-discussed screening,
     and any poll that was scored."""
@@ -300,12 +295,14 @@ def internal_digest():
       opening         — recent releases appearing on the club's theatres for the first time
       watchlist       — watchlisted films playing, with their watchers (`fresh`: taggable)
       open_polls, recap (last week), new_on_calendar (schedule-drop counts per theatre)."""
-    import json as _json
+    import digest
     import discover
     group_id = request.args.get('group_id', type=int)
     days = request.args.get('days', 7, type=int)
     group = db.session.get(Group, group_id) if group_id else None
     now = datetime.now()
+    digest.publish_due()                 # the site's copy (Feed, bell) goes out with the bot's
+    _showtime_brief = digest.showtime_brief
 
     # The films come from the Discover engine (R9a): the same rules as its shelves.
     films, picks = discover.weekly(group, now, days, DIGEST_CAPS, PLAN_MIN_WATCHERS)
@@ -361,19 +358,12 @@ def internal_digest():
                           'quiet_ids': quiet, 'planned': by_movie[mid][0].id in planned})
     watchlist.sort(key=lambda item: item['start_time'])
 
-    new_on_calendar = {}
-    for e in (ScrapeEvent.query
-              .filter(ScrapeEvent.event_type.in_(('new_drop', 'new_showtimes')),
-                      ScrapeEvent.created_at > _utcnow_naive() - timedelta(days=days))):
-        p = _json.loads(e.payload_json or '{}')
-        name = (e.theatre.short_name or e.theatre.name) if e.theatre else p.get('theatre_name', '')
-        new_on_calendar[name] = new_on_calendar.get(name, 0) + (p.get('new_showtime_count') or 0)
-
     open_polls = ([p.to_dict() for p in Poll.query.filter_by(group_id=group.id, status='open')]
                   if group else [])
 
     return jsonify({
         'group_name': group.name if group else None,
+        'enabled': bool(group and group.digest_enabled),   # off: the bot only previews it
         'days': days,
         'whos_going': whos_going,
         'plans': plans,
@@ -383,8 +373,7 @@ def internal_digest():
         'watchlist': watchlist,
         'open_polls': open_polls,
         'recap': digest_recap(group, members, now) if group else None,
-        'new_on_calendar': [{'theatre': t, 'showtimes': n}
-                            for t, n in sorted(new_on_calendar.items(), key=lambda kv: -kv[1]) if n],
+        'new_on_calendar': digest.new_on_calendar(days),
     })
 
 

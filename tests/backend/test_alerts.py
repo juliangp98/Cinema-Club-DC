@@ -72,7 +72,8 @@ def test_everything_is_opt_in():
         assert notify.prefs(both)['types'] == {'showings': True, 'on_sale': True, 'attendance': False,
                                                'searches': True, 'favorites': True, 'trivia_daily': False,
                                                'trivia_result': False, 'bingo_card': False, 'bingo_win': True,
-                                               'reviews': True, 'join_requests': False}  # bell only; join emails off
+                                               'reviews': True, 'join_requests': False,
+                                               'digest': True, 'digest_out': False}  # bell only; join emails off
         assert not notify.wants_dm(both, 'attendance') and not notify.wants_dm(both, 'showings')
         notify.set_prefs(mail, {'channels': {'discord': True, 'email': True}, 'types': {'bogus': True}})
         assert notify.prefs(mail)['channels'] == {**off, 'email': True}                 # no Discord to DM

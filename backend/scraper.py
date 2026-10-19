@@ -142,6 +142,13 @@ if __name__ == '__main__':
         print(f"Game posts checked for {game_posts.tick()} club(s)")
     except Exception as e:
         print(f"  ERROR checking game posts: {e}")
+    try:                                   # Monday's digest on the site, if it's due
+        import digest
+        published = digest.publish_due()
+        if published:
+            print(f"Digest published for {published} club(s)")
+    except Exception as e:
+        print(f"  ERROR publishing the digest: {e}")
     try:                                   # this run's alerts go out together (R8)
         import notify
         print(f"Alert emails sent: {notify.release()}")

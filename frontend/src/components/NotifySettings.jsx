@@ -120,6 +120,7 @@ export default function NotifySettings({ apiBase, save = fn => fn() }) {
         {groups.map(g => (
           <SettingsGroup key={g.key} title={g.label}>
             {g.types.map(t => <SwitchRow key={t.key} label={t.label} hint={t.hint} checked={s.types[t.key]}
+                                         disabled={!!t.needs && !s.types[t.needs]}
                                          onChange={v => put({ types: { [t.key]: v } })} />)}
           </SettingsGroup>
         ))}

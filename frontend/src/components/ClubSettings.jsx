@@ -208,6 +208,11 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
         </SettingsSection>
 
         <SettingsSection id="settings-theatres" title="Theatres" intro="The theatres the club follows: its calendar, Discover, digest and games use these.">
+          <div id="club-settings-digest">
+            <SwitchRow label="Monday digest" checked={!!group.digest?.enabled} onChange={set("digest_enabled")}
+                       hint={`Mondays at 10 AM, the week's picks from these theatres: a card in the Feed and a note in members' bells${
+                         discord ? ", and a post in the club's Discord channel" : ""}. Members choose where else they hear about it.`} />
+          </div>
           {allTheatres.length > 0 && (
             <div className="club-chips" role="group" aria-label="Followed theatres">
               {allTheatres.map(t => (
@@ -219,8 +224,8 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
           )}
           {discord && followed.length > 0 && (
             <SettingsGroup title="New showtimes in Discord">
-              <p className="ui-hint">A theatre that's on posts its new showtimes in the club's Discord channel as they're booked; the rest
-                are in the Monday digest. The same setting as /announcements in Discord.</p>
+              <p className="ui-hint">A theatre that's on posts its new showtimes in the club's Discord channel as they're booked{group.digest?.enabled
+                ? "; the rest are in the Monday digest" : ""}. The same setting as /announcements in Discord.</p>
               {followed.map(t => <SwitchRow key={t.slug} label={t.name} checked={announced.has(t.slug)} onChange={v => announce(t.slug, v)} />)}
             </SettingsGroup>
           )}

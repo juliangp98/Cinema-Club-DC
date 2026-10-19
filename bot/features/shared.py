@@ -302,6 +302,8 @@ def read_only(err):
 
 UNREACHABLE_MSG = "Couldn't reach the server — try again in a bit."
 GONE_MSG = "That screening isn't on the calendar anymore."
+DIGEST_OFF_MSG = ("The Monday digest is off for this club — an organizer can turn it on in Club settings → Theatres "
+                  "on the site. `/digest preview:True` still shows it just to you.")
 
 
 def api_error_text(e):

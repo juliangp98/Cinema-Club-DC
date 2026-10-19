@@ -361,6 +361,58 @@ function RecapCard({ card, viewerId, onOpenShowtime }) {
   );
 }
 
+// Monday's digest (Club settings → Theatres): the week's picks as they were
+// published, plus the viewer's own watchlist films playing that week.
+const DIGEST_SECTIONS = [
+  ["plans", "🤝", "Make plans — nobody's going yet", x => `${x.wanted} members want to see it`],
+  ["rare", "💎", "Rare this week", x => x.reasons?.join(" · ")],
+  ["opening", "🆕", "Opening this week", x => (x.theatres > 1 ? `at ${x.theatres} theatres` : null)],
+  ["last_chance", "⏳", "Last chance", () => "last showing"],
+];
+
+export function DigestCard({ card, onOpenShowtime }) {
+  const d = card.digest;
+  const monday = new Date(`${d.week_of}T00:00`);
+  const span = `${monday.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${
+    new Date(monday.getTime() + 6 * 864e5).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const line = (x, extra) => (
+    <li key={x.showtime_id}>
+      <button type="button" className="linkish" onClick={() => onOpenShowtime(x.showtime_id)}>{x.title}</button>
+      {" "}— {formatWhen(x.start_time)} @ {x.theatre}{x.format_label && ` · ${x.format_label}`}{extra && ` · ${extra}`}
+    </li>
+  );
+  const sections = DIGEST_SECTIONS.filter(([key]) => d[key]?.length);
+  return (
+    <article className="feed-card feed-recap feed-digest">
+      <CardHead at={card.at}>🍿 This week at the movies · {span}</CardHead>
+      {d.yours.length > 0 && (
+        <section>
+          <h4 className="feed-digest-head">👀 On your watchlist</h4>
+          <ul className="recap-lines">
+            {d.yours.map(x => line(x, x.count > 1 ? `${x.count} showings` : null))}
+            {d.yours_more > 0 && <li><Link to="/me#me-lists">+{d.yours_more} more on your watchlist</Link></li>}
+          </ul>
+        </section>
+      )}
+      {sections.map(([key, icon, title, extra]) => (
+        <section key={key}>
+          <h4 className="feed-digest-head">{icon} {title}</h4>
+          <ul className="recap-lines">{d[key].map(x => line(x, extra(x)))}</ul>
+        </section>
+      ))}
+      {(d.polls?.length > 0 || d.new_on_calendar?.length > 0) && (
+        <ul className="recap-lines">
+          {d.polls.map(p => <li key={p.id}>🗳️ <Link to={`/polls/${p.id}`}>{p.title}</Link> is open</li>)}
+          {d.new_on_calendar.length > 0 && (
+            <li>📥 New on the calendar: {d.new_on_calendar.map(n => `${n.theatre} +${n.showtimes}`).join(" · ")}</li>
+          )}
+        </ul>
+      )}
+      {!sections.length && !d.yours.length && <p className="feed-activity">A quiet week — nothing stood out.</p>}
+    </article>
+  );
+}
+
 const seenKey = g => `cinemaclub_feed_seen_${g}`;
 function readSeen(g) { try { return localStorage.getItem(seenKey(g)); } catch { return null; } }
 function writeSeen(g, iso) { try { localStorage.setItem(seenKey(g), iso); } catch { /* private mode */ } }
@@ -532,6 +584,8 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         return <RecapCard key={card.key} {...common} onOpenShowtime={openShowtime} />;
       case "bingo":
         return <BingoFeedCard key={card.key} {...common} />;
+      case "digest":
+        return <DigestCard key={card.key} {...common} onOpenShowtime={openShowtime} />;
       default:
         return null;
     }

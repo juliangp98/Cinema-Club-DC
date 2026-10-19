@@ -22,6 +22,7 @@ def migrate():
         "ALTER TABLE movie ADD COLUMN details_refreshed_at DATETIME",
         # R15: home bingo — diary entries fill film squares
         "ALTER TABLE 'group' ADD COLUMN bingo_home BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN digest_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
@@ -185,6 +186,11 @@ def migrate():
     _migrate_user_email_nullable()
     _backfill_title_normalized()
     _migrate_server_members()
+    # The Monday digest became a club setting: the home club had it all along.
+    if not db.session.get(BotSetting, 'digest_setting_done'):
+        db.session.execute(db.text("UPDATE 'group' SET digest_enabled = 1 WHERE id = :g"), {'g': HOME_GROUP_ID})
+        db.session.add(BotSetting(key='digest_setting_done', value='1'))
+        db.session.commit()
     # The bot in other servers: quotes members added so far were added in the
     # home server, so they're the home club's; the original list stays shared.
     if not db.session.get(BotSetting, 'quotes_per_club_done'):

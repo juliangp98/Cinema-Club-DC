@@ -161,6 +161,9 @@ class Group(db.Model):
     bingo_wins_post = db.Column(db.String(8), default='never')
     # Screening notes (R10f): tags about the screening itself, off until an admin turns them on.
     notes_enabled = db.Column(db.Boolean, default=False)
+    # The Monday digest: in the Feed and the bell, and in the club's Discord
+    # server. Off for new clubs; on for the home club, which always had it.
+    digest_enabled = db.Column(db.Boolean, default=False)
     memberships = db.relationship('GroupMembership', backref='group', lazy=True)
 
     def to_dict(self, include_members=False, with_email=False):
@@ -182,6 +185,7 @@ class Group(db.Model):
             'bingo': {'enabled': bool(self.bingo_enabled), 'card_post': self.bingo_card_post or 'never',
                       'wins_post': self.bingo_wins_post or 'never', 'home': bool(self.bingo_home)},
             'notes': {'enabled': bool(self.notes_enabled)},
+            'digest': {'enabled': bool(self.digest_enabled)},
             'quizzes': __import__('quizzes').switches(self),
             # 7g: theatres whose new showtimes the bot announces in #movies (the same as /announcements)
             'announce_theatres': [t.strip() for t in (self.announce_enabled_theatres or '').split(',') if t.strip()],
@@ -507,6 +511,17 @@ class DiscordServer(db.Model):
     missing_perms = db.Column(db.String(300))            # what the bot can't do in its channel (Club settings shows it)
     member_count = db.Column(db.Integer)
     reported_at = db.Column(db.DateTime)
+
+
+class ClubDigest(db.Model):
+    """A club's Monday digest as it was published (digest.py): the week's
+    picks, kept so the Feed shows the same card all week."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    week_of = db.Column(db.Date, nullable=False)              # that Monday
+    published_at = db.Column(db.DateTime, nullable=False)     # UTC
+    payload_json = db.Column(db.Text, nullable=False)
+    __table_args__ = (db.UniqueConstraint('group_id', 'week_of'),)
 
 
 class DiscordSetupCode(db.Model):

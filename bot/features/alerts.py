@@ -10,7 +10,7 @@ from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import (DEFAULT_GROUP_ID, ET, GONE_MSG, SITE_URL, api, channel_for, client, club, connected_clubs,
+from .shared import (DEFAULT_GROUP_ID, DIGEST_OFF_MSG, ET, GONE_MSG, SITE_URL, api, channel_for, client, club, connected_clubs,
                      discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club)
 from . import games, polls, threads      # used at call time, so the order they load in doesn't matter
 
@@ -89,6 +89,9 @@ async def before_announce():
 
 
 # ─── Weekly digest (Mondays 10:00 ET) ─────────────────────────────────────────
+# Only for clubs that turned it on; the site publishes its copy (the Feed, the
+# bell) at the same time. /digest preview works either way.
+DIGEST_OFF = 'off'
 
 @tasks.loop(time=dtime(hour=10, minute=0, tzinfo=ET))
 async def digest_loop():
@@ -106,12 +109,15 @@ async def before_digest():
 
 async def post_digest(channel, tag_watchers=False):
     """Post the current club's weekly digest to `channel`; returns True on
-    success. Only the scheduled Monday post tags watchlist owners, and the tags
-    are recorded so nobody is re-tagged about the same film for two weeks."""
+    success, DIGEST_OFF when the club has it off (Club settings → Theatres).
+    Only the scheduled Monday post tags watchlist owners, and the tags are
+    recorded so nobody is re-tagged about the same film for two weeks."""
     if channel is None:
         return False
     try:
         digest = await api.get('/api/internal/digest', group_id=club(), days=7)
+        if not digest.get('enabled'):
+            return DIGEST_OFF
         content, embed, tagged, plans = embeds.digest_message(digest, tag_watchers=tag_watchers)
         await channel.send(content, embed=embed, view=threads.plans_view(plans),
                            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
@@ -528,7 +534,10 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
             ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-    if await post_digest(interaction.channel):   # manual posts never tag anyone
+    posted = await post_digest(interaction.channel)   # manual posts never tag anyone
+    if posted == DIGEST_OFF:
+        await interaction.followup.send(DIGEST_OFF_MSG, ephemeral=True)
+    elif posted:
         _digest_posted[interaction.channel_id] = time.monotonic()
         await interaction.followup.send('Digest posted.', ephemeral=True)
     else:

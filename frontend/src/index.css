@@ -1154,6 +1154,8 @@ button.feed-title:hover { color: var(--amber); }
 .feed-seen-group { display: contents; }
 .feed-recap { border-color: var(--amber-dim); }
 .recap-lines { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: var(--fs-sm); }
+.feed-digest section + section, .feed-digest section + .recap-lines { margin-top: 0.6rem; }
+.feed-digest-head { margin: 0.6rem 0 0; font-size: var(--fs-sm); font-weight: 600; color: var(--cream); }
 .feed-diary a { color: var(--amber); }
 .screening-notes { margin: 0.25rem 0 1rem; display: flex; flex-direction: column; gap: 0.45rem; }
 .screening-notes-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }

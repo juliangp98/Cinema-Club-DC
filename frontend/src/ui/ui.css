@@ -357,6 +357,7 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .alert.unread .alert-link { border-color: var(--amber-dim); box-shadow: inset 3px 0 0 var(--amber); }
 .alert-link:hover { border-color: var(--amber); }
 .alert-poster { width: 42px; height: 63px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; }
+.alert-icon { display: grid; place-items: center; font-size: 1.5rem; background: var(--card-bg); border: 1px solid var(--card-border); }
 .alert-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .alert-headline { font-family: var(--font-serif); font-weight: 700; line-height: 1.25; }
 .alert-detail { font-size: var(--fs-sm); color: var(--muted); }

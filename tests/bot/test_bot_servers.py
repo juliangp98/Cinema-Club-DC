@@ -215,3 +215,21 @@ def test_joining_and_leaving_servers(two):
     with app.app_context():
         assert db.session.get(DiscordServer, str(OTHER)) is None
     assert shared.club_for_guild(OTHER) is None
+
+
+def test_the_digest_posts_only_for_clubs_that_have_it_on(two):
+    from features import alerts, shared
+    shared.use_club(two.G2)                                                          # new clubs start with it off
+    assert run(alerts.post_digest(two.other_ch, tag_watchers=True)) == alerts.DIGEST_OFF
+    assert two.other_ch.sent == []
+    shared.use_club(1)                                                               # the home club always had it
+    assert run(alerts.post_digest(two.home_ch)) is True and len(two.home_ch.sent) == 1
+
+    shared.use_club(two.G2)                                                          # what interaction_check sets
+    it = interaction(803, OTHER, 'digest')
+    run(two.bot.digest_now.callback(it, False))
+    assert it.log[-1][1] == shared.DIGEST_OFF_MSG and it.channel.sent == []         # posting: off
+    it = interaction(803, OTHER, 'digest')
+    run(two.bot.digest_now.callback(it, True))
+    _, _, embed, ephemeral = it.log[-1]
+    assert ephemeral and embed.title.startswith('🍿 This week at the movies')       # a preview still works

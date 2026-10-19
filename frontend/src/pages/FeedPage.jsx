@@ -12,7 +12,7 @@ import { GamesRail, GamesStrip } from "../ui/GamesSummary";
 // the top.
 
 const FILTERS = [[null, "All"], ["screenings", "Screenings"], ["watchlists", "Watchlists"], ["polls", "Polls"],
-                 ["kernels", "Kernels"], ["games", "Games"], ["recaps", "Weekly recaps"]];
+                 ["kernels", "Kernels"], ["games", "Games"], ["digests", "Digests"], ["recaps", "Weekly recaps"]];
 
 export default function FeedPage({ user, apiBase, groupId }) {
   const [params, setParams] = useSearchParams();

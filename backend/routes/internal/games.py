@@ -228,8 +228,10 @@ def internal_bingo():
 def internal_game_posts():
     """What the bot should post in #movies now (the question of the day, the
     month's card, wins) — after bringing everything due up to date."""
+    import digest
     import game_posts
     game_posts.tick_if_due()
+    digest.publish_due()                 # Monday's digest on the site, if it's due
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
     if not group or not discord_group(group.id):
         return jsonify({'posts': []})

@@ -55,7 +55,7 @@ export const PAGE_TOURS = {
     { target: ".film-days", title: "Pick a showing", body: "Tap a time to RSVP, see who's going and discuss it." },
   ] },
   feed: { title: "the feed", help: "feed", steps: [
-    { target: "#feed-filters", title: "What to show", body: "Everything, or just plans, check-ins, comments, polls or games." },
+    { target: "#feed-filters", title: "What to show", body: "Everything, or just plans, check-ins, comments, polls, games or the Monday digests." },
     { target: ".feed-card", title: "The club's activity",
       body: "Plans, check-ins and comments, newest first, with a marker for what's new since you were last here." },
     { target: ".feed-kernels-btn", title: "Give kernels",
@@ -74,6 +74,8 @@ export const PAGE_TOURS = {
     { target: ".club-page [role=tablist]", title: "Tabs",
       body: "The overview, every member, the leaderboard — and for organizers and admins, the club's settings." },
     { target: ".club-panel", title: "The overview", body: "This week's plans, recent activity, the month's numbers and your games." },
+    { target: "#club-settings-digest", title: "Monday digest",
+      body: "The week's picks every Monday at 10: a card in the Feed, a note in everyone's bell, and a post in your Discord server if one's connected." },
     { target: "#settings-discord", title: "Discord",
       body: "The club's Discord server: admins connect it here (Add to Discord, then /setup with a code), and the bot posts what the club chooses." },
   ] },

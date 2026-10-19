@@ -120,7 +120,8 @@ function ForYou({ apiBase, onSeen, onClose }) {
           {items.map(n => (
             <li key={n.id} className={`alert${n.read ? "" : " unread"}`}>
               <Link to={n.link} onClick={onClose} className="alert-link">
-                <Poster movie={{ title: n.title || n.headline, poster_url: n.poster_url }} className="alert-poster" />
+                {n.icon ? <span className="alert-poster alert-icon" aria-hidden="true">{n.icon}</span>
+                  : <Poster movie={{ title: n.title || n.headline, poster_url: n.poster_url }} className="alert-poster" />}
                 <span className="alert-text">
                   <span className="alert-headline">{n.headline}</span>
                   {n.detail && <span className="alert-detail">{n.detail}</span>}

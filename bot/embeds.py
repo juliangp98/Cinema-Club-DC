@@ -817,7 +817,7 @@ HELP_SECTIONS = [
         ('/link', 'optional: connect an existing site account'),
     ]),
     ('📰 Extras', [
-        ('/digest', "this week's digest (preview it just for you)"),
+        ('/digest', "this week's digest (if your club has it on), or a preview just for you"),
         ('/announcements', "which theatres' new showtimes post in the channel"),
         ('/quote', 'a random line of cinematic wisdom, or add, fix and find the quotes'),
         ('/setup', "server admins: connect this server to your club, or move the bot's channel"),

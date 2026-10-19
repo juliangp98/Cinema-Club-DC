@@ -19,6 +19,9 @@ TYPES = {
     'searches': ('A film fits a search you saved', 'When a theatre books a film that fits one of your saved searches.'),
     'favorites': ('A favorite’s film is booked', 'When a theatre books one of your favorite films, or one by a director, actor or writer in Your taste.'),
     'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
+    # Your club: the Monday digest (digest.py) — only in clubs that have it on
+    'digest': ('The Monday digest is up', 'In the bell, when your club publishes the week’s picks.'),
+    'digest_out': ('The Monday digest by email, push or DM too', 'It goes wherever your other alerts go, not only the bell.'),
     # Games (R14, game_posts.py) — only in clubs with the game on
     'trivia_daily': ('Trivia: the question of the day is up', 'Once a day, around 11 AM.'),
     'trivia_result': ('Trivia: yesterday\u2019s answer', 'The answer, whether you got it, and how the club did.'),
@@ -31,11 +34,14 @@ TYPES = {
 # How Settings → Notifications groups them (7g), in this order.
 TYPE_GROUPS = (('films', 'Your films', ('showings', 'on_sale', 'searches', 'favorites')),
                ('going', 'Going out', ('attendance',)),
+               ('club', 'Your club', ('digest', 'digest_out')),
                ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win')),
                ('running', 'Running a club', ('reviews', 'join_requests')))
 GROUP_OF = {t: (key, label) for key, label, types in TYPE_GROUPS for t in types}
 # Switches only for people who run a club: {type: the roles it's for}.
 RUNNERS = {'reviews': ('organizer', 'admin'), 'join_requests': ('organizer',)}
+# Switches that only mean something while another is on.
+NEEDS = {'digest_out': 'digest'}
 CHANNELS = ('discord', 'email', 'push')
 REALERT_AFTER = timedelta(days=3)         # a theatre's listing flickering doesn't re-alert
 RELEASE_AFTER = timedelta(minutes=30)     # a crashed scrape run still gets its alerts out
@@ -64,7 +70,7 @@ def available(user):
 # Watchlist alerts still land in the site's bell (it never sends anything).
 DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True,
                  'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True,
-                 'join_requests': False}
+                 'join_requests': False, 'digest': True, 'digest_out': False}
 ASKS = ('alerts', 'attendance')
 
 
@@ -113,12 +119,14 @@ def wants_dm(user, kind):
     return p['types'].get(kind, True) and p['channels']['discord']
 
 
-def _make(db, Notification, user, kind, movie_id, theatre_id, payload, ready=False):
-    """`ready`: send at once (games, R14) rather than with the scrape run's bundle."""
+def _make(db, Notification, user, kind, movie_id, theatre_id, payload, ready=False, channels=None):
+    """`ready`: send at once (games, R14) rather than with the scrape run's bundle.
+    `channels`: where besides the bell, if not the person's usual places (() — the bell only)."""
     p = prefs(user)
+    chosen = [c for c in CHANNELS if p['channels'][c] and (channels is None or c in channels)]
     db.session.add(Notification(user_id=user.id, kind=kind, movie_id=movie_id, theatre_id=theatre_id,
                                 payload_json=json.dumps(payload), ready_at=_now() if ready else None,
-                                channels=','.join(c for c in CHANNELS if p['channels'][c])))
+                                channels=','.join(chosen)))
 
 
 def alert_new_showings(theatre, new_future, had_upcoming):
@@ -423,6 +431,11 @@ def describe(n):
         return {'headline': f'{title} is playing', 'detail': ' · '.join(b for b in bits if b), 'link': link}
     if n.kind in GAME_KINDS:
         return _describe_game(n.kind, p)
+    if n.kind == 'digest':
+        picks = p.get('picks', 0)
+        return {'headline': 'This week’s digest is up',
+                'detail': ' · '.join(b for b in (p.get('group'), f"{picks} pick{'' if picks == 1 else 's'} for the week" if picks else None) if b),
+                'link': '/feed?type=digests'}
     return {'headline': title, 'detail': '', 'link': link}
 
 
@@ -458,10 +471,15 @@ def bundle_title(ns):
             else f'{len(ns)} new alerts')
 
 
+# The bell's picture for alerts that aren't about one film.
+ICONS = {'digest': '🍿', 'trivia_daily': '🧠', 'trivia_result': '🧠', 'bingo_card': '🎱', 'bingo_win': '🎱',
+         'game_review': '👀'}
+
+
 def item(n):
     """An alert for the bell."""
     p = json.loads(n.payload_json or '{}')
-    return {'id': n.id, 'kind': n.kind, **describe(n), 'movie_id': n.movie_id,
+    return {'id': n.id, 'kind': n.kind, **describe(n), 'movie_id': n.movie_id, 'icon': ICONS.get(n.kind),
             'poster_url': p.get('poster_url') or (n.movie.poster_url if n.movie else None),
             'title': p.get('title'), 'theatre_slug': p.get('theatre_slug'),
             'created_at': n.created_at.isoformat() + 'Z' if n.created_at else None,

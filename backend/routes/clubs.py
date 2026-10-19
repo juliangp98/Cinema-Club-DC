@@ -5,7 +5,7 @@ and the models are imported from app."""
 from html import escape as esc
 
 import app as core
-from app import (AVATAR_COLORS, FRONTEND_URL, Group, GroupMembership, Message, Poll, PollCategory,
+from app import (AVATAR_COLORS, FRONTEND_URL, ClubDigest, Group, GroupMembership, Message, Poll, PollCategory,
     PollOption, PollVote, ROLES, RSVP, Reaction, ShowtimeThread, Theatre, User, _active_membership, _as_int,
     _screening_item, _upload, app, current_user, datetime, db, guest_blocked, jsonify, random, re, request,
     require_auth, require_role, role_at_least, rsvp_changed, secrets, timezone, upcoming_rsvps)
@@ -263,7 +263,7 @@ def get_group(slug):
 def organizer_fields():
     import game_posts
     return {'theatres', 'trivia_enabled', 'trivia_anytime', 'trivia_source', 'quizzes', 'bingo_enabled', 'bingo_home',
-            'notes_enabled', 'announce_theatres',
+            'notes_enabled', 'digest_enabled', 'announce_theatres',
             *game_posts.SETTINGS.values()}
 
 
@@ -331,6 +331,8 @@ def update_group(slug):
         quizzes.set_switches(group, data['quizzes'])
     if isinstance(data.get('notes_enabled'), bool):           # screening notes (R10f), off by default
         group.notes_enabled = data['notes_enabled']
+    if isinstance(data.get('digest_enabled'), bool):          # the Monday digest
+        group.digest_enabled = data['digest_enabled']
     import game_posts                                         # what the games post in Discord (R14)
     for kind, column in game_posts.SETTINGS.items():
         if data.get(column) in game_posts.MODES[kind]:
@@ -466,6 +468,7 @@ def delete_group(slug):
     ShowtimeThread.query.filter_by(group_id=group.id).delete()   # threads stay in Discord, unlinked
     Reaction.query.filter_by(group_id=group.id).delete()
     RSVP.query.filter_by(group_id=group.id).delete()
+    ClubDigest.query.filter_by(group_id=group.id).delete()
     GroupMembership.query.filter_by(group_id=group.id).delete()
     import media
     media.delete(app.instance_path, group.photo_url)

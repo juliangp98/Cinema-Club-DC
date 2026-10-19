@@ -3,7 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import taste
-from app import (Attendance, CINEMA_EMOJIS, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
+from app import (Attendance, CINEMA_EMOJIS, ClubDigest, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
@@ -81,6 +81,7 @@ FEED_TYPES = {                 # ?type= on the feed page
     'watchlists': lambda c: c['key'][0] == 'w',
     'polls': lambda c: c['key'][0] == 'p',
     'recaps': lambda c: c['key'][0] == 'r',
+    'digests': lambda c: c['key'][0] == 'd',
     'joins': lambda c: c['key'][0] == 'j',
     'games': lambda c: c['key'][0] == 'b',
 }
@@ -107,6 +108,12 @@ def _recap_skeletons(events, since):
     return out
 
 
+def _digest_skeletons(group_id, since):
+    """The Monday digests this club published (digest.py), at the time they went out."""
+    return [{'key': f'd{d.week_of.isoformat()}', 'at': d.published_at, 'events': []}
+            for d in ClubDigest.query.filter(ClubDigest.group_id == group_id, ClubDigest.published_at >= since)]
+
+
 def feed_skeletons(group_id, kind=None):
     """Cards (key, latest activity time, their events), newest first —
     optionally only one FEED_TYPES kind."""
@@ -118,7 +125,7 @@ def feed_skeletons(group_id, kind=None):
     for c in cards.values():
         c['events'].sort(key=lambda e: e[2], reverse=True)
         c['at'] = c['events'][0][2]
-    out = list(cards.values()) + _recap_skeletons(events, since)
+    out = list(cards.values()) + _recap_skeletons(events, since) + _digest_skeletons(group_id, since)
     if kind in FEED_TYPES:
         out = [c for c in out if FEED_TYPES[kind](c)]
     return sorted(out, key=lambda c: (c['at'], c['key']), reverse=True), member_ids
@@ -180,6 +187,12 @@ def _feed_recap(group_id, week_of, events, users):
     if not any((recap['checkins'], recap['kernels'], polls, recap['plans'], recap['comments'], joined, bingos)):
         return None
     return {'type': 'recap', 'recap': recap}
+
+
+def _feed_digest(viewer, group_id, week_of):
+    import digest
+    d = ClubDigest.query.filter_by(group_id=group_id, week_of=datetime.fromisoformat(week_of).date()).first()
+    return digest.card(db.session.get(Group, group_id), viewer, d) if d else None
 
 
 def _feed_screening(viewer, group_id, sid, events, users, member_ids):
@@ -282,6 +295,8 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
             card = _feed_recap(group_id, ref, c['events'], users)
         elif kind == 'b':
             card = _feed_bingo(ref, c['events'], users)
+        elif kind == 'd':
+            card = _feed_digest(viewer, group_id, ref)
         else:
             joined = list(dict.fromkeys(e[3] for e in c['events'] if e[3] in users))
             card = {'type': 'joined', 'users': [_feed_user(users[u]) for u in joined]}

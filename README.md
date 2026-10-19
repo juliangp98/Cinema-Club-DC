@@ -18,7 +18,7 @@ keep watchlists, check in after screenings, and earn 🍿 kernels.
 | **Browse** | Every film in a time window with filters: theatres and regions, genres, decade, format, time of day, rarity, runtime, mood, tickets (available, sold out, coming soon). Any search can be saved as an alert. |
 | **Calendar** | Every showtime as an agenda, a week or a month, with the same filters. Announced films show on the day a theatre expects them. |
 | **Film** and **Theatre** pages | A film's details, ratings, trailer and every showing; a theatre's map, what's on this week, and members' notes. |
-| **Feed** | The club's activity: who's going where, check-ins (with Letterboxd ratings if shared), discussion, polls, weekly recaps. |
+| **Feed** | The club's activity: who's going where, check-ins (with Letterboxd ratings if shared), discussion, polls, weekly recaps, and the Monday digest of the week ahead (a club setting). |
 | **Play** | The games hub: daily and anytime **trivia**, **repertory bingo** (a monthly card filled by screenings — and Letterboxd diary entries, if the club allows), **quiz games** (Higher or lower, Who said it, Guess the still, Guess from the reviews, Emoji plot), **polls** with kernel stakes, and **Records** for you, everyone and the club. |
 | **Club** | Members, the leaderboard, the club's theatres and settings (organizers and admins). |
 | **Me** | Your plans, history, watchlist, check-ins and **Settings** — by category: profile, Your taste, notifications, connections (Discord, Letterboxd, calendar feeds), privacy. |
@@ -71,6 +71,7 @@ How each is read: [docs/scrapers.md](docs/scrapers.md).
 │   │   └── internal/          # The bot's API by area (posts, schedule, threads, people, games, admin, servers)
 │   ├── discover.py            # Shelves, Browse, Calendar, digest picks
 │   ├── notify.py              # Personal alerts: bell, Discord DM, email, push
+│   ├── digest.py              # The Monday digest on the site: published weekly, the Feed card
 │   ├── discord_servers.py     # Each club's Discord server: setup codes, connecting, the home server
 │   ├── trivia.py, bingo.py, quizzes.py, play.py, kernels.py, club_stats.py   # Games and standings
 │   ├── letterboxd.py, taste.py, help_ai.py, ai.py, …
