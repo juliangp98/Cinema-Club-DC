@@ -1,7 +1,7 @@
 """The quiz games (R15, quizzes.py): what a club has on, starting a round,
 answering it — on the site and, through the internal API, in Discord."""
 from app import Group, _as_int, app, current_user, db, jsonify, request, require_auth, require_group_member
-from routes.internal import require_internal, resolve_discord_user
+from routes.internal.common import require_internal, resolve_discord_user
 
 
 def _group(data):
