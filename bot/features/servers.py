@@ -12,7 +12,7 @@ from discord.ext import tasks
 
 import embeds
 from api import ApiError
-from .shared import (DEFAULT_GROUP_ID, NOT_CONNECTED_MSG, UNREACHABLE_MSG, _dm_last, api, api_error_text, client,
+from .shared import (DEFAULT_GROUP_ID, NOT_CONNECTED_MSG, UNREACHABLE_MSG, _dm_last, api, api_error_text, backend_ready, client,
                      club_for_guild, club_of, movies_channel, refresh_servers, register, tell, use_club)
 
 # Work in a server that isn't connected yet (everything they show is public).
@@ -180,6 +180,7 @@ async def before_servers():
 @client.event
 async def on_ready():
     """Register the home server (the bot's own, from its settings) and load the map."""
+    await backend_ready()
     channel = movies_channel()
     home = {'guild_id': str(channel.guild.id), 'channel_id': str(channel.id), 'name': channel.guild.name,
             'channel_name': getattr(channel, 'name', None)} if channel is not None else {}

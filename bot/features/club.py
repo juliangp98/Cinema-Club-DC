@@ -5,7 +5,7 @@ with the site).
 import discord
 from discord.ext import tasks
 import embeds
-from .shared import (DEFAULT_GROUP_ID, SITE_URL, api, client, club, club_for_guild, connected_clubs,
+from .shared import (DEFAULT_GROUP_ID, SITE_URL, api, backend_ready, client, club, club_for_guild, connected_clubs,
                      is_home_guild, movies_channel, register, reply_failure)
 
 
@@ -70,6 +70,7 @@ async def member_sync_loop():
 @member_sync_loop.before_loop
 async def before_member_sync():
     await client.wait_until_ready()
+    await backend_ready()
 
 
 async def member_changed(member, key):

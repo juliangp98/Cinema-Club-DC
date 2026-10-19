@@ -233,3 +233,27 @@ def test_the_digest_posts_only_for_clubs_that_have_it_on(two):
     run(two.bot.digest_now.callback(it, True))
     _, _, embed, ephemeral = it.log[-1]
     assert ephemeral and embed.title.startswith('🍿 This week at the movies')       # a preview still works
+
+
+def test_start_up_waits_for_the_backend(monkeypatch):
+    """The containers start together: the bot's first calls wait until the backend answers."""
+    from features import shared
+    tries = []
+
+    async def get(path, **k):
+        tries.append(path)
+        if len(tries) < 3:
+            raise OSError('Cannot connect to host backend:5001')
+        return []
+
+    async def no_wait(_):
+        pass
+    monkeypatch.setattr(shared.api, 'get', get)
+    monkeypatch.setattr(shared.asyncio, 'sleep', no_wait)
+    assert run(shared.wait_for_backend()) is True and len(tries) == 3
+    ran = []
+
+    async def job():
+        ran.append(1)
+    run(shared._after_backend(job))                    # no start-up check running (tests): straight on
+    assert ran == [1]

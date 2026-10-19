@@ -142,6 +142,34 @@ def test_the_home_server_registers_itself_and_keeps_its_members(clubs):
         assert DiscordServer.query.filter_by(group_id=1).one().guild_id == HOME_GUILD
 
 
+def test_two_start_up_calls_at_once_register_the_home_server_once(clubs, monkeypatch):
+    """The bot's hello and its first member sync land in two workers together:
+    the one that loses the race finds the other's row instead of failing."""
+    import discord_servers
+    from app import app, db, DiscordServer, DiscordServerMember
+    bot_post('/api/internal/discord/members', full=True, ids=['801'])               # rows from before (no server id)
+    real_get = db.session.get
+
+    def other_worker_first(model, key, *a, **k):
+        if model is DiscordServer and key == HOME_GUILD and not raced:
+            raced.append(1)
+            with db.engine.begin() as other:                                       # the other worker's commit
+                other.execute(db.text("INSERT INTO discord_server (guild_id, group_id, home) VALUES (:g, 1, 1)"),
+                              {'g': HOME_GUILD})
+            return None
+        return real_get(model, key, *a, **k)
+    raced = []
+    with app.app_context():
+        monkeypatch.setattr(db.session, 'get', other_worker_first)
+        server = discord_servers.adopt_home(HOME_GUILD, '901', 'Cinema Club', 'movies')
+        monkeypatch.undo()
+        assert raced and server.guild_id == HOME_GUILD and server.channel_id == '901'
+        assert DiscordServer.query.count() == 1
+        assert [m.guild_id for m in DiscordServerMember.query] == [HOME_GUILD]
+    r = bot_post('/api/internal/discord/members', full=True, ids=['801', '802'], guild_id=HOME_GUILD, home=True)
+    assert r.status_code == 200 and r.json['joined'] == 1
+
+
 def test_old_member_rows_move_to_per_server(clubs):
     """The migration: one server's list (keyed by Discord id) becomes per server."""
     from app import app, db, migrate, DiscordServerMember

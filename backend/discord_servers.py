@@ -62,9 +62,12 @@ def _members_to(guild_id, group_id):
             m.guild_id = guild_id
 
 
-def adopt_home(guild_id, channel_id=None, name=None, channel_name=None):
+def adopt_home(guild_id, channel_id=None, name=None, channel_name=None, _retry=True):
     """The bot's own server (from its settings) is the home club's. Runs at the
-    bot's start and on the first command there; a no-op once it's known."""
+    bot's start and on the first command there; a no-op once it's known. The
+    bot's start-up calls can arrive together (two workers): the one that loses
+    the race finds the row the other made and carries on."""
+    from sqlalchemy.exc import IntegrityError
     from app import HOME_GROUP_ID, db, DiscordServer, Group
     guild_id = str(guild_id)
     if not db.session.get(Group, HOME_GROUP_ID):
@@ -80,9 +83,15 @@ def adopt_home(guild_id, channel_id=None, name=None, channel_name=None):
     server.name = name or server.name
     server.channel_name = channel_name or server.channel_name
     server.linked_at = server.linked_at or _now()
-    db.session.add(server)
-    _members_to(guild_id, HOME_GROUP_ID)
-    db.session.commit()
+    try:
+        db.session.add(server)
+        _members_to(guild_id, HOME_GROUP_ID)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        if not _retry:
+            raise
+        return adopt_home(guild_id, channel_id, name, channel_name, _retry=False)
     _changed()
     return server
 

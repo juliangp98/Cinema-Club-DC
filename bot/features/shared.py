@@ -97,9 +97,10 @@ class CinemaClubBot(discord.Client):
         except Exception as e:
             print(f'Command sync FAILED: {e!r}')
         # In the background so a slow Groq never delays the bot coming online.
-        asyncio.create_task(setup_llm())
+        _startup['backend'] = asyncio.create_task(wait_for_backend())
+        asyncio.create_task(_after_backend(setup_llm))
         for job in _registry['startup']:
-            asyncio.create_task(job())
+            asyncio.create_task(_after_backend(job))
         for item in _registry['items']:
             self.add_dynamic_items(item)          # their buttons work across restarts
         for loop in _registry['loops']:
@@ -144,6 +145,40 @@ async def dm_owner(text):
         await _owner['user'].send(text[:2000])
     except Exception as e:
         print(f'owner DM failed: {e}')
+
+
+# The containers start together, so the backend can still be getting ready
+# (bringing the database up to date) when the bot logs in.
+BACKEND_WAIT_SEC = 120
+_startup = {}
+
+
+async def wait_for_backend():
+    """Returns once the backend answers (any answer), or after BACKEND_WAIT_SEC."""
+    deadline = time.monotonic() + BACKEND_WAIT_SEC
+    while True:
+        try:
+            await api.get('/api/internal/servers')
+            return True
+        except ApiError:
+            return True                       # it answered
+        except Exception:
+            if time.monotonic() > deadline:
+                print(f'backend: still unreachable after {BACKEND_WAIT_SEC}s; carrying on')
+                return False
+            await asyncio.sleep(3)
+
+
+async def backend_ready():
+    """Wait for the start-up check, if one is running (tests never start one)."""
+    task = _startup.get('backend')
+    if task is not None:
+        await asyncio.shield(task)
+
+
+async def _after_backend(job):
+    await backend_ready()
+    await job()
 
 
 async def setup_llm():
