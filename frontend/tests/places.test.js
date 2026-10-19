@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { LINK, PLACES, SECTIONS, TOPICS, hrefOf } from "../src/help";
+import { LINK, PLACES, SECTIONS, TOPICS, hrefOf, isOutside } from "../src/help";
 import { PAGE_TOURS } from "../src/shell/pageTours";
 
 // The places (7f, help.json): every link in Help goes somewhere real — a
@@ -14,8 +14,10 @@ const routes = [...readFileSync(join(SRC, "App.jsx"), "utf8").matchAll(/<Route p
   .map(m => m[1]).filter(p => p !== "*").map(p => new RegExp(`^${p.replace(/:[a-zA-Z]+/g, "[^/]+")}$`));
 const code = files(SRC).filter(f => /\.(jsx?|js)$/.test(f)).map(f => readFileSync(f, "utf8")).join("\n");
 
+const onSite = Object.entries(PLACES).filter(([, p]) => !isOutside(p.to));
+
 test("every place's #anchor is drawn by some page", () => {
-  for (const [id, p] of Object.entries(PLACES)) {
+  for (const [id, p] of onSite) {
     const anchor = p.to.split("#")[1];
     if (!anchor) continue;
     const literal = code.includes(`id="${anchor}"`);
@@ -24,8 +26,11 @@ test("every place's #anchor is drawn by some page", () => {
   }
 });
 
-test("every place is on a page the site has", () => {
-  for (const [id, p] of Object.entries(PLACES)) {
+test("every place is on a page the site has — or is our code on GitHub", () => {
+  for (const [, p] of Object.entries(PLACES).filter(([, p]) => isOutside(p.to))) {
+    expect(p.to.startsWith("https://github.com/juliangp98/Cinema-Club-DC")).toBe(true);
+  }
+  for (const [id, p] of onSite) {
     const path = p.to.split(/[?#]/)[0];
     expect(routes.some(r => r.test(path)), `${id}: ${path}`).toBe(true);
   }

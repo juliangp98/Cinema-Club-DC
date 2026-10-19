@@ -112,6 +112,7 @@ export default function HelpPage({ apiBase = "" }) {
           ))}
         </section>
       ))}
+      {!q && <p className="ui-hint help-foot"><RichText text="Start a club in your city: Cinema Club DC is open source — [run your own](repo)." /></p>}
       </div>
       </div>
     </div>

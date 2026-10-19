@@ -849,6 +849,7 @@ a.share-state { color: var(--green); }
 .help-toc { margin-bottom: 1.5rem; }
 .help-toc .chip { text-decoration: none; }
 .help-section { margin-bottom: 1.75rem; scroll-margin-top: 5rem; }
+.help-foot { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
 .help-title { font-family: var(--font-serif); font-size: var(--fs-lg); color: var(--amber); margin: 0 0 0.6rem; }
 .help-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 0.45rem; background: var(--bg3); }
 .help-item summary { cursor: pointer; font-weight: 600; color: var(--cream); }

@@ -250,6 +250,10 @@
   "play-records": {
    "label": "Records on Play",
    "to": "/play?tab=records"
+  },
+  "repo": {
+   "label": "Cinema Club DC on GitHub",
+   "to": "https://github.com/juliangp98/Cinema-Club-DC#docs"
   }
  },
  "sections": [
@@ -291,6 +295,11 @@
      "id": "clubs",
      "q": "How do clubs work?",
      "a": "A club picks the theatres it follows, and its members see each other's plans, comments and games. Find or start one on [the Clubs page](clubs); asking to join sends a request a club admin approves. Some clubs are invite-only: they aren't listed, and members join by an admin's invite. In more than one club? Switch from the top bar."
+    },
+    {
+     "id": "run-your-own",
+     "q": "Can I start a club like this in my city?",
+     "a": "Yes — Cinema Club DC is open source. The site, the theatre scrapers and the Discord bot all run from [its code on GitHub](repo), with guides for deploying it and setting up your own bot. Point the scrapers at your city's theatres and run your own copy. (Here, [clubs](clubs) are for the DC area's theatres.)"
     },
     {
      "id": "leave-club",

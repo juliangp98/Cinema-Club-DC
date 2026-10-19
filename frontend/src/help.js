@@ -17,6 +17,9 @@ export function hrefOf(ref) {
   return PLACES[ref]?.to || null;
 }
 
+// A place outside the site (the code on GitHub): opened in a new tab.
+export const isOutside = to => /^https?:\/\//.test(to || "");
+
 // The words alone, for searching and plain-text uses.
 export const plain = text => (text || "").replace(LINK, "$1");
 

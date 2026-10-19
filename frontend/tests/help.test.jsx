@@ -1,6 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HelpPage from "../src/pages/HelpPage";
+import RichText from "../src/ui/RichText";
+import { TOPICS } from "../src/help";
 import { mockApi, renderPage } from "./support";
 
 // The help guide (R11): one searchable page — with links to the place in the
@@ -69,4 +71,12 @@ test("✨ Ask when the AI can't: the closest topics, said so", async () => {
   expect(await screen.findByText("✨ Best matches")).toBeInTheDocument();
   expect(screen.getByText(/isn't available right now/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "How do I save a search?" })).toBeInTheDocument();
+});
+
+test("Help links to the code on GitHub in a new tab: a topic and the foot of the page", () => {
+  renderPage(<RichText text="[its code on GitHub](repo)" />);
+  const link = screen.getByRole("link", { name: /its code on GitHub/ });
+  expect(link).toHaveAttribute("href", "https://github.com/juliangp98/Cinema-Club-DC#docs");
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(TOPICS["run-your-own"].a).toContain("](repo)");
 });
