@@ -199,6 +199,15 @@ def guest_blocked(user):
     return None
 
 
+def ai_blocked(user):
+    """The AI features (✨ search, Help's ✨ Ask) are for club members (SEO,
+    Oct 2026): they spend the allowance the Discord chatbot uses too, and
+    anyone can sign up once the site is in search results."""
+    if not user or user.is_guest or not GroupMembership.query.filter_by(user_id=user.id, status='active').first():
+        return jsonify({'error': '✨ is for club members — the regular search works for everyone.', 'code': 'members'}), 403
+    return None
+
+
 def _active_membership(user, group_id):
     if not user or not group_id:
         return None
@@ -1558,6 +1567,13 @@ def migrate():
                                    "AND original_language IS NOT NULL AND ratings_json IS NOT NULL"))
         db.session.add(BotSetting(key='details_marker_backfilled', value='1'))
         db.session.commit()
+    # SEO (Oct 2026): with the site open to search engines, the Discord
+    # server's club becomes invite-only — not listed on the Clubs page, and
+    # strangers can't ask to join (an admin can change it in Club settings).
+    if not db.session.get(BotSetting, 'discord_club_private_done'):
+        db.session.execute(db.text("UPDATE 'group' SET is_public = 0 WHERE id = :g"), {'g': DISCORD_GROUP_ID})
+        db.session.add(BotSetting(key='discord_club_private_done', value='1'))
+        db.session.commit()
     # R14: "post the question of the day in Discord" (a yes/no) is now Always.
     db.session.execute(db.text("UPDATE 'group' SET trivia_post = 'always' WHERE trivia_discord = 1"))
     db.session.execute(db.text("UPDATE 'group' SET trivia_discord = 0 WHERE trivia_discord = 1"))
@@ -1767,7 +1783,7 @@ def seed_admin():
             slug=slug,
             description='',
             created_by=user.id,
-            is_public=True,
+            is_public=False,                 # the Discord server's club: invite-only
         )
         db.session.add(group)
         db.session.flush()

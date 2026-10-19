@@ -51,7 +51,7 @@ test("no topic has every word: the closest ones", async () => {
 test("✨ Ask: an answer in the guide's words, with its links and its topics", async () => {
   const calls = mockApi({ "POST /api/help/ask": { ai: true, topics: ["give-kernels"],
     answer: "Tap 🍿 Kernels on a screening in [the feed](feed) — 10 to give a week. [Somewhere](made-up)." } });
-  renderPage(<HelpPage />, { shell: { user: { id: 1, is_guest: false } } });
+  renderPage(<HelpPage />, { shell: { user: { id: 1, is_guest: false }, groupId: 1 } });
   await userEvent.type(screen.getByRole("searchbox", { name: "Search help" }), "how do I thank someone for planning a night{Enter}");
   expect(calls.at(-1)).toMatchObject({ method: "POST", path: "/api/help/ask", body: { q: "how do I thank someone for planning a night" } });
   const card = (await screen.findByText("✨ AI answer")).closest(".help-answer");
@@ -63,7 +63,7 @@ test("✨ Ask: an answer in the guide's words, with its links and its topics", a
 
 test("✨ Ask when the AI can't: the closest topics, said so", async () => {
   mockApi({ "POST /api/help/ask": { ai: false, topics: ["save-search"], answer: null, note: "The AI isn't available right now — here are the closest topics." } });
-  renderPage(<HelpPage />, { shell: { user: { id: 1, is_guest: false } } });
+  renderPage(<HelpPage />, { shell: { user: { id: 1, is_guest: false }, groupId: 1 } });
   await userEvent.type(screen.getByRole("searchbox", { name: "Search help" }), "tell me when horror films come");
   await userEvent.click(screen.getByRole("button", { name: "Ask in your own words" }));   // ✨, inside the bar
   expect(await screen.findByText("✨ Best matches")).toBeInTheDocument();

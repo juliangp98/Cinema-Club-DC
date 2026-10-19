@@ -290,7 +290,7 @@
     {
      "id": "clubs",
      "q": "How do clubs work?",
-     "a": "A club picks the theatres it follows, and its members see each other's plans, comments and games. Find or start one on [the Clubs page](clubs); asking to join sends a request a club admin approves. In more than one club? Switch from the top bar."
+     "a": "A club picks the theatres it follows, and its members see each other's plans, comments and games. Find or start one on [the Clubs page](clubs); asking to join sends a request a club admin approves. Some clubs are invite-only: they aren't listed, and members join by an admin's invite. In more than one club? Switch from the top bar."
     },
     {
      "id": "leave-club",
@@ -316,7 +316,7 @@
     {
      "id": "search",
      "q": "How do I search or filter?",
-     "a": "Type in [the search box](search) for films, people, theatres or genres — or describe what you want (\"a 70mm epic this weekend\") and tap ✨. [Browse has the full filters](browse-filters): theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."
+     "a": "Type in [the search box](search) for films, people, theatres or genres — or describe what you want (\"a 70mm epic this weekend\") and tap ✨ (for club members). [Browse has the full filters](browse-filters): theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."
     },
     {
      "id": "tickets",

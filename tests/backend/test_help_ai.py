@@ -19,11 +19,15 @@ def fresh():
     setup_db()
 
 
-def user(name, guest=False):
-    from app import app, db, User
+def user(name, guest=False, member=True):
+    """A user — in a club unless `member` is False (✨ is for club members)."""
+    from app import app, db, GroupMembership, User
     with app.app_context():
         u = User(name=name, email=None if guest else f'{name.lower()}@help.test', is_active=True, is_guest=guest)
         db.session.add(u)
+        db.session.flush()
+        if member and not guest:
+            db.session.add(GroupMembership(user_id=u.id, group_id=1, status='active'))
         db.session.commit()
         return u.id
 
@@ -75,6 +79,8 @@ def test_who_can_ask_and_how_often(monkeypatch):
     monkeypatch.setattr(ai, 'chat', lambda *a, **k: json.dumps({'topics': ['rsvp'], 'answer': ''}))
     assert client().post('/api/help/ask', json={'q': 'how do I rsvp'}).status_code == 401
     assert client(user('Gus', guest=True)).post('/api/help/ask', json={'q': 'how do I rsvp'}).status_code == 403
+    stranger = client(user('Stu', member=False)).post('/api/help/ask', json={'q': 'how do I rsvp'})
+    assert stranger.status_code == 403 and stranger.json['code'] == 'members'          # signed up from Google: no ✨
     ann = client(user('Ann'))
     assert ann.post('/api/help/ask', json={'q': 'rsvp'}).status_code == 400                  # a word isn't a question
     r = ann.post('/api/help/ask', json={'q': 'how do I rsvp to a show'}).json

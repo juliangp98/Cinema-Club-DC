@@ -1,11 +1,12 @@
 """✨ Ask on the Help page (7f): help_ai.py answers from the Help guide.
 
-Signed-in accounts only (guests and visitors keep the keyword search): it
+Club members only (guests, visitors and strangers who sign up keep the
+keyword search): it
 spends the club's shared AI allowance, which the chatbot, poll drafts and AI
 search use too. Cached answers are free; fresh ones are ASKS_PER_HOUR each."""
 import time
 
-from app import _ai, app, current_user, jsonify, request, require_auth
+from app import _ai, ai_blocked, app, current_user, jsonify, request, require_auth
 
 ASKS_PER_HOUR = 20
 _asks = {}                  # user id -> recent fresh asks (per server process)
@@ -17,8 +18,9 @@ def help_ask():
     """{q} → {ai, topics: [topic ids], answer: text with guide links, or None}."""
     import help_ai
     user = current_user()
-    if user.is_guest:
-        return jsonify({'error': 'Keep your profile (add an email or Discord) to ask in your own words.'}), 403
+    blocked = ai_blocked(user)                     # club members only (SEO, Oct 2026)
+    if blocked:
+        return blocked
     q = str((request.json or {}).get('q') or '').strip()
     if len(help_ai.words(q)) < 2:
         return jsonify({'error': 'Ask a little more — a few words about what you want to do.'}), 400

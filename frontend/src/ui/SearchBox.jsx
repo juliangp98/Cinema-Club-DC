@@ -35,7 +35,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
   const listId = useId();
   const typed = useRef(false);            // only suggest after the person types (not for `initial`)
   const user = shell?.user;
-  const canAi = ai && user && !user.is_guest;
+  const canAi = ai && user && !user.is_guest && !!shell?.groupId;          // ✨ is for club members (it spends the club's AI allowance)
 
   useEffect(() => setQ(initial), [initial]);
 

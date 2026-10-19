@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, Suspense } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, Suspense } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import GroupSwitcher from "../components/GroupSwitcher";
 import lazyPage from "../lazyPage";
@@ -11,6 +11,7 @@ import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
 import { clearCache, send } from "../api";
 import useArrival from "../arrive";
+import { routeMeta, setPageMeta } from "../seo";
 import { PAGE_TOURS } from "./pageTours";
 import { TopbarTour } from "../ui/PageTourControls";
 
@@ -102,6 +103,10 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   }, [apiBase, setUser, navigate, user]);
 
   useArrival();                                   // any #link glows on arrival (7f)
+  // What search engines see (SEO): each address's title, description and
+  // noindex for private pages — before the page's own details (a layout
+  // effect runs before the pages' effects).
+  useLayoutEffect(() => { setPageMeta(routeMeta(pathname, search)); }, [pathname, search]);
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
   // Links that open something the address can't show (7f): ?alerts=1 the
   // bell (a push about several alerts). Older links to the Edit profile and

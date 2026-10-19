@@ -185,6 +185,7 @@ def test_organizers_choose_whether_join_requests_email_them(season, monkeypatch)
     import routes.clubs as clubs
     sent = []
     monkeypatch.setattr(clubs, 'email_join_request', lambda to, who, club: sent.append(to))
+    assert as_(season, 'ana').put(f"/api/groups/{season['slug']}", json={'is_public': True}).status_code == 200   # open to requests
     from app import app, db, User
     with app.app_context():
         for n in ('kit', 'lee'):

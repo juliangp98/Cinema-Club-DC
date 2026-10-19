@@ -10,6 +10,10 @@ Disallow: /groups
 Disallow: /polls
 Disallow: /members
 Disallow: /leaderboard
+Disallow: /feed
+Disallow: /play
+Disallow: /people
+Disallow: /styleguide
 Allow: /
 
 Sitemap: https://cinemaclubdc.com/sitemap.xml

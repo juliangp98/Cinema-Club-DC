@@ -16,6 +16,7 @@ import { WatchDiscordPrompt } from "../ui/DiscordShare";
 import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
 import { longDayDate, time, monthDay } from "../dates";
 import { TourOffer } from "../ui/PageTourControls";
+import usePageMeta, { filmLd } from "../seo";
 
 const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
@@ -50,6 +51,18 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const { data, error: loadError, reload: load } = useJson(`${apiBase}/api/films/${id}?${groupParam(groupId)}`);
   useEffect(() => { setTheatre("all"); setShowAll(false); }, [id]);
   useEffect(() => { if (data) setWatching(data.viewer_wants); }, [data]);
+  usePageMeta(() => {
+    const m = data?.movie;
+    if (!m) return null;
+    const where = [...new Set((data.showtimes || []).map(s => s.theatre.short_name || s.theatre.name))];
+    const bits = [m.release_year, m.director && `dir. ${m.director}`].filter(Boolean).join(", ");
+    return {
+      title: `${m.title}${m.release_year ? ` (${m.release_year})` : ""}`, path: `/films/${m.id}`, image: m.poster_url,
+      jsonLd: filmLd(m, data.showtimes || []),
+      description: `${m.title}${bits ? ` (${bits})` : ""}${where.length ? ` — showtimes in DC at ${where.slice(0, 4).join(", ")}` : ""}.`
+        + (m.description ? ` ${m.description.slice(0, 160)}` : ""),
+    };
+  }, [data]);
   const missing = loadError?.status === 404;
 
   const { openShowtime, sheet } = useShowtimeSheet({

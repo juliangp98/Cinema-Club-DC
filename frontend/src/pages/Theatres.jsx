@@ -13,6 +13,7 @@ import "./DiscoverPage.css";
 import "./Theatres.css";
 import { dayShortTime } from "../dates";
 import TicketChips, { AnnouncedCard } from "../ui/TicketChips";
+import usePageMeta, { theatreLd } from "../seo";
 
 const REGION_ORDER = ["DC", "Maryland", "Virginia"];
 const dayTime = dayShortTime;
@@ -98,6 +99,10 @@ export function TheatrePage({ apiBase, groupId }) {
   const all = useJson(`${apiBase}/api/discover/browse?${groupParam(groupId)}theatres=${slug}&when=month&sort=soonest${tickets ? `&tickets=${tickets}` : ""}`);
   const setTickets = v => setParams(prev => { const n = new URLSearchParams(prev); v ? n.set("tickets", v) : n.delete("tickets"); return n; }, { replace: true });
   const t = info.data;
+  usePageMeta(() => t && {
+    title: t.name, path: `/theatres/${t.slug}`, jsonLd: theatreLd(t),
+    description: `What's on at ${t.name}${t.address ? `, ${t.address}` : ""}: ${t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "showtimes"}, a map, and what's special there.`,
+  }, [t]);
 
   if (info.error?.status === 404) {
     return (

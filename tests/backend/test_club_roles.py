@@ -182,3 +182,25 @@ def test_alerts_come_in_groups_for_settings(club):
     groups = [t['group'] for t in info]
     assert groups == sorted(groups, key=['films', 'going', 'games', 'running'].index)   # in order, each group together
     assert {t['group_label'] for t in info} >= {'Your films', 'Going out', 'Games', 'Running a club'}
+
+
+def test_invite_only_clubs_refuse_join_requests_and_admins_choose(club):
+    """SEO: a club that isn't listed on the Clubs page is invite-only — nobody can ask to join it, even
+    knowing its address. Only admins switch it; ours starts invite-only (a one-time change on start)."""
+    from app import app, db, BotSetting, Group
+    with app.app_context():
+        db.session.get(Group, club['group']).is_public = False
+        db.session.commit()
+    stranger = as_(club, 'newbie').post('/api/groups/role-club/join')
+    assert stranger.status_code == 403 and 'invite-only' in stranger.json['error']
+    assert as_(club, 'olly').put('/api/groups/role-club', json={'is_public': True}).status_code == 403   # organizers can't
+    assert as_(club, 'ada').put('/api/groups/role-club', json={'is_public': True}).json['is_public'] is True
+    assert as_(club, 'newbie').post('/api/groups/role-club/join').status_code == 202               # listed: requests open
+    with app.app_context():
+        assert db.session.get(BotSetting, 'discord_club_private_done') is not None             # migrate() ran it once
+
+
+def test_ai_features_are_for_club_members(club):
+    """SEO: ✨ search spends the club's AI allowance — not for strangers who signed up."""
+    r = as_(club, 'newbie').post('/api/search/ai', json={'q': 'a scary film tonight'})
+    assert r.status_code == 403 and r.json['code'] == 'members'

@@ -8,6 +8,7 @@ import SearchField, { SearchAction } from "../ui/SearchField";
 import { useShell } from "../shell/AppShell";
 import { send } from "../api";
 import { SECTIONS, TOPICS, plain, rank, words } from "../help";
+import usePageMeta, { faqLd } from "../seo";
 
 // The help guide (R11): one searchable page, a section per area of the site,
 // each a few questions with short answers — in help.json (7f), with links
@@ -39,7 +40,11 @@ export default function HelpPage({ apiBase = "" }) {
   const shell = useShell() || {};
   const [q, setQ] = useState("");
   const [asked, setAsked] = useState(null);           // {q, loading} or the answer
-  const canAsk = !!shell.user && !shell.user.is_guest;
+  const canAsk = !!shell.user && !shell.user.is_guest && !!shell.groupId;   // ✨ is for club members
+  // Search engines: Help's questions as an FAQ (plain words, no link markup).
+  usePageMeta(() => ({ title: "Help", path: "/help",
+    description: "How Cinema Club DC works: finding films, making plans with a club, alerts, Discord and more.",
+    jsonLd: faqLd(Object.values(TOPICS).map(t => ({ q: t.q, a: plain(t.a) }))) }), []);
   const shown = useMemo(() => {
     const ws = norm(q).split(/\s+/).filter(Boolean);
     if (!ws.length) return SECTIONS;

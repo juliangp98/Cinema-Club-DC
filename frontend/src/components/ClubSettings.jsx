@@ -129,6 +129,9 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                      onKeyDown={e => e.key === "Enter" && e.currentTarget.blur()}
                      onBlur={() => shortName !== (group.short_name || "") && run(() => update({ short_name: shortName }))} />
             </SettingRow>
+            <SwitchRow label="Listed on the Clubs page" checked={!!group.is_public} onChange={set("is_public")}
+                       hint={group.is_public ? "Anyone signed in can find the club and ask to join; an admin approves each request."
+                         : "Invite-only: hidden from the Clubs page, and nobody can ask to join — members come in by your invite (Members)."} />
             <div className="ui-setting stack">
               <div className="ui-setting-text">
                 <label className="ui-setting-label" htmlFor="club-desc">Description</label>

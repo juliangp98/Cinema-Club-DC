@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import taste
 from app import (FRONTEND_URL, Group, GroupMembership, Movie, RARE_MIN_SCORE, RSVP, Showtime, Theatre, User,
-    Watchlist, _active_membership, _ai, _ai_searches, _as_int, _brief_user, _group_showtime_query,
+    Watchlist, _active_membership, _ai, _ai_searches, ai_blocked, _as_int, _brief_user, _group_showtime_query,
     _with_attendance, app, attended_showtime_ids, current_user, datetime, db, guest_blocked, interest_counts,
     jsonify, make_response, movie_for_tmdb, public_cached, public_showtimes, rarity, re, request,
     require_auth, require_group_member, secrets, time, timedelta, tmdb_matches)
@@ -73,11 +73,12 @@ def theatres_overview():
 @app.route('/api/sitemap.xml')
 def sitemap():
     """The public pages, for search engines (served at /sitemap.xml): home,
-    Calendar, Theatres, each theatre, and every film playing in the next 60
-    days. Private pages are never listed."""
+    Calendar, Browse, Theatres, each theatre, Help, and every film playing in
+    the next 60 days. Private pages are never listed (nor Browse's filtered
+    addresses — the site marks those noindex)."""
     from xml.sax.saxutils import escape as xesc
     now = datetime.now()
-    urls = [('/', 'daily'), ('/calendar', 'daily'), ('/browse', 'daily'), ('/theatres', 'weekly')]
+    urls = [('/', 'daily'), ('/calendar', 'daily'), ('/browse', 'daily'), ('/theatres', 'weekly'), ('/help', 'monthly')]
     urls += [(f'/theatres/{t.slug}', 'daily') for t in Theatre.query.filter(Theatre.is_active.isnot(False))]
     films = (db.session.query(Showtime.movie_id).join(Theatre)
              .filter(Showtime.start_time >= now, Showtime.start_time <= now + timedelta(days=60),
@@ -379,7 +380,7 @@ def search_ai_route():
     import discover
     import search_ai
     user = current_user()
-    blocked = guest_blocked(user)
+    blocked = ai_blocked(user)
     if blocked:
         return blocked
     data = request.json or {}

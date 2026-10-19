@@ -288,6 +288,8 @@ def update_group(slug):
     if 'description' in data:
         desc = (data.get('description') or '').strip()
         group.description = desc[:500]
+    if isinstance(data.get('is_public'), bool):             # listed on Clubs, open to join requests (admins)
+        group.is_public = data['is_public']
 
     if 'theatres' in data:
         valid_slugs = {t.slug for t in Theatre.query.all()}
@@ -440,6 +442,8 @@ def join_group(slug):
     existing = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id).first()
     if existing:
         return jsonify({'error': 'Already a member or request pending', 'status': existing.status}), 409
+    if not group.is_public:                  # invite-only: an admin's invite is the way in
+        return jsonify({'error': "This club is invite-only — ask one of its admins for an invite."}), 403
 
     membership = GroupMembership(user_id=user.id, group_id=group.id, role='member', status='pending')
     db.session.add(membership)
