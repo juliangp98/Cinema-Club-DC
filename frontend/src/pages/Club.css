@@ -10,6 +10,7 @@
 .club-panel { padding-top: 0.75rem; }
 .club-feed .feed-page { background: transparent; }
 .club-feed .feed-main { padding: 0; }
+.club-feed { margin-bottom: 1.5rem; }                 /* the same room between sections as This week */
 
 .club-rows { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .club-row {

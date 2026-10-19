@@ -68,16 +68,27 @@ export function initialsOf(name) {
 
 // A club's picture: its photo, or emoji, or initials. Square-ish with rounded
 // corners, so it doesn't read as a person.
+// Initials look centered when their ink is: letters heavy on the left and open
+// on the right (C, F, P…) read as sitting left even when measured dead center,
+// so each one nudges the pair right a little. The badge's letter-spacing also
+// trails the last letter; its padding gives that back.
+const OPEN_RIGHT = new Set("CEFKLPRTZ");
+const BADGE_SPACING = 0.02;                           // em, as in .ui-club-badge
+export const initialsNudge = text =>
+  Math.round((BADGE_SPACING + 0.06 * [...text].filter(c => OPEN_RIGHT.has(c)).length) * 100) / 100;
+
 export function ClubBadge({ group, size = 32 }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [group?.photo_url]);
   const photo = group?.photo_url && !broken;
+  const initials = !photo && !group?.emoji ? initialsOf(group?.name) : null;
   const style = { width: size, height: size,
-                  fontSize: Math.max(10, Math.round(size * (group?.emoji && !photo ? 0.55 : 0.38))) };
+                  fontSize: Math.max(10, Math.round(size * (group?.emoji && !photo ? 0.55 : 0.38))),
+                  ...(initials && { paddingLeft: `${initialsNudge(initials)}em` }) };
   return (
     <span className={`ui-club-badge${photo ? " photo" : ""}`} style={style} aria-hidden="true">
       {photo ? <img src={group.photo_url} alt="" onError={() => setBroken(true)} />
-        : group?.emoji || initialsOf(group?.name)}
+        : group?.emoji || initials}
     </span>
   );
 }
