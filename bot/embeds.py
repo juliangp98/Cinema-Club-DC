@@ -81,9 +81,10 @@ def drop_embed(event):
         plural = 's' if count != 1 else ''
         desc_lines.append(f"• **{m['title']}** — {count} showing{plural}, from {first}")
 
-    more = len(p.get('movie_summaries', [])) - 8
-    if p.get('new_movie_count', 0) > 8 and more > 0:
-        desc_lines.append(f"…and more")
+    # The payload lists up to 10 films; movie_ids has every film in the drop
+    more = len(p.get('movie_ids') or p.get('movie_summaries', [])) - 8
+    if more > 0:
+        desc_lines.append(f"…and {more} more film{'s' if more != 1 else ''}")
 
     embed = discord.Embed(
         title=title,

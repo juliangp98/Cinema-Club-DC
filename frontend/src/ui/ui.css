@@ -14,7 +14,7 @@
 }
 .deco.center { transform-origin: center; }
 /* Older title classes that predate the kit get the same marquee face. */
-.auth-logo, .marquee-text, .group-section-title {
+.auth-logo, .marquee-text {
   font-family: var(--font-deco); font-weight: 400; letter-spacing: 0.04em;
 }
 .auth-logo, .marquee-text { display: inline-block; transform: scaleX(0.88); }

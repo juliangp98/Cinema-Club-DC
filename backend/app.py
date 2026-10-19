@@ -1200,13 +1200,13 @@ def apply_votes(user, poll, votes_data, clear=()):
 def open_polls(group_id, user_id, limit):
     """A club's open polls, newest first, and whether `user_id` has voted in
     each: [{id, title, you_voted}]."""
-    polls = Poll.query.filter_by(group_id=group_id, status='open').order_by(Poll.created_at.desc()).limit(limit).all()
+    open_ = Poll.query.filter_by(group_id=group_id, status='open').order_by(Poll.created_at.desc()).limit(limit).all()
     cats = {}
-    for c in PollCategory.query.filter(PollCategory.poll_id.in_([p.id for p in polls])) if polls else []:
+    for c in PollCategory.query.filter(PollCategory.poll_id.in_([p.id for p in open_])) if open_ else []:
         cats[c.id] = c.poll_id
     voted = {cats[v.category_id] for v in PollVote.query.filter(PollVote.category_id.in_(list(cats)),
                                                                 PollVote.user_id == user_id)} if cats else set()
-    return [{'id': p.id, 'title': p.title, 'you_voted': p.id in voted} for p in polls]
+    return [{'id': p.id, 'title': p.title, 'you_voted': p.id in voted} for p in open_]
 
 
 def vote_kernels(scoring_mode, vote, correct_option_id):
@@ -1473,7 +1473,7 @@ if os.environ.get('WARM_PUBLIC_CACHE') == '1':
     start_warming()
 
 
-from migrations import migrate, prepare_db, seed_admin, seed_theatres  # noqa: E402,F401 — re-exported
+from migrations import migrate, prepare_db, seed_theatres  # noqa: E402,F401 — re-exported
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 # Each area registers its routes on `app` when imported (routes/*.py).
