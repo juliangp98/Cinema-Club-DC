@@ -1,17 +1,10 @@
 import { Link } from "react-router-dom";
 import Panel from "./Panel";
+import MiniBingo from "./MiniBingo";
 
 // What there is to play today (R10 Play), from /api/play: the feed's side
 // rail on wide screens, and one row of chips on phones (and the Club page),
 // each leading to its game on the Play page. Games the club has off are left out.
-
-function MiniBingo({ cells }) {
-  return (
-    <span className="mini-bingo" aria-hidden="true">
-      {cells.map((on, i) => <span key={i} className={on ? "on" : ""} />)}
-    </span>
-  );
-}
 
 export function GamesRail({ summary }) {
   if (!summary) return null;

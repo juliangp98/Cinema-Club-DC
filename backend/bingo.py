@@ -292,17 +292,13 @@ def feed_events(group_id, member_ids, since):
     return ev
 
 
-def view(group, user, month=None):
-    """The card as the site and /play (My bingo card) show it: every square (and the
-    screening — or, R15, the diary entry — that filled it), your lines, and
-    how the club is doing."""
-    from app import GroupMembership, _screening_item
-    if not group or not group.bingo_enabled:
-        return {'enabled': False}
-    card = card_for(group, month)
-    mine = progress(card, user.id)
+def squares_of(p):
+    """A card's nine squares as the site shows them, for one member's
+    progress `p`: what each asks for, and the screening — or (R15) the diary
+    entry — that filled it."""
+    from app import _screening_item
     squares = []
-    for i, cell in enumerate(mine['squares']):
+    for cell in p['squares']:
         if cell is None:
             squares.append({'key': 'free', 'emoji': '🍿', 'label': 'Free', 'hint': 'On the house', 'done': True})
             continue
@@ -312,6 +308,57 @@ def view(group, user, month=None):
                         'by': _screening_item(s) if s else None,
                         'home': {'title': entry.title, 'watched_on': entry.watched_on.isoformat(), 'link': entry.link}
                         if entry else None})
+    return squares
+
+
+def mini(p):
+    """A member's card at a glance (7g): {filled, line, full, cells} — the
+    nine cells filled or not, for the small cards."""
+    return {'filled': p['filled'], 'line': bool(p['line_at']), 'full': bool(p['full_at']),
+            'cells': [i == FREE or bool(cell and (cell[1] or cell[3])) for i, cell in enumerate(p['squares'])]}
+
+
+HISTORY_MONTHS = 6
+
+
+def club_cards(group, month=None):
+    """Everyone's card this month at a glance (7g, the strip on Play): the
+    club's active members, most filled first."""
+    from app import GroupMembership
+    card = card_for(group, month)
+    rows = [{'user': m.user.public_dict(), **mini(progress(card, m.user_id))}
+            for m in GroupMembership.query.filter_by(group_id=group.id, status='active') if m.user]
+    rows.sort(key=lambda r: (-r['filled'], r['user']['name'].lower()))
+    start, _ = month_bounds(card.month)
+    return {'month': card.month, 'month_label': start.strftime('%B'), 'cards': rows}
+
+
+def member_cards(group, user_id, month=None):
+    """One member's bingo (7g, their page and a tap on the strip): this
+    month's card square by square (diary squares with their titles), and
+    their last HISTORY_MONTHS cards at a glance."""
+    from app import BingoCard
+    card = card_for(group, month)
+    p = progress(card, user_id)
+    start, _ = month_bounds(card.month)
+    history = []
+    for past in (BingoCard.query.filter(BingoCard.group_id == group.id, BingoCard.month < card.month)
+                 .order_by(BingoCard.month.desc()).limit(HISTORY_MONTHS)):
+        history.append({'month': past.month, 'month_label': month_bounds(past.month)[0].strftime('%b'), **mini(progress(past, user_id))})
+    return {'month': card.month, 'month_label': start.strftime('%B %Y'), 'squares': squares_of(p), **mini(p),
+            'history': history}
+
+
+def view(group, user, month=None):
+    """The card as the site and /play (My bingo card) show it: every square (and the
+    screening — or, R15, the diary entry — that filled it), your lines, and
+    how the club is doing."""
+    from app import GroupMembership
+    if not group or not group.bingo_enabled:
+        return {'enabled': False}
+    card = card_for(group, month)
+    mine = progress(card, user.id)
+    squares = squares_of(mine)
     club = []
     for m in GroupMembership.query.filter_by(group_id=group.id, status='active'):
         if m.user_id == user.id or not m.user:

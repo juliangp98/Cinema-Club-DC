@@ -8,6 +8,8 @@ import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { accountLabel } from "../accountLabel";
 import { useJson } from "../api";
 import { kernelParts } from "../kernels";
+import { useShell } from "../shell/AppShell";
+import { MemberGames } from "../components/GameRecords";
 
 const BACK = { to: "/club?tab=members", label: "Members" };
 
@@ -16,6 +18,7 @@ const BACK = { to: "/club?tab=members", label: "Members" };
 // something together. Every member's picture and name leads here; your own
 // is the Me page. Only people who share a club with you.
 export default function PersonPage({ user, apiBase, groupId }) {
+  const shell = useShell() || {};
   const id = Number(useParams().id);
   const own = user && id === user.id;
   const { data: person, error } = useJson(own || !id ? null : `${apiBase}/api/users/${id}/profile`);
@@ -69,6 +72,9 @@ export default function PersonPage({ user, apiBase, groupId }) {
           <TasteChips taste={person.taste} empty={<p className="ui-hint">Nothing picked yet.</p>} />
         </>
       )}
+
+      {/* 7g: their bingo and game records, in the club you're looking from. */}
+      <MemberGames apiBase={apiBase} group={shell.group} userId={person.id} name={person.name} />
 
       </div>
       {/* Wide screens (7f): their lists beside who they are. */}

@@ -117,7 +117,7 @@ def test_in_the_leaderboard_and_the_kernel_rules(club):
     answer(club, rid, 'after' if truth(rid) == 'before' else 'before')
     rows = {r['user']['name']: r for r in client(club['ana']).get(f"/api/groups/{club['G']}/leaderboard",
                                                                    query_string={'period': 'month'}).json['rows']}
-    assert rows['Bo']['breakdown']['games'] == 1 and rows['Bo']['stats']['quizzes'] == {'rounds': 1, 'best_streak': 1}
+    assert rows['Bo']['breakdown']['games'] == 1 and rows['Bo']['stats']['quizzes'] == {'rounds': 1, 'best_streak': 1, 'right': 0}
     rules = client(club['bo']).get('/api/kernels', query_string={'group_id': club['G']}).json['rules']
     assert rules['games'] == [{'label': 'Higher or lower', 'each': 1, 'per_day': 5, 'by_step': False}]
 

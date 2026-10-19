@@ -175,3 +175,29 @@ def test_bingo_makes_the_monday_recap(club):
         r = _feed_recap(club['G'], '2026-10-05', events, users)
         assert [u['name'] for u in r['recap']['bingo']] == ['Bo']
         assert _feed_recap(club['G'], '2026-10-05', [], users) is None           # a quiet week: no card
+
+
+def test_everyones_card_and_a_members_with_their_past_cards(club):
+    """7g: the club's cards this month at a glance (most filled first, everyone in the club), and one
+    member's card square by square with their last six — for members of the club only."""
+    import bingo
+    from app import app, db, BingoCard
+    turn_on(club)
+    set_card(club, ['film', 'pre1960', 'horror', 'matinee', 'long', 'double', 'watchlist', 'new_theatre'])
+    with app.app_context():
+        prev = (datetime.now().replace(day=1) - timedelta(days=1))
+        db.session.add(BingoCard(group_id=club['G'], month=bingo.month_of(prev), squares_json=json.dumps(
+            ['film', 'pre1960', 'horror', 'matinee', 'long', 'double', 'watchlist', 'new_theatre'])))
+        db.session.commit()
+    sid, _ = show('NOSFERATU', this_month(2, 14), fmt='35mm')
+    went(club['Bo'], sid)
+    strip = client(club['Cy']).get('/api/bingo/club', query_string={'group_id': club['G']}).json
+    names = [c['user']['name'] for c in strip['cards']]
+    assert names[0] == 'Bo' and set(names) == {'Ana', 'Bo', 'Cy'}                    # Out isn't in the club
+    bo = strip['cards'][0]
+    assert bo['line'] and bo['filled'] == 6 and len(bo['cells']) == 9 and bo['cells'][4] is True and 'email' not in bo['user']
+    mine = client(club['Cy']).get(f"/api/bingo/people/{club['Bo']}", query_string={'group_id': club['G']}).json
+    assert next(s for s in mine['squares'] if s['key'] == 'film')['by']['title'] == 'NOSFERATU'
+    assert [h['month'] for h in mine['history']] == [bingo.month_of(prev)] and mine['history'][0]['filled'] == 0
+    assert client(club['Cy']).get(f"/api/bingo/people/{club['Out']}", query_string={'group_id': club['G']}).status_code == 404
+    assert client(club['Out']).get('/api/bingo/club', query_string={'group_id': club['G']}).status_code == 403

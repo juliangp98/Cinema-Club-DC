@@ -809,6 +809,23 @@ a.share-state { color: var(--green); }
 .ui-save-status.ok { color: var(--green); }
 .ui-save-status.err { color: var(--red); }
 
+/* Numbers at a glance (7g, ui/StatTiles): a row of tiles. */
+.ui-stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.6rem; }
+.ui-stat { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.65rem 0.8rem; border-radius: var(--radius);
+           background: var(--card-bg, var(--bg3)); border: 1px solid var(--card-border, var(--border)); }
+.ui-stat-label { font-size: var(--fs-xs); color: var(--muted); }
+.ui-stat-value { font-size: var(--fs-xl); color: var(--cream); line-height: 1.2; }
+.ui-stat-sub { font-size: var(--fs-xs); color: var(--muted); }
+/* A small table of numbers (7g: Records): sortable column heads, your row in gold. */
+.ui-table-wrap { overflow-x: auto; }
+.ui-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ui-table th, .ui-table td { padding: 0.45rem 0.5rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ui-table th:first-child, .ui-table td:first-child { text-align: left; }
+.ui-table th { font-weight: 600; font-size: var(--fs-xs); color: var(--muted); }
+.ui-table th button { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.ui-table th button:hover, .ui-table th[aria-sort] button { color: var(--amber); }
+.ui-table tr.me td { background: var(--gold-wash); }
+
 /* The arrival glow (7f, arrive.js): whatever a #link points at, lit gold for
    2.5 s when you land on it. It never blocks: no overlay, no pointer events. */
 .arrive-glow { animation: arrive-glow 2.5s ease-out forwards; outline: 2px solid var(--amber); outline-offset: 3px; }

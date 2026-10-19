@@ -1079,9 +1079,33 @@ button.feed-title:hover { color: var(--amber); }
 .ui-panel.rail-bingo { flex-direction: row; align-items: center; justify-content: space-between; }
 .rail-bingo-text { display: flex; flex-direction: column; gap: 0.2rem; }
 .rail-play { align-self: flex-start; }
-.mini-bingo { display: grid; grid-template-columns: repeat(3, 12px); gap: 3px; }
-.mini-bingo span { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
+.mini-bingo { --cell: 12px; display: inline-grid; grid-template-columns: repeat(3, var(--cell)); gap: 3px; flex: none; }
+.mini-bingo.md { --cell: 15px; padding: 4px; border-radius: var(--radius); border: 1px solid var(--border); }
+.mini-bingo span { width: var(--cell); height: var(--cell); border-radius: 3px; border: 1px solid var(--border); }
 .mini-bingo span.on { background: var(--green); border-color: var(--green); }
+.mini-bingo.line { border-color: var(--amber); }                       /* a line: a gold edge */
+.mini-bingo.full { border-color: var(--amber); box-shadow: 0 0 0 2px var(--bg2), 0 0 0 3px var(--amber); }   /* the full card: a double one */
+/* Everyone's card this month (7g, Play): one swipeable row of small cards; tap one for theirs. */
+.club-bingo { margin-top: 0.75rem; }
+.club-bingo-row { list-style: none; margin: 0.4rem 0 0; padding: 0 0 4px; display: flex; gap: 0.9rem; overflow-x: auto; scrollbar-width: thin; }
+.club-bingo-who { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.35rem 0.4rem; border-radius: var(--radius);
+                  background: none; border: 1px solid transparent; color: var(--muted); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.club-bingo-who:hover, .club-bingo-who:focus-visible { border-color: var(--border-strong); color: var(--cream); }
+.club-bingo-who.me { color: var(--amber); }
+.club-bingo-name { max-width: 6.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bingo-grid.compact .bingo-cell { padding: 0.35rem; min-height: 0; }
+.bingo-grid.compact .bingo-emoji { font-size: 1rem; }
+/* Records (7g, Play → Records) and a member's Games (their page). */
+.records-head { margin-bottom: 0.9rem; }
+.records-section { margin-bottom: 1.5rem; }
+.records-section .ui-settings-group-title { margin-bottom: 0.45rem; }
+.member-games { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.member-games .ui-hint { margin: 0; }
+.member-bingo { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: flex-start; }
+.member-bingo-card { flex: 1 1 280px; max-width: 420px; }
+.member-bingo-history { flex: 1 1 200px; }
+.member-bingo-past { list-style: none; margin: 0.35rem 0 0; padding: 0; display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.member-bingo-past li { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); color: var(--muted); }
 .play-section { margin-bottom: 1.5rem; }
 /* Play (R15, layout A): the games beside your kernels and the standings;
    phones: one column, your numbers as chips up top. */

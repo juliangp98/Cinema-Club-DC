@@ -246,6 +246,10 @@
   "club-announcements": {
    "label": "Club settings → Theatres",
    "to": "/club?tab=settings#settings-theatres"
+  },
+  "play-records": {
+   "label": "Records on Play",
+   "to": "/play?tab=records"
   }
  },
  "sections": [
@@ -478,6 +482,16 @@
      "id": "bingo",
      "q": "How does repertory bingo work?",
      "a": "[One card a month](play-bingo) for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more. If the club counts Letterboxd diaries ([Club settings → Games](club-settings-games)), films you log that month fill the film squares too — era, genre, length, your watchlist — marked 🏠; a line that needs one is +3, the full card +10. Anything seen in person counts first."
+    },
+    {
+     "id": "others-bingo",
+     "q": "Can I see other members' bingo cards?",
+     "a": "Yes — under your card on [Play](play-bingo), the club's cards this month sit in one row (a gold edge is a line). Tap one to see its squares and the films that filled them. Each member's page has their card too, and their last six months."
+    },
+    {
+     "id": "records",
+     "q": "Where are the game records?",
+     "a": "On Play's [Records](play-records) tab: yours, everyone's — a table you can sort by trivia, streaks, bingo, the quiz games or poll picks — and the club's totals, for this month, this year or all time. A member's page shows their all-time records."
     },
     {
      "id": "games-discord",

@@ -129,17 +129,20 @@ def _bingo(group, user_ids, since):
 
 
 def _quizzes(group, user_ids, since):
-    """{uid: {rounds, best_streak}} — quiz games played (R15), and the longest
-    higher-or-lower run."""
+    """{uid: {rounds, best_streak, right}} — quiz games played (R15), the
+    longest higher-or-lower run, and the other games' rounds got right (7g,
+    Records)."""
     from app import QuizRound
     q = QuizRound.query.filter(QuizRound.group_id == group.id, QuizRound.user_id.in_(list(user_ids)))
     if since:
         q = q.filter(QuizRound.day >= since.date())
-    out = {uid: {'rounds': 0, 'best_streak': 0} for uid in user_ids}
+    out = {uid: {'rounds': 0, 'best_streak': 0, 'right': 0} for uid in user_ids}
     for r in q:
         out[r.user_id]['rounds'] += 1
         if r.kind == 'higher_lower':
             out[r.user_id]['best_streak'] = max(out[r.user_id]['best_streak'], r.score)
+        elif r.score:
+            out[r.user_id]['right'] += 1
     return out
 
 

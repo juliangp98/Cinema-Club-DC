@@ -410,6 +410,40 @@ def bingo_card():
     return jsonify(bingo.view(db.session.get(Group, group_id), current_user()))
 
 
+@app.route('/api/bingo/club')
+@require_auth
+def bingo_club():
+    """Everyone's card this month at a glance (7g): the strip under yours on Play."""
+    import bingo
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    group = db.session.get(Group, group_id)
+    if not group.bingo_enabled:
+        return jsonify({'enabled': False})
+    return jsonify({'enabled': True, **bingo.club_cards(group)})
+
+
+@app.route('/api/bingo/people/<int:user_id>')
+@require_auth
+def bingo_person(user_id):
+    """A member's bingo (7g): this month's card square by square and their last
+    six — for members of the same club."""
+    import bingo
+    from app import GroupMembership
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    group = db.session.get(Group, group_id)
+    if not group.bingo_enabled:
+        return jsonify({'enabled': False})
+    if not GroupMembership.query.filter_by(group_id=group_id, user_id=user_id, status='active').first():
+        return jsonify({'error': 'Not in this club'}), 404
+    return jsonify({'enabled': True, **bingo.member_cards(group, user_id)})
+
+
 # ─── Play (R10) ───────────────────────────────────────────────────────────────
 
 @app.route('/api/play')

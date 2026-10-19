@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { runsClub } from "../roles";
 import { useJson } from "../api";
-import { dayDateTime, monthDay } from "../dates";
+import BingoGrid from "./BingoGrid";
 import Panel from "./Panel";
 
 // Repertory bingo (R10e): this month's club card, filled in from your
@@ -19,29 +19,13 @@ export default function BingoCard({ apiBase, groupId, role, offNote = false }) {
   return (
     <Panel tone="gold" className="bingo-card" aria-labelledby="bingo-title" titleId="bingo-title"
            title={`🎱 Repertory bingo · ${data.month_label}`} hint={status}>
-      <ol className="bingo-grid" aria-label="Your card">
-        {data.squares.map(s => (
-          <li key={s.key} className={`bingo-cell${s.done ? " done" : ""}${s.home ? " home" : ""}${s.key === "free" ? " free" : ""}`}
-              title={s.by ? `${s.by.title} · ${dayDateTime(s.by.start_time)} · ${s.by.theatre}`
-                : s.home ? `${s.home.title} · watched at home ${monthDay(`${s.home.watched_on}T12:00:00`)}` : s.hint}>
-            <span className="bingo-emoji" aria-hidden="true">{s.emoji}</span>
-            <span className="bingo-label">{s.label}</span>
-            {s.key !== "free" && (
-              <span className="bingo-sub">{s.by ? `✓ ${s.by.title}` : s.home ? `🏠 ${s.home.title}` : s.hint}</span>
-            )}
-            <span className="sr-only">{s.done ? "— done" : "— not yet"}</span>
-          </li>
-        ))}
-      </ol>
+      <BingoGrid squares={data.squares} />
       <p className="ui-hint">
         Fills in by itself when you check in ("Went") to a screening this month. First line +{data.rules.line} 🍿,
         the full card +{data.rules.full} 🍿{data.kernels ? ` · you've earned ${data.kernels}` : ""}.
         {data.rules.home && <> 🏠 Films in your Letterboxd diary this month fill the film squares too (era, genre, length,
           your watchlist) — a line that needs one is +{data.rules.home_line}, the full card +{data.rules.home_full}.</>}
       </p>
-      {data.club.length > 0 && (
-        <p className="ui-hint">The club: {data.club.slice(0, 6).map(r => `${r.user.name} ${r.filled}/8${r.full ? " 🎉🎉" : r.line ? " 🎉" : ""}`).join(" · ")}</p>
-      )}
     </Panel>
   );
 }

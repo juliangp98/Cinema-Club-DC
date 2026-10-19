@@ -25,7 +25,7 @@ test("the card: nine squares, what filled them, and how you're doing", async () 
   expect(cells[4]).toHaveClass("free");
   expect(within(card).getByText("🎉 Bingo! Now fill the whole card")).toBeInTheDocument();
   expect(within(card).getByText(/you've earned 5/)).toBeInTheDocument();
-  expect(within(card).getByText("The club: Bo 4/8 🎉")).toHaveClass("ui-hint");
+  expect(within(card).queryByText(/The club:/)).toBeNull();                        // everyone's cards: the strip under it (records.test)
 });
 
 test("off: only admins see where to turn it on", async () => {
