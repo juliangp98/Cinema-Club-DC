@@ -19,6 +19,10 @@ const ATTENDED = [
 
 const day = weekday, date = monthDay;
 
+// What a sold-out showing says. One gone from the venue's site is "off sale":
+// most likely sold out (some venues just drop a full show), still RSVP-able.
+export const soldOutLabel = s => (s.off_sale ? "Off sale — likely sold out" : "Sold out");
+
 // The standing choice for things that could happen on your behalf (sharing to
 // Discord, Letterboxd check-ins): ask each time, always, or never.
 export const ASK_ALWAYS_NEVER = [
@@ -80,7 +84,7 @@ export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAtt
           <span className="ticket-time">{time(start)}</span>
           {s.end_time && <span className="ticket-end">– {time(new Date(s.end_time))}</span>}
           {s.format_label && <span className="chip gold">{s.format_label}</span>}
-          {s.is_sold_out && !started && <span className="chip ticket-soldout">Sold out</span>}
+          {s.is_sold_out && !started && <span className="chip ticket-soldout">{soldOutLabel(s)}</span>}
         </div>
         {showTheatre && s.theatre && <div className="ticket-where"><TheatreLink theatre={s.theatre} /></div>}
         {s.event_label && <div className="ticket-billing">{s.event_label}</div>}

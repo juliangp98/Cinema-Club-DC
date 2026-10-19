@@ -92,13 +92,16 @@ def regal_site(monkeypatch, sleeps):
             return Resp(429, day, {'Retry-After': '7'})
         return Resp(200, day)
     monkeypatch.setitem(sys.modules, 'curl_cffi', types.SimpleNamespace(requests=types.SimpleNamespace(get=get)))
+    from scrapers import regal
+    for name, fresh in (('_days', None), ('_missed', set()), ('_error', None)):
+        monkeypatch.setattr(regal, name, fresh)       # each test is its own run
     return types.SimpleNamespace(days=days, calls=calls, throttled=throttled, sleeps=sleeps)
 
 
 def test_regal_waits_as_long_as_asked_then_succeeds(regal_site):
     from scrapers import regal
     regal_site.throttled[regal_site.days[1]] = 1
-    out = regal.scrape_regal('1551', 'regal-gallery-place-4dx-1551')
+    out = regal.scrape_regal('1551', 'regal-gallery-place-4dx-1551', deep=True)
     assert 7 in regal_site.sleeps and regal_site.calls.count(regal_site.days[1]) == 2
     assert len(out) == 1 and len(out[0]['showtimes']) == 6 and out.missed_dates == set()
 
@@ -108,7 +111,7 @@ def test_regal_backs_off_then_stops_for_the_night(regal_site):
     days = regal_site.days
     for d in days[1:4]:
         regal_site.throttled[d] = 'always'
-    out = regal.scrape_regal('1551', 'regal-gallery-place-4dx-1551')
+    out = regal.scrape_regal('1551', 'regal-gallery-place-4dx-1551', deep=True)
     assert [s for s in regal_site.sleeps if s >= 15][:3] == [15, 45, 120]          # 15 s, 45 s, 2 min per date
     assert days[4] not in regal_site.calls and days[5] not in regal_site.calls     # three throttled days: stop asking
     assert out.missed_dates == set(days[1:6])
@@ -142,10 +145,10 @@ def sync(scraped):
     sync_to_db(next(c for c in THEATRE_REGISTRY if c.slug == 'regal-gallery'), scraped)
 
 
-def cancelled_by_day(k):
+def off_sale_by_day(k):
     from app import app, Showtime
     with app.app_context():
-        return {s.start_time.date(): s.is_cancelled for s in Showtime.query.filter_by(movie_id=k['movie'], theatre_id=k['theatre'])}
+        return {s.start_time.date(): bool(s.off_sale_at) for s in Showtime.query.filter_by(movie_id=k['movie'], theatre_id=k['theatre'])}
 
 
 def other_film(k):
@@ -156,11 +159,11 @@ def test_sync_keeps_showtimes_on_dates_it_couldnt_check(keeper):
     from scrapers.base import ScrapeResult
     day = keeper['day']
     sync(ScrapeResult([other_film(keeper)], missed_dates={day(2), day(3), day(4)}))
-    st = cancelled_by_day(keeper)
-    assert st[day(1)] is True                                  # checked, and gone: cancelled
+    st = off_sale_by_day(keeper)
+    assert st[day(1)] is True                                  # checked, and gone: off sale
     assert st[day(2)] is False and st[day(3)] is False         # couldn't be fetched: kept
 
 
-def test_a_complete_scrape_cancels_what_disappeared(keeper):
+def test_a_complete_scrape_takes_what_disappeared_off_sale(keeper):
     sync([other_film(keeper)])
-    assert all(cancelled_by_day(keeper).values())
+    assert all(off_sale_by_day(keeper).values())

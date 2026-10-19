@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from .base import new_movie_dict, parse_ampm_time, make_showtime, with_retry
+from .base import Blocked, finish_scrape, looks_blocked, new_movie_dict, parse_ampm_time, make_showtime, with_retry
 
 BASE = 'https://www.si.edu'
 MOVIE_HREF_RE = re.compile(r'/(?:theaters|imax)/movie/[a-z0-9-]+$', re.I)
@@ -31,6 +31,8 @@ def _fetch(url):
         def go():
             r = cffi_requests.get(url, impersonate='chrome', timeout=25)
             r.raise_for_status()
+            if looks_blocked(r.text):          # si.edu's "request verification" page
+                raise Blocked('served a bot check instead of the page')
             return r.text
 
         _page_cache[url] = with_retry(go, label=url)
@@ -42,6 +44,7 @@ def scrape_smithsonian(theater_slug):
     """Scrape one Smithsonian theater ('lockheedmartin' or 'airbus')."""
     print(f"Scraping Smithsonian IMAX ({theater_slug})...")
     movies = []
+    error, skipped = None, 0
 
     try:
         theater_html = _fetch(f'{BASE}/theaters/{theater_slug}')
@@ -55,19 +58,22 @@ def scrape_smithsonian(theater_slug):
                 if url not in movie_urls:
                     movie_urls.append(url)
 
+        if not movie_urls:
+            raise ValueError("no films on the theater page — has its layout changed?")
         for url in movie_urls:
             try:
                 movie = _scrape_movie_page(url, theater_slug)
-                if movie and movie['showtimes']:
+                if movie is None:
+                    raise ValueError("no title — not a film page")
+                if movie['showtimes']:
                     movies.append(movie)
             except Exception as e:
+                skipped += 1
                 print(f"  Error on SI movie page {url}: {e}")
 
     except Exception as e:
-        print(f"  ERROR scraping Smithsonian {theater_slug}: {e}")
-
-    print(f"  Found {len(movies)} movies at Smithsonian {theater_slug}")
-    return movies
+        error = e
+    return finish_scrape(f'Smithsonian {theater_slug}', movies, error, skipped=skipped)
 
 
 def _scrape_movie_page(url, theater_slug):
@@ -75,6 +81,7 @@ def _scrape_movie_page(url, theater_slug):
     soup = BeautifulSoup(html, 'html.parser')
 
     movie = new_movie_dict()
+    movie['runtime_minutes'] = None          # unless the page says (below); sync uses the film's
 
     h1 = soup.find('h1')
     if h1:

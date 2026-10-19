@@ -25,20 +25,43 @@ BROWSER_HEADERS = {
 }
 
 
-def get_soup(url, timeout=15, retries=3, headers=None):
-    headers = headers or {'User-Agent': BOT_UA}
+RETRY_STATUS = (429, 500, 502, 503, 504)       # "busy" answers worth another try
+_http = None
+
+
+def http():
+    """One pooled requests.Session per process, so a scraper's page after
+    page reuses its connection instead of opening a new one each time."""
+    global _http
+    if _http is None:
+        _http = requests.Session()
+    return _http
+
+
+def _get(session, url, timeout, retries, **kwargs):
+    """GET with retries: connection failures and timeouts back off 1s, 2s…;
+    a 429/5xx waits what the site asks (Retry-After), else the same back-off.
+    Raises the last error."""
     for attempt in range(retries):
+        last = attempt == retries - 1
         try:
-            r = requests.get(url, headers=headers, timeout=timeout)
-            r.raise_for_status()
-            return BeautifulSoup(r.text, 'html.parser')
+            r = session.get(url, timeout=timeout, **kwargs)
         except (requests.ConnectionError, requests.Timeout):
-            if attempt < retries - 1:
-                wait = 2 ** attempt
-                print(f"  Retry {attempt + 1}/{retries} for {url} (waiting {wait}s)")
-                time.sleep(wait)
-            else:
+            if last:
                 raise
+            wait = 2 ** attempt
+        else:
+            if r.status_code not in RETRY_STATUS or last:
+                r.raise_for_status()
+                return r
+            wait = retry_after(r, 2 ** attempt)
+        print(f"  Retry {attempt + 1}/{retries} for {url} (waiting {wait:.0f}s)")
+        time.sleep(wait)
+
+
+def get_soup(url, timeout=15, retries=3, headers=None):
+    r = _get(http(), url, timeout, retries, headers=headers or {'User-Agent': BOT_UA})
+    return BeautifulSoup(r.text, 'html.parser')
 
 
 def browser_session():
@@ -49,27 +72,32 @@ def browser_session():
 
 
 def get_json(session, url, timeout=15, retries=3, **kwargs):
-    """GET a JSON endpoint through a session with retry/backoff."""
+    """GET a JSON endpoint through a session, retrying like get_soup (and on
+    a garbled body)."""
     for attempt in range(retries):
+        r = _get(session, url, timeout, retries, **kwargs)
         try:
-            r = session.get(url, timeout=timeout, **kwargs)
-            r.raise_for_status()
             return r.json()
-        except (requests.ConnectionError, requests.Timeout, ValueError):
-            if attempt < retries - 1:
-                wait = 2 ** attempt
-                print(f"  Retry {attempt + 1}/{retries} for {url} (waiting {wait}s)")
-                time.sleep(wait)
-            else:
+        except ValueError:
+            if attempt == retries - 1:
                 raise
+            time.sleep(2 ** attempt)
+
+
+class Blocked(RuntimeError):
+    """The site served a bot check instead of the page. Not retried: asking
+    again straight away only makes it stricter."""
 
 
 def with_retry(fn, attempts=3, base_delay=1.0, label=''):
     """Run fn() with exponential backoff. Retries any exception (covers
-    transient DNS resolution failures, connection resets, and rate limits)."""
+    transient DNS resolution failures, connection resets, and rate limits)
+    except Blocked."""
     for i in range(attempts):
         try:
             return fn()
+        except Blocked:
+            raise
         except Exception as e:
             if i < attempts - 1:
                 wait = base_delay * (2 ** i)
@@ -81,13 +109,44 @@ def with_retry(fn, attempts=3, base_delay=1.0, label=''):
 
 
 class ScrapeResult(list):
-    """A scraper's movie list plus the dates it couldn't fetch. Sync cancels
-    showtimes that disappeared only on dates that were actually checked, so a
-    rate-limited or failed day never wipes real screenings off the calendar.
-    Plain lists still work (every date counts as checked)."""
-    def __init__(self, movies=(), missed_dates=()):
+    """A scraper's movie list plus what it couldn't check. Sync only takes
+    showtimes off sale where it looked: never on `missed_dates` (dates it
+    couldn't fetch), and nowhere at all on a `partial` run (a page failed
+    partway, so a film's showings may just be unread). Plain lists still work
+    (everything counts as checked)."""
+    def __init__(self, movies=(), missed_dates=(), partial=False):
         super().__init__(movies)
         self.missed_dates = set(missed_dates)
+        self.partial = partial
+
+
+def finish_scrape(label, movies, error=None, missed_dates=(), skipped=0):
+    """How every scraper ends. An error (or failed pages) with nothing read is
+    raised, so the run is recorded as failed (and the owner hears, once a day). An error
+    after some films, or `skipped` films whose pages failed, makes a partial
+    result: what was read is kept and nothing is taken off sale."""
+    if not movies and error is not None:
+        raise error
+    if not movies and skipped:
+        raise RuntimeError(f"every page failed ({skipped}); nothing read")
+    partial = error is not None or skipped > 0
+    if error is not None:
+        print(f"  {label}: stopped partway ({error}) — keeping {len(movies)} films, taking nothing off sale")
+    elif skipped:
+        print(f"  {label}: {skipped} page(s) failed — taking nothing off sale this run")
+    print(f"  Found {len(movies)} movies at {label}")
+    return ScrapeResult(movies, missed_dates, partial=partial)
+
+
+_BLOCK_MARKERS = ('request verification', 'just a moment', 'attention required', 'verify you are human')
+
+
+def looks_blocked(html):
+    """A bot-check page served in place of the real one (si.edu, Cloudflare).
+    Its <title> gives it away; parsing it would read as a film with no shows."""
+    m = re.search(r'<title[^>]*>(.*?)</title>', html or '', re.I | re.S)
+    title = (m.group(1) if m else '').strip().lower()
+    return any(k in title for k in _BLOCK_MARKERS)
 
 
 def polite_pause(seconds, jitter=1.0):
@@ -106,15 +165,22 @@ def retry_after(response, default):
 class PerDateFetcher:
     """Pacing + a circuit breaker for scrapers that make one request per date:
     after `max_consecutive_failures` failures in a row it stops asking (the
-    site is throttling us), and every date it didn't get is reported missed."""
-    def __init__(self, label, pause=2.0, jitter=1.0, max_consecutive_failures=3):
+    site is throttling us), and every date it didn't get is reported missed.
+    `budget` (seconds) caps how long one run() may take; dates past it are
+    missed too, and checked another time."""
+    def __init__(self, label, pause=2.0, jitter=1.0, max_consecutive_failures=3, budget=None):
         self.label, self.pause, self.jitter = label, pause, jitter
         self.max_failures, self.failures_in_row = max_consecutive_failures, 0
+        self.budget = budget
         self.missed = set()
         self.tripped = False
 
     def run(self, dates, fetch, ingest, to_date=lambda d: d):
+        began = time.monotonic()
         for d in dates:
+            if not self.tripped and self.budget is not None and time.monotonic() - began > self.budget:
+                self.tripped = True
+                print(f"  {self.label}: out of time for this run; the rest are checked another time")
             if self.tripped:
                 self.missed.add(to_date(d))
                 continue
@@ -158,8 +224,17 @@ def parse_ampm_time(text):
     return hour, minute
 
 
+SHOW_PAD = 20       # trailers etc.: a showing ends this long after the film would
+
+
+def show_end(start, runtime_minutes):
+    return start + datetime.timedelta(minutes=(runtime_minutes or 120) + SHOW_PAD)
+
+
 def make_showtime(start, runtime_minutes=120, purchase_link='', is_sold_out=False):
-    end = start + datetime.timedelta(minutes=(runtime_minutes or 120) + 20)
+    """A showtime dict. runtime_minutes=None (the venue doesn't say) leaves
+    end_time unset; sync fills it from the film's runtime once it's matched."""
+    end = show_end(start, runtime_minutes) if runtime_minutes else None
     return {
         'start_time': start,
         'end_time': end,

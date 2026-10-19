@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event";
 import BrowsePage from "../src/pages/BrowsePage";
 import Calendar from "../src/pages/Calendar";
 import FilterSheet from "../src/ui/FilterSheet";
+import TicketRow from "../src/ui/TicketRow";
 import { mockApi, renderPage } from "./support";
 
 // Tickets (R15): All · Available · Sold out · Coming soon on Browse and the
 // Calendar (and in the Filters sheet), kept in the address; announced films
-// show on the day a theatre expects them.
+// show on the day a theatre expects them. A showing gone from a theatre's
+// site is "Off sale — likely sold out" (Phase 8).
 
 const announced = { movie: { id: 9, title: "NEXT WEEK", year: 1999 }, theatre: { slug: "suns", name: "Suns Cinema", short_name: "Suns", color: "#c33" },
                     date: "2026-10-21" };
@@ -46,4 +48,16 @@ test("the Filters sheet has the same choice", async () => {
   expect(within(group).getByRole("button", { name: "Available" })).toHaveAttribute("aria-pressed", "true");
   await userEvent.click(within(group).getByRole("button", { name: "Coming soon" }));
   expect(onToggle).toHaveBeenCalledWith("tickets", "soon");
+});
+
+test("a showing gone from the theatre's site says it's off sale, and can still be RSVP'd", () => {
+  const show = (extra) => ({ id: 1, start_time: "2099-10-21T19:00:00", end_time: null, purchase_link: "https://example.test/t",
+                             theatre: { slug: "afi", name: "AFI Silver" }, is_sold_out: true, ...extra });
+  const { unmount } = renderPage(<TicketRow showtime={show({ off_sale: true })} apiBase="" onRsvp={() => {}} />);
+  expect(screen.getByText("Off sale — likely sold out")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Your RSVP" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /Tickets/ })).toBeNull();
+  unmount();
+  renderPage(<TicketRow showtime={show({})} apiBase="" onRsvp={() => {}} />);
+  expect(screen.getByText("Sold out")).toBeInTheDocument();
 });

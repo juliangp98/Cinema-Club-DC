@@ -2,31 +2,44 @@
 
 The site sits behind Cloudflare with TLS fingerprinting, so plain requests
 gets a JS challenge; curl_cffi with Chrome impersonation passes. One call
-per date: /api/getShowtimes?theatres=<code>&date=MM-DD-YYYY returns that
-day's shows plus `datesWithShows` (all bookable dates) and a `movies[]`
-metadata array (Duration, Actors, Directors, TrailerUrl, Description).
+per date: /api/getShowtimes?theatres=<codes>&date=MM-DD-YYYY returns that
+day's shows for every theatre asked about (one `shows[]` entry each), plus
+`datesWithShows` (all bookable dates) and a `movies[]` metadata array
+(Duration, Actors, Directors, TrailerUrl, Description).
 
-Regal rate-limits bursts (HTTP 429), and the full scrape runs overnight, so
-it's paced slowly: ~2–3s between requests, Retry-After honored with growing
-back-off, and after 3 failed dates in a row it stops for the night. Dates it
-didn't get are reported so their showtimes aren't treated as cancelled.
+Regal rate-limits bursts (HTTP 429): about 25 requests, then it refuses for
+minutes. So all our Regals share one request per date (fetched once per
+process), every run checks the next two weeks, and the dates further out are
+checked on one run a day, slowly. Retry-After is honored with growing
+back-off, and after 3 failed dates in a row it stops for the run. Dates it
+didn't get are reported so their showtimes are kept as they are.
 """
 
 import datetime
 import time
 
-from .base import PerDateFetcher, ScrapeResult, retry_after
+from .base import PerDateFetcher, finish_scrape, retry_after, show_end
 
 API_URL = 'https://www.regmovies.com/api/getShowtimes'
+CODES = ('1551', '0296', '1862')     # every Regal in the registry — one request covers them all
 MAX_DATES = 90              # safety cap on per-date requests per run
-REQUEST_PAUSE = 2.0         # seconds between requests (plus up to 1s jitter)
+NEAR_DAYS = 14              # checked on every run
+DEEP_EVERY = datetime.timedelta(hours=20)    # the dates past NEAR_DAYS: once a day
+DEEP_KEY = 'regal_deep_at'  # BotSetting: when they were last all checked
+REQUEST_PAUSE = 2.0         # seconds between near requests (plus up to 1s jitter)
+FAR_PAUSE = 20.0            # …and between far ones, which stay under the limit
+FAR_BUDGET = 40 * 60        # a deep run gives up on far dates after this long
 BACKOFF = (15, 45, 120)     # waits after successive 429s on one request
 
+_days = None                # {date: payload} for this process's run, shared by the Regals
+_missed = set()
+_error = None               # …or why the first request failed (not retried per theatre)
 
-def _fetch_day(cffi_requests, theatre_code, date_str):
+
+def _fetch_day(cffi_requests, date_str):
     for attempt in range(len(BACKOFF) + 1):
         r = cffi_requests.get(API_URL, params={
-            'theatres': theatre_code, 'date': date_str,
+            'theatres': ','.join(CODES), 'date': date_str,
             'hoCode': '', 'ignoreCache': 'false', 'moviesOnly': 'false',
         }, impersonate='chrome', timeout=25)
         if r.status_code in (429, 503) and attempt < len(BACKOFF):
@@ -38,39 +51,88 @@ def _fetch_day(cffi_requests, theatre_code, date_str):
         return r.json()
 
 
-def scrape_regal(theatre_code, theatre_path):
-    """Scrape one Regal theatre. Returns a ScrapeResult of movie dicts."""
-    print(f"Scraping Regal ({theatre_path})...")
-    movies_by_code = {}
-    results = []
-    fetcher = PerDateFetcher(f'Regal {theatre_path}', pause=REQUEST_PAUSE)
+def deep_due(now=None):
+    """Whether this run also checks the far dates (last full check 20h+ ago)."""
+    from app import app, db, BotSetting
+    now = now or datetime.datetime.utcnow()
+    with app.app_context():
+        row = db.session.get(BotSetting, DEEP_KEY)
+        try:
+            return not row or now - datetime.datetime.fromisoformat(row.value) >= DEEP_EVERY
+        except ValueError:
+            return True
 
+
+def _mark_deep(now=None):
+    from app import app, db, BotSetting
+    with app.app_context():
+        row = db.session.get(BotSetting, DEEP_KEY) or BotSetting(key=DEEP_KEY)
+        row.value = (now or datetime.datetime.utcnow()).isoformat()
+        db.session.add(row)
+        db.session.commit()
+
+
+def _load_days(deep=None):
+    """Every date's payload, fetched once per process for all CODES."""
+    global _days, _missed, _error
+    if _error is not None:
+        raise _error
+    if _days is not None:
+        return _days, _missed
+    from curl_cffi import requests as cffi_requests
+
+    today = datetime.date.today()
     try:
-        from curl_cffi import requests as cffi_requests
+        first = _fetch_day(cffi_requests, today.strftime('%m-%d-%Y'))
+    except Exception as e:
+        _error = e
+        raise
+    days = {today: first}
+    dates = set()
+    for ds in first.get('datesWithShows', []):
+        try:
+            d = datetime.datetime.fromisoformat(ds).date()
+        except ValueError:
+            continue
+        if d > today:
+            dates.add(d)
+    dates = sorted(dates)[:MAX_DATES]
+    cut = today + datetime.timedelta(days=NEAR_DAYS)
+    near, far = [d for d in dates if d < cut], [d for d in dates if d >= cut]
+    fetch = lambda d: (d, _fetch_day(cffi_requests, d.strftime('%m-%d-%Y')))
+    keep = lambda got: days.__setitem__(*got)
 
-        today = datetime.date.today()
-        first = _fetch_day(cffi_requests, theatre_code, today.strftime('%m-%d-%Y'))
+    near_f = PerDateFetcher('Regal', pause=REQUEST_PAUSE)
+    near_f.run(near, fetch, keep)
+    missed = set(near_f.missed)
+    if deep is None:
+        deep = deep_due()
+    if far and deep and not near_f.tripped:
+        far_f = PerDateFetcher('Regal (far dates)', pause=FAR_PAUSE, budget=FAR_BUDGET)
+        far_f.run(far, fetch, keep)
+        missed |= far_f.missed
+        if not far_f.missed:
+            _mark_deep()
+    else:
+        missed |= set(far)                 # not checked this run: their showtimes stay as they are
+    _days, _missed = days, missed
+    return days, missed
 
-        dates = []
-        for ds in first.get('datesWithShows', []):
-            try:
-                d = datetime.datetime.fromisoformat(ds).date()
-            except ValueError:
-                continue
-            if d >= today:
-                dates.append(d)
-        dates = sorted(set(dates))[:MAX_DATES]
 
-        meta = {}   # MasterMovieCode -> movies[] metadata entry
-
-        def ingest(payload):
+def scrape_regal(theatre_code, theatre_path, deep=None):
+    """Scrape one Regal theatre. Returns a ScrapeResult of movie dicts."""
+    label = f'Regal {theatre_path}'
+    print(f"Scraping {label}...")
+    results = []
+    try:
+        days, missed = _load_days(deep)
+        movies_by_code, meta = {}, {}      # MasterMovieCode -> showings / movies[] metadata entry
+        for payload in days.values():
             for mv in payload.get('movies', []):
                 code = mv.get('MasterMovieCode')
                 if code and code not in meta:
                     meta[code] = mv
             for day in payload.get('shows', []):
-                # Only this theatre's showtimes — the API is single-theatre per
-                # request, but guard against nearby-theatre bleed-through.
                 if str(day.get('TheatreCode') or '') != str(theatre_code):
                     continue
                 for film in day.get('Film', []):
@@ -80,10 +142,6 @@ def scrape_regal(theatre_code, theatre_path):
                         continue
                     entry = movies_by_code.setdefault(code, {'title': title, 'perfs': []})
                     entry['perfs'].extend(film.get('Performances', []))
-
-        ingest(first)
-        fetcher.run([d for d in dates if d != today],
-                    lambda d: _fetch_day(cffi_requests, theatre_code, d.strftime('%m-%d-%Y')), ingest)
 
         page_url = f"https://www.regmovies.com/theatres/{theatre_path}"
         for code, entry in movies_by_code.items():
@@ -110,18 +168,14 @@ def scrape_regal(theatre_code, theatre_path):
                     start = datetime.datetime.fromisoformat(ts)
                 except ValueError:
                     continue
-                end = start + datetime.timedelta(minutes=movie['runtime_minutes'] + 20)
                 movie['showtimes'].append({
                     'start_time': start,
-                    'end_time': end,
+                    'end_time': show_end(start, movie['runtime_minutes']),
                     'purchase_link': page_url,
                     'is_sold_out': bool(p.get('StopSales')),
                 })
             if movie['showtimes']:
                 results.append(movie)
-
     except Exception as e:
-        print(f"  ERROR scraping Regal {theatre_path}: {e}")
-
-    print(f"  Found {len(results)} movies at Regal {theatre_path}")
-    return ScrapeResult(results, fetcher.missed)
+        return finish_scrape(label, results, e)
+    return finish_scrape(label, results, missed_dates=missed)

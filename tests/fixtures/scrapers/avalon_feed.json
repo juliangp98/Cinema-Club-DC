@@ -1,0 +1,296 @@
+{
+ "ArrayOfShows": [
+  {
+   "ID": 658194,
+   "ExternalID": "658194",
+   "OrgID": 3469,
+   "Name": "Coutures",
+   "Duration": "104",
+   "ShortDescription": "An American filmmaker faces challenges and self-discovery as she arrives in Paris for Fashion Week on a life-and-death journey.",
+   "ShortDescriptive1": "",
+   "ShortDescriptive2": "",
+   "ExtraHTML": "",
+   "DisplayColor": "FFFFFF",
+   "EventImage": "https://prod5.agileticketing.net/images/user/avalon_3466/coutures_tmdb-pie2oundxykemxtf2kvj0h4lzor.jpg",
+   "ThumbImage": "https://prod5.agileticketing.net/images/user/avalon_3466/coutures_tmdb-pie2oundxykemxtf2kvj0h4lzor_thumb.jpg",
+   "InfoLink": "https://prod5.agileticketing.net/websales/pages/info.aspx?evtinfo=658194~6c8c0697-5bfe-46a4-9ff7-3b01a44d6e6f&",
+   "CustomProperties": [
+    {
+     "Name": "Release Year",
+     "Group": "Film Info",
+     "Sequence": 1,
+     "Hidden": false,
+     "Value": "2026",
+     "CustomPropertyID": 1225
+    },
+    {
+     "Name": "Genre",
+     "Group": "Film Info",
+     "Sequence": 2,
+     "Hidden": false,
+     "Value": "Drama",
+     "CustomPropertyID": 1227
+    },
+    {
+     "Name": "Production Country",
+     "Group": "Film Info",
+     "Sequence": 3,
+     "Hidden": false,
+     "Value": "France",
+     "CustomPropertyID": 1228
+    },
+    {
+     "Name": "Production Country",
+     "Group": "Film Info",
+     "Sequence": 4,
+     "Hidden": false,
+     "Value": "USA",
+     "CustomPropertyID": 1228
+    },
+    {
+     "Name": "Original Langauge",
+     "Group": "Film Info",
+     "Sequence": 5,
+     "Hidden": false,
+     "Value": "English",
+     "CustomPropertyID": 1229
+    },
+    {
+     "Name": "Original Langauge",
+     "Group": "Film Info",
+     "Sequence": 6,
+     "Hidden": false,
+     "Value": "French",
+     "CustomPropertyID": 1229
+    },
+    {
+     "Name": "Director",
+     "Group": "Cast/Crew Info",
+     "Sequence": 7,
+     "Hidden": false,
+     "Value": "Alice Winocour",
+     "CustomPropertyID": 1232
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 8,
+     "Hidden": false,
+     "Value": "Angelina Jolie",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 9,
+     "Hidden": false,
+     "Value": "Anyier Anei",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 10,
+     "Hidden": false,
+     "Value": "Ella Rumpf",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 11,
+     "Hidden": false,
+     "Value": "Louis Garrel",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 12,
+     "Hidden": false,
+     "Value": "Vincent Lindon",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Website",
+     "Group": "Social Media",
+     "Sequence": 13,
+     "Hidden": false,
+     "Value": "https://www.pathefilms.com/en/movies/coutures/",
+     "CustomPropertyID": 1238
+    }
+   ],
+   "CurrentShowings": [
+    {
+     "ID": 658195,
+     "DateTBD": false,
+     "StartDate": "2026-10-21T20:00:00",
+     "EndDate": "2026-10-21T21:44:00",
+     "Duration": "104",
+     "ShortDescriptive": "",
+     "ShortDescription": "An American filmmaker faces challenges and self-discovery as she arrives in Paris for Fashion Week on a life-and-death journey.",
+     "SalesMessage": "Buy Tickets",
+     "SalesState": "DuringSales",
+     "LegacyPurchaseLink": "https://prod5.agileticketing.net/websales/pages/ticketsearchcriteria.aspx?evtinfo=658195~6c8c0697-5bfe-46a4-9ff7-3b01a44d6e6f&",
+     "ContentDelivery": "InPerson",
+     "PurchasePrompt": "",
+     "MoreInfoPrompt": "",
+     "CustomProperties": [],
+     "Venue": {
+      "VenueID": 1054,
+      "Name": "Avalon 1",
+      "Short": "AVALON1",
+      "Address1": "5612 Connecticut Ave NW",
+      "Address2": "",
+      "City": "Washington",
+      "State": "DC",
+      "Zip": "20015"
+     }
+    }
+   ],
+   "LongDescription": ""
+  },
+  {
+   "ID": 662237,
+   "ExternalID": "662237",
+   "OrgID": 3469,
+   "Name": "L\u2019Affaire Marie-Claire (Women on Trial)",
+   "Duration": "102",
+   "ShortDescription": "1972. A landmark trial shakes France as young Marie-Claire is prosecuted for having an illegal abortion with the help of her mother and two other defendants. In a courtroom governed by men, the verdict seems inevitable: prison for the women, while the rapist goes unpunished. Their last hope lies with Gis\u00e8le Halimi, a fearless lawyer known for openly challenging patriarchy and confronting the system that condemns victims and lets perpetrators walk free. Alongside the accused, Gis\u00e8le will not only change their fate, but, against all odds, transform the condition of women forever",
+   "ShortDescriptive1": "",
+   "ShortDescriptive2": "",
+   "ExtraHTML": "",
+   "DisplayColor": "FFFFFF",
+   "EventImage": "https://prod5.agileticketing.net/images/user/avalon_3466/l\u2019affaire_marie-claire_tmdb-koylowisytdrbbed4mj9ooc0qgp.jpg",
+   "ThumbImage": "https://prod5.agileticketing.net/images/user/avalon_3466/l\u2019affaire_marie-claire_tmdb-koylowisytdrbbed4mj9ooc0qgp_thumb.jpg",
+   "InfoLink": "https://prod5.agileticketing.net/websales/pages/info.aspx?evtinfo=662237~6c8c0697-5bfe-46a4-9ff7-3b01a44d6e6f&",
+   "CustomProperties": [
+    {
+     "Name": "Release Year",
+     "Group": "Film Info",
+     "Sequence": 1,
+     "Hidden": false,
+     "Value": "2026",
+     "CustomPropertyID": 1225
+    },
+    {
+     "Name": "Genre",
+     "Group": "Film Info",
+     "Sequence": 2,
+     "Hidden": false,
+     "Value": "History",
+     "CustomPropertyID": 1227
+    },
+    {
+     "Name": "Genre",
+     "Group": "Film Info",
+     "Sequence": 3,
+     "Hidden": false,
+     "Value": "Drama",
+     "CustomPropertyID": 1227
+    },
+    {
+     "Name": "Production Country",
+     "Group": "Film Info",
+     "Sequence": 4,
+     "Hidden": false,
+     "Value": "France",
+     "CustomPropertyID": 1228
+    },
+    {
+     "Name": "Original Langauge",
+     "Group": "Film Info",
+     "Sequence": 5,
+     "Hidden": false,
+     "Value": "French",
+     "CustomPropertyID": 1229
+    },
+    {
+     "Name": "Director",
+     "Group": "Cast/Crew Info",
+     "Sequence": 6,
+     "Hidden": false,
+     "Value": "Lauriane Escaffre",
+     "CustomPropertyID": 1232
+    },
+    {
+     "Name": "Director",
+     "Group": "Cast/Crew Info",
+     "Sequence": 7,
+     "Hidden": false,
+     "Value": "Yvo Muller",
+     "CustomPropertyID": 1232
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 8,
+     "Hidden": false,
+     "Value": "Charlotte Gainsbourg",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 9,
+     "Hidden": false,
+     "Value": "C\u00e9cile de France",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 10,
+     "Hidden": false,
+     "Value": "Gr\u00e9gory Gadebois",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 11,
+     "Hidden": false,
+     "Value": "Sa\u00fcl Benchetrit",
+     "CustomPropertyID": 1233
+    },
+    {
+     "Name": "Cast",
+     "Group": "Cast/Crew Info",
+     "Sequence": 12,
+     "Hidden": false,
+     "Value": "Sarah Suco",
+     "CustomPropertyID": 1233
+    }
+   ],
+   "CurrentShowings": [
+    {
+     "ID": 662239,
+     "DateTBD": false,
+     "StartDate": "2026-11-18T20:00:00",
+     "EndDate": "2026-11-18T21:42:00",
+     "Duration": "102",
+     "ShortDescriptive": "",
+     "ShortDescription": "1972. A landmark trial shakes France as young Marie-Claire is prosecuted for having an illegal abortion with the help of her mother and two other defendants. In a courtroom governed by men, the verdict seems inevitable: prison for the women, while the rapist goes unpunished. Their last hope lies with Gis\u00e8le Halimi, a fearless lawyer known for openly challenging patriarchy and confronting the system that condemns victims and lets perpetrators walk free. Alongside the accused, Gis\u00e8le will not only change their fate, but, against all odds, transform the condition of women forever",
+     "SalesMessage": "Buy Tickets",
+     "SalesState": "DuringSales",
+     "LegacyPurchaseLink": "https://prod5.agileticketing.net/websales/pages/ticketsearchcriteria.aspx?evtinfo=662239~6c8c0697-5bfe-46a4-9ff7-3b01a44d6e6f&",
+     "ContentDelivery": "InPerson",
+     "PurchasePrompt": "",
+     "MoreInfoPrompt": "",
+     "CustomProperties": [],
+     "Venue": {
+      "VenueID": 1054,
+      "Name": "Avalon 1",
+      "Short": "AVALON1",
+      "Address1": "5612 Connecticut Ave NW",
+      "Address2": "",
+      "City": "Washington",
+      "State": "DC",
+      "Zip": "20015"
+     }
+    }
+   ],
+   "LongDescription": ""
+  }
+ ]
+}

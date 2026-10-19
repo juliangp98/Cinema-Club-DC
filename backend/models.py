@@ -313,7 +313,11 @@ class Showtime(db.Model):
     end_time = db.Column(db.DateTime)
     purchase_link = db.Column(db.String(500))
     is_sold_out = db.Column(db.Boolean, default=False)
-    is_cancelled = db.Column(db.Boolean, default=False)
+    is_cancelled = db.Column(db.Boolean, default=False)     # the venue said so (AMC); never guessed
+    # When it vanished from the venue's site — off sale, most likely sold out
+    # (AFI and others just drop a full show). It stays findable and
+    # RSVP-able, counted as sold out, until it reappears.
+    off_sale_at = db.Column(db.DateTime)
     # From the venue's label: '70mm', 'Digital', '70mm · IMAX'…
     format_label = db.Column(db.String(60))
     # The venue's own title when it differs from the film's ('EPIC SUNDAY: BATMAN BEGINS').
@@ -373,6 +377,7 @@ class Showtime(db.Model):
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'purchase_link': self.purchase_link,
             'is_sold_out': self.is_sold_out,
+            'off_sale': bool(self.off_sale_at),
             'format_label': self.format_label,
             'event_label': self.event_label,
             'attendees': attendees,
@@ -390,11 +395,12 @@ class ScrapeRun(db.Model):
     theatre_id = db.Column(db.Integer, db.ForeignKey('theatre.id'), nullable=False)
     started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     finished_at = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default='ok')  # 'ok', 'empty', 'error'
+    status = db.Column(db.String(20), default='ok')  # 'ok', 'partial' (took nothing off sale), 'empty', 'error'
     movies_found = db.Column(db.Integer, default=0)
     new_movies = db.Column(db.Integer, default=0)
     new_showtimes = db.Column(db.Integer, default=0)
-    cancelled_showtimes = db.Column(db.Integer, default=0)
+    cancelled_showtimes = db.Column(db.Integer, default=0)     # the venue cancelled them
+    off_sale_showtimes = db.Column(db.Integer, default=0)      # gone from the venue's site
     prev_max_date = db.Column(db.DateTime)
     new_max_date = db.Column(db.DateTime)
     error_text = db.Column(db.Text)

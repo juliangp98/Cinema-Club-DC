@@ -1,0 +1,426 @@
+[
+ {
+  "id": 427270,
+  "status": "publish",
+  "link": "https://sunscinema.com/movies/the-invasion/",
+  "title": {
+   "rendered": "THE INVASION",
+   "raw": "THE INVASION"
+  },
+  "content": {
+   "rendered": "<p>Washington, D.C. psychologist Carol Bennell and her colleague Dr. Ben Driscoll are the only two people on Earth who are aware of an epidemic running rampant through the city. They discover an alien virus aboard a crashed space shuttle that transforms anyone who comes into contact with it into unfeeling drones while they sleep. Carol realizes her son holds the key to stopping the spread of the p"
+  },
+  "_tmdb_id": "",
+  "_imdb_id": "tt0427392",
+  "_release_date": "2007-08-17",
+  "_length": "99",
+  "_start_date": "1792306800",
+  "director": [
+   {
+    "term_id": 14431,
+    "name": "Oliver Hirschbiegel",
+    "slug": "oliver-hirschbiegel",
+    "term_group": 0,
+    "term_taxonomy_id": 14431,
+    "taxonomy": "director",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "cast": [
+   {
+    "term_id": 14432,
+    "name": "Daniel Craig",
+    "slug": "daniel-craig",
+    "term_group": 0,
+    "term_taxonomy_id": 14432,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14433,
+    "name": "Jackson Bond",
+    "slug": "jackson-bond",
+    "term_group": 0,
+    "term_taxonomy_id": 14433,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14435,
+    "name": "Jeffrey Wright",
+    "slug": "jeffrey-wright",
+    "term_group": 0,
+    "term_taxonomy_id": 14435,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14434,
+    "name": "Jeremy Northam",
+    "slug": "jeremy-northam",
+    "term_group": 0,
+    "term_taxonomy_id": 14434,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 3441,
+    "name": "Nicole Kidman",
+    "slug": "nicole-kidman",
+    "term_group": 0,
+    "term_taxonomy_id": 3441,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 5,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "featured_media_url": "https://s3.amazonaws.com/nightjarprod/content/uploads/sites/197/2026/09/26153933/oS5rMuJXwNZZPx0ojhvjgduglD2.jpg"
+ },
+ {
+  "id": 427750,
+  "status": "publish",
+  "link": "https://sunscinema.com/movies/ganja-hess-baldwin-house-fundraiser/",
+  "title": {
+   "rendered": "GANJA &amp; HESS &#8211; BALDWIN HOUSE FUNDRAISER",
+   "raw": "GANJA &amp; HESS &#8211; BALDWIN HOUSE FUNDRAISER"
+  },
+  "content": {
+   "rendered": "<p><span>This is a fundraiser for The Baldwin House, presented in conjunction with DC Black Girl Film Club</span></p>\n<p>Flirting with the conventions of blaxploitation and horror, Bill Gunn\u2019s revolutionary independent film <em><span>Ganja &amp; Hess</span></em><span> is a highly stylized and utterly original treatise on sex, religion, and African American identity. Duane Jones (</span><em><span>N"
+  },
+  "_tmdb_id": "",
+  "_imdb_id": "tt0068619",
+  "_release_date": "1973-04-20",
+  "_length": "113",
+  "_start_date": "1791356400",
+  "director": [
+   {
+    "term_id": 156,
+    "name": "Bill Gunn",
+    "slug": "bill-gunn",
+    "term_group": 0,
+    "term_taxonomy_id": 156,
+    "taxonomy": "director",
+    "description": "",
+    "parent": 0,
+    "count": 4,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "cast": [
+   {
+    "term_id": 153,
+    "name": "Bill Gunn",
+    "slug": "bill-gunn",
+    "term_group": 0,
+    "term_taxonomy_id": 153,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 5,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 152,
+    "name": "Duane Jones",
+    "slug": "duane-jones",
+    "term_group": 0,
+    "term_taxonomy_id": 152,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 5,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 155,
+    "name": "Leonard Jackson",
+    "slug": "leonard-jackson",
+    "term_group": 0,
+    "term_taxonomy_id": 155,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 3,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 151,
+    "name": "Marlene Clark",
+    "slug": "marlene-clark",
+    "term_group": 0,
+    "term_taxonomy_id": 151,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 4,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 154,
+    "name": "Sam Waymon",
+    "slug": "sam-waymon",
+    "term_group": 0,
+    "term_taxonomy_id": 154,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 3,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "featured_media_url": "https://s3.amazonaws.com/nightjarprod/content/uploads/sites/197/2026/09/29175557/gXH43R5Avru4YPUF7WoQLrxPUP2.jpg"
+ },
+ {
+  "id": 427513,
+  "status": "publish",
+  "link": "https://sunscinema.com/movies/lord-shango/",
+  "title": {
+   "rendered": "LORD SHANGO",
+   "raw": "LORD SHANGO"
+  },
+  "content": {
+   "rendered": "<p>Presented by Britt Sankofa!</p>\n<div class=\"entry-content\">\n<div class=\"shortSynopsis\">\n<p>In this horror film, black African Christians confront the traditional religion of their peers when a Yoruban priest is drowned after attempting to stop the Christian baptism of a young girl and her mother. Trouble ensues when the priest comes back to life.</p>\n<p>\u201cRife with powerful allegory \u2026 A film of "
+  },
+  "_tmdb_id": "",
+  "_imdb_id": "tt0173990",
+  "_release_date": "1975-03-01",
+  "_length": "92",
+  "_start_date": "1793257200",
+  "director": [
+   {
+    "term_id": 14485,
+    "name": "Ray Marsh",
+    "slug": "ray-marsh",
+    "term_group": 0,
+    "term_taxonomy_id": 14485,
+    "taxonomy": "director",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "cast": [
+   {
+    "term_id": 14487,
+    "name": "Avis McCarther",
+    "slug": "avis-mccarther",
+    "term_group": 0,
+    "term_taxonomy_id": 14487,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14488,
+    "name": "Bill Overton",
+    "slug": "bill-overton",
+    "term_group": 0,
+    "term_taxonomy_id": 14488,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 6201,
+    "name": "Lawrence Cook",
+    "slug": "lawrence-cook",
+    "term_group": 0,
+    "term_taxonomy_id": 6201,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 2,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 151,
+    "name": "Marlene Clark",
+    "slug": "marlene-clark",
+    "term_group": 0,
+    "term_taxonomy_id": 151,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 4,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14486,
+    "name": "Wally Taylor",
+    "slug": "wally-taylor",
+    "term_group": 0,
+    "term_taxonomy_id": 14486,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "featured_media_url": "https://s3.amazonaws.com/nightjarprod/content/uploads/sites/197/2026/09/28152528/6jIfXsRT1QI1llpQ5SPud27sBDk.jpg"
+ },
+ {
+  "id": 427587,
+  "status": "publish",
+  "link": "https://sunscinema.com/movies/28-years-later/",
+  "title": {
+   "rendered": "28 YEARS LATER",
+   "raw": "28 YEARS LATER"
+  },
+  "content": {
+   "rendered": "<p>Twenty-eight years after the Rage virus outbreak, a heavily-defended island survives connected to the mainland by a single causeway. When one of the group leaves the island into the dark heart of the mainland, he discovers secrets, wonders, and horrors that have mutated not only the infected but other survivors as well.</p>\n"
+  },
+  "_tmdb_id": "",
+  "_imdb_id": "tt10548174",
+  "_release_date": "2025-06-18",
+  "_length": "115",
+  "_start_date": "",
+  "director": [
+   {
+    "term_id": 14210,
+    "name": "Danny Boyle",
+    "slug": "danny-boyle",
+    "term_group": 0,
+    "term_taxonomy_id": 14210,
+    "taxonomy": "director",
+    "description": "",
+    "parent": 0,
+    "count": 3,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "cast": [
+   {
+    "term_id": 14489,
+    "name": "Aaron Taylor-Johnson",
+    "slug": "aaron-taylor-johnson",
+    "term_group": 0,
+    "term_taxonomy_id": 14489,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14402,
+    "name": "Alfie Williams",
+    "slug": "alfie-williams",
+    "term_group": 0,
+    "term_taxonomy_id": 14402,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 2,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 11651,
+    "name": "Jack O'Connell",
+    "slug": "jack-oconnell",
+    "term_group": 0,
+    "term_taxonomy_id": 11651,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 3,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 14490,
+    "name": "Jodie Comer",
+    "slug": "jodie-comer",
+    "term_group": 0,
+    "term_taxonomy_id": 14490,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 1,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   },
+   {
+    "term_id": 4352,
+    "name": "Ralph Fiennes",
+    "slug": "ralph-fiennes",
+    "term_group": 0,
+    "term_taxonomy_id": 4352,
+    "taxonomy": "cast",
+    "description": "",
+    "parent": 0,
+    "count": 6,
+    "filter": "raw",
+    "nj_site_id": null,
+    "order": "0"
+   }
+  ],
+  "featured_media_url": "https://s3.amazonaws.com/nightjarprod/content/uploads/sites/197/2026/09/29112442/n5FygjEppOvac6yEaowi26nTyw3-scaled.jpg"
+ }
+]

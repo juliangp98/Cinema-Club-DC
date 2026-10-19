@@ -321,7 +321,7 @@
     {
      "id": "tickets",
      "q": "Can I hide sold-out showings — or see what's coming?",
-     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) — [watchlist one](help:watchlist) to hear the moment tickets go on sale. Discover's suggestions only ever pick showings you can still get into."
+     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) — [watchlist one](help:watchlist) to hear the moment tickets go on sale. A showing that disappears from a theatre's site says “Off sale — likely sold out” (some theatres just drop a full show); it counts as sold out, and your RSVP stays. Discover's suggestions only ever pick showings you can still get into."
     },
     {
      "id": "film-theatre-pages",

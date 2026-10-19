@@ -6,12 +6,12 @@ market). The feed is fetched once per market per process.
 
 Feed shape (data.*): presentations[] {slug, show{title, posterImages,
 headline, certification}}, sessions[] {cinemaId, presentationSlug,
-showTimeClt (local ET ISO), status}, market[0].cinemas[] {id, slug, name}.
+showTimeClt (local ET ISO), status (ONSALE/SOLDOUT), isHidden}, market[0].cinemas[] {id, slug, name}.
 """
 
 import datetime
 
-from .base import browser_session, get_json, new_movie_dict, make_showtime
+from .base import browser_session, finish_scrape, get_json, new_movie_dict, make_showtime
 
 MARKET_FEED = 'https://drafthouse.com/s/mother/v2/schedule/market/{market}'
 
@@ -29,6 +29,7 @@ def scrape_alamo(market_slug, cinema_slug):
     """Scrape one Alamo cinema out of a market feed. Returns list of movie dicts."""
     print(f"Scraping Alamo Drafthouse ({cinema_slug})...")
     movies = []
+    error = None
 
     try:
         data = _market_feed(market_slug).get('data', {})
@@ -49,7 +50,7 @@ def scrape_alamo(market_slug, cinema_slug):
 
         by_presentation = {}
         for s in data.get('sessions', []):
-            if s.get('cinemaId') != cinema_id:
+            if s.get('cinemaId') != cinema_id or s.get('isHidden'):
                 continue
             slug = s.get('presentationSlug')
             if slug not in shows:
@@ -64,6 +65,7 @@ def scrape_alamo(market_slug, cinema_slug):
             show = shows[slug]
             movie = new_movie_dict()
             movie['title'] = show['title']
+            movie['runtime_minutes'] = None      # the feed doesn't say; sync uses the film's
             movie['description'] = show.get('headline') or ''
             posters = show.get('posterImages') or []
             if posters and posters[0].get('uri'):
@@ -79,7 +81,5 @@ def scrape_alamo(market_slug, cinema_slug):
             movies.append(movie)
 
     except Exception as e:
-        print(f"  ERROR scraping Alamo {cinema_slug}: {e}")
-
-    print(f"  Found {len(movies)} movies at Alamo {cinema_slug}")
-    return movies
+        error = e
+    return finish_scrape(f'Alamo {cinema_slug}', movies, error)

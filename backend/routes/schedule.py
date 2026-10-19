@@ -560,6 +560,8 @@ def og_showtime(showtime_id):
         bits.append(s.event_label)
     if s.is_cancelled:
         bits.append('cancelled')
+    elif s.off_sale_at:
+        bits.append('off sale — likely sold out')
     elif s.is_sold_out:
         bits.append('sold out')
     description = ' · '.join(bits) + (f"\n{_blurb(s.movie.description)}" if s.movie.description else '')

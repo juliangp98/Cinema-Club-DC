@@ -5,7 +5,7 @@ import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import FilterSheet, { listOf } from "../ui/FilterSheet";
 import SearchBox from "../ui/SearchBox";
 import Avatar from "../ui/Avatar";
-import { Segmented } from "../ui/TicketRow";
+import { Segmented, soldOutLabel } from "../ui/TicketRow";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
 import AttendancePrompt from "../components/AttendancePrompt";
 import "./DiscoverPage.css";        // the Filters sheet looks the same as Browse's
@@ -134,7 +134,7 @@ function TimeChips({ entry, onOpen, compact = false }) {
           {shows.map(s => (
             <button key={s.id} type="button" onClick={() => onOpen(shows, s)}
                     className={`cal-time${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}
-                    title={[s.format_label, s.event_label, s.is_sold_out && "Sold out"].filter(Boolean).join(" · ") || undefined}>
+                    title={[s.format_label, s.event_label, s.is_sold_out && soldOutLabel(s)].filter(Boolean).join(" · ") || undefined}>
               {time(s.start_time)}{s.format_label && !compact ? <span className="cal-time-fmt">{s.format_label}</span> : null}
             </button>
           ))}

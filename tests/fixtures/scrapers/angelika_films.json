@@ -1,0 +1,237 @@
+{
+ "nowShowing": {
+  "data": {
+   "movies": [
+    {
+     "movieSlug": "sense-and-sensibility-2026",
+     "name": "SENSE AND SENSIBILITY (2026)",
+     "youtube_id": "https://www.youtube.com/watch?v=mcrwcvad84U",
+     "synopsis": "<p>From Focus Features and Working Title comes an irresistible new take on Jane Austen&rsquo;s iconic Sense and Sensibility: a charming, witty, and deeply relatable story of love and sisterhood starring Daisy Edgar-Jones and Esm&eacute; Creed-Miles.</p>\r\n",
+     "director": "Georgia Oakley",
+     "cast": "\u00a0\r\n\r\nDaisy Edgar-Jones, Esm\u00e9 Creed-Miles, Caitr\u00edona Balfe, Frank Dillane with George MacKay and Fiona Shaw\r\n",
+     "length": "132",
+     "release_date": "2026-10-16",
+     "moviePoster": "29844",
+     "showdates": [
+      {
+       "date": "2026-10-19",
+       "showtypes": [
+        {
+         "type": "Colossal Screen",
+         "subType": "",
+         "amenities": [
+          "Colossal Screen"
+         ],
+         "showtimes": [
+          {
+           "id": "104389",
+           "ScheduledFilmId": "HO00008932",
+           "date_time": "2026-10-19T10:45:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "277",
+           "enabled": true,
+           "caption": 1,
+           "type": "Colossal Screen",
+           "statusCode": "0",
+           "totalNumberOfSeats": "300",
+           "searchAttributes": "Colossal Screen",
+           "soldout": false
+          },
+          {
+           "id": "104390",
+           "ScheduledFilmId": "HO00008932",
+           "date_time": "2026-10-19T13:30:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "278",
+           "enabled": true,
+           "caption": 1,
+           "type": "Colossal Screen",
+           "statusCode": "0",
+           "totalNumberOfSeats": "300",
+           "searchAttributes": "Colossal Screen",
+           "soldout": false
+          },
+          {
+           "id": "104388",
+           "ScheduledFilmId": "HO00008932",
+           "date_time": "2026-10-19T16:25:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "277",
+           "enabled": true,
+           "caption": 1,
+           "type": "Colossal Screen",
+           "statusCode": "0",
+           "totalNumberOfSeats": "300",
+           "searchAttributes": "Colossal Screen",
+           "soldout": false
+          },
+          {
+           "id": "104387",
+           "ScheduledFilmId": "HO00008932",
+           "date_time": "2026-10-19T19:15:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "271",
+           "enabled": true,
+           "caption": 1,
+           "type": "Colossal Screen",
+           "statusCode": "0",
+           "totalNumberOfSeats": "300",
+           "searchAttributes": "Colossal Screen",
+           "soldout": false
+          },
+          {
+           "id": "105970",
+           "ScheduledFilmId": "HO00008932",
+           "date_time": "2026-10-19T21:30:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "300",
+           "enabled": true,
+           "caption": 1,
+           "type": "Colossal Screen",
+           "statusCode": "0",
+           "totalNumberOfSeats": "300",
+           "searchAttributes": "Colossal Screen",
+           "soldout": false
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "movieSlug": "street-fighter",
+     "name": "STREET FIGHTER",
+     "youtube_id": "https://www.youtube.com/watch?v=gX0Btbbddxk",
+     "synopsis": "<p>Set in 1993, estranged Street Fighters Ryu (Andrew Koji) and Ken Masters (Noah Centineo) are thrown back into combat&nbsp;when the mysterious Chun-Li (Callina Liang) recruits them for the next World Warrior Tournament: a brutal clash of fists, fate,&nbsp;and fury. But behind this battle royale li",
+     "director": "Kitao Sakurai",
+     "cast": "Jason Momoa, David Dastmalchian, Noah Centineo, 50 Cent, Eric Andre, Andrew Schulz\r\n",
+     "length": "119",
+     "release_date": "2026-10-16",
+     "moviePoster": "29137",
+     "showdates": [
+      {
+       "date": "2026-10-19",
+       "showtypes": [
+        {
+         "type": "Standard",
+         "subType": "",
+         "amenities": [
+          "Standard"
+         ],
+         "showtimes": [
+          {
+           "id": "105958",
+           "ScheduledFilmId": "HO00009072",
+           "date_time": "2026-10-19T10:45:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "216",
+           "enabled": true,
+           "caption": 1,
+           "type": "Standard",
+           "statusCode": "0",
+           "totalNumberOfSeats": "217",
+           "searchAttributes": "Standard",
+           "soldout": false
+          },
+          {
+           "id": "105957",
+           "ScheduledFilmId": "HO00009072",
+           "date_time": "2026-10-19T13:20:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "216",
+           "enabled": true,
+           "caption": 1,
+           "type": "Standard",
+           "statusCode": "0",
+           "totalNumberOfSeats": "217",
+           "searchAttributes": "Standard",
+           "soldout": false
+          },
+          {
+           "id": "105969",
+           "ScheduledFilmId": "HO00009072",
+           "date_time": "2026-10-19T19:20:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "155",
+           "enabled": true,
+           "caption": 1,
+           "type": "Standard",
+           "statusCode": "0",
+           "totalNumberOfSeats": "155",
+           "searchAttributes": "Standard",
+           "soldout": false
+          },
+          {
+           "id": "105972",
+           "ScheduledFilmId": "HO00009072",
+           "date_time": "2026-10-19T21:25:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "216",
+           "enabled": true,
+           "caption": 1,
+           "type": "Standard",
+           "statusCode": "0",
+           "totalNumberOfSeats": "217",
+           "searchAttributes": "Standard",
+           "soldout": false
+          }
+         ]
+        },
+        {
+         "type": "Open Captions",
+         "subType": "",
+         "amenities": [
+          "Open Captions"
+         ],
+         "showtimes": [
+          {
+           "id": "105771",
+           "ScheduledFilmId": "HO00009073",
+           "date_time": "2026-10-19T16:30:00-04",
+           "auditorium": "",
+           "reservedSeating": 1,
+           "availableSeats": "154",
+           "enabled": true,
+           "caption": 1,
+           "type": "Open Captions",
+           "statusCode": "0",
+           "totalNumberOfSeats": "155",
+           "searchAttributes": "Open Captions",
+           "soldout": false
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "filter": {
+    "session": [
+     {
+      "label": "2026-10-19",
+      "value": "2026-10-19"
+     },
+     {
+      "label": "2026-10-20",
+      "value": "2026-10-20"
+     },
+     {
+      "label": "2026-10-21",
+      "value": "2026-10-21"
+     }
+    ]
+   }
+  }
+ }
+}

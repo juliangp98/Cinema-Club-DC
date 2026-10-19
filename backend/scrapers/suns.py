@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup
 
-from .base import BOT_UA, get_json, get_soup, new_movie_dict, parse_ampm_time, make_showtime
+from .base import BOT_UA, finish_scrape, get_json, get_soup, new_movie_dict, parse_ampm_time, make_showtime
 
 SHOWS_API = 'https://sunscinema.com/wp-json/nj/v1/show'
 ET = ZoneInfo('America/New_York')
@@ -18,10 +18,13 @@ def scrape_suns():
     """Scrape Suns Cinema upcoming films. Returns list of movie dicts."""
     print("Scraping Suns Cinema...")
     movies = []
+    error = None
 
     try:
         soup = get_soup('https://sunscinema.com/upcoming-films-3/')
         containers = soup.find_all('div', class_='showtimes-description')
+        if not containers:
+            raise ValueError("no films on the upcoming page — has its layout changed?")
 
         for container in containers:
             movie = new_movie_dict()
@@ -77,21 +80,20 @@ def scrape_suns():
                     if not st_tag:
                         continue
 
-                    # Parse time text (e.g. "6:00 pm")
-                    time_text = st_tag.find(string=True, recursive=False)
-                    if not time_text:
-                        time_text = st_tag.get_text(strip=True)
-                    time_text = time_text.strip().rstrip('Sold Out').strip()
+                    # The time ("6:00 pm") is the tag's own text; a sold-out
+                    # one adds <span class="extra">Sold Out</span> after it.
+                    time_text = st_tag.find(string=True, recursive=False) or st_tag.get_text(' ', strip=True)
+                    time_text = re.sub(r'(?i)sold\s*out', '', time_text).strip()
 
-                    # Build datetime: date from epoch + time from text
-                    date_obj = datetime.date.fromtimestamp(epoch)
+                    # Date from the epoch (in DC, whatever the server's clock), time from the text
+                    date_obj = datetime.datetime.fromtimestamp(epoch, ET).date()
                     hm = parse_ampm_time(time_text)
                     if not hm:
                         continue
                     start = datetime.datetime(date_obj.year, date_obj.month, date_obj.day, hm[0], hm[1])
 
                     is_sold_out = 'sold-out' in st_tag.get('class', [])
-                    purchase_link = st_tag.get('href', '') if st_tag.name == 'a' else ''
+                    purchase_link = st_tag.get('href', '')     # a sold-out <span> keeps its href too
 
                     movie['showtimes'].append(make_showtime(
                         start, movie['runtime_minutes'],
@@ -103,10 +105,8 @@ def scrape_suns():
                 movies.append(movie)
 
     except Exception as e:
-        print(f"  ERROR scraping Suns: {e}")
-
-    print(f"  Found {len(movies)} movies at Suns Cinema")
-    return movies
+        error = e
+    return finish_scrape('Suns Cinema', movies, error)
 
 
 def scrape_suns_announced(pages=2):

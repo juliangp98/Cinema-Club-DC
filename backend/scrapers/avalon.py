@@ -8,7 +8,7 @@ link, SalesState, and Venue (Avalon 1/2 — same building).
 
 import datetime
 
-from .base import browser_session, get_json, new_movie_dict
+from .base import browser_session, finish_scrape, get_json, new_movie_dict, show_end
 
 FEED_URL = ('https://prod5.agileticketing.net/websales/feed.ashx'
             '?guid=ebe3acab-05c7-4109-9a69-78d1846b26af&showslist=true&format=json')
@@ -23,6 +23,7 @@ def scrape_avalon():
     """Scrape the Avalon Theatre. Returns list of movie dicts."""
     print("Scraping Avalon Theatre...")
     movies = []
+    error = None
 
     try:
         session = browser_session()
@@ -60,7 +61,7 @@ def scrape_avalon():
                 try:
                     end = datetime.datetime.fromisoformat(showing['EndDate'])
                 except (KeyError, ValueError):
-                    end = start + datetime.timedelta(minutes=movie['runtime_minutes'] + 20)
+                    end = show_end(start, movie['runtime_minutes'])
 
                 sales_state = (showing.get('SalesState') or '').lower()
                 movie['showtimes'].append({
@@ -75,7 +76,5 @@ def scrape_avalon():
                 movies.append(movie)
 
     except Exception as e:
-        print(f"  ERROR scraping Avalon: {e}")
-
-    print(f"  Found {len(movies)} movies at Avalon Theatre")
-    return movies
+        error = e
+    return finish_scrape('Avalon Theatre', movies, error)

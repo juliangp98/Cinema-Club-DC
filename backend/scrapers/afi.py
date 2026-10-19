@@ -5,13 +5,16 @@ import re
 import time
 from urllib.parse import urljoin
 
-from .base import get_soup, new_movie_dict, parse_ampm_time, make_showtime
+from .base import finish_scrape, get_soup, new_movie_dict, parse_ampm_time, make_showtime
+
+MAX_FILMS = 300     # safety cap on film pages per run (AFI lists ~100)
 
 
 def scrape_afi():
     """Scrape AFI Silver Theatre. Returns list of movie dicts."""
     print("Scraping AFI Silver Theatre...")
     movies = []
+    error, skipped = None, 0
 
     base_url = 'https://silver.afi.com'
 
@@ -25,9 +28,15 @@ def scrape_afi():
             href = a['href']
             if 'movies/detail/' in href:
                 film_links.add(urljoin(base_url, href))
+        if not film_links:
+            raise ValueError("no films on Now Playing — has its layout changed?")
+        if len(film_links) > MAX_FILMS:
+            skipped += len(film_links) - MAX_FILMS
+            print(f"  AFI lists {len(film_links)} films; reading the first {MAX_FILMS}")
 
-        # Process all discovered film pages (with a generous safety cap).
-        for link in sorted(film_links)[:100]:
+        # Every film page: AFI's showtimes (and runtimes) are only there. A
+        # sold-out showing isn't marked — it's just gone from the page.
+        for link in sorted(film_links)[:MAX_FILMS]:
             try:
                 film_soup = get_soup(link)
                 movie = new_movie_dict()
@@ -36,8 +45,9 @@ def scrape_afi():
 
                 # Title
                 h1 = film_soup.find('h1')
-                if h1:
-                    movie['title'] = h1.get_text(strip=True)
+                if not h1:
+                    raise ValueError("no title — not a film page")
+                movie['title'] = h1.get_text(strip=True)
 
                 # Description – first substantial paragraph after the title.
                 if h1:
@@ -102,10 +112,9 @@ def scrape_afi():
                 time.sleep(0.5)
 
             except Exception as e:
+                skipped += 1
                 print(f"  Error on AFI film page {link}: {e}")
 
     except Exception as e:
-        print(f"  ERROR scraping AFI: {e}")
-
-    print(f"  Found {len(movies)} movies at AFI Silver")
-    return movies
+        error = e
+    return finish_scrape('AFI Silver', movies, error, skipped=skipped)

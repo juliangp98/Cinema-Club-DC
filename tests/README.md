@@ -25,6 +25,7 @@ first time.
 | `backend/` | the site's API, by feature (`test_basics.py`, `test_search.py`, …) |
 | `bot/` | the Discord bot's commands, buttons and loops |
 | `fixtures/base.db` | an old database (real films and showtimes, fake accounts) every test starts from, so migrations are exercised too |
+| `fixtures/scrapers/` | each venue's page or feed as it was served (trimmed to a few films, contact details removed), for `test_scraper_pages.py`. When a site changes, save a fresh copy here and update its test |
 | `conftest.py` | per-test setup: a fresh database copy, a private uploads folder, cleared caches, module settings put back afterwards |
 | `helpers.py` | `client(uid)` (signed-in test client), `H` (internal API header), `setup_db()`, `all_linked_present()`, `film_id()`, `patch_bot_api()`, `FakeInteraction`, `items_of()`, `seed_compare_pair()` |
 | `fake_groq.py` | a stand-in for the AI provider (scripted replies, real error types) |

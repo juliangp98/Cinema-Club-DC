@@ -149,7 +149,9 @@ def _showtime_line(s, include_counts=True):
     line = f"`{_fmt_time(s['start_time'])}` **{s['movie']['title']}** @ {theatre}"
     if s.get('format_label'):
         line += f" · {s['format_label']}"
-    if s.get('is_sold_out'):
+    if s.get('off_sale'):
+        line += ' *(off sale — likely sold out)*'
+    elif s.get('is_sold_out'):
         line += ' *(sold out)*'
     if include_counts and (s.get('attendees') or s.get('attendees_more')):
         shown = s.get('attendees') or []

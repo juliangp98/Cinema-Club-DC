@@ -1,0 +1,716 @@
+{
+ "shows": [
+  {
+   "TheatreCode": "1551",
+   "AdvertiseShowDate": "2026-10-20T00:00:00",
+   "UtcDate": "2026-10-20T04:00:00.000Z",
+   "Film": [
+    {
+     "Title": "Street Fighter",
+     "MasterMovieCode": "HO00020435",
+     "Performances": [
+      {
+       "Auditorium": 13,
+       "PerformanceId": 268343,
+       "PerformanceAttributes": [
+        "4DX",
+        "CC",
+        "DV",
+        "No Passes",
+        "Stadium",
+        "2D",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "4DX",
+       "CalendarShowTime": "2026-10-20T16:20:00",
+       "UtcShowTime": "2026-10-20T20:20:00.000Z",
+       "UnixTime": 1792513200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 9,
+       "PerformanceId": 268340,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T16:40:00",
+       "UtcShowTime": "2026-10-20T20:40:00.000Z",
+       "UnixTime": 1792514400000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 13,
+       "PerformanceId": 268344,
+       "PerformanceAttributes": [
+        "4DX",
+        "CC",
+        "DV",
+        "No Passes",
+        "Stadium",
+        "2D",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "4DX",
+       "CalendarShowTime": "2026-10-20T19:10:00",
+       "UtcShowTime": "2026-10-20T23:10:00.000Z",
+       "UnixTime": 1792523400000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    },
+    {
+     "Title": "Whalefall",
+     "MasterMovieCode": "HO00021872",
+     "Performances": [
+      {
+       "Auditorium": 12,
+       "PerformanceId": 270287,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T12:30:00",
+       "UtcShowTime": "2026-10-20T16:30:00.000Z",
+       "UnixTime": 1792499400000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 13,
+       "PerformanceId": 270284,
+       "PerformanceAttributes": [
+        "2D",
+        "4DX",
+        "CC",
+        "DV",
+        "No Passes",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "4DX",
+       "CalendarShowTime": "2026-10-20T13:30:00",
+       "UtcShowTime": "2026-10-20T17:30:00.000Z",
+       "UnixTime": 1792503000000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 7,
+       "PerformanceId": 268964,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T14:10:00",
+       "UtcShowTime": "2026-10-20T18:10:00.000Z",
+       "UnixTime": 1792505400000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    }
+   ],
+   "time": 1792384218274
+  },
+  {
+   "TheatreCode": "0296",
+   "AdvertiseShowDate": "2026-10-20T00:00:00",
+   "UtcDate": "2026-10-20T04:00:00.000Z",
+   "Film": [
+    {
+     "Title": "Street Fighter",
+     "MasterMovieCode": "HO00020435",
+     "Performances": [
+      {
+       "Auditorium": 7,
+       "PerformanceId": 212431,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T13:50:00",
+       "UtcShowTime": "2026-10-20T17:50:00.000Z",
+       "UnixTime": 1792504200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 7,
+       "PerformanceId": 212428,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T16:40:00",
+       "UtcShowTime": "2026-10-20T20:40:00.000Z",
+       "UnixTime": 1792514400000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 7,
+       "PerformanceId": 212434,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T19:30:00",
+       "UtcShowTime": "2026-10-20T23:30:00.000Z",
+       "UnixTime": 1792524600000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    },
+    {
+     "Title": "Whalefall",
+     "MasterMovieCode": "HO00021872",
+     "Performances": [
+      {
+       "Auditorium": 12,
+       "PerformanceId": 212430,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T15:20:00",
+       "UtcShowTime": "2026-10-20T19:20:00.000Z",
+       "UnixTime": 1792509600000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 12,
+       "PerformanceId": 212427,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T18:00:00",
+       "UtcShowTime": "2026-10-20T22:00:00.000Z",
+       "UnixTime": 1792519200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 12,
+       "PerformanceId": 212433,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T20:30:00",
+       "UtcShowTime": "2026-10-21T00:30:00.000Z",
+       "UnixTime": 1792528200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    }
+   ],
+   "time": 1792384244583
+  },
+  {
+   "TheatreCode": "1862",
+   "AdvertiseShowDate": "2026-10-20T00:00:00",
+   "UtcDate": "2026-10-20T04:00:00.000Z",
+   "Film": [
+    {
+     "Title": "Street Fighter",
+     "MasterMovieCode": "HO00020435",
+     "Performances": [
+      {
+       "Auditorium": 2,
+       "PerformanceId": 372417,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T12:20:00",
+       "UtcShowTime": "2026-10-20T16:20:00.000Z",
+       "UnixTime": 1792498800000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 20,
+       "PerformanceId": 370098,
+       "PerformanceAttributes": [
+        "CC",
+        "DV",
+        "IMAX",
+        "No Passes",
+        "Stadium",
+        "2D",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "IMAX",
+       "CalendarShowTime": "2026-10-20T13:00:00",
+       "UtcShowTime": "2026-10-20T17:00:00.000Z",
+       "UnixTime": 1792501200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 2,
+       "PerformanceId": 372418,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T15:20:00",
+       "UtcShowTime": "2026-10-20T19:20:00.000Z",
+       "UnixTime": 1792509600000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    },
+    {
+     "Title": "Whalefall",
+     "MasterMovieCode": "HO00021872",
+     "Performances": [
+      {
+       "Auditorium": 4,
+       "PerformanceId": 370909,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T11:50:00",
+       "UtcShowTime": "2026-10-20T15:50:00.000Z",
+       "UnixTime": 1792497000000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 4,
+       "PerformanceId": 370910,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T14:25:00",
+       "UtcShowTime": "2026-10-20T18:25:00.000Z",
+       "UnixTime": 1792506300000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      },
+      {
+       "Auditorium": 4,
+       "PerformanceId": 370913,
+       "PerformanceAttributes": [
+        "2D",
+        "CC",
+        "DV",
+        "Recliner",
+        "Stadium",
+        "Reserved-Selected"
+       ],
+       "PerformanceGroup": "",
+       "CalendarShowTime": "2026-10-20T19:40:00",
+       "UtcShowTime": "2026-10-20T23:40:00.000Z",
+       "UnixTime": 1792525200000,
+       "StopSales": false,
+       "SeatAllocationType": "2"
+      }
+     ]
+    }
+   ],
+   "time": 1792384243583
+  }
+ ],
+ "datesWithShows": [
+  "2026-10-19T00:00:00",
+  "2026-10-20T00:00:00",
+  "2026-10-21T00:00:00"
+ ],
+ "movies": [
+  {
+   "RelatedFormats": [
+    "18 & Over",
+    "2D",
+    "CC",
+    "Curfew",
+    "DV",
+    "Laser",
+    "Stadium",
+    "21+",
+    "Aud 21+",
+    "No Pass",
+    "No Passes",
+    "Recliner",
+    "Warren21",
+    "BalcAvail",
+    "Cry Room",
+    "Exclude Ad",
+    "Regal VIP",
+    "Magnify8",
+    "Reserved",
+    "ScreenX",
+    "21+ Bal",
+    "Atmos",
+    "RPX",
+    "Butt Kick",
+    "Hale Ikua",
+    "HDR",
+    "4DX",
+    "WarrGrand",
+    "Dine-In",
+    "Upstairs",
+    "IMAX"
+   ],
+   "id": null,
+   "PartitionId": "435",
+   "FilmCode": "HO00020435",
+   "MasterMovieCode": "HO00020435",
+   "RelatedMovies": [
+    "HO00020435",
+    "HO00022592",
+    "HO00022593",
+    "HO00022594",
+    "HO00022607",
+    "HO00022761",
+    "HO00022591"
+   ],
+   "RentrakID": "283491",
+   "Title": "Street Fighter",
+   "Rating": "PG13",
+   "OpeningDate": "2026-10-16T00:00:00",
+   "RegalOpeningDate": "2026-10-15T00:00:00",
+   "Duration": 119,
+   "Description": "Set in 1993, estranged Street Fighters Ryu (Andrew Koji) and Ken Masters (Noah Centineo) are thrown back into combat when the mysterious Chun-Li (Callina Liang) recruits them for the next World Warrior Tournament: a brutal clash of fists, fate, and fury.",
+   "LongDescription": "Set in 1993, estranged Street Fighters Ryu (Andrew Koji) and Ken Masters (Noah Centineo) are thrown back into combat when the mysterious Chun-Li (Callina Liang) recruits them for the next World Warrior Tournament: a brutal clash of fists, fate, and fury. But behind this battle royale lies a deadly conspiracy that forces them to face off against each other and the demons of their past. And if they don\u2019t, it\u2019s GAME OVER!",
+   "Studio": "Paramount Pictures",
+   "GraphicUrl": "",
+   "DigitalTitle": null,
+   "TrailerUrl": "",
+   "TwitterTag": "https://x.com/street_fighter",
+   "Actors": [
+    "Jason Momoa",
+    "Vidyut Jammwal",
+    "Eric Andr\u00e9",
+    "Andrew Koji",
+    "David Dastmalchian",
+    "Noah Centineo",
+    "Andrew Schulz",
+    "Callina Liang",
+    "Cody Rhodes",
+    "Joe \u201cRoman Reigns\u201d Anoa\u2019i",
+    "Curtis \u201c50 Cent\u201d Jackson"
+   ],
+   "Directors": [
+    "Kitao Sakurai"
+   ],
+   "GenrePrimary": "Action",
+   "GenreSecondary": null,
+   "Media": [
+    {
+     "Id": 238532,
+     "Type": "Image",
+     "SubType": "Mobile_MovieFeed",
+     "Url": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/Mobile_MovieFeed/20260825-105851675.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/Mobile_MovieFeed/20260825-105851675.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "400",
+     "DimensionWidth": "640",
+     "Format": "jpg",
+     "MovieCode": "HO00020435",
+     "FileSize": "192127"
+    },
+    {
+     "Id": 240602,
+     "Type": "Image",
+     "SubType": "TV_SmallPosterImage",
+     "Url": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/TV_SmallPosterImage/20260416-100534178.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/TV_SmallPosterImage/20260416-100534178.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "376",
+     "DimensionWidth": "250",
+     "Format": "jpg",
+     "MovieCode": "HO00020435",
+     "FileSize": "94963"
+    },
+    {
+     "Id": 240603,
+     "Type": "Image",
+     "SubType": "Mobile_MovieThumbnail",
+     "Url": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/Mobile_MovieThumbnail/20260416-100541518.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/StreetFighter/HO00020435/Mobile_MovieThumbnail/20260416-100541518.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "232",
+     "DimensionWidth": "156",
+     "Format": "jpg",
+     "MovieCode": "HO00020435",
+     "FileSize": "42655"
+    },
+    {
+     "Id": 240604,
+     "Type": "Video",
+     "SubType": "Trailer_Youtube",
+     "Url": "https://youtu.be/oMK6-TscjN0",
+     "SecureUrl": "https://youtu.be/oMK6-TscjN0",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": null,
+     "DimensionWidth": null,
+     "Format": "m3u8",
+     "MovieCode": "HO00020435",
+     "FileSize": null
+    }
+   ],
+   "TrailerIncentives": [],
+   "Theatres": null,
+   "Attributes": [
+    "18 & Over",
+    "2D",
+    "CC",
+    "Curfew",
+    "DV",
+    "Laser",
+    "Stadium",
+    "21+",
+    "Aud 21+",
+    "No Pass",
+    "No Passes",
+    "Recliner",
+    "Warren21",
+    "BalcAvail",
+    "Cry Room",
+    "Exclude Ad",
+    "Regal VIP",
+    "Magnify8",
+    "Reserved"
+   ],
+   "Promos": [],
+   "CollectibleDeepLink": null,
+   "OnSaleDate": null,
+   "ModifiedDate": null,
+   "Weight": 0,
+   "time": 1792383962152
+  },
+  {
+   "RelatedFormats": [
+    "18 & Over",
+    "2D",
+    "CC",
+    "Curfew",
+    "DV",
+    "Laser",
+    "Stadium",
+    "21+",
+    "BalcAvail",
+    "Recliner",
+    "Exclude Ad",
+    "Regal VIP",
+    "VIP",
+    "No Passes",
+    "OC",
+    "Cry Room",
+    "WarrGrand",
+    "21+ Bal",
+    "Atmos",
+    "RPX",
+    "Butt Kick",
+    "HDR",
+    "Magnify8",
+    "Reserved",
+    "4DX",
+    "Dine-In",
+    "Upstairs"
+   ],
+   "id": null,
+   "PartitionId": "872",
+   "FilmCode": "HO00021872",
+   "MasterMovieCode": "HO00021872",
+   "RelatedMovies": [
+    "HO00021872",
+    "HO00022806",
+    "HO00022807",
+    "HO00022795",
+    "HO00022935"
+   ],
+   "RentrakID": "277869",
+   "Title": "Whalefall",
+   "Rating": "PG13",
+   "OpeningDate": "2026-10-16T00:00:00",
+   "RegalOpeningDate": "2026-10-15T00:00:00",
+   "Duration": 106,
+   "Description": "Following the death of his father (Josh Brolin), Jay Gardiner (Austin Abrams) goes diving off the central \nCoast of California in search of his remains, but is swallowed by a massive sperm whale. While trapped \ninside its belly with only one hour of oxyge",
+   "LongDescription": "Following the death of his father (Josh Brolin), Jay Gardiner (Austin Abrams) goes diving off the central \nCoast of California in search of his remains, but is swallowed by a massive sperm whale. While trapped \ninside its belly with only one hour of oxygen left, Jay comes to realize that the hard-earned lessons his \nfather imparted may be the key to his escape.",
+   "Studio": "Walt Disney Studios Motion Picture",
+   "GraphicUrl": "",
+   "DigitalTitle": null,
+   "TrailerUrl": "",
+   "TwitterTag": "",
+   "Actors": [
+    "Josh Brolin",
+    "Jane Levy",
+    "John Ortiz",
+    "Austin Abrams",
+    "Elisabeth Shue",
+    "Emily Rudd"
+   ],
+   "Directors": [
+    "Brian Duffield"
+   ],
+   "GenrePrimary": "Suspense",
+   "GenreSecondary": null,
+   "Media": [
+    {
+     "Id": 241413,
+     "Type": "Video",
+     "SubType": "Trailer_Youtube",
+     "Url": "https://youtu.be/QJqaYZqXuQk",
+     "SecureUrl": "https://youtu.be/QJqaYZqXuQk",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": null,
+     "DimensionWidth": null,
+     "Format": "m3u8",
+     "MovieCode": "HO00021872",
+     "FileSize": null
+    },
+    {
+     "Id": 241940,
+     "Type": "Image",
+     "SubType": "Mobile_MovieFeed",
+     "Url": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/Mobile_MovieFeed/20260715-135645409.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/Mobile_MovieFeed/20260715-135645409.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "400",
+     "DimensionWidth": "640",
+     "Format": "jpg",
+     "MovieCode": "HO00021872",
+     "FileSize": "130144"
+    },
+    {
+     "Id": 242481,
+     "Type": "Image",
+     "SubType": "TV_SmallPosterImage",
+     "Url": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/TV_SmallPosterImage/20260819-140755096.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/TV_SmallPosterImage/20260819-140755096.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "376",
+     "DimensionWidth": "250",
+     "Format": "jpg",
+     "MovieCode": "HO00021872",
+     "FileSize": "40200"
+    },
+    {
+     "Id": 242482,
+     "Type": "Image",
+     "SubType": "Mobile_MovieThumbnail",
+     "Url": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/Mobile_MovieThumbnail/20260819-140800684.jpg",
+     "SecureUrl": "https://regalcdn.azureedge.net/REG/Whalefall/HO00021872/Mobile_MovieThumbnail/20260819-140800684.jpg",
+     "Title": null,
+     "Description": null,
+     "DimensionHeight": "232",
+     "DimensionWidth": "156",
+     "Format": "jpg",
+     "MovieCode": "HO00021872",
+     "FileSize": "18814"
+    }
+   ],
+   "TrailerIncentives": [],
+   "Theatres": null,
+   "Attributes": [
+    "18 & Over",
+    "2D",
+    "CC",
+    "Curfew",
+    "DV",
+    "Laser",
+    "Stadium",
+    "21+",
+    "BalcAvail",
+    "Recliner",
+    "Exclude Ad",
+    "Regal VIP",
+    "VIP",
+    "No Passes",
+    "OC"
+   ],
+   "Promos": [],
+   "CollectibleDeepLink": null,
+   "OnSaleDate": null,
+   "ModifiedDate": null,
+   "Weight": 0,
+   "time": 1792383962276
+  }
+ ]
+}

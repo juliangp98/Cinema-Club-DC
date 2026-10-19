@@ -14,7 +14,7 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from .base import new_movie_dict, make_showtime, with_retry
+from .base import Blocked, finish_scrape, looks_blocked, new_movie_dict, make_showtime, with_retry
 
 BASE = 'https://www.nga.gov'
 LISTING_URL = f'{BASE}/calendar/film-programs.html'
@@ -27,6 +27,8 @@ def _fetch(url):
     def go():
         r = cffi_requests.get(url, impersonate='chrome', timeout=25)
         r.raise_for_status()
+        if looks_blocked(r.text):
+            raise Blocked('served a bot check instead of the page')
         return r.text
 
     return with_retry(go, label=url)
@@ -36,6 +38,7 @@ def scrape_nga():
     """Scrape NGA film programs. Returns list of movie dicts."""
     print("Scraping National Gallery of Art films...")
     movies = []
+    error, skipped = None, 0
 
     try:
         listing = _fetch(LISTING_URL)
@@ -47,14 +50,37 @@ def scrape_nga():
             except ValueError:
                 continue
             screenings.setdefault(path, []).append(start)
+        if not screenings and 'c-event-list-item' not in listing:
+            raise ValueError("no screenings on the film calendar — has its layout changed?")
+        # Each listing item's title, for when its event page can't be had
+        listed = {}
+        for a in BeautifulSoup(listing, 'html.parser').select('a[href*="?evd="]'):
+            heading = a.find(['h5', 'h4', 'h3'])
+            if heading:
+                listed.setdefault(a['href'].split('?')[0], heading.get_text(' ', strip=True))
 
+        blocked = False
         for path, starts in screenings.items():
             url = urljoin(BASE, path)
-            try:
-                soup = BeautifulSoup(_fetch(url), 'html.parser')
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"  Error on NGA event page {url}: {e}")
+            soup = None
+            if not blocked:
+                try:
+                    soup = BeautifulSoup(_fetch(url), 'html.parser')
+                    time.sleep(0.5)
+                except Blocked as e:
+                    blocked = True               # don't keep asking past a bot check this run
+                    print(f"  NGA event page {url}: {e}; using the listing for the rest")
+                except Exception as e:
+                    print(f"  Error on NGA event page {url}: {e}")
+            if soup is None:
+                if not listed.get(path):
+                    skipped += 1
+                    continue
+                movie = new_movie_dict()         # the listing's title and times; details another run
+                movie['title'] = listed[path]
+                for start in sorted(set(starts)):
+                    movie['showtimes'].append(make_showtime(start, None, purchase_link=url))
+                movies.append(movie)
                 continue
 
             movie = new_movie_dict()
@@ -72,6 +98,7 @@ def scrape_nga():
                         title = t
                         break
             if not title:
+                skipped += 1
                 continue
             movie['title'] = title
 
@@ -98,7 +125,5 @@ def scrape_nga():
             movies.append(movie)
 
     except Exception as e:
-        print(f"  ERROR scraping NGA: {e}")
-
-    print(f"  Found {len(movies)} film programs at NGA")
-    return movies
+        error = e
+    return finish_scrape('NGA', movies, error, skipped=skipped)

@@ -17,7 +17,7 @@ import time
 
 import requests
 
-from .base import ScrapeResult
+from .base import finish_scrape, show_end
 
 API_BASE = 'https://api.amctheatres.com'
 DAYS_AHEAD = 45
@@ -44,6 +44,7 @@ def scrape_amc(theatre_id, theatre_slug):
     missed = set()
     today = datetime.date.today()
     offset = 0
+    error = None
 
     try:
         s = _session()
@@ -63,19 +64,21 @@ def scrape_amc(theatre_id, theatre_slug):
             time.sleep(REQUEST_SLEEP)
 
     except Exception as e:
-        print(f"  ERROR scraping AMC {theatre_slug}: {e}")
+        error = e
         # Days from the failure on weren't checked: keep their showtimes.
         missed = {today + datetime.timedelta(days=o) for o in range(offset, DAYS_AHEAD)}
 
     results = [m for m in movies.values() if m['showtimes']]
-    print(f"  Found {len(results)} movies at AMC {theatre_slug}")
-    return ScrapeResult(results, missed)
+    if error is not None:
+        print(f"  AMC {theatre_slug}: stopped at {today + datetime.timedelta(days=offset)} ({error})")
+    # The unread days are missed, so a failure partway needn't make the run partial.
+    return finish_scrape(f'AMC {theatre_slug}', results, None if results else error, missed_dates=missed)
 
 
 def _ingest_showtime(movies, st, theatre_slug):
     title = (st.get('movieName') or '').strip()
     raw = st.get('showDateTimeLocal')
-    if not title or not raw or st.get('isCanceled'):
+    if not title or not raw:
         return
     try:
         start = datetime.datetime.fromisoformat(raw).replace(tzinfo=None)
@@ -97,11 +100,11 @@ def _ingest_showtime(movies, st, theatre_slug):
             'showtimes': [],
         }
 
-    end = start + datetime.timedelta(minutes=movie['runtime_minutes'] + 20)
     movie['showtimes'].append({
         'start_time': start,
-        'end_time': end,
+        'end_time': show_end(start, movie['runtime_minutes']),
         'purchase_link': st.get('purchaseUrl')
                          or f'https://www.amctheatres.com/movie-theatres/{theatre_slug}',
         'is_sold_out': bool(st.get('isSoldOut')),
+        'is_cancelled': bool(st.get('isCanceled')),      # AMC says so outright (others just drop it)
     })

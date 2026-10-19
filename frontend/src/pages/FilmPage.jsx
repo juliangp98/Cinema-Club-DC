@@ -17,6 +17,7 @@ import { WatchAlertPrompt, watchPromptOf } from "../ui/AlertPrompts";
 import { longDayDate, time, monthDay } from "../dates";
 import { TourOffer } from "../ui/PageTourControls";
 import usePageMeta, { filmLd } from "../seo";
+import { soldOutLabel } from "../ui/TicketRow";
 
 const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
@@ -240,7 +241,8 @@ export default function FilmPage({ user, apiBase, groupId }) {
                     const friends = (s.attendees || []).filter(a => a.id !== user?.id);
                     return (
                       <button key={s.id} type="button" onClick={() => openShowtime(s.id)}
-                              className={`show-chip${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}>
+                              className={`show-chip${s.user_rsvp === "going" ? " going" : s.user_rsvp === "maybe" ? " maybe" : ""}${s.is_sold_out ? " sold-out" : ""}`}
+                              title={s.is_sold_out ? soldOutLabel(s) : undefined}>
                         <span className="show-time">{timeLabel(s.start_time)}</span>
                         {theatre === "all" && <span className="show-where">{s.theatre.short_name || s.theatre.name}</span>}
                         {s.format_label && <span className="show-format">{s.format_label}</span>}

@@ -9,7 +9,7 @@ import datetime
 import json
 
 from .base import (event_label, extract_format_label, normalize_title,
-                   parse_movie_title, title_search_variants)
+                   parse_movie_title, show_end, title_search_variants)
 
 # A film with no TMDB match is looked up again at most this often. Titles that
 # never match (shorts programs, trivia nights) would otherwise cost API calls on
@@ -258,8 +258,16 @@ def sync_announced(cfg, items):
         if not theatre:
             return 0
         now = datetime.datetime.now()
-        on_sale = {mid for (mid,) in db.session.query(Showtime.movie_id).filter(
+        # A film is on sale here if it has an upcoming showtime, or a recent
+        # one (sold out, off sale or already started all count) no more than
+        # a week before the post's date — so it doesn't flip back to "Coming
+        # soon" once its show has started, sold out, or dropped off the
+        # venue's site. A post dated later than that is a return engagement.
+        upcoming = {mid for (mid,) in db.session.query(Showtime.movie_id).filter(
             Showtime.theatre_id == theatre.id, Showtime.start_time > now, Showtime.is_cancelled.isnot(True)).distinct()}
+        last_show = dict(db.session.query(Showtime.movie_id, db.func.max(Showtime.start_time)).filter(
+            Showtime.theatre_id == theatre.id, Showtime.is_cancelled.isnot(True),
+            Showtime.start_time >= now - datetime.timedelta(days=30)).group_by(Showtime.movie_id).all())
         fresh = []
         for m in items:
             day = m.get('announced_for')
@@ -268,9 +276,12 @@ def sync_announced(cfg, items):
             movie = Movie.query.filter_by(tmdb_id=m['tmdb_id']).first() if m.get('tmdb_id') else None
             if movie is None:
                 movie, _ = _movie_for(db, Movie, MovieAlias, m, enrich_movie)
-            if movie.id in on_sale:
-                continue
             a = Announcement.query.filter_by(theatre_id=theatre.id, movie_id=movie.id).first()
+            shown = last_show.get(movie.id)
+            if movie.id in upcoming or (shown and shown.date() >= day - datetime.timedelta(days=7)):
+                if a and not a.on_sale_at:
+                    a.on_sale_at = datetime.datetime.utcnow()       # its tickets came up: not "Coming soon"
+                continue
             if a is None:
                 a = Announcement(theatre_id=theatre.id, movie_id=movie.id, expected_on=day)
                 db.session.add(a)
@@ -328,6 +339,7 @@ def sync_to_db(cfg, scraped_movies):
         new_movie_count = 0
         new_showtimes = []          # newly inserted Showtime rows
         scraped_pairs = set()       # every (movie_id, start_time) seen this run
+        seen_rows = {}              # …and its row, so a show listed twice is one show
 
         for m in scraped_movies:
             if not m.get('title'):
@@ -341,7 +353,15 @@ def sync_to_db(cfg, scraped_movies):
             billing = event_label(label, movie.title)
             for st in m.get('showtimes', []):
                 start = st['start_time']
-                scraped_pairs.add((movie.id, start))
+                sold_out = bool(st.get('is_sold_out', False))
+                # A venue that doesn't give runtimes: end by the film's own
+                end = st.get('end_time') or show_end(start, movie.runtime_minutes)
+                key = (movie.id, start)
+                if key in seen_rows:        # same film, same time, another screen
+                    row = seen_rows[key]
+                    row.is_sold_out = row.is_sold_out and sold_out     # open if any screen is
+                    continue
+                scraped_pairs.add(key)
                 existing = Showtime.query.filter_by(
                     movie_id=movie.id,
                     theatre_id=theatre.id,
@@ -352,38 +372,51 @@ def sync_to_db(cfg, scraped_movies):
                         movie_id=movie.id,
                         theatre_id=theatre.id,
                         start_time=start,
-                        end_time=st.get('end_time'),
+                        end_time=end,
                         purchase_link=st.get('purchase_link'),
-                        is_sold_out=st.get('is_sold_out', False),
+                        is_sold_out=sold_out,
+                        is_cancelled=bool(st.get('is_cancelled')),
                         format_label=format_label,
                         event_label=billing,
                     )
                     db.session.add(showtime)
                     new_showtimes.append(showtime)
+                    seen_rows[key] = showtime
                 else:
-                    existing.is_sold_out = st.get('is_sold_out', False)
+                    existing.is_sold_out = sold_out
+                    existing.end_time = end
                     existing.purchase_link = st.get('purchase_link') or existing.purchase_link
                     existing.format_label = format_label
                     existing.event_label = billing
-                    if existing.is_cancelled:
-                        existing.is_cancelled = False
+                    existing.is_cancelled = bool(st.get('is_cancelled'))
+                    existing.off_sale_at = None             # back on the venue's site
+                    seen_rows[key] = existing
 
-        # Stale cleanup: future showtimes no longer on the venue's calendar.
-        # Guarded by the non-empty check above so a broken scraper can't
-        # mass-cancel a theatre's schedule.
-        # Dates the scraper couldn't fetch (rate limits, errors) weren't checked,
-        # so their showtimes stay as they are.
+        # Future showtimes gone from the venue's site are off sale — most
+        # likely sold out (AFI and others just drop a full show). They stay
+        # findable and RSVP-able, counted as sold out, until they reappear.
+        # Guarded by the non-empty check above so a broken scraper can't take
+        # a theatre's schedule off sale; dates the scraper couldn't fetch
+        # (rate limits, errors) weren't checked, so their showtimes stay as
+        # they are — and so does everything after a partial run (a page
+        # failed partway, so a film's showings may just be unread).
         missed = getattr(scraped_movies, 'missed_dates', set())
-        cancelled_count = kept = 0
+        partial = getattr(scraped_movies, 'partial', False)
+        off_sale_count = kept = 0
         for s in prev_future:
-            if (s.movie_id, s.start_time) not in scraped_pairs and not s.is_cancelled:
-                if s.start_time.date() in missed:
-                    kept += 1
-                    continue
-                s.is_cancelled = True
-                cancelled_count += 1
-        if missed:
+            if (s.movie_id, s.start_time) in scraped_pairs or s.is_cancelled or s.off_sale_at:
+                continue
+            if partial or s.start_time.date() in missed:
+                kept += 1
+                continue
+            s.off_sale_at = datetime.datetime.utcnow()
+            s.is_sold_out = True
+            off_sale_count += 1
+        if partial:
+            print(f"  {cfg.slug}: partial run — kept {kept} unlisted showtime(s) as they were")
+        elif missed:
             print(f"  {cfg.slug}: {len(missed)} date(s) not checked this run — kept {kept} showtime(s) on them")
+        cancelled_count = sum(1 for s in new_showtimes if s.is_cancelled)
 
         db.session.flush()
 
@@ -396,14 +429,15 @@ def sync_to_db(cfg, scraped_movies):
         new_max_date = max((s.start_time for s in future_after), default=None)
 
         # Only count genuinely-new *future* showtimes toward drop detection
-        new_future = [s for s in new_showtimes
-                      if s.start_time > now and (s.movie_id, s.start_time) not in prev_pairs]
+        new_future = [s for s in new_showtimes if s.start_time > now and not s.is_cancelled
+                      and (s.movie_id, s.start_time) not in prev_pairs]
 
-        run.status = 'ok'
+        run.status = 'partial' if partial else 'ok'
         run.finished_at = datetime.datetime.utcnow()
         run.new_movies = new_movie_count
         run.new_showtimes = len(new_future)
         run.cancelled_showtimes = cancelled_count
+        run.off_sale_showtimes = off_sale_count
         run.prev_max_date = prev_max_date
         run.new_max_date = new_max_date
 
@@ -418,7 +452,7 @@ def sync_to_db(cfg, scraped_movies):
 
         db.session.commit()
         print(f"  Synced {len(scraped_movies)} movies for {cfg.slug} "
-              f"({len(new_future)} new showtimes, {cancelled_count} cancelled)")
+              f"({len(new_future)} new showtimes, {off_sale_count} off sale)")
         return run.id
 
 

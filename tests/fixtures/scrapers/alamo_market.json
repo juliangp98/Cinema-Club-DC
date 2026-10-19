@@ -1,0 +1,613 @@
+{
+ "data": {
+  "market": [
+   {
+    "id": "1100",
+    "slug": "dc-metro-area",
+    "name": "DC Metro Area",
+    "cinemas": [
+     {
+      "id": "1102",
+      "slug": "crystal-city",
+      "name": "Crystal City"
+     },
+     {
+      "id": "1101",
+      "slug": "dc-bryant-street",
+      "name": "DC Bryant Street"
+     }
+    ]
+   }
+  ],
+  "presentations": [
+   {
+    "slug": "you-can-see-everything",
+    "legacySlug": null,
+    "show": {
+     "slug": "you-can-see-everything",
+     "legacySlug": null,
+     "title": "You Can See Everything",
+     "vistaHoCodes": [
+      "A000036893",
+      "A000037245",
+      "A000037280"
+     ],
+     "headline": "Fielder & Oppenheim's doc on Silicon Valley founder Elizabeth Holmes",
+     "landscapeHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/you-can-see-everything/YOU-CAN-SEE-EVERYTHING_hero.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.4173&fp-y=0.277&h=1080&q=80&w=1920",
+      "altText": "YOU CAN SEE EVERYTHING"
+     },
+     "portraitHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/you-can-see-everything/YOU-CAN-SEE-EVERYTHING_hero.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.4173&fp-y=0.277&h=1440&q=80&w=1080",
+      "altText": "YOU CAN SEE EVERYTHING"
+     },
+     "posterImages": [
+      {
+       "uri": "https://img-assets.drafthouse.com/images/shows/you-can-see-everything/YOU-CAN-SEE-EVERYTHING_sp-poster-updated.jpg?auto=compress&fit=clip&h=1620&q=80&w=1080",
+       "altText": "YOU CAN SEE EVERYTHING"
+      }
+     ],
+     "certification": "R"
+    },
+    "event": null,
+    "eventType": null,
+    "formatSlugs": [
+     "2d-digital",
+     "the-big-show",
+     "open-caption"
+    ],
+    "presentationAttributeSlugs": [
+     "first-run"
+    ],
+    "associatedPresentationSlugs": [],
+    "openingDateClt": null,
+    "openingDateDisplay": null,
+    "superTitle": null,
+    "isHidden": false,
+    "primaryCollectionSlug": null,
+    "isAvailableForPersonalTheater": false
+   },
+   {
+    "slug": "avengers-doomsday",
+    "legacySlug": null,
+    "show": {
+     "slug": "avengers-doomsday",
+     "legacySlug": null,
+     "title": "Avengers: Doomsday",
+     "vistaHoCodes": [
+      "A000036614",
+      "A000036772",
+      "A000036615",
+      "A000036716",
+      "A000037117"
+     ],
+     "headline": "The gang's all here. We mean all of them.",
+     "landscapeHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/avengers-doomsday/AVENGERS-DOOMSDAY_hero-temp.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.5&fp-y=0.5&h=1080&q=80&w=1920",
+      "altText": "AVENGERS: DOOMSDAY"
+     },
+     "portraitHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/avengers-doomsday/AVENGERS-DOOMSDAY_hero-temp.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.5&fp-y=0.5&h=1440&q=80&w=1080",
+      "altText": "AVENGERS: DOOMSDAY"
+     },
+     "posterImages": [
+      {
+       "uri": "https://img-assets.drafthouse.com/images/shows/avengers-doomsday/AVENGERS-DOOMSDAY_sp-poster-updated-copy.jpg?auto=compress&fit=clip&h=1620&q=80&w=1080",
+       "altText": "AVENGERS: DOOMSDAY"
+      }
+     ],
+     "certification": "PG-13"
+    },
+    "event": null,
+    "eventType": null,
+    "formatSlugs": [
+     "2d-digital",
+     "the-big-show",
+     "open-caption"
+    ],
+    "presentationAttributeSlugs": [
+     "advance-sales",
+     "first-run"
+    ],
+    "associatedPresentationSlugs": [],
+    "openingDateClt": "2026-12-17",
+    "openingDateDisplay": "Dec 17",
+    "superTitle": null,
+    "isHidden": false,
+    "primaryCollectionSlug": null,
+    "isAvailableForPersonalTheater": false
+   },
+   {
+    "slug": "fjord",
+    "legacySlug": null,
+    "show": {
+     "slug": "fjord",
+     "legacySlug": null,
+     "title": "Fjord",
+     "vistaHoCodes": [
+      "A000036867",
+      "A000037208"
+     ],
+     "headline": "Renate Reinsve and Sebastian Stan star in this year's Palme D'Or winner",
+     "landscapeHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/fjord/FJORD_hero.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.5&fp-y=0.5&h=1080&q=80&w=1920",
+      "altText": "FJORD"
+     },
+     "portraitHeroImage": {
+      "uri": "https://img-assets.drafthouse.com/images/shows/fjord/FJORD_portrait.jpg?auto=compress&crop=focalpoint&fit=crop&fp-x=0.5&fp-y=0.5&h=1440&q=80&w=1080",
+      "altText": "FJORD"
+     },
+     "posterImages": [
+      {
+       "uri": "https://img-assets.drafthouse.com/images/shows/fjord/FJORD_sp-poster-copy.jpg?auto=compress&fit=clip&h=1620&q=80&w=1080",
+       "altText": "FJORD"
+      }
+     ],
+     "certification": "R"
+    },
+    "event": null,
+    "eventType": null,
+    "formatSlugs": [
+     "2d-digital"
+    ],
+    "presentationAttributeSlugs": [
+     "first-run"
+    ],
+    "associatedPresentationSlugs": [],
+    "openingDateClt": null,
+    "openingDateDisplay": null,
+    "superTitle": null,
+    "isHidden": false,
+    "primaryCollectionSlug": null,
+    "isAvailableForPersonalTheater": false
+   }
+  ],
+  "sessions": [
+   {
+    "cinemaId": "1102",
+    "sessionId": "66034",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "open-caption-you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T13:45:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T17:45:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 3,
+    "reservedSeating": true,
+    "screenNumber": "2",
+    "formatSlug": "open-caption",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83661",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T13:55:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T17:55:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 3,
+    "reservedSeating": true,
+    "screenNumber": "4",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83664",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T14:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T18:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 3,
+    "reservedSeating": true,
+    "screenNumber": "2",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "66058",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T14:30:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T18:30:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 3,
+    "reservedSeating": true,
+    "screenNumber": "7",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83655",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T14:35:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T18:35:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 3,
+    "reservedSeating": true,
+    "screenNumber": "7",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83652",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T18:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T22:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "9",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "65632",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T18:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T22:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "2",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "82704",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T18:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T22:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "4",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "66172",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T19:30:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T23:30:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "3",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83829",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T19:45:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-19T23:45:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "3",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "66035",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T22:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-20T02:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "2",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83108",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T22:05:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-20T02:05:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "4",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83653",
+    "presentationSlug": "you-can-see-everything",
+    "legacySlug": "you-can-see-everything",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-19",
+    "showTimeClt": "2026-10-19T22:05:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-20T02:05:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "9",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "62070",
+    "presentationSlug": "avengers-doomsday",
+    "legacySlug": "the-big-show-avengers-doomsday",
+    "status": "SOLDOUT",
+    "businessDateClt": "2026-12-17",
+    "showTimeClt": "2026-12-17T20:35:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-12-18T01:35:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "1",
+    "formatSlug": "the-big-show",
+    "isClosedCaptioningAvailable": false,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Infinity",
+     "Atmos"
+    ],
+    "agePolicySlug": "rated-pg-13",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1102",
+    "sessionId": "62071",
+    "presentationSlug": "avengers-doomsday",
+    "legacySlug": "the-big-show-avengers-doomsday",
+    "status": "ONSALE",
+    "businessDateClt": "2026-12-17",
+    "showTimeClt": "2026-12-17T13:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-12-17T18:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "1",
+    "formatSlug": "the-big-show",
+    "isClosedCaptioningAvailable": false,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Infinity",
+     "Atmos"
+    ],
+    "agePolicySlug": "rated-pg-13",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83506",
+    "presentationSlug": "fjord",
+    "legacySlug": "fjord",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-27",
+    "showTimeClt": "2026-10-27T18:45:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-27T22:45:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "3",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital",
+     "Hidden"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": true,
+    "ticketingExperience": "DEFAULT"
+   },
+   {
+    "cinemaId": "1101",
+    "sessionId": "83481",
+    "presentationSlug": "fjord",
+    "legacySlug": "fjord",
+    "status": "ONSALE",
+    "businessDateClt": "2026-10-22",
+    "showTimeClt": "2026-10-22T18:00:00",
+    "cinemaTimeZoneName": "America/New_York",
+    "showTimeUtc": "2026-10-22T22:00:00",
+    "ticketTypesLoyaltyCount": 7,
+    "ticketTypesVoucherCount": 3,
+    "ticketTypesNormalCount": 2,
+    "reservedSeating": true,
+    "screenNumber": "9",
+    "formatSlug": "2d-digital",
+    "isClosedCaptioningAvailable": true,
+    "isDescriptiveAudioAvailable": false,
+    "isAssistedListeningAvailable": false,
+    "sessionAttributeSlugs": [
+     "Digital"
+    ],
+    "agePolicySlug": "rated-r",
+    "isHidden": false,
+    "ticketingExperience": "DEFAULT"
+   }
+  ]
+ }
+}

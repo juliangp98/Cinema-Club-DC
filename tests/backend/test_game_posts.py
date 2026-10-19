@@ -101,7 +101,9 @@ def test_ask_first_waits_for_an_admin(club):
     dm = client().get('/api/internal/notifications/dm', headers=H).json
     assert [d['reviews'] for d in dm if d['discord_user_id'] == '9701'] == [[p['id']]]   # the DM gets the buttons
     swapped = decide(club, p['id'], 'another').json
-    assert swapped['status'] == 'waiting' and swapped['question']['prompt'] != p['question']['prompt']
+    assert swapped['status'] == 'waiting'
+    q0, q1 = p['question'], swapped['question']                 # "Which came out first?" keeps its wording: the films change
+    assert (q1['prompt'], q1['options']) != (q0['prompt'], q0['options'])
     assert decide(club, p['id'], 'post', who='Bo').status_code == 403
     assert decide(club, p['id'], 'post').json['status'] == 'approved'
     [r] = ready()

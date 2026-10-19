@@ -467,7 +467,7 @@ def public_showtimes(showtimes, viewer=None):
         out.append({
             'id': s.id, 'movie': s.movie.to_dict(), 'theatre': s.theatre.to_dict(),
             'start_time': s.start_time.isoformat(), 'end_time': s.end_time.isoformat() if s.end_time else None,
-            'purchase_link': s.purchase_link, 'is_sold_out': s.is_sold_out,
+            'purchase_link': s.purchase_link, 'is_sold_out': s.is_sold_out, 'off_sale': bool(s.off_sale_at),
             'format_label': s.format_label, 'event_label': s.event_label,
             'attendees': [], 'maybes': [], 'user_rsvp': mine.get(s.id), 'reactions': reactions.get(s.id, {}),
             'message_count': 0, 'user_attendance': went.get(s.id), 'discord_thread_url': None, 'discord': None,
@@ -1525,6 +1525,9 @@ def migrate():
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_membership_calendar_token ON group_membership (calendar_token)",
         # R8: alerts
         "ALTER TABLE user ADD COLUMN notify_prefs TEXT",
+        # Phase 8: a show gone from the venue's site is off sale (likely sold out), not cancelled
+        "ALTER TABLE showtime ADD COLUMN off_sale_at DATETIME",
+        "ALTER TABLE scrape_run ADD COLUMN off_sale_showtimes INTEGER DEFAULT 0",
     ]
     for sql in stmts:
         try:
@@ -1573,6 +1576,14 @@ def migrate():
     if not db.session.get(BotSetting, 'discord_club_private_done'):
         db.session.execute(db.text("UPDATE 'group' SET is_public = 0 WHERE id = :g"), {'g': DISCORD_GROUP_ID})
         db.session.add(BotSetting(key='discord_club_private_done', value='1'))
+        db.session.commit()
+    # Phase 8: until now a show gone from a venue's site was marked cancelled
+    # (hidden, RSVPs dropped). No venue we scrape ever said "cancelled", so
+    # every one of those was off sale — usually sold out. Bring them back as that.
+    if not db.session.get(BotSetting, 'off_sale_backfill_done'):
+        db.session.execute(db.text("UPDATE showtime SET off_sale_at = CURRENT_TIMESTAMP, is_sold_out = 1, "
+                                   "is_cancelled = 0 WHERE is_cancelled = 1"))
+        db.session.add(BotSetting(key='off_sale_backfill_done', value='1'))
         db.session.commit()
     # R14: "post the question of the day in Discord" (a yes/no) is now Always.
     db.session.execute(db.text("UPDATE 'group' SET trivia_post = 'always' WHERE trivia_discord = 1"))

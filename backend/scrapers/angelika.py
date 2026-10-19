@@ -11,7 +11,7 @@ import re
 
 import requests
 
-from .base import PerDateFetcher, ScrapeResult, with_retry
+from .base import PerDateFetcher, finish_scrape, with_retry
 
 API_BASE = 'https://production-api.readingcinemas.com'
 SITE = 'https://angelikafilmcenter.com'
@@ -67,7 +67,7 @@ def _strip_html(text):
 def scrape_angelika(cinema_id, site_path):
     """Scrape one Angelika venue ('0000000006' Mosaic, '0000000007' Union Market)."""
     print(f"Scraping Angelika ({site_path})...")
-    movies = []
+    error = None
     fetcher = PerDateFetcher(f'Angelika {site_path}', pause=REQUEST_PAUSE, jitter=0.5)
 
     by_slug = {}
@@ -95,15 +95,12 @@ def scrape_angelika(cinema_id, site_path):
                     lambda data: _ingest(by_slug, data.get('movies', []), cinema_id, site_path),
                     to_date=lambda d: datetime.date.fromisoformat(d[:10]))
 
-        movies = [m for m in by_slug.values() if m['showtimes']]
-        for movie in movies:
-            movie['showtimes'].sort(key=lambda s: s['start_time'])
-
     except Exception as e:
-        print(f"  ERROR scraping Angelika {site_path}: {e}")
-
-    print(f"  Found {len(movies)} movies at Angelika {site_path}")
-    return ScrapeResult(movies, fetcher.missed)
+        error = e
+    movies = [m for m in by_slug.values() if m['showtimes']]
+    for movie in movies:
+        movie['showtimes'].sort(key=lambda s: s['start_time'])
+    return finish_scrape(f'Angelika {site_path}', movies, error, missed_dates=fetcher.missed)
 
 
 def _ingest(by_slug, day_movies, cinema_id, site_path):
