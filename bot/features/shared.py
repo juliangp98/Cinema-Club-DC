@@ -4,6 +4,7 @@ shared autocompletes — and the registry each feature adds its buttons and loop
 """
 
 import asyncio
+import contextvars
 import json
 import os
 import time
@@ -156,29 +157,134 @@ async def setup_llm():
 
 
 def movies_channel():
+    """The home server's channel (DISCORD_CHANNEL_ID): the bot's first server."""
     return client.get_channel(DISCORD_CHANNEL_ID)
 
 
-NO_ACCOUNT_MSG = ("Use this in the Cinema Club server first — that sets up your account "
+# ─── Servers: which club each is ──────────────────────────────────────────────
+# One server, one club. The map comes from the backend (connected with /setup;
+# the home server registered by the bot at start) and is refreshed every few
+# minutes. Before the home server is registered, its channel's server is the
+# home club's (DEFAULT_GROUP_ID) — as before servers were per club.
+
+_servers = {}                    # guild id → {'group_id', 'channel_id', 'home'}
+_UNSET = object()
+# The club the current interaction (or loop pass) is for: set by the tree's
+# check, by discord_identity, and by the loops for each server — so helpers
+# deep in a command (fetch_window, autocompletes…) ask about the right club.
+_club = contextvars.ContextVar('club', default=_UNSET)
+_dm_last = {}                    # Discord user id → (club, when): the last club picked in DMs
+DM_PICK_KEEP = 30 * 60           # buttons in a DM follow the pick for this long
+
+
+def _home_guild_id():
+    return getattr(getattr(movies_channel(), 'guild', None), 'id', None)
+
+
+async def refresh_servers():
+    """Load the server → club map from the backend."""
+    try:
+        rows = await api.get('/api/internal/servers')
+    except Exception as e:
+        print(f'servers: refresh failed: {e}')
+        return
+    _servers.clear()
+    for r in rows:
+        if str(r.get('guild_id') or '').isdigit():
+            _servers[int(r['guild_id'])] = {'group_id': r.get('group_id'), 'home': bool(r.get('home')),
+                                            'channel_id': int(r['channel_id']) if str(r.get('channel_id') or '').isdigit() else None}
+
+
+def club_for_guild(guild_id):
+    """The club connected to this server, or None (not connected yet)."""
+    if not guild_id:
+        return None
+    s = _servers.get(int(guild_id))
+    if s:
+        return s['group_id']
+    return DEFAULT_GROUP_ID if guild_id == _home_guild_id() else None
+
+
+def is_home_guild(guild_id):
+    s = _servers.get(int(guild_id or 0))
+    return bool(s and s['home']) or (guild_id is not None and guild_id == _home_guild_id())
+
+
+def connected_clubs():
+    """Every club with a server the bot can post in: [(group_id, guild_id)]."""
+    out = [(s['group_id'], gid) for gid, s in _servers.items() if s['group_id']]
+    home = _home_guild_id()
+    if not any(g == DEFAULT_GROUP_ID for g, _ in out) and movies_channel() is not None:
+        out.append((DEFAULT_GROUP_ID, home))
+    return out
+
+
+def channel_for(group_id):
+    """The channel this club's server posts in (None: no server, or the bot can't see it)."""
+    for s in _servers.values():
+        if s['group_id'] == group_id and s['channel_id']:
+            ch = client.get_channel(s['channel_id'])
+            if ch is not None:
+                return ch
+    return movies_channel() if group_id == DEFAULT_GROUP_ID else None
+
+
+def use_club(group_id):
+    """This task works for `group_id` from here on (a loop pass, a command)."""
+    _club.set(group_id)
+
+
+def club_of(interaction=None):
+    """The club this interaction is for: its server's (None: not connected),
+    or in DMs the one picked (the menu, or the last pick for buttons)."""
+    c = _club.get()
+    if c is not _UNSET:
+        return c
+    guild_id = getattr(interaction, 'guild_id', None)
+    if guild_id:
+        return club_for_guild(guild_id)
+    return dm_club(getattr(getattr(interaction, 'user', None), 'id', None))
+
+
+def dm_club(user_id):
+    """In DMs with no menu (a message, a button): the last club picked, else the home club."""
+    last = _dm_last.get(user_id)
+    return last[0] if last and time.monotonic() - last[1] < DM_PICK_KEEP else DEFAULT_GROUP_ID
+
+
+def club():
+    """The current task's club (the home club if nothing set it)."""
+    c = _club.get()
+    return DEFAULT_GROUP_ID if c is _UNSET else c
+
+
+NO_ACCOUNT_MSG = ("Use this in your club's Discord server first — that sets up your account "
                   "(no site sign-up needed).")
+NOT_CONNECTED_MSG = ("This server isn't connected to a club yet. A server admin can connect it: make a code in "
+                     "Club settings → Discord on the site, then run /setup here. (/showtimes, /movie, /find, "
+                     "/surprise and /theatre work meanwhile.)")
 
 
 def discord_identity(interaction):
-    """Identity fields every personal internal call sends. Discord members need
-    no site account: used inside the club's server (the one with #movies), the
-    backend creates a Discord-only account on first use and adds them to the
-    group. Elsewhere (DMs, other servers) only existing accounts are used."""
+    """Identity fields every personal internal call sends, with the club it's
+    for. Discord members need no site account: used inside a connected club's
+    server, the backend creates a Discord-only account on first use and adds
+    them to that club. Elsewhere (DMs, unconnected servers) only existing
+    accounts are used."""
     user = interaction.user
-    channel = movies_channel()
-    home = getattr(getattr(channel, 'guild', None), 'id', None)
+    group_id = club_of(interaction)
+    if _club.get() is _UNSET:
+        _club.set(group_id)
     avatar = getattr(user, 'display_avatar', None)
+    guild_id = getattr(interaction, 'guild_id', None)
     return {
         'discord_user_id': str(user.id),
         'discord_name': getattr(user, 'display_name', None) or user.name,
         'discord_username': user.name,
         'discord_avatar': str(avatar.url) if avatar else None,
-        'create': '1' if home and interaction.guild_id == home else '0',
-        'group_id': DEFAULT_GROUP_ID,
+        'create': '1' if guild_id and group_id else '0',
+        'group_id': group_id,
+        'guild_id': str(guild_id) if guild_id else None,
     }
 
 
@@ -245,7 +351,7 @@ async def fetch_window(days, search=None):
     now = datetime.now()
     return await api.get(
         '/api/internal/showtimes',
-        group_id=DEFAULT_GROUP_ID,
+        group_id=club(),
         start=now.isoformat(timespec='seconds'),
         end=(now + timedelta(days=days)).isoformat(timespec='seconds'),
         q=search,
@@ -255,7 +361,7 @@ async def fetch_window(days, search=None):
 async def fetch_range(start_iso, end_iso, search=None, limit=300, tickets=None):
     return await api.get(
         '/api/internal/showtimes',
-        group_id=DEFAULT_GROUP_ID,
+        group_id=club(),
         start=start_iso, end=end_iso, q=search, limit=limit, tickets=tickets,
     )
 
@@ -276,14 +382,14 @@ def theatre_match(showtimes, theatre):
 
 # Theatre list changes rarely; cache it so autocomplete (which fires per
 # keystroke) doesn't hit the backend on every character.
-_theatre_cache = {'data': None, 'ts': 0.0}
+_theatre_cache = {}              # club → (when, theatres)
 
 
 async def fetch_theatres():
-    if _theatre_cache['data'] is None or time.monotonic() - _theatre_cache['ts'] > 300:
-        _theatre_cache['data'] = await api.get('/api/internal/theatres', group_id=DEFAULT_GROUP_ID)
-        _theatre_cache['ts'] = time.monotonic()
-    return _theatre_cache['data']
+    hit = _theatre_cache.get(club())
+    if hit is None or time.monotonic() - hit[0] > 300:
+        hit = _theatre_cache[club()] = (time.monotonic(), await api.get('/api/internal/theatres', group_id=club()))
+    return hit[1]
 
 
 async def theatre_choices(current):
@@ -357,7 +463,7 @@ def resolve_window(days, date=None, end=None):
 # facets endpoint returns distinct dates/theatres for the current filter.
 
 async def fetch_facets(title=None, theatre=None, start=None, end=None):
-    return await api.get('/api/internal/showtime-facets', group_id=DEFAULT_GROUP_ID,
+    return await api.get('/api/internal/showtime-facets', group_id=club(),
                          q=title, theatre=theatre, start=start, end=end)
 
 
@@ -481,8 +587,3 @@ async def rsvp_showtime_autocomplete(interaction: discord.Interaction, current: 
         return []
     sts, _ = theatre_match(sts, theatre)
     return [app_commands.Choice(name=_fmt_choice(s), value=str(s['id'])) for s in sts[:25]]
-
-
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user} — announcing to channel {DISCORD_CHANNEL_ID}')

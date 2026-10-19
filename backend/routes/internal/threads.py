@@ -1,6 +1,6 @@
 """Screening discussions mirrored between the site and Discord threads.
 """
-from app import (DiscordDeletion, DiscordServerMember, Message, Showtime, ShowtimeThread, User,
+from app import (DiscordDeletion, Message, Showtime, ShowtimeThread,
     _active_membership, _as_int, _utcnow_naive, app, db, jsonify, present_user_ids, request, require_role,
     screening_card, timedelta, utc_iso)
 from routes.internal.common import require_internal, resolve_discord_user
@@ -17,17 +17,11 @@ OUTBOX_WINDOW = timedelta(hours=24)           # older unsent comments are backfi
 CARD_REFRESH_EVERY = timedelta(minutes=3)
 
 
-def _in_server():
-    """Site user ids of members in the club's Discord server (a subquery)."""
-    return (db.session.query(User.id)
-            .join(DiscordServerMember, DiscordServerMember.discord_user_id == User.discord_user_id))
-
-
-def _pending_post(q):
-    """Site comments the bot still has to copy into Discord (never ones their
-    writer kept off Discord, or by anyone not in the club's server)."""
+def _pending_post(q, group_id):
+    """Site comments the bot still has to copy into this club's Discord (never
+    ones their writer kept off Discord, or by anyone not in its server)."""
     return q.filter(Message.source == 'site', Message.discord_message_id.is_(None),
-                    Message.to_discord.isnot(False), Message.user_id.in_(_in_server()),
+                    Message.to_discord.isnot(False), Message.user_id.in_(list(present_user_ids(group_id))),
                     Message.created_at >= _utcnow_naive() - OUTBOX_WINDOW)
 
 
@@ -51,9 +45,9 @@ def thread_info(showtime, group_id):
     out = {'thread': _thread_dict(t) if t else None, 'card': screening_card(showtime, group_id)}
     if not t:
         q = Message.query.filter_by(showtime_id=showtime.id, group_id=group_id)
-        pending = {m.id for m in _pending_post(q)}
+        pending = {m.id for m in _pending_post(q, group_id)}
         earlier = [m for m in q.order_by(Message.created_at.desc(), Message.id.desc())
-                   if m.id not in pending and m.to_discord is not False and m.user_id in present_user_ids()]
+                   if m.id not in pending and m.to_discord is not False and m.user_id in present_user_ids(group_id)]
         out['earlier_total'] = len(earlier)
         out['backfill'] = [_outbound(m) for m in reversed(earlier[:DISCUSSION_BACKFILL])]
     return out
@@ -117,7 +111,7 @@ def internal_discussion_outbox():
     # Comments wait until their screening has a thread (Discord's Discuss, or
     # "Start a Discord thread" on the site); new comments never start one.
     threaded = db.session.query(ShowtimeThread.showtime_id).filter(ShowtimeThread.group_id == group_id)
-    posts = _pending_post(Message.query.filter(Message.group_id == group_id, Message.showtime_id.in_(threaded))) \
+    posts = _pending_post(Message.query.filter(Message.group_id == group_id, Message.showtime_id.in_(threaded)), group_id) \
         .order_by(Message.created_at, Message.id).limit(20).all()
     stale = _utcnow_naive() - CARD_REFRESH_EVERY
     cards = ShowtimeThread.query.filter(

@@ -6,7 +6,8 @@ import discord
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, SITE_URL, api, client, discord_identity, movies_channel, register, reply_failure
+from .shared import (SITE_URL, api, channel_for, client, club, connected_clubs, discord_identity, register,
+                     reply_failure, use_club)
 from . import polls, threads      # used at call time, so the order they load in doesn't matter
 
 
@@ -14,7 +15,7 @@ from . import polls, threads      # used at call time, so the order they load in
 async def leaderboard(interaction: discord.Interaction):
     await interaction.response.defer()
     try:
-        board = await api.get('/api/internal/leaderboard', group_id=DEFAULT_GROUP_ID)
+        board = await api.get('/api/internal/leaderboard', group_id=club())
     except ApiError:
         board = {}
     rows = board.get('rows') or []
@@ -283,21 +284,24 @@ def game_post_message(post):
 
 @tasks.loop(minutes=1)
 async def games_loop():
-    channel = movies_channel()
-    if channel is None:
-        return
-    try:
-        posts = (await api.get('/api/internal/games/posts', group_id=DEFAULT_GROUP_ID)).get('posts') or []
-    except Exception as e:
-        print(f'games_loop: {e}')
-        return
-    for post in posts:
+    """Each connected club's game posts, in its own server."""
+    for group_id, _ in connected_clubs():
+        channel = channel_for(group_id)
+        if channel is None:
+            continue
+        use_club(group_id)
         try:
-            embed, view = game_post_message(post)
-            msg = await channel.send(embed=embed, view=view, allowed_mentions=threads.NO_PINGS)
-            await api.post('/api/internal/games/posted', {'post_id': post['id'], 'message_id': str(msg.id)})
+            posts = (await api.get('/api/internal/games/posts', group_id=group_id)).get('posts') or []
         except Exception as e:
-            print(f"games_loop: post {post.get('id')} failed: {e}")
+            print(f'games_loop (club {group_id}): {e}')
+            continue
+        for post in posts:
+            try:
+                embed, view = game_post_message(post)
+                msg = await channel.send(embed=embed, view=view, allowed_mentions=threads.NO_PINGS)
+                await api.post('/api/internal/games/posted', {'post_id': post['id'], 'message_id': str(msg.id)})
+            except Exception as e:
+                print(f"games_loop: post {post.get('id')} failed: {e}")
 
 
 @games_loop.before_loop
@@ -327,8 +331,7 @@ def review_view(post):
 async def send_review(user, discord_user_id, post_id):
     """DM an admin a waiting game post exactly as it'll look, with the buttons."""
     try:
-        post = await api.get(f'/api/internal/games/post/{post_id}', discord_user_id=str(discord_user_id),
-                             group_id=DEFAULT_GROUP_ID)
+        post = await api.get(f'/api/internal/games/post/{post_id}', discord_user_id=str(discord_user_id))
     except Exception as e:
         print(f'review {post_id}: {e}')
         return

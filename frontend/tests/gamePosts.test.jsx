@@ -55,7 +55,7 @@ test("Club settings: each game post is Never / Ask first / Always (wins Never / 
                           "PUT /api/groups/club": body => ({ ...group, ...body }) });
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} onChanged={() => {}} />);
   const triviaCard = (await screen.findByText("🧠 Trivia: question of the day")).closest(".game-setting");   // on the game's own card (7g)
-  const trivia = within(triviaCard).getByRole("group", { name: "Post it in #movies" });
+  const trivia = within(triviaCard).getByRole("group", { name: "Post it in Discord" });
   expect(within(trivia).getByRole("button", { name: "Never" })).toHaveAttribute("aria-pressed", "true");
   await userEvent.click(within(trivia).getByRole("button", { name: "Ask first" }));
   expect(calls.find(c => c.method === "PUT").body).toEqual({ trivia_post: "ask" });

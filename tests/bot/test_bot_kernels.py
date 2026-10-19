@@ -53,7 +53,7 @@ def test_kernels_shows_the_total_and_how_to_earn(bot):
 
 
 def test_kernels_without_an_account(bot):
-    it = FakeInteraction(uid=5555, name='nobody')
+    it = FakeInteraction(uid=5555, name='nobody', guild_id=None)        # a DM: only existing accounts
     tap(bot.PlayButton, 'play:kernels', it)
     assert it.last[1] == bot.NO_ACCOUNT_MSG
 

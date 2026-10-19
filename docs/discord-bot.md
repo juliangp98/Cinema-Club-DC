@@ -1,13 +1,14 @@
 # The Discord bot
 
-The bot brings the club into its Discord server: everything on the site is a slash command, each
+The bot brings a club into its Discord server: everything on the site is a slash command, each
 screening's discussion can be a thread mirrored with the site, and the club hears about schedule drops,
-the weekly digest and games in one channel. It talks only to the backend's internal API (with
+the weekly digest and games in one channel. Any club can connect its own server — one server, one club —
+and the bot serves each for that club. It talks only to the backend's internal API (with
 `INTERNAL_API_TOKEN`) and never touches the database itself.
 
-Nobody needs a site account to use it: the first personal command a member uses in the club's server
-makes them a Discord-only account in the club. "Sign in with Discord" on the site (or `/link`) joins it
-to a site account later.
+Nobody needs a site account to use it: the first personal command a member uses in a connected server
+makes them a Discord-only account in that server's club. "Sign in with Discord" on the site (or `/link`)
+joins it to a site account later.
 
 ## What it does
 
@@ -40,15 +41,42 @@ to a site account later.
 | **Play, polls & kernels** | `/play` the games hub · `/poll list` · `/poll vote` your private ballot · `/poll make` describe a poll and the AI drafts it (organizers) · `/leaderboard` |
 | **You and the club** | `/profile` yours or @someone's (history, watchlist, compare, give kernels) · `/club` the club at a glance · `/link` connect an existing site account |
 | **Extras** | `/digest` this week's digest (or a private preview) · `/announcements` which theatres post drops · `/quote` a random line, or add, fix and find quotes |
-| **Server admins** | `/llm show` / `/llm set` the AI models (Manage Server by default; grant it to other roles in Server Settings → Integrations) |
+| **Server admins** | `/setup` connect this server to your club (with a code from Club settings), or move the bot's channel · `/llm show` / `/llm set` the AI models — the whole site's, so only in the home server (Manage Server by default; grant them to other roles in Server Settings → Integrations) |
 
 Filters depend on each other: pick a film and the date and theatre options narrow to where it's showing.
 
-## Run your own
+**Which club a command is for:** its server's. In a server that isn't connected yet, only `/showtimes`,
+`/movie`, `/find`, `/surprise`, `/theatre` and `/help` work (they're all public); the rest say how to
+connect it, and the bot doesn't chat or drop quotes there. In a DM, someone in more than one connected club
+gets a menu first ("Which club is this for?"); buttons in the DM then follow that pick for half an hour.
 
-One install of the site serves one Discord server: the bot posts to one channel (`DISCORD_CHANNEL_ID`)
-for one club (`DEFAULT_GROUP_ID`). To run a club of your own, run your own copy — site, scrapers and bot
-— from this repo ([deploying.md](deploying.md)), with your own Discord application:
+**Quotes:** every server gets the classic quotes; ones a club adds show only in its server. Members
+correct and remove their club's quotes (removing someone else's takes Manage Server); the classics are
+looked after from the home server.
+
+## Add the bot to your club's server
+
+For a club on this site (a club admin and a server admin — often the same person):
+
+1. **Club → Settings → Discord → Add to Discord.** Discord asks which server; you need Manage Server there.
+   The invite asks for what the bot needs: View Channel, Send Messages, Embed Links, Read Message History,
+   Manage Webhooks, Create Public Threads and Send Messages in Threads.
+2. **Make a code** in the same place (it works once, for 30 minutes), and in the channel the bot should post
+   in, run `/setup code:…`. The page updates when it's connected.
+3. **Choose what it posts** in Club settings: which theatres' new showtimes (Theatres), and each game's
+   posts (Games). Members choose what they share themselves. Everything starts off.
+
+Move the bot to another channel: run `/setup` there (no code needed). Disconnect: Club settings → Discord
+(the bot stays in the server, unconnected; your choices are kept). Removing the bot from the server also
+disconnects it. If the bot loses a permission it needs, whoever connected the server gets a DM, and Club
+settings shows what's missing.
+
+## Run your own copy
+
+For a club in another city (other theatres), run your own copy — site, scrapers and bot — from this repo
+([deploying.md](deploying.md)), with your own Discord application. Your first server is the bot's
+**home**: its channel is `DISCORD_CHANNEL_ID`, its club `DEFAULT_GROUP_ID`, and the bot registers it
+when it starts; other clubs on your site then add the bot to their servers as above.
 
 1. **Create the application.** discord.com/developers/applications → New Application. Under **Bot**,
    reset and copy the token (`DISCORD_BOT_TOKEN`).
@@ -57,11 +85,14 @@ for one club (`DEFAULT_GROUP_ID`). To run a club of your own, run your own copy 
      reaching the site.
    - **Server Members** — who's in the server, so the site only ever names or pings members who are.
 
-   No verification is needed under 100 servers.
-3. **Invite it** (OAuth2 → URL Generator): scopes `bot` and `applications.commands`; permissions — at least
-   in your club's channel — View Channel, Send Messages, Embed Links, Read Message History, **Manage
-   Webhooks**, **Create Public Threads** and **Send Messages in Threads** (the last three are for
-   screening threads; without them the bot DMs its owner once to say what's missing).
+   No verification is needed under 100 servers; past that, Discord requires verifying the bot and approving
+   both intents.
+3. **Make it public** (Bot → Public Bot), so your clubs' admins can add it to their servers, and **invite
+   it to your home server** (OAuth2 → URL Generator): scopes `bot` and `applications.commands`; permissions
+   — at least in its channel — View Channel, Send Messages, Embed Links, Read Message History, **Manage
+   Webhooks**, **Create Public Threads** and **Send Messages in Threads** (the last three are for screening
+   threads; without them the bot DMs its owner once to say what's missing). Once the bot has started, Club
+   settings → Discord shows the same invite for everyone else.
 4. **Settings** in `.env.production`: `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID` (Developer Mode on, then
    right-click the channel → Copy Channel ID), `INTERNAL_API_TOKEN` (the same file feeds the backend),
    `DEFAULT_GROUP_ID` (`1` for a fresh install's club), `SITE_URL`, and optionally `GROQ_API_KEY`.
@@ -79,9 +110,6 @@ and members choose what they share — all off until someone turns it on.
 **Developing:** make a second application for a test server and use its token locally. Never run a local
 bot with the live server's token — two bots on one token fight over the connection and post twice.
 
-*Adding the bot to other servers, each linked to its own club, is on the roadmap — it needs per-server
-club and channel settings.*
-
 ## How it's built
 
 ```
@@ -89,7 +117,9 @@ bot/
 ├── bot.py           # starts the bot; gathers every feature's names (for the tests)
 ├── features/
 │   ├── shared.py    # settings, the client and command tree, the API, failure messages, helpers,
-│   │                #   shared autocompletes — and the registry of buttons and loops
+│   │                #   shared autocompletes, the server → club map (club_of, channel_for, club()) —
+│   │                #   and the registry of buttons and loops
+│   ├── servers.py   # which club a command is for (the DM menu), /setup, joining and leaving servers
 │   ├── chat.py      # quotes, the @-mention chatbot and its rate limits, /quote
 │   ├── alerts.py    # schedule drops, the digest, "did you go?", alerts by DM
 │   ├── schedule.py  # /link /showtimes /movie /rsvp /watch /find /surprise /foryou /theatre
@@ -105,7 +135,14 @@ bot/
 └── quotes.py        # the original quote list (seeds an empty database)
 ```
 
-The backend side is `backend/routes/internal/` (posts, schedule, threads, people, games, admin).
+The backend side is `backend/routes/internal/` (posts, schedule, threads, people, games, admin, servers)
+and `backend/discord_servers.py` (codes, connecting, the home server, status).
+
+**Every Discord question is about one club.** In the backend, `on_discord(user, group_id)`,
+`present_user_ids(group_id)`, `split_present(users, group_id)` and `can_share(user, group_id)` all take
+the club: being in one server never names you in another club's. In the bot, a command's club is `club()`
+(set before it runs), and loops go `for group_id, _ in connected_clubs()` with `use_club(group_id)` and
+`channel_for(group_id)`.
 
 **Adding a command:** put it in the feature it belongs to. Buttons that must keep working after a restart
 are `DynamicItem`s; list them (and any `tasks.loop`) in that module's `register(...)` call — a test fails

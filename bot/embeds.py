@@ -820,6 +820,7 @@ HELP_SECTIONS = [
         ('/digest', "this week's digest (preview it just for you)"),
         ('/announcements', "which theatres' new showtimes post in the channel"),
         ('/quote', 'a random line of cinematic wisdom, or add, fix and find the quotes'),
+        ('/setup', "server admins: connect this server to your club, or move the bot's channel"),
     ]),
 ]
 
@@ -1088,10 +1089,10 @@ def review_note(post, error=None):
         what = "today's trivia question" if post['kind'] == 'trivia' else 'the bingo card'
         extra = (f" The answer: **{post['question']['options'][post['answer']]}**."
                  if post['kind'] == 'trivia' and post.get('answer') is not None else '')
-        return f"👀 Waiting for your OK: here's {what} as it'll look in #movies.{extra}"
+        return f"👀 Waiting for your OK: here's {what} as it'll look in the club's channel.{extra}"
     if status == 'skipped' and post.get('until'):
         return f"⏭️ Skipped — nothing was posted. Changed your mind? You can post it after all until {post['until']}."
-    return {'approved': '✅ Approved — it goes up in #movies in a minute.', 'posted': '✅ Posted in #movies.',
+    return {'approved': "✅ Approved — it goes up in the club's channel in a minute.", 'posted': "✅ Posted in the club's channel.",
             'skipped': '⏭️ Skipped — nothing was posted.', 'expired': '⌛ Too late — nothing was posted.'}.get(status, '')
 
 
@@ -1179,5 +1180,40 @@ def help_embed():
     for name, rows in HELP_SECTIONS:
         embed.add_field(name=name, inline=False, value='\n'.join(f'`{cmd}` — {what}' for cmd, what in rows))
     embed.set_footer(text=f'Everything else (calendar, Discover, your lists) → {SITE_URL}')
+    return embed
+
+
+# ─── Servers (/setup) ─────────────────────────────────────────────────────────
+
+def setup_done_embed(club_name, channel, missing, connected):
+    """/setup's private reply: connected (or moved), where it posts, anything missing."""
+    mention = getattr(channel, 'mention', '#this-channel')
+    title = f'✅ Connected to {club_name}' if connected else f'✅ {club_name} posts here now'
+    embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/club?tab=settings#club-settings-discord-server')
+    embed.description = (f"I'll post in {mention}: schedule drops for the theatres the club turns on, the Monday "
+                         "digest, game posts and screening threads — whatever the club chooses in Club settings.\n"
+                         "Anyone here who uses a command joins the club; nobody needs a site account.")
+    if missing:
+        embed.add_field(name="⚠️ I can't do everything here yet", inline=False,
+                        value=f"Give me these in {mention}: " + ', '.join(missing) + '.')
+    embed.set_footer(text='Move me: run /setup in another channel. Disconnect: Club settings on the site.')
+    return embed
+
+
+def missing_permissions_message(server_name, channel, missing):
+    """A DM to whoever connected a server when the bot loses something it needs."""
+    where = getattr(channel, 'mention', None) or 'its channel'
+    return (f"Heads up — in **{server_name}** I can't do everything in {where} anymore. "
+            f"I need: {', '.join(missing)}. (Server Settings → Integrations, or the channel's permissions.)")
+
+
+def joined_server_embed():
+    """Posted once when the bot is added to a server."""
+    embed = discord.Embed(title='🍿 Hi! I\'m CinemaBot', colour=AMBER, url=f'{SITE_URL}/help')
+    embed.description = ("I bring a Cinema Club DC club to this server: what's playing at the DC area's theatres, "
+                         "RSVPs, screening threads, the weekly digest and games.\n"
+                         "**To connect me to your club:** a club admin makes a code in Club settings → Discord on "
+                         f"{SITE_URL}, then a server admin runs `/setup code:…` in the channel I should use.\n"
+                         "Meanwhile `/showtimes`, `/movie`, `/find` and `/surprise` work for everyone.")
     return embed
 

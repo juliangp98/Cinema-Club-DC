@@ -3,16 +3,20 @@ scrape events, the chatbot's context, members' alerts and notifications.
 """
 import app as core
 import taste
-from app import (ActivityEvent, BotSetting, DiscordPost, DiscordServerMember, Group, Notification, RSVP,
+from app import (ActivityEvent, BotSetting, DiscordPost, DiscordServer, DiscordServerMember, Group, Notification, RSVP,
     SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User, Watchlist, _group_showtime_query,
     _notify_settings, _utcnow_naive, app, attended_showtime_ids, build_leaderboard, datetime, db, jsonify,
     on_discord, post_dict, render_post, request, set_share_pref, timedelta)
 from routes.internal.common import _present_changed, require_internal, resolve_discord_user
 
 
-def members_synced():
-    """Has the bot reported the server's members yet? Until it has, nothing is posted."""
-    return db.session.get(BotSetting, 'discord_members_synced_at') is not None
+def members_synced(group_id):
+    """Has the bot reported this club's server's members yet? Until it has,
+    nothing is posted there."""
+    server = core.discord_server(group_id)
+    if server and server.reported_at:
+        return True
+    return group_id == core.HOME_GROUP_ID and db.session.get(BotSetting, 'discord_members_synced_at') is not None
 
 
 # ─── Discord posts: the bot's queue ───────────────────────────────────────────
@@ -27,12 +31,12 @@ def internal_posts_due():
     group_id = request.args.get('group_id', type=int)
     now = datetime.now()
     out = []
-    if not members_synced():
+    if not members_synced(group_id):
         return jsonify(out)
     for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.status == 'pending',
                                        DiscordPost.post_at <= now)
               .order_by(DiscordPost.post_at, DiscordPost.id).limit(10)):
-        data = render_post(p, now) if on_discord(p.user) else None
+        data = render_post(p, now) if on_discord(p.user, p.group_id) else None
         if data is None:
             p.status = 'cancelled'            # nothing left to say (or they've left the server)
             continue
@@ -53,39 +57,53 @@ def internal_posts_due():
 @app.route('/api/internal/discord/members', methods=['POST'])
 @require_internal
 def internal_discord_members():
-    """Who's in the club's server, from the bot: {ids: [...], full: true} is
-    the whole list (on start, and every half hour); {joined: [...]} /
+    """Who's in a connected server, from the bot: {guild_id, ids: [...], full:
+    true} is the whole list (on start, and every half hour); {joined: [...]} /
     {left: [...]} are changes as they happen. Screenings whose Discord cards
-    list someone who joined or left are refreshed."""
+    list someone who joined or left are refreshed. No guild_id: the home
+    server, from before servers were per club."""
     data = request.json or {}
+    guild = str(data.get('guild_id') or '') or None
+    if guild and data.get('home') and not db.session.get(DiscordServer, guild):
+        import discord_servers
+        discord_servers.adopt_home(guild)                 # the bot's own server: register it
+    server = db.session.get(DiscordServer, guild) if guild else None
+    group_id = server.group_id if server else (core.HOME_GROUP_ID if not guild else None)
+    if not group_id:
+        return jsonify({'error': 'That server isn\'t connected to a club'}), 404
     clean = lambda key: {str(i) for i in data.get(key) or [] if str(i).isdigit()}
-    current = {r[0] for r in db.session.query(DiscordServerMember.discord_user_id)}
+    rows = DiscordServerMember.query.filter(DiscordServerMember.guild_id == guild if guild
+                                            else DiscordServerMember.guild_id.is_(None))
+    current = {r.discord_user_id for r in rows}
     if data.get('full'):
         ids = clean('ids')
         joined, left = ids - current, current - ids
     else:
         joined, left = clean('joined') - current, clean('left') & current
     if left:
-        DiscordServerMember.query.filter(DiscordServerMember.discord_user_id.in_(left)).delete(synchronize_session=False)
+        rows.filter(DiscordServerMember.discord_user_id.in_(left)).delete(synchronize_session=False)
     for i in joined:
-        db.session.add(DiscordServerMember(discord_user_id=i))
+        db.session.add(DiscordServerMember(guild_id=guild, discord_user_id=i))
     changed = joined | left
     if changed:
         users = [u.id for u in User.query.filter(User.discord_user_id.in_(changed))]
         upcoming = {r.showtime_id for r in RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
-            RSVP.user_id.in_(users), RSVP.group_id == core.DISCORD_GROUP_ID, Showtime.start_time >= datetime.now())} \
+            RSVP.user_id.in_(users), RSVP.group_id == group_id, Showtime.start_time >= datetime.now())} \
             if users else set()
         if upcoming:
-            ShowtimeThread.query.filter(ShowtimeThread.group_id == core.DISCORD_GROUP_ID,
+            ShowtimeThread.query.filter(ShowtimeThread.group_id == group_id,
                                         ShowtimeThread.showtime_id.in_(upcoming)) \
                 .update({'card_dirty': True}, synchronize_session=False)
-            DiscordPost.query.filter(DiscordPost.group_id == core.DISCORD_GROUP_ID, DiscordPost.kind == 'invite',
+            DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.kind == 'invite',
                                      DiscordPost.ref_id.in_(upcoming), DiscordPost.status == 'posted') \
                 .update({'dirty': True}, synchronize_session=False)
     if data.get('full'):
-        row = db.session.get(BotSetting, 'discord_members_synced_at') or BotSetting(key='discord_members_synced_at')
-        row.value = _utcnow_naive().isoformat(timespec='seconds')
-        db.session.add(row)
+        if server:
+            server.reported_at, server.member_count = _utcnow_naive(), len(clean('ids'))
+        if group_id == core.HOME_GROUP_ID:
+            row = db.session.get(BotSetting, 'discord_members_synced_at') or BotSetting(key='discord_members_synced_at')
+            row.value = _utcnow_naive().isoformat(timespec='seconds')
+            db.session.add(row)
     db.session.commit()
     _present_changed()
     return jsonify({'members': len(current - left) + len(joined), 'joined': len(joined), 'left': len(left)})

@@ -80,7 +80,7 @@ def call(command, user, **kw):
 def bot():
     setup_db()
     b = patch_bot_api()
-    chat._quote_cache.update(texts=[], fetched=-1e9)
+    chat._quote_cache.clear()
     patch_bot(movies_channel=lambda: types.SimpleNamespace(guild=types.SimpleNamespace(id=HOME)))
     return b
 
@@ -120,7 +120,7 @@ def test_adding_a_quote(seeded):
     assert ephemeral and content.startswith('Added ✓') and 'Mein Führer! I can walk!' in content    # trimmed
     assert '*Dr. Strangelove (Dr. Strangelove)*' in content
     picks = {run(seeded.random_quote()) for _ in range(400)}
-    assert 'Mein Führer! I can walk!' in picks or len(chat._quote_cache['texts']) == 303          # /quote random can draw it
+    assert 'Mein Führer! I can walk!' in picks or len(chat._quote_cache[1]['texts']) == 303          # /quote random can draw it
 
 
 def test_duplicates_and_strangers_are_refused(seeded):
@@ -171,7 +171,7 @@ def test_who_can_remove_a_quote(seeded):
     assert "isn't in the list anymore" in call(seeded.quote_remove, MOD, quote=str(alien['id']))[2]
     rows = run(seeded.api.get('/api/internal/quotes'))
     assert len(rows) == 301 and all(r['id'] not in (new_id, alien['id']) for r in rows)
-    chat._quote_cache.update(texts=[], fetched=-1e9)
+    chat._quote_cache.clear()
     assert ALIEN not in {run(seeded.random_quote()) for _ in range(400)}       # /quote random stops drawing it
 
 

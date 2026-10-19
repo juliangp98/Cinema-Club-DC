@@ -258,6 +258,10 @@
   "profile-letterboxd-watchlist": {
    "label": "Settings → Connections → Letterboxd watchlist",
    "to": "/me?tab=settings#profile-letterboxd-watchlist"
+  },
+  "club-settings-discord-server": {
+   "label": "Club settings → Discord",
+   "to": "/club?tab=settings#club-settings-discord-server"
   }
  },
  "sections": [
@@ -313,7 +317,7 @@
     {
      "id": "roles",
      "q": "What can each club role do?",
-     "a": "Read-only members see the club. Members RSVP, vote, comment and play. Organizers also run polls, the club's theatres and games (which are on, what they post in Discord, and okaying those posts) and answer join requests. Admins can do all that, plus the club's name and picture, invites, roles and removing members."
+     "a": "Read-only members see the club. Members RSVP, vote, comment and play. Organizers also run polls, the club's theatres and games (which are on, what they post in Discord, and okaying those posts) and answer join requests. Admins can do all that, plus the club's name and picture, invites, roles, removing members and connecting its Discord server."
     }
    ]
   },
@@ -574,14 +578,19 @@
      "a": "[Settings → Connections](profile-discord) → Connect Discord (or sign in with Discord). Linking puts your site and Discord activity together."
     },
     {
+     "id": "connect-server",
+     "q": "Can I connect my club's Discord server?",
+     "a": "Yes — a club admin does it in [Club settings → Discord](club-settings-discord-server): Add to Discord (pick your server; you need Manage Server there), make a code, and run /setup with it in the channel the bot should post in. From then on the bot posts there what the club chooses (new showtimes, the Monday digest, game posts, screening threads), and anyone in the server who uses a command joins the club — no site account needed. Run /setup in another channel to move it; disconnect in Club settings. Until it's connected, the bot answers /showtimes, /movie, /find, /surprise and /theatre there."
+    },
+    {
      "id": "discord-shows",
      "q": "What shows up in the club's Discord?",
-     "a": "Only what you choose. In [Settings → Privacy and sharing](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Only members who've linked Discord and are in the club's server ever appear there."
+     "a": "Only what you choose. In [Settings → Privacy and sharing](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Each club's Discord server shows only that club, and only members who've linked Discord and are in that server ever appear there."
     },
     {
      "id": "bot",
      "q": "What can the bot do?",
-     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button — plus /poll list, /poll vote and /leaderboard. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel."
+     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button — plus /poll list, /poll vote and /leaderboard. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
     }
    ]
   },

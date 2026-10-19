@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, NO_ACCOUNT_MSG, SITE_URL, api, client, discord_identity, register, reply_failure, tell
+from .shared import NO_ACCOUNT_MSG, SITE_URL, api, client, club, discord_identity, register, reply_failure, tell
 from . import alerts      # used at call time, so the order they load in doesn't matter
 
 
@@ -119,7 +119,7 @@ async def send_history(interaction, member_discord_id=None):
     Didn't go buttons for the latest screenings you haven't checked in to."""
     try:
         if member_discord_id:
-            data = await api.get('/api/internal/history', member_discord_id=member_discord_id, group_id=DEFAULT_GROUP_ID)
+            data = await api.get('/api/internal/history', member_discord_id=member_discord_id, group_id=club())
         else:
             data = await api.get('/api/internal/history', **discord_identity(interaction))
     except Exception as e:

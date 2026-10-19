@@ -1,10 +1,11 @@
-"""/llm — the AI models (server admins only).
+"""/llm — the AI models (server admins of the home server only: the AI is the
+whole site's, so other clubs' servers can't change it).
 """
 
 import discord
 from discord import app_commands
 import llm
-from .shared import api, client
+from .shared import api, client, is_home_guild
 
 
 # ─── /llm (server admins) ────────────────────────────────────────────────────
@@ -15,9 +16,21 @@ llm_admin = app_commands.Group(
     name='llm', description="The chatbot's AI models (server admins)",
     default_permissions=discord.Permissions(manage_guild=True), guild_only=True)
 
+HOME_ONLY_MSG = "The AI models are the whole site's — they're changed from the Cinema Club DC server."
+
+
+async def home_only(interaction):
+    """True in the home server; elsewhere says why not."""
+    if is_home_guild(interaction.guild_id):
+        return True
+    await interaction.response.send_message(HOME_ONLY_MSG, ephemeral=True)
+    return False
+
 
 @llm_admin.command(name='show', description='Which models the chatbot uses, and what Groq offers')
 async def llm_show(interaction: discord.Interaction):
+    if not await home_only(interaction):
+        return
     await interaction.response.defer(ephemeral=True)
     try:
         s = await llm.status()
@@ -46,6 +59,8 @@ async def llm_show(interaction: discord.Interaction):
     app_commands.Choice(name='Fallback', value='fallback'),
 ])
 async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[str], model: str):
+    if not await home_only(interaction):
+        return
     value = model.strip()
     value = '' if value.lower() == 'auto' else value
     if value == 'none' and slot.value == 'primary':
@@ -57,7 +72,8 @@ async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[st
             f"`{value}` isn't a chat model Groq serves right now — pick one from the list.", ephemeral=True)
         return
     try:
-        await api.post('/api/internal/settings', {'key': f'llm_{slot.value}', 'value': value})
+        await api.post('/api/internal/settings', {'key': f'llm_{slot.value}', 'value': value,
+                                                  'guild_id': str(interaction.guild_id)})
     except Exception as e:
         print(f'/llm set failed to save: {e}')
         await interaction.followup.send("Couldn't save that setting — try again in a bit.", ephemeral=True)

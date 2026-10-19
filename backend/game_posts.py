@@ -158,7 +158,7 @@ def _bingo(group, now):
             if mode(group, 'bingo_win') == 'always':
                 _post(group, 'bingo_win', f'{card.month}:{u.id}:{which}',
                       {'user_id': u.id, 'which': which,
-                       'named': share_prefs(u)['games'] == 'always' and on_discord(u)})
+                       'named': share_prefs(u)['games'] == 'always' and on_discord(u, group.id)})
 
 
 def _late(post, now):

@@ -8,6 +8,7 @@ import ToggleChip from "../ui/ToggleChip";
 import Panel from "../ui/Panel";
 import { NEVER_ALWAYS, POST_MODES, Segmented } from "../ui/TicketRow";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow, useSaveStatus } from "../ui/Settings";
+import ClubDiscord from "./ClubDiscord";
 import GamePostsWaiting from "./GamePostsWaiting";
 import { QUIZ_GAMES } from "./QuizGames";
 import { ROLES } from "../roles";
@@ -15,8 +16,8 @@ import SectionMenu from "../ui/SectionMenu";
 
 // A club's settings (R6b; by category in 7g, on the settings standard —
 // ui/Settings): the club itself, its members, its theatres (and which of them
-// announce new showtimes in #movies), its games (each one card: its switch,
-// its options, what it posts in #movies) and the admin things. Organizers get
+// announce new showtimes in Discord), its games (each one card: its switch,
+// its options, what it posts in Discord) and the admin things. Organizers get
 // Members (join requests), Theatres and Games; the rest is admins' (the
 // server checks the same split). Everything saves as you change it.
 // Where trivia's films come from (R15, film_pool.SOURCES).
@@ -27,6 +28,7 @@ const SECTIONS = [
   { id: "settings-club", label: "Club", admin: true },
   { id: "settings-members", label: "Members" },
   { id: "settings-theatres", label: "Theatres" },
+  { id: "settings-discord", label: "Discord" },
   { id: "settings-games", label: "Games" },
   { id: "settings-admin", label: "Admin", admin: true },
 ];
@@ -216,20 +218,25 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
             </div>
           )}
           {discord && followed.length > 0 && (
-            <SettingsGroup title="New showtimes in #movies">
-              <p className="ui-hint">A theatre that's on posts its new showtimes in #movies as they're booked; the rest are in the Monday
-                digest. The same setting as /announcements in Discord.</p>
+            <SettingsGroup title="New showtimes in Discord">
+              <p className="ui-hint">A theatre that's on posts its new showtimes in the club's Discord channel as they're booked; the rest
+                are in the Monday digest. The same setting as /announcements in Discord.</p>
               {followed.map(t => <SwitchRow key={t.slug} label={t.name} checked={announced.has(t.slug)} onChange={v => announce(t.slug, v)} />)}
             </SettingsGroup>
           )}
         </SettingsSection>
 
+        <SettingsSection id="settings-discord" title="Discord"
+                         intro="The club's Discord server: the bot posts there (what you choose here), and members use its commands — anyone who does joins the club.">
+          <ClubDiscord group={group} apiBase={apiBase} isAdmin={isAdmin} run={run} onConnected={() => onChanged?.()} />
+        </SettingsSection>
+
         <SettingsSection id="settings-games" title="Games"
                          intro="Each game is off until you turn it on; members choose their own reminders in their Settings → Notifications.">
           <GamePostsWaiting apiBase={apiBase} slug={group.slug} />
-          {discord ? <p className="ui-hint">What a game posts in #movies is on its card. Posts never ping anyone; Ask first: an organizer
-            or admin checks it (here, or by DM) before it goes up.</p>
-            : <p className="ui-hint">This club isn't the one connected to the Discord server, so its games don't post there.</p>}
+          {discord ? <p className="ui-hint">What a game posts in the club's Discord channel is on its card. Posts never ping anyone; Ask
+            first: an organizer or admin checks it (here, or by DM) before it goes up.</p>
+            : <p className="ui-hint">No Discord server is connected (Discord, above), so the games don't post there.</p>}
           <div className="game-settings">
             <Panel as="div" className="game-setting" title="🧠 Trivia: question of the day"
                    aside={<Switch label="Trivia: question of the day" checked={!!group.trivia?.enabled} onChange={set("trivia_enabled")} />}>
@@ -243,7 +250,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                              onChange={v => v && run(() => update({ trivia_source: v }))} />
                 </SettingRow>
               )}
-              {group.trivia?.enabled && postRow("Post it in #movies", "Around 11 AM, with A–D buttons; answers stay private. Unchecked by 10 PM: it isn't posted.",
+              {group.trivia?.enabled && postRow("Post it in Discord", "Around 11 AM, with A–D buttons; answers stay private. Unchecked by 10 PM: it isn't posted.",
                                                 "trivia_post", group.trivia?.post)}
             </Panel>
 

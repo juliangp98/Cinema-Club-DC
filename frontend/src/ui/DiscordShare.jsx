@@ -5,7 +5,7 @@ import { dayDateAt } from "../dates";
 import { send } from "../api";
 import Prompt from "./Prompt";
 
-// Choosing what goes to the club's Discord (R3d). Nothing posts to #movies
+// Choosing what goes to the club's Discord (R3d). Nothing posts to the club's Discord
 // unless you share it; shared posts stay in step with the site and never
 // @-ping anyone. Only screenings and polls in the Discord server's group
 // carry a `discord` block, so everything here hides itself elsewhere.
@@ -81,7 +81,7 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
       <div className="share-sheet-body">
         <SheetTitle>Who's in?</SheetTitle>
         <p className="share-sheet-lead">
-          Posts a card for <strong>{showtime.movie?.title}</strong> in #movies with Going and Maybe buttons. Its list
+          Posts a card for <strong>{showtime.movie?.title}</strong> in the club's Discord with Going and Maybe buttons. Its list
           stays current as people answer, here or there. Nobody gets pinged.
         </p>
         <label className="share-label" htmlFor="invite-note">Add a note (optional)</label>
@@ -93,7 +93,7 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
         <div className="share-sheet-foot">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={postInvite} disabled={busy || (when.when === "later" && !when.at)}>
-            {busy ? "Posting…" : when.when === "later" ? "Schedule" : "Post in #movies"}
+            {busy ? "Posting…" : when.when === "later" ? "Schedule" : "Post in Discord"}
           </button>
         </div>
       </div>
@@ -101,17 +101,17 @@ function InviteSheet({ showtime, apiBase, groupId, onClose, onDone }) {
   );
 }
 
-// A post's state, compactly: "Posting shortly", "Scheduled for …", "In #movies ↗".
+// A post's state, compactly: "Posting shortly", "Scheduled for …", "In Discord ↗".
 function PostState({ post, label }) {
   if (post.status === "posted") {
     return post.jump_url
-      ? <a className="share-state" href={post.jump_url} target="_blank" rel="noreferrer">{label} in #movies ↗</a>
-      : <span className="share-state">{label} in #movies</span>;
+      ? <a className="share-state" href={post.jump_url} target="_blank" rel="noreferrer">{label} in Discord ↗</a>
+      : <span className="share-state">{label} in Discord</span>;
   }
   return <span className="share-state">{isScheduled(post) ? `${label} · scheduled for ${at(post.post_at)}` : `${label} · posting shortly`}</span>;
 }
 
-// Under a ticket's RSVP: the "share in #movies?" prompt, your share's state,
+// Under a ticket's RSVP: the "share in Discord?" prompt, your share's state,
 // and "Who's in?". `discord` comes with the screening (null = not the Discord group).
 export function TicketDiscord({ showtime: s, apiBase, groupId }) {
   const [d, setD] = useState(s.discord);
@@ -142,7 +142,7 @@ export function TicketDiscord({ showtime: s, apiBase, groupId }) {
   return (
     <div className="ticket-discord">
       {d.prompt && rsvpd && !d.my_share ? (
-        <Prompt question="Share your RSVP in #movies?" label="Share in Discord" onClose={() => notNow(false)}
+        <Prompt question="Share your RSVP in Discord?" label="Share in Discord" onClose={() => notNow(false)}
                 actions={<>
                   <button type="button" className="btn btn-sm btn-primary" onClick={() => share(false)}>Share</button>
                   <button type="button" className="btn btn-sm" onClick={() => notNow(false)}>Not now</button>
@@ -161,7 +161,7 @@ export function TicketDiscord({ showtime: s, apiBase, groupId }) {
         </div>
       ) : rsvpd ? (
         <div className="share-row">
-          <button type="button" className="share-link" onClick={() => share(false)}>Share your RSVP in #movies</button>
+          <button type="button" className="share-link" onClick={() => share(false)}>Share your RSVP in Discord</button>
         </div>
       ) : null}
 
@@ -260,7 +260,7 @@ export function PollDiscord({ poll, apiBase, onChange }) {
             <ShareWhen value={when} onChange={setWhen} />
             <button type="button" className="btn btn-sm btn-primary" disabled={busy || (when.when === "later" && !when.at)}
                     onClick={() => share("poll", when.when === "later" ? when.at : undefined)}>
-              {when.when === "later" ? "Schedule" : "Announce in #movies"}
+              {when.when === "later" ? "Schedule" : "Announce in Discord"}
             </button>
           </>
         )}
@@ -280,7 +280,7 @@ export function PollDiscord({ poll, apiBase, onChange }) {
             <>
               <span className="share-state">Results are in — not posted yet.</span>
               <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => share("poll_results")}>
-                Post results in #movies
+                Post results in Discord
               </button>
             </>
           )}

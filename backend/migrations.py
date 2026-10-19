@@ -6,7 +6,7 @@ Moved out of app.py in the sprint wrap-up; app re-exports these names."""
 import os
 import re
 
-from app import BotSetting, DISCORD_GROUP_ID, Group, GroupMembership, Movie, Theatre, User, app, db
+from app import BotSetting, DiscordServerMember, HOME_GROUP_ID, Group, GroupMembership, Movie, Theatre, User, app, db
 
 
 def migrate():
@@ -119,6 +119,8 @@ def migrate():
         "ALTER TABLE user ADD COLUMN letterboxd_watch_on BOOLEAN DEFAULT 0",
         "ALTER TABLE user ADD COLUMN letterboxd_watch_alerts BOOLEAN",
         "ALTER TABLE user ADD COLUMN letterboxd_watch_imported_at DATETIME",
+        # The bot in other servers: quotes added in a club's server show only there
+        "ALTER TABLE quote ADD COLUMN group_id INTEGER REFERENCES 'group'(id)",
     ]
     for sql in stmts:
         try:
@@ -165,7 +167,7 @@ def migrate():
     # server's club becomes invite-only — not listed on the Clubs page, and
     # strangers can't ask to join (an admin can change it in Club settings).
     if not db.session.get(BotSetting, 'discord_club_private_done'):
-        db.session.execute(db.text("UPDATE 'group' SET is_public = 0 WHERE id = :g"), {'g': DISCORD_GROUP_ID})
+        db.session.execute(db.text("UPDATE 'group' SET is_public = 0 WHERE id = :g"), {'g': HOME_GROUP_ID})
         db.session.add(BotSetting(key='discord_club_private_done', value='1'))
         db.session.commit()
     # Phase 8: until now a show gone from a venue's site was marked cancelled
@@ -182,6 +184,31 @@ def migrate():
     db.session.commit()
     _migrate_user_email_nullable()
     _backfill_title_normalized()
+    _migrate_server_members()
+    # The bot in other servers: quotes members added so far were added in the
+    # home server, so they're the home club's; the original list stays shared.
+    if not db.session.get(BotSetting, 'quotes_per_club_done'):
+        db.session.execute(db.text("UPDATE quote SET group_id = :g WHERE added_by IS NOT NULL AND group_id IS NULL"),
+                           {'g': HOME_GROUP_ID})
+        db.session.add(BotSetting(key='quotes_per_club_done', value='1'))
+        db.session.commit()
+
+
+def _migrate_server_members():
+    """discord_server_member was one server's list (keyed by Discord id); now
+    it's per server. Rebuild it once, keeping today's rows as the home
+    server's (guild None until the bot reports its id)."""
+    cols = [r[1] for r in db.session.execute(db.text("PRAGMA table_info(discord_server_member)"))]
+    if not cols or 'guild_id' in cols:
+        return
+    _backup_sqlite('pre-server-members')
+    db.session.execute(db.text("ALTER TABLE discord_server_member RENAME TO discord_server_member_old"))
+    db.session.commit()
+    DiscordServerMember.__table__.create(db.engine)
+    db.session.execute(db.text("INSERT INTO discord_server_member (guild_id, discord_user_id, seen_at) "
+                               "SELECT NULL, discord_user_id, seen_at FROM discord_server_member_old"))
+    db.session.execute(db.text("DROP TABLE discord_server_member_old"))
+    db.session.commit()
 
 
 def _backup_sqlite(suffix):

@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, SITE_URL, api, api_failure, client, discord_identity, register, reply_failure, tell
+from .shared import SITE_URL, api, api_failure, client, club, discord_identity, register, reply_failure, tell
 
 
 # ─── /poll vote ───────────────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
 
 async def vote_poll_autocomplete(interaction: discord.Interaction, current: str):
     try:
-        polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID, include_closed=1)
+        polls = await api.get('/api/internal/polls', group_id=club(), include_closed=1)
     except Exception:
         return []
     icon = {'open': '🗳️', 'closed': '🔒', 'scored': '🏆'}
@@ -291,7 +291,7 @@ class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'po
             await interaction.followup.send(msg, ephemeral=True)
             return
         await interaction.followup.send(
-            f"✓ **{poll['title']}** is open — it'll be announced in #movies in a moment. {SITE_URL}/polls/{poll['id']}",
+            f"✓ **{poll['title']}** is open — it'll be announced in the club's channel in a moment. {SITE_URL}/polls/{poll['id']}",
             ephemeral=True)
 
 
@@ -332,7 +332,7 @@ async def poll_make(interaction: discord.Interaction, request: app_commands.Rang
 async def poll_list(interaction: discord.Interaction):
     await interaction.response.defer()
     try:
-        open_polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID)
+        open_polls = await api.get('/api/internal/polls', group_id=club())
     except Exception as e:
         await reply_failure(interaction, e, '/poll list', ephemeral=False)
         return
@@ -352,7 +352,7 @@ async def poll_vote(interaction: discord.Interaction, poll: str = None):
     if poll is None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            open_polls = await api.get('/api/internal/polls', group_id=DEFAULT_GROUP_ID)
+            open_polls = await api.get('/api/internal/polls', group_id=club())
         except Exception as e:
             await reply_failure(interaction, e, '/poll vote')
             return

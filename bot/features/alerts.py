@@ -10,7 +10,8 @@ from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, ET, GONE_MSG, SITE_URL, api, client, discord_identity, dm_owner, movies_channel, register, reply_failure, tell, theatre_choices
+from .shared import (DEFAULT_GROUP_ID, ET, GONE_MSG, SITE_URL, api, channel_for, client, club, connected_clubs,
+                     discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club)
 from . import games, polls, threads      # used at call time, so the order they load in doesn't matter
 
 
@@ -18,8 +19,8 @@ from . import games, polls, threads      # used at call time, so the order they 
 
 @tasks.loop(seconds=60)
 async def announce_loop():
-    channel = movies_channel()
-    if channel is None:
+    clubs = [g for g, _ in connected_clubs()]
+    if not clubs:
         return
     try:
         events = await api.get('/api/internal/scrape-events', unannounced=1)
@@ -27,21 +28,26 @@ async def announce_loop():
         print(f'announce_loop: fetch failed: {e}')
         return
 
-    # Theatre drops are announced only for theatres someone enabled with
-    # /announcements (fail closed — they're opt-in). Every theatre's new showtimes,
-    # and watchlist tags, reach people through the Monday digest regardless.
-    try:
-        enabled = set((await api.get('/api/internal/alerts',
-                                     group_id=DEFAULT_GROUP_ID)).get('slugs', []))
-    except Exception as e:
-        print(f'announce_loop: alerts fetch failed: {e}')
-        enabled = set()
+    # Theatre drops are announced only in the servers of clubs that turned that
+    # theatre on (/announcements or Club settings — fail closed, they're
+    # opt-in). Every theatre's new showtimes, and watchlist tags, reach people
+    # through the Monday digest regardless.
+    enabled = {}
+    for gid in clubs:
+        try:
+            enabled[gid] = set((await api.get('/api/internal/alerts', group_id=gid)).get('slugs', []))
+        except Exception as e:
+            print(f'announce_loop: alerts fetch for club {gid} failed: {e}')
+            enabled[gid] = set()
 
     for event in events:
         try:
             if event['event_type'] in ('new_drop', 'new_showtimes'):
-                if (event.get('payload') or {}).get('theatre_slug') in enabled:
-                    await channel.send(embed=embeds.drop_embed(event))
+                slug = (event.get('payload') or {}).get('theatre_slug')
+                for gid in clubs:
+                    channel = channel_for(gid)
+                    if channel is not None and slug in enabled[gid]:
+                        await channel.send(embed=embeds.drop_embed(event))
             elif event['event_type'] == 'scrape_error':
                 await dm_owner(embeds.error_message(event))   # not channel news
             await api.post(f"/api/internal/scrape-events/{event['id']}/announced")
@@ -61,14 +67,17 @@ async def announce_loop():
             if ev['kind'] == 'llm_switch':                      # the shared AI changed models: owner only
                 await dm_owner(p.get('message') or 'The AI models changed.')
             elif ev['kind'] in ('poll_opened', 'poll_scored'):
-                if p.get('group_id') == DEFAULT_GROUP_ID:      # only this server's group's polls
+                channel = channel_for(p.get('group_id'))       # the poll's own club's server, if it has one
+                if channel is not None:
                     if ev['kind'] == 'poll_opened':
                         await channel.send(embed=embeds.poll_opened_embed(p),
                                            view=polls.vote_open_view([{'id': p['poll_id'], 'title': p['title']}]))
                     else:
                         await channel.send(embed=embeds.poll_results_embed(p))
             elif msg := embeds.activity_message(ev):
-                await channel.send(msg)
+                channel = channel_for(p.get('group_id') or DEFAULT_GROUP_ID)
+                if channel is not None:
+                    await channel.send(msg)
             await api.post(f"/api/internal/activity-events/{ev['id']}/announced")
         except Exception as e:
             print(f"announce_loop: activity failed for {ev.get('id')}: {e}")
@@ -85,7 +94,9 @@ async def before_announce():
 async def digest_loop():
     if datetime.now(ET).weekday() != 0:   # Monday only
         return
-    await post_digest(movies_channel(), tag_watchers=True)
+    for gid, _ in connected_clubs():      # each club's own digest, in its own server
+        use_club(gid)
+        await post_digest(channel_for(gid), tag_watchers=True)
 
 
 @digest_loop.before_loop
@@ -94,13 +105,13 @@ async def before_digest():
 
 
 async def post_digest(channel, tag_watchers=False):
-    """Post the weekly digest to `channel`; returns True on success. Only the
-    scheduled Monday post tags watchlist owners, and the tags are recorded so
-    nobody is re-tagged about the same film for two weeks."""
+    """Post the current club's weekly digest to `channel`; returns True on
+    success. Only the scheduled Monday post tags watchlist owners, and the tags
+    are recorded so nobody is re-tagged about the same film for two weeks."""
     if channel is None:
         return False
     try:
-        digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
+        digest = await api.get('/api/internal/digest', group_id=club(), days=7)
         content, embed, tagged, plans = embeds.digest_message(digest, tag_watchers=tag_watchers)
         await channel.send(content, embed=embed, view=threads.plans_view(plans),
                            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
@@ -109,7 +120,7 @@ async def post_digest(channel, tag_watchers=False):
         return False
     if tagged:
         try:
-            await api.post('/api/internal/digest/delivered', {'watchlist_ids': tagged})
+            await api.post('/api/internal/digest/delivered', {'watchlist_ids': tagged, 'group_id': club()})
         except Exception as e:
             print(f'digest: recording tagged watchers failed: {e}')
     return True
@@ -407,7 +418,7 @@ async def on_app_command_completion(interaction: discord.Interaction, command):
 
 
 async def fetch_alerts():
-    return await api.get('/api/internal/alerts', group_id=DEFAULT_GROUP_ID)
+    return await api.get('/api/internal/alerts', group_id=club())
 
 
 @client.tree.command(name='announcements',
@@ -447,7 +458,7 @@ async def announcements(interaction: discord.Interaction,
     await interaction.response.defer(ephemeral=True)
     try:
         result = await api.post('/api/internal/alerts', {
-            'group_id': DEFAULT_GROUP_ID, 'theatre_slug': theatre, 'action': act,
+            'group_id': club(), 'theatre_slug': theatre, 'action': act,
         })
     except ApiError as e:
         msg = "I don't know that theatre — pick one from the list." if e.status == 404 \
@@ -500,7 +511,7 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
     if preview:
         await interaction.response.defer(ephemeral=True)
         try:
-            digest = await api.get('/api/internal/digest', group_id=DEFAULT_GROUP_ID, days=7)
+            digest = await api.get('/api/internal/digest', group_id=club(), days=7)
         except Exception as e:
             await reply_failure(interaction, e, '/digest preview')
             return

@@ -3,7 +3,7 @@ import { getJson, send } from "../api";
 import Panel from "../ui/Panel";
 
 // Game posts waiting for an organizer's or admin's OK (R14): each exactly as it'll look in
-// #movies — the question of the day (with its answer, for checking) or the
+// the club's Discord — the question of the day (with its answer, for checking) or the
 // month's bingo card — with Post it / Try another or Reshuffle / Skip. The
 // same buttons come in a Discord DM for those who take DMs.
 const LETTERS = "ABCD";
@@ -89,7 +89,7 @@ export default function GamePostsWaiting({ apiBase, slug }) {
       {posts.waiting.length > 0 && <h3 className="club-settings-sub" id="game-posts-title">Waiting for your OK</h3>}
       {posts.waiting.map(post => (
         <Panel key={post.id} tone="gold" className="game-preview" titleId={`game-post-${post.id}`}
-               aria-labelledby={`game-post-${post.id}`} title={postTitle(post)} hint="As it'll look in #movies"
+               aria-labelledby={`game-post-${post.id}`} title={postTitle(post)} hint="As it'll look in Discord"
                actions={<>
                  <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => act(post, "post")}>Post it</button>
                  {post.kind === "trivia" && (

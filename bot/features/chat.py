@@ -12,16 +12,18 @@ from api import ApiError
 import embeds
 import llm
 import quotes
-from .shared import DEFAULT_GROUP_ID, SITE_URL, api, api_failure, client, discord_identity, register, reply_failure, tell
+from .shared import (SITE_URL, api, api_failure, client, club, club_for_guild, discord_identity, dm_club,
+                     register, reply_failure, tell, use_club)
 from . import threads      # used at call time, so the order they load in doesn't matter
 
 
 # ─── Quotes ───────────────────────────────────────────────────────────────────
 # The live list is in the backend (managed with /quote); quotes.py is the
-# original list, used to seed an empty database and as a fallback.
+# original list, used to seed an empty database and as a fallback. Each club's
+# server sees the classics and its own additions, so the cache is per club.
 
 QUOTE_REFRESH_SEC = 600
-_quote_cache = {'texts': [], 'fetched': -1e9}
+_quote_cache = {}                 # club → {'texts': [...], 'fetched': monotonic time}
 
 
 async def seed_quotes():
@@ -38,21 +40,23 @@ async def seed_quotes():
 
 
 def invalidate_quotes():
-    _quote_cache['fetched'] = -1e9
+    _quote_cache.clear()
 
 
 async def random_quote():
-    """A random line from the database list (cached for 10 minutes, refreshed
-    right after any /quote change), or the built-in list if the backend can't be
-    reached. Only the line itself is ever shown."""
-    if time.monotonic() - _quote_cache['fetched'] > QUOTE_REFRESH_SEC:
+    """A random line from the current club's list (the classics and its own;
+    cached for 10 minutes, refreshed right after any /quote change), or the
+    built-in list if the backend can't be reached. Only the line itself is ever
+    shown."""
+    cache = _quote_cache.setdefault(club(), {'texts': [], 'fetched': -1e9})
+    if time.monotonic() - cache['fetched'] > QUOTE_REFRESH_SEC:
         try:
-            _quote_cache['texts'] = [q['text'] for q in await api.get('/api/internal/quotes')]
-            _quote_cache['fetched'] = time.monotonic()
+            cache['texts'] = [q['text'] for q in await api.get('/api/internal/quotes', group_id=club())]
+            cache['fetched'] = time.monotonic()
         except Exception as e:
             print(f'quotes: refresh failed: {e}')
-            _quote_cache['fetched'] = time.monotonic() - QUOTE_REFRESH_SEC + 60   # retry in a minute
-    return random.choice(_quote_cache['texts'] or quotes.QUOTES)
+            cache['fetched'] = time.monotonic() - QUOTE_REFRESH_SEC + 60   # retry in a minute
+    return random.choice(cache['texts'] or quotes.QUOTES)
 
 
 # ─── @-mention chatbot ────────────────────────────────────────────────────────
@@ -458,6 +462,12 @@ async def on_message(message: discord.Message):
     # site comments into screening threads (no feedback loops).
     if message.author.bot or message.webhook_id:
         return
+    # Which club: the server's (none — not connected — means no chat or quotes:
+    # the AI and the quotes are the clubs'), or in DMs the last one picked.
+    group_id = club_for_guild(message.guild.id) if message.guild else dm_club(message.author.id)
+    if group_id is None:
+        return
+    use_club(group_id)
 
     # 0) Screening threads mirror to the site discussion.
     in_screening_thread = str(message.channel.id) in threads._thread_ids
@@ -512,7 +522,7 @@ async def on_message(message: discord.Message):
         async with message.channel.typing():
             try:
                 ctx = await api.get('/api/internal/chat-context', discord_user_id=uid,
-                                    group_id=DEFAULT_GROUP_ID, prompt=prompt[:500])
+                                    group_id=group_id, prompt=prompt[:500])
             except Exception as e:
                 print(f'chat-context fetch failed: {e}')
                 ctx = {'user': {'linked': False}, 'upcoming': []}
@@ -618,6 +628,7 @@ class QuoteModal(discord.ui.Modal):
         except ApiError as e:
             body = _api_error_json(e)
             msg = (f"That line is already in the list (#{body.get('id')})." if body.get('error') == 'duplicate'
+                   else CLASSIC_MSG if body.get('error') == 'classic'
                    else api_failure(e, body.get('error') or "Couldn't save that ({status})."))
             await tell(interaction, msg)
             return
@@ -627,6 +638,10 @@ class QuoteModal(discord.ui.Modal):
         invalidate_quotes()
         verb = 'Updated' if self.existing else 'Added'
         await tell(interaction, f"{verb} ✓\n{_quote_summary(quote)}")
+
+
+# The classics are every server's, so they're corrected and removed only from the home server.
+CLASSIC_MSG = "That's one of the classic quotes every server shares — they're looked after in the Cinema Club DC server."
 
 
 @quote_cmds.command(name='random', description='A random line of cinematic wisdom 🎬 (posted here)')
@@ -644,7 +659,7 @@ async def quote_add(interaction: discord.Interaction):
 @app_commands.describe(quote='Search by words from the line, the movie, or the character')
 async def quote_edit(interaction: discord.Interaction, quote: str):
     try:
-        existing = await api.get(f'/api/internal/quotes/{int(quote)}')
+        existing = await api.get(f'/api/internal/quotes/{int(quote)}', group_id=club())
     except (ValueError, ApiError):
         await interaction.response.send_message('Pick a quote from the list.', ephemeral=True)
         return
@@ -664,7 +679,8 @@ async def quote_remove(interaction: discord.Interaction, quote: str):
         return
     except ApiError as e:
         body = _api_error_json(e)
-        msg = (f"Only {body.get('added_by')} or a server admin can remove that one." if e.status == 403
+        msg = (CLASSIC_MSG if body.get('error') == 'classic'
+               else f"Only {body.get('added_by')} or a server admin can remove that one." if e.status == 403
                else api_failure(e, "Couldn't remove it ({status}).", "That quote isn't in the list anymore."))
         await interaction.followup.send(msg, ephemeral=True)
         return
@@ -680,7 +696,7 @@ async def quote_remove(interaction: discord.Interaction, quote: str):
 async def quote_find(interaction: discord.Interaction, search: str):
     await interaction.response.defer(ephemeral=True)
     try:
-        rows = await api.get('/api/internal/quotes', q=search, limit=11)
+        rows = await api.get('/api/internal/quotes', q=search, limit=11, group_id=club())
     except Exception as e:
         await reply_failure(interaction, e, '/quote find')
         return
@@ -700,7 +716,7 @@ async def quote_find(interaction: discord.Interaction, search: str):
 
 async def quote_autocomplete(interaction: discord.Interaction, current: str):
     try:
-        rows = await api.get('/api/internal/quotes', q=current or None, limit=25, newest=1)
+        rows = await api.get('/api/internal/quotes', q=current or None, limit=25, newest=1, group_id=club())
     except Exception:
         return []
     choices = []

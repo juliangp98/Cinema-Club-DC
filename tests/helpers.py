@@ -43,11 +43,21 @@ def patch_bot_api():
 
     bot.api.get = get
     bot.api._send = send
+    # The test server (FakeInteraction's guild 900) is the home club's, as the
+    # bot registers its own server at start; other guild ids stay unconnected.
+    from features import chat, schedule, servers, shared, threads
+    shared._servers.clear()
+    shared._servers[900] = {'group_id': shared.DEFAULT_GROUP_ID, 'channel_id': None, 'home': True}
+    # Caches the bot keeps for a run (each test is its own run)
+    for cache in (threads._webhooks, threads._perm_warned, shared._dm_last, shared._theatre_cache,
+                  servers._dm_clubs, chat._quote_cache, schedule._find_options_cache):
+        cache.clear()
+    shared._club.set(shared._UNSET)          # no club carried over from another test's interaction
     return bot
 
 
 BOT_MODULES = ('bot', 'features.shared', 'features.chat', 'features.alerts', 'features.schedule', 'features.threads',
-               'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.club')
+               'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.club', 'features.servers')
 
 
 def patch_bot(**names):

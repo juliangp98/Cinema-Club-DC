@@ -8,7 +8,11 @@ import discord
 from discord import app_commands
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, GONE_MSG, SITE_URL, api, client, date_choices, discord_identity, dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_window, parse_iso_date, register, reply_failure, resolve_window, rsvp_date_autocomplete, rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, tell, theatre_choices, theatre_match
+from .shared import (GONE_MSG, SITE_URL, api, client, club, club_of, date_choices, discord_identity,
+                     dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_window,
+                     parse_iso_date, register, reply_failure, resolve_window, rsvp_date_autocomplete,
+                     rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, tell,
+                     theatre_choices, theatre_match)
 from . import alerts, threads      # used at call time, so the order they load in doesn't matter
 
 
@@ -57,7 +61,7 @@ async def showtimes(interaction: discord.Interaction, days: app_commands.Range[i
     t = tickets.value if tickets else None
     try:
         if t == 'soon':
-            soon = await api.get('/api/internal/announced', group_id=DEFAULT_GROUP_ID, theatre=theatre,
+            soon = await api.get('/api/internal/announced', group_id=club(), theatre=theatre,
                                  start=start_iso[:10], end=end_iso[:10])
             await interaction.followup.send(embed=embeds.announced_embed(soon, f"🔜 Coming soon — {label}"))
             return
@@ -301,7 +305,7 @@ async def watch_title_autocomplete(interaction: discord.Interaction, current: st
 @watch.autocomplete('member')
 async def watch_member_autocomplete(interaction: discord.Interaction, current: str):
     try:
-        members = await api.get('/api/internal/members', group_id=DEFAULT_GROUP_ID)
+        members = await api.get('/api/internal/members', group_id=club())
     except Exception:
         return []
     cur = (current or '').lower()
@@ -327,19 +331,20 @@ async def watch_end_autocomplete(interaction: discord.Interaction, current: str)
 WHEN_CHOICES = [app_commands.Choice(name=n, value=v) for v, n in (
     ('tonight', 'Tonight'), ('tomorrow', 'Tomorrow'), ('weekend', 'This weekend'),
     ('week', 'Next 7 days'), ('2weeks', 'Next 2 weeks'), ('month', 'Next 30 days'))]
-_find_options_cache = {'data': None, 'ts': 0}
+_find_options_cache = {}           # club → (when, options)
 
 
 async def fetch_find_options():
-    if _find_options_cache['data'] is None or time.monotonic() - _find_options_cache['ts'] > 600:
-        _find_options_cache['data'] = await api.get('/api/internal/discover/options', group_id=DEFAULT_GROUP_ID)
-        _find_options_cache['ts'] = time.monotonic()
-    return _find_options_cache['data']
+    hit = _find_options_cache.get(club())
+    if hit is None or time.monotonic() - hit[0] > 600:
+        hit = _find_options_cache[club()] = (time.monotonic(),
+                                             await api.get('/api/internal/discover/options', group_id=club()))
+    return hit[1]
 
 
 def viewer_args(interaction):
     """Who's asking, for personal touches only (never creates an account)."""
-    return {'discord_user_id': str(interaction.user.id), 'group_id': DEFAULT_GROUP_ID}
+    return {'discord_user_id': str(interaction.user.id), 'group_id': club_of(interaction)}
 
 
 async def type_ac(interaction, current):
@@ -392,7 +397,7 @@ class FindPickSelect(discord.ui.DynamicItem[discord.ui.Select], template=r'find:
 async def send_film_details(interaction, movie_id):
     now = datetime.now()
     try:
-        sts = await api.get('/api/internal/showtimes', group_id=DEFAULT_GROUP_ID, movie_id=movie_id,
+        sts = await api.get('/api/internal/showtimes', group_id=club(), movie_id=movie_id,
                             start=now.isoformat(timespec='seconds'),
                             end=(now + timedelta(days=30)).isoformat(timespec='seconds'), limit=60)
     except Exception as e:

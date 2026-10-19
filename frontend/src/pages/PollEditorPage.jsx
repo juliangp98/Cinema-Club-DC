@@ -42,7 +42,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   // Only members in the club's Discord server (with Discord linked) can announce there.
-  const canAnnounce = !!(shell?.group?.discord && shell?.user?.on_discord);
+  const canAnnounce = !!(shell?.group?.discord && shell?.user?.discord_clubs?.includes(shell.group.id));   // in this club's server
 
   function applyDraft(d) {
     setForm({ title: d.title, description: d.description || "", poll_type: d.poll_type, scoring_mode: d.scoring_mode,
@@ -196,7 +196,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
 
         {canAnnounce && (
           <div className="pv-announce">
-            <span className="pv-label">Announce in #movies</span>
+            <span className="pv-label">Announce in Discord</span>
             <ShareWhen value={announce} onChange={setAnnounce} allowNone />
           </div>
         )}

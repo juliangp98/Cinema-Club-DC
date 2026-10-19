@@ -52,6 +52,11 @@ Develop with your own test application and server ([discord-bot.md](discord-bot.
 bot with the live server's token. A command lives in its feature module in `bot/features/`, registers any
 persistent buttons and loops, and is listed in `/help`.
 
+Every Discord question is about one club — each club can have its own server. Pass the club to the
+backend helpers (`on_discord(user, group_id)`, `present_user_ids(group_id)`, `split_present(…, group_id)`,
+`can_share`, `watch_shared`); in the bot, send `club()` (or `discord_identity`, which includes it) and
+post with `channel_for(group_id)`; a loop goes through `connected_clubs()`, calling `use_club` for each.
+
 ## Scrapers
 
 Be a good guest: one pooled connection, pauses between requests, `Retry-After` honored, nothing that gets

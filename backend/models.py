@@ -77,7 +77,7 @@ class User(db.Model):
             'discord_avatar_url': self.discord_avatar_url,
             'bio': self.bio or '',
             'discord_linked': bool(self.discord_user_id),
-            'on_discord': core.on_discord(self),     # linked and in the club's server
+            'discord_clubs': core.discord_clubs(self),     # the clubs whose Discord server you're in
             'discord_username': self.discord_username or '',
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
@@ -466,6 +466,8 @@ class Quote(db.Model):
     movie = db.Column(db.String(200))
     character = db.Column(db.String(200))
     added_by = db.Column(db.Integer, db.ForeignKey('user.id'))     # None for the original list
+    # The club whose server it was added in (it shows only there); None = a classic, in every server
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), index=True)
     updated_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     deleted_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
@@ -476,6 +478,7 @@ class Quote(db.Model):
     def to_dict(self):
         return {
             'id': self.id, 'text': self.text, 'movie': self.movie or '', 'character': self.character or '',
+            'classic': self.group_id is None,
             'added_by': {'id': self.author.id, 'name': self.author.name,
                          'discord_user_id': self.author.discord_user_id} if self.author else None,
         }
@@ -488,11 +491,44 @@ class BotSetting(db.Model):
     value = db.Column(db.Text, default='')
 
 
+class DiscordServer(db.Model):
+    """A Discord server the bot is in, and the club it's connected to (one
+    server, one club). A club admin connects it with /setup and a code from
+    Club settings; the home server (DEFAULT_GROUP_ID's, the bot's first) is
+    registered by the bot itself. group_id None: the bot is there, unconnected."""
+    guild_id = db.Column(db.String(30), primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), unique=True)
+    channel_id = db.Column(db.String(30))               # drops, the digest, game posts, threads
+    name = db.Column(db.String(100))
+    channel_name = db.Column(db.String(100))
+    home = db.Column(db.Boolean, default=False)          # /llm and the classic quotes are managed here
+    linked_by = db.Column(db.Integer, db.ForeignKey('user.id'))
+    linked_at = db.Column(db.DateTime)
+    missing_perms = db.Column(db.String(300))            # what the bot can't do in its channel (Club settings shows it)
+    member_count = db.Column(db.Integer)
+    reported_at = db.Column(db.DateTime)
+
+
+class DiscordSetupCode(db.Model):
+    """A one-time code a club admin makes in Club settings and runs as
+    /setup code:… in the server's channel (30 minutes)."""
+    code = db.Column(db.String(12), primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime)
+
+
 class DiscordServerMember(db.Model):
-    """Who's in the club's Discord server right now; the bot keeps this current.
-    Only members who've linked Discord and are in here ever appear there."""
-    discord_user_id = db.Column(db.String(30), primary_key=True)
+    """Who's in each connected Discord server right now; the bot keeps this
+    current. Only members who've linked Discord and are in a club's server ever
+    appear there. guild_id None: the home server, before the bot first reported
+    its id (from before servers were per club)."""
+    id = db.Column(db.Integer, primary_key=True)
+    guild_id = db.Column(db.String(30), index=True)
+    discord_user_id = db.Column(db.String(30), nullable=False, index=True)
     seen_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    __table_args__ = (db.UniqueConstraint('guild_id', 'discord_user_id'),)
 
 
 class Watchlist(db.Model):

@@ -2,9 +2,8 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
-import app as core
-from app import (DiscordPost, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
-    _as_int, _live_post, _parse_post_at, app, current_user, datetime, db, discord_group, jsonify, on_discord,
+from app import (DiscordPost, GroupMembership, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
+    _as_int, _live_post, _parse_post_at, app, current_user, datetime, db, discord_clubs, discord_group, jsonify, on_discord,
     post_dict, queue_poll_post, queue_rsvp_share, request, require_auth, require_role, role_at_least,
     set_share_pref, share_prefs, unshare_rsvp)
 
@@ -28,9 +27,12 @@ def discord_prefs():
         for kind, value in (request.json or {}).items():
             set_share_pref(user, kind, value)
         db.session.commit()
-    reason = ('no_club' if _active_membership(user, core.DISCORD_GROUP_ID) is None
+    # Any club of yours with a Discord server counts: the choices are yours, for each of them.
+    with_server = [m.group_id for m in GroupMembership.query.filter_by(user_id=user.id, status='active')
+                   if discord_group(m.group_id)]
+    reason = ('no_club' if not with_server
               else 'not_linked' if not user.discord_user_id
-              else 'not_in_server' if not on_discord(user) else None)
+              else 'not_in_server' if not discord_clubs(user) else None)
     return jsonify({'prefs': share_prefs(user), 'available': reason is None, 'reason': reason})
 
 
@@ -49,7 +51,7 @@ def create_share():
         return err
     if not discord_group(group_id):
         return jsonify({'error': 'This group has no Discord server'}), 400
-    if not on_discord(user):
+    if not on_discord(user, group_id):
         return jsonify({'error': "Only members in the club's Discord server (with Discord linked) can share there",
                         'code': 'not_on_discord'}), 403
     now = datetime.now()

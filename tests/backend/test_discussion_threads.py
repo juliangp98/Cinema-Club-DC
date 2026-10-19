@@ -41,7 +41,7 @@ def club():
         db.session.add(RSVP(user_id=ana.id, showtime_id=s1.id, group_id=g.id, status='going'))
         db.session.commit()
         ids = {'s1': s1.id, 's2': s2.id, 'group': g.id, 'ana': ana.id, 'bo': bo.id, 'now': now_utc}
-    A.DISCORD_GROUP_ID = ids['group']
+    A.HOME_GROUP_ID = ids['group']
     all_linked_present()
     return ids
 

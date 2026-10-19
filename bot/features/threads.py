@@ -13,8 +13,10 @@ from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import DEFAULT_GROUP_ID, GONE_MSG, SITE_URL, api, api_failure, client, discord_identity, dm_owner, movies_channel, register, reply_failure, rsvp_date_autocomplete, rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete
-from . import alerts, polls      # used at call time, so the order they load in doesn't matter
+from .shared import (DEFAULT_GROUP_ID, GONE_MSG, SITE_URL, api, api_failure, channel_for, client, club, club_of,
+                     connected_clubs, discord_identity, dm_owner, register, reply_failure, rsvp_date_autocomplete,
+                     rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, use_club)
+from . import alerts, polls, servers      # used at call time, so the order they load in doesn't matter
 
 
 # ─── Screening discussion threads ─────────────────────────────────────────────
@@ -29,42 +31,48 @@ THREAD_ARCHIVE_MINUTES = 10080        # a week of quiet before Discord archives 
 WEBHOOK_NAME = 'Cinema Club'
 NEEDED_PERMS = ('Manage Webhooks, Create Public Threads, Send Messages in Threads, '
                 'Read Message History')
-_webhook = None
-_thread_ids = set()                   # linked thread ids, as strings
+_webhooks = {}                        # channel id → the bot's webhook there (one per club's channel)
+_thread_ids = set()                   # linked thread ids in every connected server, as strings
 _thread_ids_loaded = 0.0
 _thread_locks = {}
 _failed_posts = {}                    # site comment id -> failed attempts
-_perm_warned = False
+_perm_warned = set()                  # clubs whose missing permissions were reported this run
 
 
 class DiscussionUnavailable(Exception):
     pass
 
 
-async def warn_permissions(err):
-    """Tell the owner once (per run) that threads need permissions in #movies."""
-    global _perm_warned
-    print(f'discussion threads: missing permission: {err}')
-    if not _perm_warned:
-        _perm_warned = True
+async def warn_permissions(err, group_id=None):
+    """Say once (per run) that threads need permissions in a club's channel:
+    the home server's to the bot's owner; another club's to whoever connected
+    that server (servers.report_club, once per change)."""
+    group_id = group_id or club()
+    print(f'discussion threads (club {group_id}): missing permission: {err}')
+    if group_id in _perm_warned:
+        return
+    _perm_warned.add(group_id)
+    if group_id == DEFAULT_GROUP_ID:
         await dm_owner(f"⚠️ Screening threads can't work in #movies yet — the bot needs: {NEEDED_PERMS}. "
                        "Grant them in the channel's permissions; I'll pick up where I left off.")
+    else:
+        await servers.report_club(group_id)
 
 
-async def get_webhook():
-    global _webhook
-    if _webhook is None:
-        channel = movies_channel()
-        if channel is None:
-            raise DiscussionUnavailable('no #movies channel')
-        for wh in await channel.webhooks():
-            if wh.name == WEBHOOK_NAME and wh.user and wh.user.id == client.user.id:
-                _webhook = wh
+async def get_webhook(channel):
+    """The bot's webhook in this channel (made the first time)."""
+    if channel is None:
+        raise DiscussionUnavailable('no channel')
+    wh = _webhooks.get(channel.id)
+    if wh is None:
+        for found in await channel.webhooks():
+            if found.name == WEBHOOK_NAME and found.user and found.user.id == client.user.id:
+                wh = found
                 break
         else:
-            _webhook = await channel.create_webhook(name=WEBHOOK_NAME,
-                                                    reason='Mirror site discussions into screening threads')
-    return _webhook
+            wh = await channel.create_webhook(name=WEBHOOK_NAME, reason='Mirror site discussions into screening threads')
+        _webhooks[channel.id] = wh
+    return wh
 
 
 def _hook_name(name):
@@ -76,8 +84,10 @@ def _hook_name(name):
 async def refresh_thread_ids(force=False):
     global _thread_ids, _thread_ids_loaded
     if force or time.monotonic() - _thread_ids_loaded > 600:
-        _thread_ids = set(await api.get('/api/internal/discussion/threads', group_id=DEFAULT_GROUP_ID))
-        _thread_ids_loaded = time.monotonic()
+        ids = set()
+        for group_id, _ in connected_clubs():
+            ids |= set(await api.get('/api/internal/discussion/threads', group_id=group_id))
+        _thread_ids, _thread_ids_loaded = ids, time.monotonic()
 
 
 def plans_view(plans):
@@ -104,12 +114,14 @@ async def _fetch_thread(thread_id):
     return thread if thread is not None else await client.fetch_channel(int(thread_id))
 
 
-async def ensure_thread(showtime_id):
-    """(thread, info, created) for a screening, creating the card post + thread
-    (and copying in the last site comments) if it has none yet."""
-    lock = _thread_locks.setdefault(showtime_id, asyncio.Lock())
+async def ensure_thread(showtime_id, group_id=None):
+    """(thread, info, created) for a screening in a club's server (the current
+    club's by default), creating the card post + thread (and copying in the
+    last site comments) if it has none yet."""
+    group_id = group_id or club()
+    lock = _thread_locks.setdefault((group_id, showtime_id), asyncio.Lock())
     async with lock:
-        info = await api.get('/api/internal/discussion/thread', showtime_id=showtime_id, group_id=DEFAULT_GROUP_ID)
+        info = await api.get('/api/internal/discussion/thread', showtime_id=showtime_id, group_id=group_id)
         if info['thread']:
             try:
                 return await _fetch_thread(info['thread']['thread_id']), info, False
@@ -117,17 +129,17 @@ async def ensure_thread(showtime_id):
                 await api.post(f"/api/internal/discussion/threads/{info['thread']['thread_id']}/unlink")
                 _thread_ids.discard(info['thread']['thread_id'])
                 info = await api.get('/api/internal/discussion/thread', showtime_id=showtime_id,
-                                     group_id=DEFAULT_GROUP_ID)
-        channel = movies_channel()
+                                     group_id=group_id)
+        channel = channel_for(group_id)
         if channel is None:
-            raise DiscussionUnavailable('no #movies channel')
+            raise DiscussionUnavailable('no channel for this club')
         card = info['card']
         starter = await channel.send(embed=embeds.thread_card_embed(card), view=thread_card_view(card))
         thread = await starter.create_thread(name=embeds.thread_name(card),
                                              auto_archive_duration=THREAD_ARCHIVE_MINUTES)
         try:
             await api.post('/api/internal/discussion/threads', {
-                'showtime_id': showtime_id, 'group_id': DEFAULT_GROUP_ID, 'guild_id': str(channel.guild.id),
+                'showtime_id': showtime_id, 'group_id': group_id, 'guild_id': str(channel.guild.id),
                 'channel_id': str(channel.id), 'thread_id': str(thread.id), 'starter_message_id': str(starter.id)})
         except ApiError as e:
             if e.status != 409:
@@ -159,10 +171,15 @@ async def backfill_thread(thread, info):
     await thread.send('-# ── new ──', allowed_mentions=discord.AllowedMentions.none())
 
 
+def _channel_of(thread):
+    """The channel a screening thread hangs off (its club's)."""
+    return getattr(thread, 'parent', None) or channel_for(club())
+
+
 async def post_comment(thread, author, content):
     """Post into a thread under someone's name (webhook messages also reopen
     an archived thread)."""
-    wh = await get_webhook()
+    wh = await get_webhook(_channel_of(thread))
     return await wh.send(content[:2000], username=_hook_name(author.get('name')),
                          avatar_url=author.get('avatar_url') or discord.utils.MISSING,
                          thread=thread, wait=True, allowed_mentions=discord.AllowedMentions.none())
@@ -170,46 +187,57 @@ async def post_comment(thread, author, content):
 
 @tasks.loop(seconds=5)
 async def discussion_loop():
-    """Carry site activity into Discord: new comments, deletions, card updates."""
-    if movies_channel() is None:
-        return
+    """Carry site activity into each connected club's Discord: new comments,
+    deletions, card updates."""
     try:
         await refresh_thread_ids()
-        box = await api.get('/api/internal/discussion/outbox', group_id=DEFAULT_GROUP_ID)
     except Exception as e:
-        print(f'discussion_loop: fetch failed: {e}')
+        print(f'discussion_loop: thread list failed: {e}')
         return
+    for group_id, _ in connected_clubs():
+        channel = channel_for(group_id)
+        if channel is None:
+            continue
+        use_club(group_id)
+        try:
+            await _discussion_pass(group_id, channel)
+        except discord.Forbidden as e:
+            await warn_permissions(e, group_id)
+
+
+async def _discussion_pass(group_id, channel):
     try:
-        for p in box.get('posts', []):
-            if _failed_posts.get(p['message_id'], 0) >= 3:
-                continue                       # give up on a comment that keeps failing
-            try:
-                thread, _, _ = await ensure_thread(p['showtime_id'])
-                sent = await post_comment(thread, p['author'], p['body'])
-                await api.post('/api/internal/discussion/mirrored',
-                               {'items': [{'message_id': p['message_id'], 'discord_message_id': str(sent.id)}]})
-            except discord.Forbidden:
-                raise
-            except Exception as e:
-                _failed_posts[p['message_id']] = _failed_posts.get(p['message_id'], 0) + 1
-                print(f"discussion_loop: comment {p['message_id']} failed: {e}")
-        for d in box.get('deletions', []):
-            try:
-                await (await get_webhook()).delete_message(int(d['discord_message_id']),
-                                                           thread=discord.Object(int(d['thread_id'])))
-            except discord.NotFound:
-                pass                           # already gone
-            await api.post(f"/api/internal/discussion/deletions/{d['id']}/done")
-        channel = movies_channel()
-        for c in box.get('cards', []):
-            try:
-                await channel.get_partial_message(int(c['starter_message_id'])).edit(
-                    embed=embeds.thread_card_embed(c['card']), view=thread_card_view(c['card']))
-            except discord.NotFound:
-                pass                           # card deleted; the thread lives on
-            await api.post(f"/api/internal/discussion/cards/{c['thread_id']}/refreshed")
-    except discord.Forbidden as e:
-        await warn_permissions(e)
+        box = await api.get('/api/internal/discussion/outbox', group_id=group_id)
+    except Exception as e:
+        print(f'discussion_loop (club {group_id}): fetch failed: {e}')
+        return
+    for p in box.get('posts', []):
+        if _failed_posts.get(p['message_id'], 0) >= 3:
+            continue                           # give up on a comment that keeps failing
+        try:
+            thread, _, _ = await ensure_thread(p['showtime_id'], group_id)
+            sent = await post_comment(thread, p['author'], p['body'])
+            await api.post('/api/internal/discussion/mirrored',
+                           {'items': [{'message_id': p['message_id'], 'discord_message_id': str(sent.id)}]})
+        except discord.Forbidden:
+            raise
+        except Exception as e:
+            _failed_posts[p['message_id']] = _failed_posts.get(p['message_id'], 0) + 1
+            print(f"discussion_loop: comment {p['message_id']} failed: {e}")
+    for d in box.get('deletions', []):
+        try:
+            await (await get_webhook(channel)).delete_message(int(d['discord_message_id']),
+                                                              thread=discord.Object(int(d['thread_id'])))
+        except discord.NotFound:
+            pass                               # already gone
+        await api.post(f"/api/internal/discussion/deletions/{d['id']}/done")
+    for c in box.get('cards', []):
+        try:
+            await channel.get_partial_message(int(c['starter_message_id'])).edit(
+                embed=embeds.thread_card_embed(c['card']), view=thread_card_view(c['card']))
+        except discord.NotFound:
+            pass                               # card deleted; the thread lives on
+        await api.post(f"/api/internal/discussion/cards/{c['thread_id']}/refreshed")
 
 
 @discussion_loop.before_loop
@@ -288,7 +316,7 @@ async def open_discussion(interaction, showtime_id, comment=None):
     interaction must already be deferred (ephemeral)."""
     comment = (comment or '').strip()
     try:
-        thread, info, created = await ensure_thread(showtime_id)
+        thread, info, created = await ensure_thread(showtime_id, club_of(interaction))
         if getattr(thread, 'archived', False) and not comment:
             await thread.edit(archived=False)
         if comment:
@@ -300,7 +328,7 @@ async def open_discussion(interaction, showtime_id, comment=None):
                     **discord_identity(interaction), 'thread_id': str(thread.id),
                     'discord_message_id': str(sent.id), 'body': comment, 'source': 'discord_bot'})
             except ApiError as e:
-                await (await get_webhook()).delete_message(sent.id, thread=thread)
+                await (await get_webhook(_channel_of(thread))).delete_message(sent.id, thread=thread)
                 await interaction.followup.send(api_failure(e, "Couldn't save your comment ({status})."), ephemeral=True)
                 return
     except ApiError as e:
@@ -308,9 +336,9 @@ async def open_discussion(interaction, showtime_id, comment=None):
         await interaction.followup.send(msg, ephemeral=True)
         return
     except discord.Forbidden as e:
-        await warn_permissions(e)
+        await warn_permissions(e, club_of(interaction))
         await interaction.followup.send("Screening threads aren't set up yet — the bot is missing permissions "
-                                        "(the server owner has been told).", ephemeral=True)
+                                        "(whoever connected this server has been told).", ephemeral=True)
         return
     except Exception as e:
         print(f'open_discussion failed: {e}')
@@ -466,7 +494,7 @@ async def handle_share(channel, item):
         await done(action='deleted')
         return
     if kind == 'thread':                      # "Start a Discord thread" from the site
-        thread, _, _ = await ensure_thread(data['showtime_id'])
+        thread, _, _ = await ensure_thread(data['showtime_id'], club())
         await done(action='posted', message_id=str(thread.id), jump_url=thread.jump_url)
         return
     content, embed, view = share_content(kind, data)
@@ -486,22 +514,25 @@ async def handle_share(channel, item):
 
 @tasks.loop(seconds=10)
 async def share_loop():
-    channel = movies_channel()
-    if channel is None:
-        return
-    try:
-        due = await api.get('/api/internal/discord/posts/due', group_id=DEFAULT_GROUP_ID)
-    except Exception as e:
-        print(f'share_loop: fetch failed: {e}')
-        return
-    for item in due:
+    """What members shared from the site, posted (and kept in step) in each club's server."""
+    for group_id, _ in connected_clubs():
+        channel = channel_for(group_id)
+        if channel is None:
+            continue
+        use_club(group_id)
         try:
-            await handle_share(channel, item)
-        except discord.Forbidden as e:        # tell the owner once; retried next round
-            await warn_permissions(e)
-            return
-        except Exception as e:                # tried again next round
-            print(f"share_loop: {item.get('action')} {item.get('kind')} {item.get('id')} failed: {e}")
+            due = await api.get('/api/internal/discord/posts/due', group_id=group_id)
+        except Exception as e:
+            print(f'share_loop (club {group_id}): fetch failed: {e}')
+            continue
+        for item in due:
+            try:
+                await handle_share(channel, item)
+            except discord.Forbidden as e:    # say so once; retried next round
+                await warn_permissions(e, group_id)
+                break
+            except Exception as e:            # tried again next round
+                print(f"share_loop: {item.get('action')} {item.get('kind')} {item.get('id')} failed: {e}")
 
 
 @share_loop.before_loop

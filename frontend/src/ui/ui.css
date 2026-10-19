@@ -786,6 +786,8 @@ a.share-state { color: var(--green); }
 .ui-setting.stack .ui-setting-control { justify-content: flex-start; }
 .settings-inline { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .settings-inline .share-input, .settings-name { width: min(18rem, 100%); margin: 0; }
+.club-discord-code { font-family: var(--font-mono); }
+.club-discord-missing { color: var(--soft-red); }
 @media (max-width: 600px) {
   .ui-setting { flex-direction: column; align-items: flex-start; }
   .ui-setting-control { justify-content: flex-start; }

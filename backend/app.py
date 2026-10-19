@@ -130,12 +130,12 @@ def email_signin_link(to_email, link_url, purpose):
         </div>""")
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
-    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost, EmojiPlot,
-    DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias,
-    Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
-    Reaction,
-    GamePost, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
-    TriviaAnswer, TriviaQuestion, User, Watchlist)
+    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost,
+    DiscordServer, DiscordServerMember, DiscordSetupCode, EmojiPlot, GamePost, Group, GroupMembership,
+    KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias, Notification, Poll,
+    PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
+    Reaction, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime,
+    ShowtimeThread, TasteItem, Theatre, TriviaAnswer, TriviaQuestion, User, Watchlist)
 
 
 
@@ -611,14 +611,18 @@ def apply_rsvp(user, showtime_id, status, group_id):
 # kind, "ask" (a prompt after acting), "always" or "never" (a Share button is
 # still there). Each post is a DiscordPost the bot works through; it stays in
 # step with the site (edited when an RSVP or poll changes, deleted when what it
-# shows is gone) and never @-pings anyone. Only the group tied to the club's
-# Discord server (DEFAULT_GROUP_ID, shared with the bot) has any of this.
+# shows is gone) and never @-pings anyone. Only clubs with a Discord server
+# (connected with /setup; the home club always) have any of this.
 #
-# And only members who've linked Discord AND are in that server (on_discord)
-# ever appear there: their own shares, comments, names in lists, pings. Anyone
-# else is at most a count ("+2 on the site"), whatever their settings say.
+# And only members who've linked Discord AND are in that club's server
+# (on_discord) ever appear there: their own shares, comments, names in lists,
+# pings. Anyone else is at most a count ("+2 on the site"), whatever their
+# settings say. Every question here is about one club: in server A doesn't
+# mean seen in club B's.
 
-DISCORD_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
+# The home club: the bot's first server (DEFAULT_GROUP_ID, shared with the
+# bot). It counts as connected even before the bot reports its server's id.
+HOME_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
 SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist', 'games')
 SHARE_CHOICES = ('ask', 'always', 'never')
 # Kinds where Ask makes no sense (it happens on its own) — and what they start as.
@@ -648,46 +652,81 @@ def set_share_pref(user, kind, value):
         user.share_prefs = json.dumps(prefs)
 
 
-def discord_group(group_id):
-    return bool(group_id) and group_id == DISCORD_GROUP_ID
-
-
-def _present():
-    """(discord ids in the server, site user ids among them), once per request."""
+def _request_cache(name):
     from flask import g, has_request_context
-    if has_request_context() and getattr(g, 'discord_present', None) is not None:
-        return g.discord_present
-    ids = {r[0] for r in db.session.query(DiscordServerMember.discord_user_id)}
+    if not has_request_context():
+        return {}
+    if getattr(g, name, None) is None:
+        setattr(g, name, {})
+    return getattr(g, name)
+
+
+def discord_server(group_id):
+    """The Discord server connected to this club, or None (once per request)."""
+    cache = _request_cache('discord_servers')
+    if group_id not in cache:
+        cache[group_id] = DiscordServer.query.filter_by(group_id=group_id).first() if group_id else None
+    return cache[group_id]
+
+
+def discord_group(group_id):
+    """Does this club have a Discord server? (The home club always has.)"""
+    return bool(group_id) and (group_id == HOME_GROUP_ID or discord_server(group_id) is not None)
+
+
+def _present(group_id):
+    """(discord ids in this club's server, site user ids among them), once per
+    request. The home server's members from before it reported its id have
+    no guild (None) and count for the home club."""
+    cache = _request_cache('discord_present')
+    if group_id in cache:
+        return cache[group_id]
+    server = discord_server(group_id)
+    conds = [DiscordServerMember.guild_id == server.guild_id] if server else []
+    if group_id == HOME_GROUP_ID:
+        conds.append(DiscordServerMember.guild_id.is_(None))
+    ids = {r[0] for r in db.session.query(DiscordServerMember.discord_user_id).filter(db.or_(*conds))} if conds else set()
     users = {r[0] for r in db.session.query(User.id).filter(User.discord_user_id.in_(ids))} if ids else set()
-    if has_request_context():
-        g.discord_present = (ids, users)
+    cache[group_id] = (ids, users)
     return ids, users
 
 
-def on_discord(user):
-    """Linked to Discord and in the club's server: the only people Discord sees."""
-    return bool(user and user.discord_user_id and user.discord_user_id in _present()[0])
+def on_discord(user, group_id):
+    """Linked to Discord and in this club's server: the only people its
+    Discord sees."""
+    return bool(user and user.discord_user_id and discord_group(group_id)
+                and user.discord_user_id in _present(group_id)[0])
 
 
-def present_user_ids():
-    return _present()[1]
+def present_user_ids(group_id):
+    return _present(group_id)[1]
+
+
+def discord_clubs(user):
+    """The clubs whose Discord server this member is in (active members only)."""
+    if not user or not user.discord_user_id:
+        return []
+    ids = [m.group_id for m in GroupMembership.query.filter_by(user_id=user.id, status='active')]
+    return [g for g in ids if on_discord(user, g)]
 
 
 def can_share(user, group_id):
-    """May this member's own actions go to the server at all?"""
-    return discord_group(group_id) and on_discord(user)
+    """May this member's own actions go to that club's server at all?"""
+    return discord_group(group_id) and on_discord(user, group_id)
 
 
-def split_present(users):
-    """(people Discord may see, how many others) — for name lists."""
-    shown = [u for u in users if u and u.id in present_user_ids()]
+def split_present(users, group_id):
+    """(people this club's Discord may see, how many others) — for name lists."""
+    shown = [u for u in users if u and u.id in present_user_ids(group_id)]
     return shown, len(users) - len(shown)
 
 
-def watch_shared(w):
-    """May the digest name or ping this watchlist entry's owner? Only if they're
-    on Discord, and their "watchlist" choice (or their answer for this film) says so."""
-    if not on_discord(w.user):
+def watch_shared(w, group_id=None):
+    """May the digest name or ping this watchlist entry's owner — in this
+    club's server (or, with no club, any of theirs)? Only if they're there,
+    and their "watchlist" choice (or their answer for this film) says so."""
+    there = on_discord(w.user, group_id) if group_id else bool(discord_clubs(w.user))
+    if not there:
         return False
     pref = share_prefs(w.user)['watchlist']
     if pref == 'never':
@@ -760,11 +799,12 @@ def poll_payload(poll, results=False):
     members who aren't on Discord stay unnamed)."""
     payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title, 'status': poll.status,
                'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
-               'categories': len(poll.categories), 'creator': poll.creator.name if on_discord(poll.creator) else None}
+               'categories': len(poll.categories),
+               'creator': poll.creator.name if on_discord(poll.creator, poll.group_id) else None}
     if results:
         board = poll_scores(poll)
         payload['voters'] = len(board)
-        payload['top'] = [{'name': s['user'].name if on_discord(s['user']) else None,
+        payload['top'] = [{'name': s['user'].name if on_discord(s['user'], poll.group_id) else None,
                            'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
     return payload
 
@@ -788,7 +828,7 @@ def render_post(p, now=None):
             if r and s and r.status in ('going', 'maybe') and not s.is_cancelled:
                 items.append({**_brief_screening(s), 'status': r.status})
         items.sort(key=lambda x: x['start_time'])
-        return {'user': p.user.name, 'items': items} if items and on_discord(p.user) else None
+        return {'user': p.user.name, 'items': items} if items and on_discord(p.user, p.group_id) else None
     if p.kind in ('invite', 'thread'):
         s = db.session.get(Showtime, p.ref_id or 0)
         if not s or s.is_cancelled:
@@ -798,7 +838,7 @@ def render_post(p, now=None):
         card = screening_card(s, p.group_id)
         for who in ('going', 'maybe'):
             card[who] = [{'name': x['name']} for x in card[who]]      # names only: no pings
-        return {'by': p.user.name if on_discord(p.user) else None, 'note': p.note, 'card': card,
+        return {'by': p.user.name if on_discord(p.user, p.group_id) else None, 'note': p.note, 'card': card,
                 'started': s.start_time <= now}
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
@@ -1387,8 +1427,8 @@ def schedule_horizons(group, now):
 
 
 def screening_card(showtime, group_id):
-    """A screening as Discord shows it: going / maybe name only members in the
-    server; going_more / maybe_more count everyone else."""
+    """A screening as that club's Discord shows it: going / maybe name only
+    members in its server; going_more / maybe_more count everyone else."""
     rsvps = (RSVP.query.filter(RSVP.showtime_id == showtime.id, RSVP.group_id == group_id,
                                RSVP.status.in_(('going', 'maybe'))).order_by(RSVP.created_at).all())
     card = {'showtime_id': showtime.id, 'title': showtime.movie.title,
@@ -1397,7 +1437,7 @@ def screening_card(showtime, group_id):
             'format_label': showtime.format_label, 'poster_url': showtime.movie.poster_url,
             'site_path': f'/calendar?showtime={showtime.id}'}
     for status in ('going', 'maybe'):
-        shown, more = split_present([r.user for r in rsvps if r.status == status])
+        shown, more = split_present([r.user for r in rsvps if r.status == status], group_id)
         card[status] = [{'name': u.name, 'discord_user_id': u.discord_user_id} for u in shown]
         card[f'{status}_more'] = more
     return card

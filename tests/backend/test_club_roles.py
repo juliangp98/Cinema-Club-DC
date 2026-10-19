@@ -45,7 +45,7 @@ def club():
         db.session.commit()
         ids = {n: u.id for n, u in us.items()}
         gid = g.id
-    A.DISCORD_GROUP_ID = gid
+    A.HOME_GROUP_ID = gid
     all_linked_present()
     return {'group': gid, 's1': shows[0], 's2': shows[1], 's3': shows[2], **ids}
 

@@ -78,6 +78,9 @@ How the scrapers pace themselves: [scrapers.md](scrapers.md).
 - **Search engines** — in Google Search Console add a Domain property for your domain, verify it with the
   TXT record in your DNS, and submit `https://your-domain/sitemap.xml`. Private pages are `noindex` and
   `robots.txt` keeps crawlers out of them.
+- **Other clubs' Discord servers** — Discord Developer Portal → your application → Bot → turn on **Public
+  Bot**, so club admins can add it from Club settings → Discord. The bot registers its own (home) server
+  when it starts; `docker logs cinemaclub-bot` says how many servers it's in.
 
 ## A domain through Cloudflare (no port forwarding)
 

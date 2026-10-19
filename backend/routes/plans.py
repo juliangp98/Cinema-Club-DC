@@ -5,7 +5,7 @@ and the models are imported from app."""
 import app as core
 import taste
 from app import (Movie, RSVP, Showtime, Watchlist, _active_membership, _as_int, _profile_target,
-    _screening_item, _with_attendance, app, apply_rsvp, can_share, current_user, datetime, db, history_items,
+    _screening_item, _with_attendance, app, apply_rsvp, can_share, current_user, discord_clubs, datetime, db, history_items,
     jsonify, pending_attendance, public_showtimes, queue_rsvp_share, request, require_auth, require_role,
     set_attendance, set_share_pref, share_prefs, watch_shared)
 
@@ -31,7 +31,7 @@ def rsvp():
     if err:
         return err
 
-    # Going / maybe (a real change) in the Discord server's group: share it if
+    # Going / maybe (a real change) in a club with a Discord server: share it if
     # they always do, or ask. (Discord's own /rsvp posts for itself.)
     prompt = False
     if status in ('going', 'maybe') and status != prev_status and showtime and can_share(user, group_id):
@@ -109,12 +109,11 @@ def toggle_watchlist():
         watching = False
     else:
         # The digest may mention it in Discord only if you say so: "always" /
-        # "never" decide now; "ask" asks (members in the club's server only).
+        # "never" decide now; "ask" asks (members in one of their clubs' servers only).
         pref = share_prefs(user)['watchlist']
         db.session.add(Watchlist(user_id=user.id, movie_id=movie.id,
                                  share_discord={'always': True, 'never': False}.get(pref)))
-        prompt = pref == 'ask' and can_share(user, core.DISCORD_GROUP_ID) \
-            and _active_membership(user, core.DISCORD_GROUP_ID) is not None
+        prompt = pref == 'ask' and bool(discord_clubs(user))
         watching = True
     # The first watchlist add is when to ask how (if at all) to hear about it.
     import notify

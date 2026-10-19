@@ -8,9 +8,9 @@ from discord.ext import tasks
 from discord.ui import DynamicItem
 
 import bot  # noqa: F401 — loads every feature
-from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, club
+from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, club, servers
 
-FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, club)
+FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, club, servers)
 
 
 def test_every_button_and_loop_is_registered():
@@ -24,5 +24,5 @@ def test_every_button_and_loop_is_registered():
 
 def test_every_command_is_on_the_tree():
     names = {c.name for c in shared.client.tree.get_commands()}
-    assert {'showtimes', 'rsvp', 'discuss', 'profile', 'poll', 'play', 'llm', 'help', 'quote'} <= names
-    assert len(names) == 21
+    assert {'showtimes', 'rsvp', 'discuss', 'profile', 'poll', 'play', 'llm', 'help', 'quote', 'setup'} <= names
+    assert len(names) == 22

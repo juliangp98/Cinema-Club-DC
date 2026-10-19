@@ -31,7 +31,7 @@ def club():
                             GroupMembership(user_id=cy.id, group_id=g.id, status='active')])
         db.session.commit()
         ids = {'group': g.id, 'ana': ana.id, 'cy': cy.id}
-    A.DISCORD_GROUP_ID = ids['group']
+    A.HOME_GROUP_ID = ids['group']
     all_linked_present()
     return ids
 

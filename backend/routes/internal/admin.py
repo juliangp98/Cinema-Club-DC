@@ -1,6 +1,6 @@
 """The bot's admin settings: the AI models (/llm) and the settings the bot keeps here.
 """
-from app import BotSetting, _ai, app, db, jsonify, request
+from app import BotSetting, DiscordServer, _ai, app, db, jsonify, request
 from routes.internal.common import require_internal
 
 
@@ -59,6 +59,10 @@ def internal_settings_update():
     key, value = data.get('key'), (data.get('value') or '').strip()[:200]
     if key not in BOT_SETTING_KEYS:
         return jsonify({'error': 'Unknown setting'}), 400
+    # The AI is the whole site's: only the home server changes it (/llm).
+    server = db.session.get(DiscordServer, str(data.get('guild_id') or ''))
+    if data.get('guild_id') and not (server and server.home):
+        return jsonify({'error': 'home_only'}), 403
     row = db.session.get(BotSetting, key) or BotSetting(key=key)
     row.value = value
     db.session.add(row)

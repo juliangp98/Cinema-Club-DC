@@ -21,11 +21,11 @@ const css = files(SRC, /\.css$/).map(path => [path, readFileSync(path, "utf8").r
 
 test("a question asked in place is the one small card, with × to put it away", async () => {
   const onClose = vi.fn();
-  render(<Prompt question="Share your RSVP in #movies?" label="Share in Discord" hint="Only club members see it."
+  render(<Prompt question="Share your RSVP in Discord?" label="Share in Discord" hint="Only club members see it."
                  onClose={onClose} actions={<button>Share</button>}><label><input type="checkbox" /> Always</label></Prompt>);
   const card = screen.getByRole("group", { name: "Share in Discord" });
   expect(card).toHaveClass("ui-panel", "ui-panel-prompt");
-  expect(card.querySelector(".ui-panel-body")).toHaveTextContent("Share your RSVP in #movies?");
+  expect(card.querySelector(".ui-panel-body")).toHaveTextContent("Share your RSVP in Discord?");
   expect(card.querySelector(".ui-panel-body")).toHaveTextContent("Only club members see it.");
   expect(card.querySelector(".ui-panel-actions")).toContainElement(screen.getByRole("button", { name: "Share" }));
   await userEvent.click(screen.getByRole("button", { name: "Not now" }));

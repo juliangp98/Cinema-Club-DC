@@ -1,18 +1,19 @@
 """What every part of the bot's API uses: the internal-token check and the
-account behind a Discord user (made on first use in the club's server).
+account behind a Discord user (made on first use in a club's server).
 """
-from app import (AVATAR_COLORS, DiscordServerMember, Group, GroupMembership, INTERNAL_API_TOKEN, IntegrityError,
-    User, _as_int, db, follow_discord_avatar, jsonify, on_discord, random, request, secrets, wraps)
+from app import (AVATAR_COLORS, DiscordServerMember, Group, GroupMembership, HOME_GROUP_ID, INTERNAL_API_TOKEN,
+    IntegrityError, User, _as_int, db, follow_discord_avatar, jsonify, on_discord, random, request, secrets, wraps)
 
 
 def resolve_discord_user(data):
     """The account behind a Discord user, for the bot's internal endpoints.
 
     Discord members don't need a site account: the first time someone uses a
-    personal command in the club's server (the bot sends create=True only
-    there), they get a Discord-only account — no email, no site login unless
-    they "Sign in with Discord" — and join that server's group. Discord-only
-    accounts follow the member's current Discord name. Returns (user, error).
+    personal command in a connected club's server (the bot sends create=True
+    only there, with that club and server), they get a Discord-only account —
+    no email, no site login unless they "Sign in with Discord" — and join that
+    server's club. Discord-only accounts follow the member's current Discord
+    name. Returns (user, error).
     """
     discord_id = str(data.get('discord_user_id') or '').strip()
     if not discord_id.isdigit():
@@ -42,7 +43,7 @@ def resolve_discord_user(data):
     if data.get('discord_avatar'):
         follow_discord_avatar(user, str(data['discord_avatar']))
 
-    # Being in the club's server is membership of its group.
+    # Being in a club's server is membership of its club.
     group = db.session.get(Group, _as_int(data.get('group_id'))) if create else None
     if group:
         membership = GroupMembership.query.filter_by(user_id=user.id, group_id=group.id).first()
@@ -50,9 +51,17 @@ def resolve_discord_user(data):
             db.session.add(GroupMembership(user_id=user.id, group_id=group.id, role='member', status='active'))
         elif membership.status != 'active':
             membership.status = 'active'
-    if create and not db.session.get(DiscordServerMember, discord_id):
-        db.session.add(DiscordServerMember(discord_user_id=discord_id))   # they're using it in the server
-        _present_changed()
+        guild = str(data.get('guild_id') or '') or None
+        if guild and group.id == HOME_GROUP_ID:          # the home server's first use registers it
+            import discord_servers
+            db.session.flush()
+            discord_servers.adopt_home(guild)
+        # They're using it there, so they're in that server. (No server id: the
+        # home server from before servers were per club — never another club's.)
+        if (guild or group.id == HOME_GROUP_ID) and \
+                not DiscordServerMember.query.filter_by(guild_id=guild, discord_user_id=discord_id).first():
+            db.session.add(DiscordServerMember(guild_id=guild, discord_user_id=discord_id))
+            _present_changed()
     db.session.commit()
     return user, None
 
@@ -74,7 +83,13 @@ def _present_changed():
         g.discord_present = None
 
 
-def _discord_member(discord_id):
-    """Someone else, by Discord id: an active account in the club's server."""
+def _discord_member(discord_id, group_id):
+    """Someone else, by Discord id: an active account in this club's server."""
     user = User.query.filter_by(discord_user_id=str(discord_id or '')).first()
-    return user if user and user.is_active and on_discord(user) else None
+    return user if user and user.is_active and on_discord(user, group_id) else None
+
+
+def request_group():
+    """The club a bot request is for (its group_id; the home club if none)."""
+    body = request.get_json(silent=True) if request.method != 'GET' else None
+    return _as_int((body or {}).get('group_id')) or request.args.get('group_id', type=int) or HOME_GROUP_ID

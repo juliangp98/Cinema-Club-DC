@@ -31,9 +31,10 @@ Around the pages:
   game reminders — in the bell, by email, Discord DM or phone push, as each member chooses.
 - **Sold out and off sale** — sold-out showings are marked; one that disappears from a theatre's site
   stays listed as "Off sale — likely sold out", with RSVPs kept.
-- **Discord** — the bot mirrors the site in the club's server: slash commands for everything above,
-  screening threads mirrored with the site's discussions, a Monday digest, game posts, and an
-  @-mention chatbot. See [docs/discord-bot.md](docs/discord-bot.md).
+- **Discord** — any club can connect its own Discord server (Club settings → Discord): the bot mirrors
+  the site there for that club — slash commands for everything above, screening threads mirrored with
+  the site's discussions, a Monday digest, game posts, and an @-mention chatbot. See
+  [docs/discord-bot.md](docs/discord-bot.md).
 - **Letterboxd** — connect your diary to check in automatically, fill bingo squares from home
   viewings, and show your ratings; bring in your watchlist from Letterboxd's export (its films join
   your watchlist as theatres book them).
@@ -67,17 +68,18 @@ How each is read: [docs/scrapers.md](docs/scrapers.md).
 │   ├── config_check.py        # Names unset settings at start
 │   ├── routes/                # The site's API by area (auth, people, clubs, schedule, plans,
 │   │   │                      #   social, polls, quizzes, alerts, help, discord)
-│   │   └── internal/          # The bot's API by area (posts, schedule, threads, people, games, admin)
+│   │   └── internal/          # The bot's API by area (posts, schedule, threads, people, games, admin, servers)
 │   ├── discover.py            # Shelves, Browse, Calendar, digest picks
 │   ├── notify.py              # Personal alerts: bell, Discord DM, email, push
+│   ├── discord_servers.py     # Each club's Discord server: setup codes, connecting, the home server
 │   ├── trivia.py, bingo.py, quizzes.py, play.py, kernels.py, club_stats.py   # Games and standings
 │   ├── letterboxd.py, taste.py, help_ai.py, ai.py, …
 │   ├── scraper.py + scrapers/ # One scraper per theatre chain, and the sync into the database
 │   └── entrypoint.sh          # Docker start: prepare_db, settings check, gunicorn
 ├── bot/
 │   ├── bot.py                 # Starts the bot
-│   ├── features/              # By feature: shared, chat, alerts, schedule, threads, profile,
-│   │                          #   polls, admin, games, club
+│   ├── features/              # By feature: shared, servers, chat, alerts, schedule, threads,
+│   │                          #   profile, polls, admin, games, club
 │   └── api.py, embeds.py, llm.py, quotes.py
 ├── frontend/src/
 │   ├── pages/, components/    # The pages and their parts

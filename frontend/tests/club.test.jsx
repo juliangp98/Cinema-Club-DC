@@ -22,7 +22,7 @@ test("organizers get join requests, theatres and games — not the club's detail
   const calls = settingsApi();
   renderPage(<ClubSettings group={group} apiBase="" viewerId={3} isAdmin={false} onChanged={() => {}} />, { route: "/club?tab=settings" });
   const jump = screen.getByRole("navigation", { name: "Settings sections" });
-  expect(within(jump).getAllByRole("link").map(a => a.textContent)).toEqual(["Members", "Theatres", "Games"]);
+  expect(within(jump).getAllByRole("link").map(a => a.textContent)).toEqual(["Members", "Theatres", "Discord", "Games"]);
   expect(await screen.findByText("Newt")).toBeInTheDocument();                         // join requests
   expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Name")).toBeNull();                                 // admins'
@@ -37,7 +37,7 @@ test("admins get every section", async () => {
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} isAdmin onChanged={() => {}} />, { route: "/club?tab=settings" });
   const jump = screen.getByRole("navigation", { name: "Settings sections" });
   expect(within(jump).getAllByRole("link").map(a => a.textContent))
-    .toEqual(["Club", "Members", "Theatres", "Games", "Admin"]);
+    .toEqual(["Club", "Members", "Theatres", "Discord", "Games", "Admin"]);
   expect(within(jump).getByRole("link", { name: "Games" })).toHaveAttribute("href", "/club?tab=settings#settings-games");
   expect(await screen.findByText("Roles (1)")).toBeInTheDocument();
 });

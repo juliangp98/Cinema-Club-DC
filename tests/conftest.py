@@ -54,7 +54,7 @@ def _reset_state(instance_dir):
 # channel lookup) are put back afterwards.
 SNAPSHOT_MODULES = ('app', 'discover', 'ai', 'poll_ai', 'search_ai', 'media', 'bot', 'embeds', 'llm', 'api',
                     'features.shared', 'features.chat', 'features.alerts', 'features.schedule', 'features.threads',
-                    'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.club',
+                    'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.club', 'features.servers',
                     'scrapers.base', 'scrapers.sync')
 
 

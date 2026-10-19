@@ -373,6 +373,53 @@ def decide_game_post(slug, post_id):
     return jsonify(view)
 
 
+# ─── The club's Discord server ────────────────────────────────────────────────
+# Admins connect one (the bot's invite, a one-time code, /setup in the
+# channel) or disconnect it; organizers see where things stand.
+
+def _club_for(slug, role):
+    group = Group.query.filter_by(slug=slug).first()
+    if not group:
+        return None, (jsonify({'error': 'Group not found'}), 404)
+    _, err = require_role(current_user(), group.id, role)
+    return (None, err) if err else (group, None)
+
+
+@app.route('/api/groups/<slug>/discord')
+@require_auth
+def club_discord(slug):
+    """{connected, home, invite_url, server?: {name, channel, missing, members, linked}}."""
+    import discord_servers
+    group, err = _club_for(slug, 'organizer')
+    if err:
+        return err
+    return jsonify(discord_servers.status(group))
+
+
+@app.route('/api/groups/<slug>/discord/code', methods=['POST'])
+@require_auth
+def club_discord_code(slug):
+    """A fresh one-time code to run as /setup code:… in the server (admins; 30 minutes)."""
+    import discord_servers
+    group, err = _club_for(slug, 'admin')
+    if err:
+        return err
+    code = discord_servers.new_code(group, current_user())
+    return jsonify({'code': code, 'minutes': int(discord_servers.CODE_TTL.total_seconds() // 60)})
+
+
+@app.route('/api/groups/<slug>/discord', methods=['DELETE'])
+@require_auth
+def club_discord_disconnect(slug):
+    """Disconnect the club's server (the bot stays there, unconnected; settings are kept)."""
+    import discord_servers
+    group, err = _club_for(slug, 'admin')
+    if err:
+        return err
+    discord_servers.disconnect(group.id)
+    return jsonify(discord_servers.status(group))
+
+
 @app.route('/api/groups/<slug>/picture', methods=['POST'])
 @require_auth
 def upload_group_picture(slug):

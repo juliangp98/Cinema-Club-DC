@@ -79,6 +79,8 @@ def digest():
         db.session.add(ScrapeEvent(theatre_id=afi.id, event_type='new_drop', payload_json=json.dumps({'new_showtime_count': 23})))
         db.session.commit()
         G, IDS = g.id, {'conv': conv_s.id, 'want': want_s.id, 'leave': leave_s.id, 'edge': edge_s.id}
+    import app as A
+    A.HOME_GROUP_ID = G                    # the club with the Discord server (its members below)
 
     all_linked_present()   # R6a.1: they're all in the club's server
     with app.app_context():                # …and let the digest mention their watchlists

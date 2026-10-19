@@ -36,7 +36,7 @@ const SHARE_KINDS = [
   ["poll", "Polls I create", "Announcements and results (organizers and admins)."],
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
   ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
-  ["games", "My game wins", "Whether a bingo win posted in #movies names you (if the club posts wins).", ALWAYS_NEVER],
+  ["games", "My game wins", "Whether a bingo win posted in your club's Discord names you (if the club posts wins).", ALWAYS_NEVER],
 ];
 // Why sharing isn't on offer: only members who've linked Discord and are in
 // the club's server ever appear there.
@@ -251,7 +251,7 @@ function SharingRows({ user, apiBase, onUpdate, save }) {
   });
   return (
     <>
-      <p className="ui-hint">Nothing you do here posts to #movies unless you choose to. Shared posts never ping anyone.</p>
+      <p className="ui-hint">Nothing you do here posts to your clubs' Discord servers unless you choose to. Shared posts never ping anyone.</p>
       {SHARE_KINDS.map(([kind, label, hint, options = ASK_ALWAYS_NEVER]) => (
         <SettingRow key={kind} label={label} hint={hint}>
           <Segmented label={label} options={options} value={state.prefs[kind]} onChange={v => choose(kind, v)} />

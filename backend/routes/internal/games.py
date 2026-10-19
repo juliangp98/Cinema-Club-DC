@@ -2,7 +2,7 @@
 poll drafts, quotes.
 """
 import json as _json
-from app import (Group, Poll, PollCategory, PollDraft, PollVote, Quote, RANKED_PICKS, GamePost, discord_group,
+from app import (Group, HOME_GROUP_ID, Poll, PollCategory, PollDraft, PollVote, Quote, RANKED_PICKS, GamePost, discord_group,
     role_at_least, _active_membership, _as_int, _draft_poll, _utcnow_naive, announce_new_poll, app, apply_votes,
     build_poll, db, jsonify, poll_scores, request, require_role, timedelta, vote_kernels)
 from routes.internal.common import require_internal, resolve_discord_user
@@ -272,6 +272,10 @@ def internal_game_review(post_id):
 
 
 # ─── Quotes (/quote, /quote random) ───────────────────────────────────────────
+# The classics (the bot's original list, group None) show in every server;
+# quotes a club adds show only in its server. Any member corrects their club's
+# quotes; whoever added one, or that server's admins, remove it. The classics
+# change everywhere, so they're corrected and removed only from the home server.
 
 def _quote_fields(data):
     """Validated text/movie/character from a request. Returns (fields, error)."""
@@ -285,22 +289,41 @@ def _quote_fields(data):
             'character': (data.get('character') or '').strip()[:200] or None}, None
 
 
-def _duplicate_quote(text, exclude_id=None):
-    q = Quote.query.filter(Quote.deleted_at.is_(None), db.func.lower(Quote.text) == text.lower())
+def _visible(query, group_id):
+    """Quotes a club's server sees: the classics, and its own."""
+    return query.filter(Quote.deleted_at.is_(None),
+                        db.or_(Quote.group_id.is_(None), Quote.group_id == group_id) if group_id
+                        else Quote.group_id.is_(None))
+
+
+def _duplicate_quote(text, group_id, exclude_id=None):
+    q = _visible(Quote.query, group_id).filter(db.func.lower(Quote.text) == text.lower())
     if exclude_id:
         q = q.filter(Quote.id != exclude_id)
     return q.first()
 
 
+def _quote_group():
+    """The club a quote request is for (none in a server not connected to a club)."""
+    body = request.get_json(silent=True) if request.method != 'GET' else None
+    return _as_int((body or {}).get('group_id')) or request.args.get('group_id', type=int)
+
+
+def _may_change(quote, group_id):
+    """A club's quote from its own server; a classic only from the home server."""
+    return quote.group_id == group_id if quote.group_id else group_id == HOME_GROUP_ID
+
+
 @app.route('/api/internal/quotes')
 @require_internal
 def internal_quotes():
-    """Active quotes. With `q`: a search over text, movie and character (for
-    /quote find and autocomplete). Without: the whole list, which the bot caches.
+    """The quotes a club's server sees (group_id: the classics and its own).
+    With `q`: a search over text, movie and character (for /quote find and
+    autocomplete). Without: the whole list, which the bot caches per club.
     `newest=1` puts recent additions first."""
     q = (request.args.get('q') or '').strip()
     limit = min(request.args.get('limit', 5000, type=int), 5000)
-    query = Quote.query.filter(Quote.deleted_at.is_(None))
+    query = _visible(Quote.query, _quote_group())
     if q:
         like = f'%{q}%'
         query = query.filter(db.or_(Quote.text.ilike(like), Quote.movie.ilike(like),
@@ -312,8 +335,8 @@ def internal_quotes():
 @app.route('/api/internal/quotes/<int:quote_id>')
 @require_internal
 def internal_quote(quote_id):
-    quote = db.session.get(Quote, quote_id)
-    if not quote or quote.deleted_at:
+    quote = _visible(Quote.query, _quote_group()).filter(Quote.id == quote_id).first()
+    if not quote:
         return jsonify({'error': 'Quote not found'}), 404
     return jsonify(quote.to_dict())
 
@@ -328,10 +351,13 @@ def internal_quote_add():
     fields, err = _quote_fields(data)
     if err:
         return err
-    dupe = _duplicate_quote(fields['text'])
+    group_id = _quote_group()
+    if not group_id or not discord_group(group_id):
+        return jsonify({'error': 'no_club'}), 400            # quotes are added in a club's server
+    dupe = _duplicate_quote(fields['text'], group_id)
     if dupe:
         return jsonify({'error': 'duplicate', 'id': dupe.id}), 409
-    quote = Quote(**fields, added_by=user.id)
+    quote = Quote(**fields, added_by=user.id, group_id=group_id)
     db.session.add(quote)
     db.session.commit()
     return jsonify(quote.to_dict()), 201
@@ -340,18 +366,22 @@ def internal_quote_add():
 @app.route('/api/internal/quotes/<int:quote_id>', methods=['PUT'])
 @require_internal
 def internal_quote_edit(quote_id):
-    """Any member can correct a quote or its source; the last editor is kept."""
+    """Any member can correct their club's quote or its source (a classic: in
+    the home server); the last editor is kept."""
     data = request.json or {}
     user, err = resolve_discord_user(data)
     if err:
         return err
-    quote = db.session.get(Quote, quote_id)
-    if not quote or quote.deleted_at:
+    group_id = _quote_group()
+    quote = _visible(Quote.query, group_id).filter(Quote.id == quote_id).first()
+    if not quote:
         return jsonify({'error': 'Quote not found'}), 404
+    if not _may_change(quote, group_id):
+        return jsonify({'error': 'classic'}), 403
     fields, err = _quote_fields(data)
     if err:
         return err
-    dupe = _duplicate_quote(fields['text'], exclude_id=quote.id)
+    dupe = _duplicate_quote(fields['text'], group_id, exclude_id=quote.id)
     if dupe:
         return jsonify({'error': 'duplicate', 'id': dupe.id}), 409
     for key, value in fields.items():
@@ -364,16 +394,20 @@ def internal_quote_edit(quote_id):
 @app.route('/api/internal/quotes/<int:quote_id>', methods=['DELETE'])
 @require_internal
 def internal_quote_remove(quote_id):
-    """Removable by whoever added it, or a server admin (the bot sends is_admin
-    for members with Manage Server) — so nobody can wipe the list on a whim.
-    Soft delete: the row stays, recoverable."""
+    """Removable by whoever added it, or that server's admins (the bot sends
+    is_admin for members with Manage Server) — so nobody can wipe the list on a
+    whim; a classic only by the home server's admins. Soft delete: the row
+    stays, recoverable."""
     data = request.json or {}
     user, err = resolve_discord_user(data)
     if err:
         return err
-    quote = db.session.get(Quote, quote_id)
-    if not quote or quote.deleted_at:
+    group_id = _quote_group()
+    quote = _visible(Quote.query, group_id).filter(Quote.id == quote_id).first()
+    if not quote:
         return jsonify({'error': 'Quote not found'}), 404
+    if not _may_change(quote, group_id):
+        return jsonify({'error': 'classic'}), 403
     if quote.added_by != user.id and not data.get('is_admin'):
         owner = quote.author.name if quote.author else 'the original list'
         return jsonify({'error': 'not_yours', 'added_by': owner}), 403

@@ -421,7 +421,7 @@ def test_a_thread_deleted_in_discord_restarts_only_on_request(started):
 
 
 def test_missing_permissions(started, monkeypatch):
-    monkeypatch.setattr(threads, '_webhook', None)
+    monkeypatch.setattr(threads, '_webhooks', {})
     started.ch.forbid = True
     comment(started, 'perm test')
     discussion(started)

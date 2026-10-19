@@ -34,9 +34,9 @@ See [discord-bot.md](discord-bot.md) for setting the bot up.
 |---|---|---|---|
 | `DISCORD_BOT_TOKEN` | for the bot | The bot's login. The bot won't start without it. | Discord Developer Portal → your application → Bot → Reset Token |
 | `INTERNAL_API_TOKEN` | for the bot | A shared secret: the bot sends it with every call to the backend's internal API. Both containers read the same file. | Make one like `SECRET_KEY` |
-| `DISCORD_CHANNEL_ID` | for the bot | The channel for schedule drops, the digest, game posts and screening threads. | Discord → User Settings → Advanced → Developer Mode on, then right-click the channel → Copy Channel ID |
+| `DISCORD_CHANNEL_ID` | for the bot | The home server's channel (the bot's first server): drops, the digest, game posts and screening threads there. The bot registers that server for `DEFAULT_GROUP_ID` when it starts; other clubs connect their own servers from Club settings → Discord. | Discord → User Settings → Advanced → Developer Mode on, then right-click the channel → Copy Channel ID |
 | `SITE_URL` | for the bot | The site's address in the links the bot posts. Usually the same as `FRONTEND_URL`. | |
-| `DEFAULT_GROUP_ID` | — | The club the Discord server belongs to. `1` on a fresh install (the default club). | The club's id: `docker exec cinemaclub-backend python -c "from app import app, Group; app.app_context().push(); print([(g.id, g.name) for g in Group.query])"` |
+| `DEFAULT_GROUP_ID` | — | The home server's club. `1` on a fresh install (the default club). | The club's id: `docker exec cinemaclub-backend python -c "from app import app, Group; app.app_context().push(); print([(g.id, g.name) for g in Group.query])"` |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | optional | "Sign in with Discord" on the site. Without them the button doesn't show. | Same application → OAuth2. Add the redirect `<FRONTEND_URL>/api/auth/discord/callback` there |
 
 ## AI

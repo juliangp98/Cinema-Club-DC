@@ -9,7 +9,7 @@ from app import (DIGEST_CAPS, FRONTEND_URL, Group, Message, Movie, PLAN_MIN_WATC
     attended_showtime_ids, datetime, db, jsonify, merge_users, movie_for_tmdb, on_discord, poll_scores,
     present_user_ids, public_showtimes, request, require_role, share_prefs, split_present, timedelta,
     tmdb_matches, watch_shared)
-from routes.internal.common import _discord_member, require_internal, resolve_discord_user
+from routes.internal.common import _discord_member, request_group, require_internal, resolve_discord_user
 
 
 @app.route('/api/internal/films/find')
@@ -61,14 +61,14 @@ def internal_showtimes():
 
     limit = min(request.args.get('limit', 200, type=int), 500)
     showtimes = q.order_by(Showtime.start_time).limit(limit).all()
-    return jsonify([for_discord(s.to_dict(group_id=group_id)) for s in showtimes])
+    return jsonify([for_discord(s.to_dict(group_id=group_id), group_id or request_group()) for s in showtimes])
 
 
-def for_discord(d):
-    """A showtime dict as the bot may show it: attendees / maybes name only
-    members in the club's server (attendees_more / maybes_more count the rest),
-    and reactions are counts only."""
-    shown = present_user_ids()
+def for_discord(d, group_id):
+    """A showtime dict as that club's server may show it: attendees / maybes
+    name only members in its server (attendees_more / maybes_more count the
+    rest), and reactions are counts only."""
+    shown = present_user_ids(group_id)
     for key in ('attendees', 'maybes'):
         people = d.get(key) or []
         d[key] = [p for p in people if p['id'] in shown]
@@ -283,7 +283,7 @@ def digest_recap(group, members, now):
             'top_film': {'title': top[0], 'count': top[1]} if top and top[1] > 1 else None,
             'discussed': discussed,
             'poll': {'title': poll.title, 'kernels': board[0]['kernels'],
-                     'winner': board[0]['user'].name if on_discord(board[0]['user']) else None}
+                     'winner': board[0]['user'].name if on_discord(board[0]['user'], group.id) else None}
             if board else None}
 
 
@@ -321,7 +321,7 @@ def internal_digest():
                  if r.status == 'going' and r.user and (not group or r.group_id == group.id)]
         if going:
             # Members who never share their RSVPs are counted, not named.
-            shown, more = split_present(going)
+            shown, more = split_present(going, group.id if group else request_group())
             quiet = [u for u in shown if share_prefs(u)['rsvp'] == 'never']
             shown, more = [u for u in shown if u not in quiet], more + len(quiet)
             whos_going.append({**_showtime_brief(s), 'going': [u.name for u in shown], 'going_more': more})
@@ -336,7 +336,7 @@ def internal_digest():
                 'watchlist_id': w.id, 'name': w.user.name,
                 'discord_user_id': w.user.discord_user_id,
                 'fresh': alerts and (not w.last_notified_at or w.last_notified_at < retag_before),
-                'shown': alerts and watch_shared(w),
+                'shown': alerts and watch_shared(w, group.id if group else request_group()),
             })
 
     def watchers_out(ws):
@@ -400,7 +400,8 @@ def internal_digest_delivered():
     by_user = {}
     for w in (Watchlist.query.filter(Watchlist.id.in_(ids)).all() if ids else []):
         w.last_notified_at = now
-        if w.user and w.user.email and not watch_shared(w) and w.movie and notify.prefs(w.user)['channels']['email']:
+        if w.user and w.user.email and not watch_shared(w, request_group()) and w.movie \
+                and notify.prefs(w.user)['channels']['email']:
             by_user.setdefault(w.user.id, (w.user, []))[1].append(w.movie)
     db.session.commit()
 
@@ -465,7 +466,7 @@ def internal_rsvp():
     showtime, err = apply_rsvp(user, data.get('showtime_id'), data.get('status'), group_id)
     if err:
         return err
-    result = for_discord(showtime.to_dict(user_id=user.id, group_id=group_id))
+    result = for_discord(showtime.to_dict(user_id=user.id, group_id=group_id), group_id)
     result['user'] = user.to_dict()
     import notify
     result['attendance_prompt'] = data.get('status') == 'going' and notify.ask_once(user, 'attendance')
@@ -540,10 +541,10 @@ def internal_watchlist():
     member_id = request.args.get('member_id', type=int)
     if member_id:
         target = db.session.get(User, member_id)
-        if not on_discord(target):            # someone else's: only members in the server
+        if not on_discord(target, request_group()):     # someone else's: only members in this club's server
             target = None
     elif request.args.get('member_discord_id'):   # Watchlist on someone's /profile
-        target = _discord_member(request.args['member_discord_id'])
+        target = _discord_member(request.args['member_discord_id'], request_group())
     else:
         target, err = resolve_discord_user(request.args)
         if err:

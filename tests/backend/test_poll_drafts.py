@@ -45,7 +45,7 @@ def club():
             db.session.add(Showtime(movie_id=m.id, theatre_id=th.id, start_time=now + timedelta(days=3 + i)))
         db.session.commit()
         state = {'group': g.id, 'org': org.id, 'mem': mem.id, 'next': None}
-    A.DISCORD_GROUP_ID = state['group']
+    A.HOME_GROUP_ID = state['group']
     ai._client = Fake(['qwen/qwen3-32b', 'llama-3.3-70b-versatile'])
 
     def reply(model, messages, kw):

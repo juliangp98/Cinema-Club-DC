@@ -108,8 +108,8 @@ def test_nobody_is_in_the_server_until_the_bot_says_so(club):
 def test_the_member_sync(club):
     assert sync(full=True, ids=['7101', '7104', '99999', 'junk']) == {'members': 3, 'joined': 3, 'left': 0}   # junk ignored
     assert sync(full=True, ids=['7101', '7104', '99999']) == {'members': 3, 'joined': 0, 'left': 0}
-    assert c(club, 'Ana').get('/api/auth/me').json['user']['on_discord'] is True
-    assert c(club, 'Bo').get('/api/auth/me').json['user']['on_discord'] is False
+    assert c(club, 'Ana').get('/api/auth/me').json['user']['discord_clubs'] == [1]
+    assert c(club, 'Bo').get('/api/auth/me').json['user']['discord_clubs'] == []
     prefs = {n: c(club, n).get('/api/discord/prefs').json for n in ('Ana', 'Bo', 'Cy')}
     assert prefs['Ana']['available'] and prefs['Bo']['reason'] == 'not_in_server' and prefs['Cy']['reason'] == 'not_linked'
 

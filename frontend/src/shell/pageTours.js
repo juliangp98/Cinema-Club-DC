@@ -74,6 +74,8 @@ export const PAGE_TOURS = {
     { target: ".club-page [role=tablist]", title: "Tabs",
       body: "The overview, every member, the leaderboard — and for organizers and admins, the club's settings." },
     { target: ".club-panel", title: "The overview", body: "This week's plans, recent activity, the month's numbers and your games." },
+    { target: "#settings-discord", title: "Discord",
+      body: "The club's Discord server: admins connect it here (Add to Discord, then /setup with a code), and the bot posts what the club chooses." },
   ] },
   poll: { title: "a poll", help: "polls", steps: [
     { target: ".pv-tabs", title: "Vote or see results", body: "Switch between your ballot and how everyone voted." },

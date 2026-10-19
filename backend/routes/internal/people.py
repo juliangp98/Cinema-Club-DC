@@ -6,7 +6,7 @@ from app import (ATTENDANCE_LOOKBACK, Attendance, Group, IntegrityError, RSVP, S
     _as_int, _screening_item, _update_profile_fields, _utcnow_naive, app, build_leaderboard, compare_members,
     datetime, db, history_items, jsonify, on_discord, pending_attendance, present_user_ids, request,
     set_attendance, timedelta)
-from routes.internal.common import _discord_member, require_internal, resolve_discord_user
+from routes.internal.common import _discord_member, request_group, require_internal, resolve_discord_user
 
 
 @app.route('/api/internal/club')
@@ -20,7 +20,7 @@ def internal_club():
     if not group:
         return jsonify({'error': 'Group not found'}), 404
     members = [m.user for m in group.memberships if m.status == 'active' and m.user and m.user.is_active]
-    shown = present_user_ids()
+    shown = present_user_ids(group.id)
     named = sorted((u.name for u in members if u.id in shown), key=str.lower)
     slugs = [x.strip() for x in (group.theatres or '').split(',') if x.strip()]
     theatres = Theatre.query.filter(Theatre.is_active.isnot(False))
@@ -42,7 +42,7 @@ def internal_leaderboard():
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
-    shown_ids = present_user_ids()
+    shown_ids = present_user_ids(group.id)
     board = build_leaderboard(group)
     rows = [{'user': {'name': r['user']['name']},
              **{k: r[k] for k in ('place', 'kernels', 'correct', 'attendance', 'breakdown')}}
@@ -60,7 +60,7 @@ def internal_members():
     if not group:
         return jsonify([])
     members = [m.user for m in group.memberships
-               if m.status == 'active' and m.user and m.user.is_active and on_discord(m.user)]
+               if m.status == 'active' and m.user and m.user.is_active and on_discord(m.user, group.id)]
     members.sort(key=lambda u: (u.name or '').lower())
     return jsonify([{'id': u.id, 'name': u.name} for u in members])
 
@@ -93,7 +93,7 @@ def internal_profile():
     other = request.args.get('member_discord_id')
     if other:
         user = User.query.filter_by(discord_user_id=str(other)).first()
-        if not user or not user.is_active or not on_discord(user):
+        if not user or not user.is_active or not on_discord(user, request_group()):
             return jsonify({'error': 'no_account'}), 404
     else:
         user, err = resolve_discord_user(request.args)
@@ -127,7 +127,7 @@ def internal_kernel_cards():
     me, err = resolve_discord_user(request.args)
     if err:
         return err
-    other = _discord_member(request.args.get('member_discord_id'))
+    other = _discord_member(request.args.get('member_discord_id'), request_group())
     group_id = request.args.get('group_id', type=int)
     if not other:
         return jsonify({'error': 'unknown_member'}), 404
@@ -145,7 +145,7 @@ def internal_kernel_toss():
     me, err = resolve_discord_user(data)
     if err:
         return err
-    other = _discord_member(data.get('member_discord_id'))
+    other = _discord_member(data.get('member_discord_id'), request_group())
     if not other:
         return jsonify({'error': 'unknown_member'}), 404
     group_id, showtime_id = _as_int(data.get('group_id')), _as_int(data.get('showtime_id'))
@@ -246,7 +246,7 @@ def internal_history():
     other = request.args.get('member_discord_id')
     if other:
         user = User.query.filter_by(discord_user_id=str(other)).first()
-        if not user or not user.is_active or not on_discord(user):
+        if not user or not user.is_active or not on_discord(user, request_group()):
             return jsonify({'error': 'no_account'}), 404
     else:
         user, err = resolve_discord_user(request.args)
@@ -265,7 +265,7 @@ def internal_compare():
     if err:
         return err
     other = User.query.filter_by(discord_user_id=str(request.args.get('member_discord_id') or '')).first()
-    if not other or not other.is_active or not on_discord(other):
+    if not other or not other.is_active or not on_discord(other, request_group()):
         return jsonify({'error': 'unknown_member'}), 404
     if other.id == me.id:
         return jsonify({'error': 'same_person'}), 400

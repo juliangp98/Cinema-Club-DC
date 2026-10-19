@@ -142,7 +142,7 @@ export default function ChatSection({ showtimeId, groupId, apiBase, discordThrea
     <div className="chat-section">
       {threadUrl ? (
         <a className="chat-discord-link" href={threadUrl} target="_blank" rel="noreferrer">
-          💬 Also in Discord — this discussion has a thread in #movies →
+          💬 Also in Discord — this discussion has a thread in the club's Discord →
         </a>
       ) : discord && (
         <div className="chat-discord-start">

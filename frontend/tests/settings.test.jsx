@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MeSettings from "../src/components/MeSettings";
 import ClubSettings from "../src/components/ClubSettings";
+import ClubDiscord from "../src/components/ClubDiscord";
 import { SwitchRow } from "../src/ui/Settings";
 import { mockApi, renderPage } from "./support";
 
@@ -69,14 +70,14 @@ test("your settings: a section menu, alerts by category, privacy in one place, s
   expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ name: "Ana B." }));
 });
 
-test("a club's theatres: follow them, and choose which announce new showtimes in #movies", async () => {
+test("a club's theatres: follow them, and choose which announce new showtimes in Discord", async () => {
   const group = { id: 1, slug: "club", name: "Club", discord: true, theatres: ["afi", "suns"], announce_theatres: ["suns"],
                   trivia: { enabled: false }, bingo: { enabled: false }, notes: { enabled: false }, quizzes: {} };
   const calls = mockApi({ "GET /api/theatres": [{ slug: "afi", name: "AFI Silver", short_name: "AFI" }, { slug: "suns", name: "Suns Cinema", short_name: "SUNS" }],
                           "GET /api/groups/club/members": [], "GET /api/groups/club/game-posts": { waiting: [], skipped: [] },
                           "PUT /api/groups/club": body => ({ ...group, ...body }) });
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} isAdmin={false} onChanged={() => {}} />);
-  const posts = await screen.findByRole("group", { name: "New showtimes in #movies" });
+  const posts = await screen.findByRole("group", { name: "New showtimes in Discord" });
   expect(within(posts).getByRole("switch", { name: "Suns Cinema" })).toBeChecked();
   await userEvent.click(within(posts).getByRole("switch", { name: "AFI Silver" }));
   expect(calls.at(-1).body).toEqual({ announce_theatres: ["suns", "afi"] });
@@ -121,4 +122,48 @@ test("the Letterboxd watchlist: import, the alerts question, import again, turn 
   expect(calls.at(-1)).toMatchObject({ method: "DELETE", path: "/api/me/letterboxd/watchlist" });
   expect(await screen.findByRole("button", { name: "Choose the file" })).toBeInTheDocument();
   window.confirm.mockRestore();
+});
+
+// Club settings → Discord: connect the club's server in two steps (add the
+// bot; a one-time code for /setup), see it once it's connected, disconnect.
+test("connecting a club's Discord server", async () => {
+  const group = { id: 2, slug: "film-friends", name: "Film Friends" };
+  let connected = false;
+  const status = () => (connected
+    ? { connected: true, home: false, invite_url: "https://discord.com/oauth2/authorize?client_id=1",
+        server: { name: "Film Friends", channel: "films", missing: ["Manage Webhooks"], members: 12, linked: 3 } }
+    : { connected: false, home: false, invite_url: "https://discord.com/oauth2/authorize?client_id=1" });
+  const calls = mockApi({
+    "GET /api/groups/film-friends/discord": () => status(),
+    "POST /api/groups/film-friends/discord/code": { code: "ABCD2345", minutes: 30 },
+    "DELETE /api/groups/film-friends/discord": () => { connected = false; return status(); },
+  });
+  const run = (fn) => fn();
+  const { unmount } = renderPage(<ClubDiscord group={group} apiBase="" isAdmin run={run} />);
+  const add = await screen.findByRole("link", { name: "Add to Discord ↗" });
+  expect(add).toHaveAttribute("href", "https://discord.com/oauth2/authorize?client_id=1");
+  await userEvent.click(screen.getByRole("button", { name: "Make a code" }));
+  expect(await screen.findByLabelText("Setup command")).toHaveValue("/setup code:ABCD2345");
+  expect(screen.getByText(/It works once, for 30 minutes/)).toBeInTheDocument();
+  unmount();
+
+  connected = true;
+  const second = renderPage(<ClubDiscord group={group} apiBase="" isAdmin run={run} />);
+  expect(await screen.findByText(/Posts in #films · 3 members here are in the server/)).toBeInTheDocument();
+  expect(screen.getByRole("note")).toHaveTextContent("Give it: Manage Webhooks");
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+  expect(calls.at(-1)).toMatchObject({ method: "DELETE", path: "/api/groups/film-friends/discord" });
+  expect(await screen.findByRole("button", { name: "Make a code" })).toBeInTheDocument();
+  window.confirm.mockRestore();
+  second.unmount();
+
+  const third = renderPage(<ClubDiscord group={group} apiBase="" isAdmin={false} run={run} />);   // organizers: where things stand
+  expect(await screen.findByText(/A club admin can connect one here/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Make a code" })).toBeNull();
+  third.unmount();
+
+  mockApi({ "GET /api/groups/film-friends/discord": { connected: true, home: true, invite_url: null } });
+  renderPage(<ClubDiscord group={group} apiBase="" isAdmin run={run} />);                     // home, not registered yet
+  expect(await screen.findByText(/the bot registers it when it starts/)).toBeInTheDocument();
 });

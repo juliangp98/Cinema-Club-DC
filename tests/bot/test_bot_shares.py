@@ -187,7 +187,7 @@ def test_a_polls_posts_from_announcement_to_results(world):
 def test_starting_a_thread(world):
     made = []
 
-    async def fake_ensure(sid):
+    async def fake_ensure(sid, group_id=None):
         made.append(sid)
         return types.SimpleNamespace(id=4444, jump_url='https://discord.com/channels/900/4444'), {}, True
     patch_bot(ensure_thread=fake_ensure)
