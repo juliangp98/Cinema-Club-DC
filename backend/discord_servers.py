@@ -200,10 +200,17 @@ def report(guild_id, name=None, channel_name=None, missing=None, member_count=No
 
 
 def servers():
-    """The connected servers, for the bot: [{guild_id, group_id, channel_id, home}]."""
-    from app import DiscordServer
-    return [{'guild_id': s.guild_id, 'group_id': s.group_id, 'channel_id': s.channel_id, 'home': bool(s.home)}
-            for s in DiscordServer.query.filter(DiscordServer.group_id.isnot(None))]
+    """The connected servers, for the bot: [{guild_id, group_id, channel_id,
+    home, city, tz}] — the club's city and its clock (the bot's dates and posts)."""
+    import cities
+    import places
+    from app import db, DiscordServer, Group
+    out = []
+    for s in DiscordServer.query.filter(DiscordServer.group_id.isnot(None)):
+        city = places.club_city(db.session.get(Group, s.group_id))
+        out.append({'guild_id': s.guild_id, 'group_id': s.group_id, 'channel_id': s.channel_id, 'home': bool(s.home),
+                    'city': city, 'tz': cities.get(city).tz})
+    return out
 
 
 def invite_url():

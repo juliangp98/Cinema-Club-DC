@@ -41,8 +41,10 @@ DAILY_CAP = 5                       # kernels a day from each game
 SPREAD = 30                         # higher or lower: the next film is within this many years
 
 
-def today():
-    return datetime.now().date()
+def today(group=None):
+    """The club's day (its city's clock)."""
+    import places
+    return places.club_now(group).date()
 
 
 def switches(group):
@@ -69,7 +71,9 @@ def on(group, kind):
 
 def earned_today(user_id, group_id, kind):
     from app import QuizRound
-    return sum(r.earned for r in QuizRound.query.filter_by(user_id=user_id, group_id=group_id, kind=kind, day=today()))
+    from app import db, Group
+    day = today(db.session.get(Group, group_id))
+    return sum(r.earned for r in QuizRound.query.filter_by(user_id=user_id, group_id=group_id, kind=kind, day=day))
 
 
 def kernels_for(user_ids, group_id=None, since=None):
@@ -473,7 +477,7 @@ def start(group, user, kind, source='site', rng=None):
     state = RULES[kind][0](group, rng or random.Random())
     if not state:
         return None, "There's nothing to play with yet — try again later."
-    r = QuizRound(group_id=group.id, user_id=user.id, kind=kind, day=today(), state_json=json.dumps(state), source=source)
+    r = QuizRound(group_id=group.id, user_id=user.id, kind=kind, day=today(group), state_json=json.dumps(state), source=source)
     db.session.add(r)
     db.session.commit()
     return r, None

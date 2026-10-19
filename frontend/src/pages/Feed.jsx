@@ -7,7 +7,7 @@ import { AvatarFace, initialsStyle } from "../ui/Avatar";
 import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import PersonLink, { personPath } from "../ui/PersonLink";
-import { ago, dayDateTime } from "../dates";
+import { ago, dayDateTime, hasStarted } from "../dates";
 import { getJson, send, rsvp, attend } from "../api";
 import { stars } from "../ui/stars";
 import { NOTE_TAGS } from "../ui/ScreeningNotes";
@@ -107,7 +107,7 @@ function ScreeningCard({ card, viewerId, groupId, apiBase, expanded, onToggle, o
   const [kernelBusy, setKernelBusy] = useState(false);     // one give/take at a time, so answers land in order
   const kernelPeople = card.kernels?.people || [];
   const s = card.showtime;
-  const past = new Date(s.start_time) < new Date();
+  const past = hasStarted(s);
   const going = s.attendees || [];
   const maybes = s.maybes || [];
   let headline;

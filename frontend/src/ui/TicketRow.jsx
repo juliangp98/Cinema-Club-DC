@@ -4,7 +4,7 @@ import { CalendarIcon } from "./icons";
 import { TicketDiscord } from "./DiscordShare";
 import TheatreLink from "./TheatreLink";
 import { AttendanceAsk } from "./AlertPrompts";
-import { weekday, monthDay, time } from "../dates";
+import { hasStarted, weekday, monthDay, time } from "../dates";
 import { getJson } from "../api";
 
 const RSVP = [
@@ -65,7 +65,7 @@ export function Segmented({ options, value, onChange, label }) {
 // Outside a club, `rsvpNote` ({text, to?, label?}) says who sees your RSVP.
 export default function TicketRow({ showtime: s, apiBase, groupId, onRsvp, onAttendance, rsvpNote, showTheatre = true }) {
   const start = new Date(s.start_time);
-  const started = start <= new Date();
+  const started = hasStarted(s);
 
   async function googleCalendar() {
     try {

@@ -1,17 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { SITE_NAME, SITE_SHORT } from './src/site.js'
+
+// index.html says the site's name as %SITE_NAME% (src/site.js is the one place it's set).
+const siteName = { name: 'site-name', transformIndexHtml: html => html.replaceAll('%SITE_NAME%', SITE_NAME) }
 
 export default defineConfig({
   plugins: [
     react(),
+    siteName,
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
-        name: 'Cinema Club DC',
-        short_name: 'Cinema Club',
-        description: 'DC arthouse & repertory showtimes for the club',
+        name: SITE_NAME,
+        short_name: SITE_SHORT,
+        description: 'Arthouse & repertory showtimes for the club',
         theme_color: '#1f070c',
         background_color: '#1f070c',
         display: 'standalone',

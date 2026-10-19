@@ -7,27 +7,31 @@ import { dayDate as dayLabel } from "../dates";
 import { useJson } from "../api";
 import ToggleChip from "../ui/ToggleChip";
 import { groupParam } from "../scope";
+import { useShell } from "../shell/AppShell";
+import { DEFAULT_CITY, cityOf, useTheatres } from "../places";
 import "./DiscoverPage.css";
 
 // Discover's See-all pages (R7b): every Spotlight, every double bill. Both
 // can be narrowed to an area or one theatre, kept in the URL (?regions= /
 // ?theatres=) like Browse, so a theatre page's "See all" lands pre-filtered.
-
-const REGIONS = [["dc", "DC"], ["maryland", "Maryland"], ["virginia", "Virginia"]];
+// The areas and theatres offered are the city's you're looking at.
 
 function useScope(apiBase) {
   const [params, setParams] = useSearchParams();
-  const theatres = useJson(`${apiBase}/api/theatres`).data || [];
+  const shell = useShell();
+  const home = shell?.city || DEFAULT_CITY;
+  const areas = (cityOf(shell?.cities, home)?.areas || []).map(a => [a.key, a.label]);
+  const theatres = useTheatres(apiBase).filter(t => (t.city || home) === home);
   const scope = { theatres: params.get("theatres") || "", regions: params.get("regions") || "" };
   const set = next => setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)), { replace: true });
   const query = new URLSearchParams(Object.entries(scope).filter(([, v]) => v)).toString();
   const browseScope = query ? `&${query}` : "";
   const named = theatres.find(t => t.slug === scope.theatres);
-  const label = named ? `at ${named.name}` : scope.regions ? `in ${REGIONS.find(([k]) => k === scope.regions)?.[1] || scope.regions}` : "";
+  const label = named ? `at ${named.name}` : scope.regions ? `in ${areas.find(([k]) => k === scope.regions)?.[1] || scope.regions}` : "";
   const bar = (
     <div className="more-scope" role="group" aria-label="Where">
       <ToggleChip on={!scope.theatres && !scope.regions} onClick={() => set({})}>Everywhere</ToggleChip>
-      {REGIONS.map(([k, name]) => (
+      {areas.map(([k, name]) => (
         <ToggleChip key={k} on={scope.regions === k && !scope.theatres} onClick={() => set({ regions: k })}>{name}</ToggleChip>
       ))}
       <select className="more-scope-theatre" value={scope.theatres} aria-label="Theatre"

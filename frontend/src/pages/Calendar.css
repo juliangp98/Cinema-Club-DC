@@ -1,5 +1,4 @@
 /* ── Calendar (R4) ─────────────────────────────────────────────────────── */
-.page.calendar { max-width: 1400px; }
 .cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-bottom: 0.75rem; }
 .cal-nav { display: flex; align-items: center; gap: 0.35rem; }
 .cal-range { margin-left: 0.4rem; font-size: var(--fs-sm); color: var(--cream); font-weight: 500; }

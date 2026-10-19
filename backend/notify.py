@@ -129,6 +129,19 @@ def _make(db, Notification, user, kind, movie_id, theatre_id, payload, ready=Fal
                                 channels=','.join(chosen)))
 
 
+def _near(theatre):
+    """A check: is `theatre` in one of this person's cities (their clubs' and
+    their own)? Nobody hears about bookings in a city they're not in."""
+    import places
+    city, known = places.city_of(theatre), {}
+
+    def check(user):
+        if user.id not in known:
+            known[user.id] = city in places.user_cities(user)
+        return known[user.id]
+    return check
+
+
 def alert_new_showings(theatre, new_future, had_upcoming):
     """Called by the scraper's sync (before its commit): a film on someone's
     watchlist was just booked at `theatre` — it has new upcoming showings
@@ -144,9 +157,10 @@ def alert_new_showings(theatre, new_future, had_upcoming):
     recent = {(n.user_id, n.movie_id) for n in Notification.query.filter(
         Notification.kind == 'showings', Notification.theatre_id == theatre.id,
         Notification.movie_id.in_(booked), Notification.created_at > _now() - REALERT_AFTER)}
-    made = 0
+    made, near = 0, _near(theatre)
     for w in Watchlist.query.filter(Watchlist.movie_id.in_(booked)).all():
-        if not w.user or (w.user_id, w.movie_id) in recent or not wants(w.user, 'showings') or not watch_alerts(w):
+        if not w.user or (w.user_id, w.movie_id) in recent or not wants(w.user, 'showings') or not watch_alerts(w) \
+                or not near(w.user):
             continue
         shows = sorted(booked[w.movie_id], key=lambda s: s.start_time)
         m = shows[0].movie
@@ -185,12 +199,12 @@ def alert_favorites(theatre, new_future, had_upcoming):
         for mid, c in credits.items():
             if (i.key, i.kind) in c:
                 because.setdefault((i.user_id, mid), f'{c[(i.key, i.kind)]} ({i.kind})')
-    made = 0
+    made, near = 0, _near(theatre)
     for (uid, mid), why in because.items():
         if (uid, mid) in told:
             continue
         user = db.session.get(__import__('app').User, uid)
-        if not user or not user.is_active or not wants(user, 'favorites'):
+        if not user or not user.is_active or not wants(user, 'favorites') or not near(user):
             continue
         shows = sorted(booked[mid], key=lambda s: s.start_time)
         m = shows[0].movie
@@ -208,16 +222,17 @@ def watch_alerts(w):
     return w.source != 'letterboxd' or bool(w.user and w.user.letterboxd_watch_alerts)
 
 
-def _watchers(Watchlist, movie_ids, kind):
+def _watchers(Watchlist, movie_ids, kind, theatre):
+    near = _near(theatre)
     return [w for w in (Watchlist.query.filter(Watchlist.movie_id.in_(movie_ids)).all() if movie_ids else [])
-            if w.user and wants(w.user, kind) and watch_alerts(w)]
+            if w.user and wants(w.user, kind) and watch_alerts(w) and near(w.user)]
 
 
 def alert_announced(theatre, announcements):
     """R8b: a theatre announced films on people's watchlists (tickets later)."""
     from app import db, Notification, Watchlist
     by_movie = {a.movie_id: a for a in announcements}
-    for w in _watchers(Watchlist, list(by_movie), 'showings'):
+    for w in _watchers(Watchlist, list(by_movie), 'showings', theatre):
         a, m = by_movie[w.movie_id], by_movie[w.movie_id].movie
         _make(db, Notification, w.user, 'announced', w.movie_id, theatre.id, {
             'title': m.title, 'year': m.release_year, 'poster_url': m.poster_url,
@@ -239,7 +254,7 @@ def alert_on_sale(theatre, new_future):
     for a in opened:
         a.on_sale_at = _now()
     ids = {a.movie_id for a in opened}
-    for w in _watchers(Watchlist, list(ids), 'on_sale'):
+    for w in _watchers(Watchlist, list(ids), 'on_sale', theatre):
         ss = sorted(shows[w.movie_id], key=lambda s: s.start_time)
         m = ss[0].movie
         _make(db, Notification, w.user, 'on_sale', w.movie_id, theatre.id, {
@@ -300,11 +315,13 @@ def search_dict(s):
 
 
 def _search_group(s):
-    """The club whose theatres a search covers — if the person's still in it."""
+    """Whose theatres a search covers: the club's, if the person's still in
+    it — else its city's (places.CityScope)."""
+    import places
     from app import db, Group, GroupMembership
     if not s.group_id or not GroupMembership.query.filter_by(user_id=s.user_id, group_id=s.group_id,
                                                               status='active').first():
-        return None
+        return places.CityScope(s.city or places.person_city(s.user))
     return db.session.get(Group, s.group_id)
 
 
@@ -312,9 +329,11 @@ def search_matches(s, now=None):
     """{(movie_id, theatre_id): [showtimes]} — what fits a saved search over
     the coming months."""
     import discover
-    now = now or datetime.now()
+    import places
+    group = _search_group(s)
+    now = now or places.club_now(group)
     params = {**json.loads(s.params_json), 'from': now.isoformat(), 'to': (now + SEARCH_AHEAD).date().isoformat()}
-    films = discover.select(_search_group(s), s.user, params, now)[0]
+    films = discover.select(group, s.user, params, now)[0]
     out = {}
     for f in films:
         for show in f.shows:
@@ -331,9 +350,11 @@ def seed_search(s, now=None):
     return len({m for m, _ in matches})
 
 
-def save_search(user, params, group_id=None, now=None):
-    """Save a search for `user` (the caller commits). Returns (search,
-    films fitting it now, error) — the same search saved twice is one."""
+def save_search(user, params, group_id=None, now=None, city=None):
+    """Save a search for `user` (the caller commits): a club's theatres, or
+    (no club) a city's. Returns (search, films fitting it now, error) — the
+    same search saved twice is one."""
+    import places
     from app import db, GroupMembership, SavedSearch
     p = search_params(params)
     if not p:
@@ -346,7 +367,8 @@ def save_search(user, params, group_id=None, now=None):
         return same, len({m for m, _ in search_matches(same, now)}), None
     if SavedSearch.query.filter_by(user_id=user.id).count() >= MAX_SEARCHES:
         return None, 0, f'You can save up to {MAX_SEARCHES} searches — remove one first.'
-    s = SavedSearch(user_id=user.id, group_id=group_id, params_json=raw, label=search_label(p))
+    s = SavedSearch(user_id=user.id, group_id=group_id, params_json=raw, label=search_label(p),
+                    city=None if group_id else places.viewer_city(user, None, city or places.asked_city()))
     db.session.add(s)
     db.session.flush()
     return s, seed_search(s, now), None
@@ -487,10 +509,10 @@ def needs_answer(n):
     if n.kind == 'trivia_daily':
         import trivia
         from app import Group, TriviaAnswer, TriviaQuestion
-        if p.get('day') != trivia.today().isoformat():
-            return False
         group = Group.query.filter_by(slug=p.get('group')).first()
-        q = group and TriviaQuestion.query.filter_by(group_id=group.id, slot='daily', day=trivia.today()).first()
+        if not group or p.get('day') != trivia.today(group).isoformat():
+            return False
+        q = TriviaQuestion.query.filter_by(group_id=group.id, slot='daily', day=trivia.today(group)).first()
         return bool(q and not TriviaAnswer.query.filter_by(question_id=q.id, user_id=n.user_id).first())
     return False
 
@@ -527,7 +549,7 @@ def release(now=None):
 
 def send_emails(now=None):
     """One email per person with everything ready for them."""
-    from app import db, Notification, send_email, FRONTEND_URL
+    from app import db, Notification, send_email, email_page, FRONTEND_URL
     now = now or _now()
     pending = Notification.query.filter(_ready(Notification, now), Notification.email_at.is_(None),
                                         Notification.channels.like('%email%')).order_by(Notification.created_at).all()
@@ -543,10 +565,9 @@ def send_emails(now=None):
             for d in map(describe, ns))
         subject = describe(ns[0])['headline'] if len(ns) == 1 else bundle_title(ns)
         send_email(user.email, subject,
-                   f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-                   <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2><ul style="padding-left:18px;">{rows}</ul>
+                   email_page(f"""<ul style="padding-left:18px;">{rows}</ul>
                    <p style="color:#888;font-size:12px;">Change where you get alerts in your profile menu →
-                   Notifications on <a href="{FRONTEND_URL}" style="color:#888;">the site</a>.</p></div>""")
+                   Notifications on <a href="{FRONTEND_URL}" style="color:#888;">the site</a>.</p>"""))
         for n in ns:
             n.email_at = now
     db.session.commit()
@@ -600,8 +621,9 @@ def send_pushes(now=None):
 
 
 def pending_dms(now=None):
-    """[{discord_user_id, ids, title, items: [{headline, detail, url, poster_url}]}] for the bot
-    (`title`: what several at once are called)."""
+    """[{discord_user_id, tz, ids, title, items: [{headline, detail, url, poster_url}]}] for the bot
+    (`title`: what several at once are called; `tz`: theirs — no DMs at night there)."""
+    import places
     from app import Notification, FRONTEND_URL
     now = now or _now()
     pending = Notification.query.filter(_ready(Notification, now), Notification.discord_at.is_(None),
@@ -610,7 +632,7 @@ def pending_dms(now=None):
     for n in pending:
         if n.user and n.user.discord_user_id:
             by_user.setdefault(n.user.discord_user_id, []).append(n)
-    return [{'discord_user_id': uid, 'ids': [n.id for n in ns],
+    return [{'discord_user_id': uid, 'ids': [n.id for n in ns], 'tz': places.person_zone(ns[0].user),
              'title': bundle_title(ns),
              'items': [{**{k: v for k, v in describe(n).items() if k != 'link'},
                         'url': FRONTEND_URL + describe(n)['link'], 'poster_url': item(n)['poster_url']} for n in ns],

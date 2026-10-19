@@ -9,9 +9,12 @@ import { CalendarIcon, CompassIcon, FeedIcon, HelpIcon, PlayIcon, UserIcon, User
 import { useActivity, ActivityBell, ActivityPanel } from "./Activity";
 import { accountLabel } from "../accountLabel";
 import InstallPrompt from "./InstallPrompt";
-import { clearCache, send } from "../api";
+import { clearCache, send, setRequestCity } from "../api";
+import { DEFAULT_CITY, guessCity, readCity, useCities, writeCity } from "../places";
+import { SITE_NAME } from "../site";
+import CityMenu from "./CityMenu";
 import useArrival from "../arrive";
-import { routeMeta, setPageMeta } from "../seo";
+import { routeMeta, setPageMeta, setSeoCity } from "../seo";
 import { PAGE_TOURS } from "./pageTours";
 import { TopbarTour } from "../ui/PageTourControls";
 
@@ -51,6 +54,29 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
   const [touring, setTouring] = useState(false);
   const [tasteVersion, setTasteVersion] = useState(0);        // bumped when Your taste changes: Discover re-picks
+
+  // Your city (the backend's cities.py): a club's pages are its city's;
+  // without one, the city you picked in the city menu (your account's, else
+  // this device's), else a guess from your time zone. Every API call names it
+  // (api.js), and pages start over when it changes.
+  const cityData = useCities(apiBase);
+  const cityList = cityData?.cities || [];
+  const [picked, setPicked] = useState(readCity);
+  const known = slug => (cityList.some(c => c.slug === slug) ? slug : null);
+  const homeCity = cityData?.default || DEFAULT_CITY;
+  const city = (group?.city && (known(group.city) || group.city)) || known(user?.city) || known(picked)
+    || (cityData ? guessCity(cityList) : null) || homeCity;
+  setRequestCity(city);
+  const pickCity = useCallback(slug => {
+    setPicked(slug);
+    writeCity(slug);
+    if (user && !user.is_guest) {
+      send(`${apiBase}/api/auth/profile`, "PUT", { city: slug }).then(d => d?.user && setUser(d.user)).catch(() => {});
+    }
+  }, [user, apiBase, setUser]);
+  const cityInfo = cityList.find(c => c.slug === city) || null;
+  const cityName = cityInfo?.name || null;
+  setSeoCity(cityInfo);
 
   // The welcome tour (R11): on its own once per account (new ones, and
   // everyone the first time it shipped); replayable from the menu and Help.
@@ -106,7 +132,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   // What search engines see (SEO): each address's title, description and
   // noindex for private pages — before the page's own details (a layout
   // effect runs before the pages' effects).
-  useLayoutEffect(() => { setPageMeta(routeMeta(pathname, search)); }, [pathname, search]);
+  useLayoutEffect(() => { setPageMeta(routeMeta(pathname, search)); }, [pathname, search, city]);
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
   // Links that open something the address can't show (7f): ?alerts=1 the
   // bell (a push about several alerts). Older links to the Edit profile and
@@ -129,6 +155,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
+                  city, cityName, cities: cityList, multiCity: !!cityData?.multi, pickCity,
                   editProfile: () => navigate("/me?tab=settings"), startTour: () => setTouring(true),
                   startPageTour, offerPageTour, markPageTour,
                   editTaste: () => navigate("/me?tab=settings#settings-taste"), tasteVersion,
@@ -139,8 +166,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
     <ShellContext.Provider value={shell}>
       <div className="shell">
         <header className="topbar">
-          <NavLink to="/" className="topbar-logo" aria-label="Cinema Club DC — home">
-            <span className="deco">Cinema Club DC</span>
+          <NavLink to="/" className="topbar-logo" aria-label={`${SITE_NAME} — home`}>
+            <span className="deco">{SITE_NAME}</span>
           </NavLink>
           <nav className="topbar-nav" aria-label="Main">
             {NAV.map(n => (
@@ -148,7 +175,9 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             ))}
           </nav>
           <div className="topbar-spacer" />
-          {user && groupId && <GroupSwitcher groups={groups} activeGroupId={groupId} setGroupId={setGroupId} />}
+          {cityData?.multi && !groupId && <CityMenu cities={cityList} city={city} onPick={pickCity} />}
+          {user && groupId && <GroupSwitcher groups={groups} activeGroupId={groupId} setGroupId={setGroupId}
+                                             cityName={cityData?.multi ? cityName : null} />}
           <TopbarTour />
           {user && <ActivityBell unread={activity.unread} onOpen={activity.open} />}
           {!user && <Link className="btn btn-sm btn-primary topbar-signin" to={signInLink}>Sign in</Link>}
@@ -169,7 +198,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
         </header>
 
         <main className="shell-main">
-          <Suspense fallback={<div className="page"><Loading /></div>}><Outlet /></Suspense>
+          <Suspense key={city === homeCity ? "home-city" : city} fallback={<div className="page"><Loading /></div>}><Outlet /></Suspense>
         </main>
 
         <nav className="tabbar" aria-label="Main">

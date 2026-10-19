@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { takeNext } from "../afterSignIn";
 import { send } from "../api";
+import { SITE_NAME } from "../site";
 
 // Landing page for emailed sign-in links (/auth/verify?token=...). The token is
 // redeemed on an explicit click rather than on page load: some mail providers
@@ -31,7 +32,7 @@ export default function VerifySignin({ apiBase, onLogin }) {
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <span className="auth-logo">CINEMA CLUB DC</span>
+        <span className="auth-logo">{SITE_NAME.toUpperCase()}</span>
         <p className="auth-subtitle">Sign In</p>
         {error ? (
           <>

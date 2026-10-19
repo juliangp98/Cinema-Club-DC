@@ -86,13 +86,24 @@ def clean_links(text):
     return LINK.sub(keep, text or '')
 
 
+def _cities():
+    """The cities the site covers, as words ("Washington, DC")."""
+    from flask import has_app_context
+    import cities
+    import places
+    names = [c.name for c in (places.active_cities() if has_app_context() else cities.CITIES)]
+    return names[0] if len(names) == 1 else ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
 def _prompt(q, ids):
+    from app import SITE_NAME
     g = guide()
     catalog = '\n'.join(f"- {tid}: {t['q']}" for tid, t in g['topics'].items())
     full = '\n\n'.join(f"[{tid}] {g['topics'][tid]['q']}\n{g['topics'][tid]['a']}" for tid in ids)
     places = '\n'.join(f"- {pid}: {p['label']}" for pid, p in g['places'].items())
     system = (
-        "You answer questions about the Cinema Club DC website (a calendar of DC-area repertory screenings, with "
+        f"You answer questions about the {SITE_NAME} website (a calendar of repertory screenings in "
+        f"{_cities()}, with "
         "clubs, polls, games and kernels) using ONLY its Help guide below. Never invent features, settings or "
         "places; if the guide doesn't say, say you're not sure and point to the closest topic.\n"
         'Reply with JSON only: {"topics": [up to 3 topic ids that answer it, best first], "answer": "..."}.\n'

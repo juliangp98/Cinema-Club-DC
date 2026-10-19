@@ -19,6 +19,8 @@ import random
 import re
 from datetime import datetime
 
+import places
+
 LINE_KERNELS, FULL_KERNELS = 5, 15
 HOME_LINE_KERNELS, HOME_FULL_KERNELS = 3, 10              # when a home-viewing square was needed (R15)
 MIN_CHANCES = 2
@@ -52,7 +54,7 @@ HOME_SQUARES = FILM_SQUARES + ['watchlist']                 # what a diary entry
 
 
 def month_of(d=None):
-    return (d or datetime.now()).strftime('%Y-%m')
+    return (d or places.now_in()).strftime('%Y-%m')
 
 
 def month_bounds(month):
@@ -72,7 +74,7 @@ def film_fits(key, year, genres, runtime, this_year=None):
     """Does a film (its year, genres text, runtime) fit square `key` — for
     the squares the film alone decides (a showing's, or a diary entry's)."""
     g = {x.strip() for x in (genres or '').lower().split(',')}
-    this_year = this_year or datetime.now().year
+    this_year = this_year or places.today_in().year
     return {
         'pre1960': lambda: bool(year and year < 1960),
         'seventies': lambda: bool(year and 1970 <= year < 1990),
@@ -103,7 +105,7 @@ def card_for(group, month=None):
     """The club's card for `month` (this one): made on first ask, then kept."""
     from sqlalchemy.exc import IntegrityError
     from app import db, BingoCard
-    month = month or month_of()
+    month = month or month_of(places.club_now(group))
     card = BingoCard.query.filter_by(group_id=group.id, month=month).first()
     if card:
         return card
@@ -136,7 +138,7 @@ def _pick(group, month, rng):
     """8 squares this month's calendar can fill (a few from each kind)."""
     from app import Showtime, _group_showtime_query
     start, end = month_bounds(month)
-    shows = _group_showtime_query(group).filter(Showtime.start_time >= max(start, datetime.now()),
+    shows = _group_showtime_query(group).filter(Showtime.start_time >= max(start, places.club_now(group)),
                                                 Showtime.start_time < end).all()
     possible = [k for k in SHOW_SQUARES if sum(1 for s in shows if show_fits(k, s, start.year)) >= MIN_CHANCES]
     always = [k for k in SQUARES if k not in SHOW_SQUARES]

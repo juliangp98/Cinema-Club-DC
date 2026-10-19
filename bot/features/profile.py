@@ -1,7 +1,7 @@
 """/profile and giving kernels.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import discord
 from discord import app_commands
 from api import ApiError
@@ -126,8 +126,9 @@ async def send_history(interaction, member_discord_id=None):
         await member_failure(interaction, e, 'profile history', member_discord_id,
                              "They haven't been to anything with the club yet.", 'History lookup failed ({status}).')
         return
-    now = datetime.now().isoformat()
-    unchecked = [i for i in data.get('items') or [] if data.get('own') and i['status'] == 'going' and i['start_time'] < now][:4]
+    now = datetime.now(timezone.utc)                  # each screening's start carries its city's offset
+    unchecked = [i for i in data.get('items') or [] if data.get('own') and i['status'] == 'going'
+                 and datetime.fromisoformat(i['starts_at']) < now][:4]
     view = alerts.attendance_view(unchecked) if unchecked else discord.ui.View()
     view.add_item(discord.ui.Button(label='On the site', row=len(unchecked), url=f"{SITE_URL}/me" if data.get('own')
                                     else f"{SITE_URL}/people/{data['user_id']}"))

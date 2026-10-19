@@ -64,11 +64,12 @@ const group = { id: 1, name: "Cinema Club DC", slug: "ccdc", emoji: "🎬" };
 test("the style guide shows the kit to admins", () => {
   renderPage(<StyleguidePage />, { shell: { group, role: "admin" } });
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Style guide");
-  for (const h of ["Buttons", "Chips and badges", "Choices", "Panels", "Text", "People and clubs"]) {
+  for (const h of ["Page width", "Buttons", "Chips and badges", "Choices", "Theatres and cities", "Panels", "Text", "People and clubs"]) {
     expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
   }
   expect(screen.getByRole("group", { name: "A question asked in place?" })).toHaveClass("ui-panel-prompt");
-  expect(document.querySelectorAll(".ui-badge")).toHaveLength(6);
+  expect(document.querySelectorAll(".ui-badge")).toHaveLength(7);                // the six tones and a city tag
+  expect(screen.getByRole("group", { name: "Sample theatres" })).toHaveTextContent("Other cities");
   expect(screen.getByRole("link", { name: "‹ Club settings" })).toHaveAttribute("href", "/club?tab=settings");
 });
 

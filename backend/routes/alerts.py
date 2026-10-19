@@ -78,7 +78,7 @@ def saved_searches():
             return jsonify({'error': 'Make an account to get alerts.'}), 403
         data = request.json or {}
         group_id = data.get('group_id') if isinstance(data.get('group_id'), int) else None
-        s, now_fitting, error = notify.save_search(user, data.get('params') or {}, group_id)
+        s, now_fitting, error = notify.save_search(user, data.get('params') or {}, group_id, city=data.get('city'))
         if error:
             return jsonify({'error': error}), 400
         alert_prompt = notify.ask_once(user, 'alerts')

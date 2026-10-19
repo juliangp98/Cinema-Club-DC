@@ -33,8 +33,11 @@ DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
 DISCORD_CHANNEL_ID = int(os.environ.get('DISCORD_CHANNEL_ID', '0') or 0)
 DEFAULT_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
 SITE_URL = os.environ.get('SITE_URL', 'https://cinemaclubdc.com')
+SITE_NAME = os.environ.get('SITE_NAME') or 'Cinema Club DC'      # the backend's setting (one .env.production)
 
-ET = ZoneInfo('America/New_York')
+# Clocks: every club is on its city's (cities.py on the backend). Until the
+# backend has said, the first city's.
+DEFAULT_ZONE = ZoneInfo('America/New_York')
 # Commands are synced globally (see setup_hook) — no guild ID needed.
 
 api = InternalApi()
@@ -202,7 +205,8 @@ def movies_channel():
 # minutes. Before the home server is registered, its channel's server is the
 # home club's (DEFAULT_GROUP_ID) — as before servers were per club.
 
-_servers = {}                    # guild id → {'group_id', 'channel_id', 'home'}
+_servers = {}                    # guild id → {'group_id', 'channel_id', 'home', 'city', 'tz'}
+_cities = {'multi': False, 'default': 'dc', 'zone': DEFAULT_ZONE, 'short': {}, 'names': {}}   # from /api/cities
 _UNSET = object()
 # The club the current interaction (or loop pass) is for: set by the tree's
 # check, by discord_identity, and by the loops for each server — so helpers
@@ -227,7 +231,59 @@ async def refresh_servers():
     for r in rows:
         if str(r.get('guild_id') or '').isdigit():
             _servers[int(r['guild_id'])] = {'group_id': r.get('group_id'), 'home': bool(r.get('home')),
-                                            'channel_id': int(r['channel_id']) if str(r.get('channel_id') or '').isdigit() else None}
+                                            'channel_id': int(r['channel_id']) if str(r.get('channel_id') or '').isdigit() else None,
+                                            'city': r.get('city'), 'tz': r.get('tz')}
+    try:
+        got = await api.get('/api/cities')
+        first = next((c for c in got['cities'] if c['slug'] == got.get('default')), got['cities'][0])
+        _cities.update(multi=bool(got.get('multi')), default=first['slug'], zone=ZoneInfo(first['tz']),
+                       short={c['slug']: c['short'] for c in got['cities']},
+                       names={c['slug']: c['name'] for c in got['cities']})
+    except Exception as e:
+        print(f'servers: cities refresh failed: {e}')
+
+
+def club_zone(group_id=None):
+    """A club's clock (its city's); the current club's if none is named."""
+    gid = group_id if group_id is not None else club()
+    tz = next((s['tz'] for s in _servers.values() if s['group_id'] == gid and s.get('tz')), None)
+    return ZoneInfo(tz) if tz else _cities['zone']
+
+
+def club_now(group_id=None):
+    """The wall-clock time at a club (naive, like showtimes)."""
+    return datetime.now(club_zone(group_id)).replace(tzinfo=None)
+
+
+def zone_now(tz):
+    """The time somewhere (a person's zone, from the backend), as a naive local time."""
+    try:
+        zone = ZoneInfo(tz) if tz else _cities['zone']
+    except Exception:
+        zone = _cities['zone']
+    return datetime.now(zone).replace(tzinfo=None)
+
+
+def club_city(group_id=None):
+    """The club's city slug (the current club's if none is named)."""
+    gid = group_id if group_id is not None else club()
+    return next((s['city'] for s in _servers.values() if s['group_id'] == gid and s.get('city')), None) \
+        or _cities['default']
+
+
+def where_args(city=None):
+    """What to send for a command's `city` option: the club (its theatres,
+    who's going), or — another city asked for — that city's public view."""
+    if city and city != club_city():
+        return {'city': city}
+    return {'group_id': club(), 'city': club_city()}
+
+
+async def city_choices(current):
+    """Autocomplete for a `city` option: the cities with theatres."""
+    cur = (current or '').lower()
+    return [app_commands.Choice(name=name, value=slug) for slug, name in _cities['names'].items()
+            if not cur or cur in name.lower() or cur in slug][:25]
 
 
 def club_for_guild(guild_id):
@@ -385,7 +441,7 @@ async def reply_failure(interaction, e, what, fallback=None, missing=None, ephem
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async def fetch_window(days, search=None):
-    now = datetime.now()
+    now = club_now()
     return await api.get(
         '/api/internal/showtimes',
         group_id=club(),
@@ -395,10 +451,10 @@ async def fetch_window(days, search=None):
     )
 
 
-async def fetch_range(start_iso, end_iso, search=None, limit=300, tickets=None):
+async def fetch_range(start_iso, end_iso, search=None, limit=300, tickets=None, city=None):
     return await api.get(
         '/api/internal/showtimes',
-        group_id=club(),
+        **where_args(city),
         start=start_iso, end=end_iso, q=search, limit=limit, tickets=tickets,
     )
 
@@ -423,31 +479,41 @@ _theatre_cache = {}              # club → (when, theatres)
 
 
 async def fetch_theatres():
+    """{theatres (the club's first, each saying its city), multi, city}."""
     hit = _theatre_cache.get(club())
     if hit is None or time.monotonic() - hit[0] > 300:
-        hit = _theatre_cache[club()] = (time.monotonic(), await api.get('/api/internal/theatres', group_id=club()))
+        hit = _theatre_cache[club()] = (time.monotonic(), await api.get(
+            '/api/internal/theatres', group_id=club(), city=club_city()))
     return hit[1]
 
 
+def theatre_label(t, multi):
+    """A theatre's name — with its city when it isn't the club's and there's more than one."""
+    if multi and not t.get('yours'):
+        return f"{t['name']} ({_cities['short'].get(t.get('city'), t.get('city'))})"
+    return t['name']
+
+
 async def theatre_choices(current):
-    """Autocomplete choices for a theatre parameter, filtered by typed text."""
+    """Autocomplete choices for a theatre parameter, filtered by typed text:
+    the club's theatres first, other cities' labelled."""
     try:
-        theatres = await fetch_theatres()
+        got = await fetch_theatres()
     except Exception:
         return []
     cur = (current or '').lower()
-    matches = [t for t in theatres
+    matches = [t for t in got['theatres']
                if not cur
                or cur in t['name'].lower()
                or cur in (t.get('short_name') or '').lower()
                or cur in t['slug'].lower()]
-    return [app_commands.Choice(name=t['name'], value=t['slug']) for t in matches[:25]]
+    return [app_commands.Choice(name=theatre_label(t, got.get('multi'))[:100], value=t['slug']) for t in matches[:25]]
 
 
 def date_choices(current):
     """Upcoming dates for a date-filter parameter. Value is an ISO date the
     showtime autocomplete uses to narrow to that day."""
-    today = datetime.now().date()
+    today = club_now().date()
     cur = (current or '').lower()
     out = []
     for i in range(30):
@@ -488,7 +554,7 @@ def resolve_window(days, date=None, end=None):
         else:
             label = f"{day.strftime('%a %-m/%-d')} – {last.strftime('%a %-m/%-d')}"
         return start.isoformat(timespec='seconds'), finish.isoformat(timespec='seconds'), label
-    now = datetime.now()
+    now = club_now()
     return (now.isoformat(timespec='seconds'),
             (now + timedelta(days=days)).isoformat(timespec='seconds'),
             f"next {days} day{'s' if days != 1 else ''}")
@@ -508,7 +574,7 @@ def _dates_to_choices(dates, current, after=None):
     """Build date Choices from ISO date strings, filtered by typed text and an
     optional lower bound (for range 'end' fields)."""
     cur = (current or '').lower()
-    today = datetime.now().date()
+    today = club_now().date()
     out = []
     for iso in dates:
         if after and iso < after:
@@ -615,7 +681,7 @@ async def rsvp_showtime_autocomplete(interaction: discord.Interaction, current: 
     if parse_iso_date(date):
         start_iso, end_iso, _ = resolve_window(default_days, date, end)
     else:
-        now = datetime.now()
+        now = club_now()
         start_iso = now.isoformat(timespec='seconds')
         end_iso = (now + timedelta(days=default_days)).isoformat(timespec='seconds')
     try:

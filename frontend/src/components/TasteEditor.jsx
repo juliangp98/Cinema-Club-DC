@@ -3,6 +3,9 @@ import { getJson, send } from "../api";
 import { Segmented } from "../ui/TicketRow";
 import ToggleChip, { RemovableChip } from "../ui/ToggleChip";
 import PickSearch from "../ui/PickSearch";
+import TheatrePicker from "../ui/TheatrePicker";
+import { useShell } from "../shell/AppShell";
+import { DEFAULT_CITY } from "../places";
 import { PEOPLE_KINDS, PERSON_KIND } from "../ui/TasteChips";
 
 // Your taste (R13): what For you, Discover and /foryou go on — genres you love
@@ -10,6 +13,7 @@ import { PEOPLE_KINDS, PERSON_KIND } from "../ui/TasteChips";
 // Saved as you go. Shown to others only if you switch that on (Settings →
 // Privacy and sharing). Lives in Me → Settings (7g); `onChange` hears each save.
 export default function TasteEditor({ apiBase, onChange }) {
+  const shell = useShell();
   const [t, setT] = useState(null);
   const [error, setError] = useState(null);
   const [kind, setKind] = useState("director");
@@ -69,9 +73,9 @@ export default function TasteEditor({ apiBase, onChange }) {
       </section>
       <section aria-labelledby="taste-theatres">
         <h3 className="ui-settings-group-title" id="taste-theatres">Favorite theatres</h3>
-        <div className="filter-chips">{t.options.theatres.map(th => (
-          <ToggleChip key={th.slug} color={th.color} on={t.theatres.includes(th.slug)}
-                      onClick={() => save("PUT", "", { theatres: flip(t.theatres, th.slug) })}>{th.short_name}</ToggleChip>))}</div>
+        <TheatrePicker theatres={t.options.theatres} home={shell?.city || DEFAULT_CITY} cities={shell?.cities || []}
+                       label="Favorite theatres" isOn={slug => t.theatres.includes(slug)}
+                       onToggle={slug => save("PUT", "", { theatres: flip(t.theatres, slug) })} />
       </section>
       <section aria-labelledby="taste-films">
         <h3 className="ui-settings-group-title" id="taste-films">Favorite films</h3>

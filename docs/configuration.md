@@ -15,6 +15,7 @@ templates in step with the code (`tests/backend/test_config.py`).
 |---|---|---|---|
 | `SECRET_KEY` | yes | Signs sign-in sessions. Without it each server process makes its own, so people are signed out at random and on every restart. Changing it signs everyone out once. | `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `FRONTEND_URL` | yes | The site's address: links in emails, CORS, and (when `https://`) the secure session cookie. | e.g. `https://cinemaclubdc.com`; locally `http://localhost:5173` |
+| `SITE_NAME` | — | The site's name wherever it's said: page titles, link previews, emails, calendar files, the bot. The site serves every city in `backend/cities.py` under this one name. The frontend's copy is in `frontend/src/site.js` (index.html and the app's install name read it) — change both. | Default `Cinema Club DC` |
 | `DATABASE_URL` | — | Where the SQLite database is. In Docker it lives in the `db-data` volume. | `sqlite:///cinemaclub.db` (production), `sqlite:///instance/cinemaclub_dev.db` (local) |
 | `SMTP_EMAIL`, `SMTP_PASSWORD` | yes | Sign-in links (and opt-in email alerts) go by email. Unset, emails print to the backend's console instead — fine locally. | A Gmail address and an **app password** for it: Google Account → Security → 2-Step Verification → App passwords |
 | `ADMIN_EMAIL`, `ADMIN_NAME` | first start | A fresh database's first admin account and default club. An existing database already has them. | Your address |

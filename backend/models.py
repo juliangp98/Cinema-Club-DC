@@ -3,6 +3,8 @@ app.py, which re-exports them, so `from app import User` still works)."""
 import json
 
 import app as core
+import cities
+import places
 from app import (datetime, db, timezone)
 
 
@@ -55,6 +57,9 @@ class User(db.Model):
     letterboxd_watch_on = db.Column(db.Boolean, default=False)
     letterboxd_watch_alerts = db.Column(db.Boolean)
     letterboxd_watch_imported_at = db.Column(db.DateTime)
+    # Your city (cities.py) when you're not in a club's: chosen in the top
+    # bar's city menu; None until then (the browser's time zone guesses).
+    city = db.Column(db.String(20))
     tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
     tours_json = db.Column(db.Text)          # 7f: the page tours offered and done/declined (a JSON list of pages)
     # R13: show your taste (favorite genres, films, people…) on your profile to
@@ -78,6 +83,7 @@ class User(db.Model):
             'bio': self.bio or '',
             'discord_linked': bool(self.discord_user_id),
             'discord_clubs': core.discord_clubs(self),     # the clubs whose Discord server you're in
+            'city': cities.clean(self.city),               # chosen in the city menu (None: not yet)
             'discord_username': self.discord_username or '',
             'discord_only': self.email is None,
             'letterboxd_username': self.letterboxd_username or '',
@@ -130,6 +136,7 @@ class Group(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_public = db.Column(db.Boolean, default=True)
     theatres = db.Column(db.String(200), default='')  # comma-separated theatre slugs
+    city = db.Column(db.String(20), default='dc')     # its home city (cities.py): theatres, clock
     # Theatres whose new-showtime drops the bot announces in Discord (opt-in:
     # empty means none — new showtimes reach people through the weekly digest).
     # Doesn't affect the calendar or commands.
@@ -174,6 +181,7 @@ class Group(db.Model):
             'description': self.description or '',
             'is_public': self.is_public,
             'theatres': [t.strip() for t in (self.theatres or '').split(',') if t.strip()],
+            'city': self.city or cities.DEFAULT_CITY,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'member_count': sum(1 for m in self.memberships if m.status == 'active'),
             'photo_url': self.photo_url,
@@ -227,6 +235,8 @@ class Theatre(db.Model):
     color = db.Column(db.String(20), default='#e8a838')
     short_name = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
+    city = db.Column(db.String(20), default='dc')  # from the scraper registry (cities.py)
+    area = db.Column(db.String(30))                # one of its city's areas
     latitude = db.Column(db.Float)                 # for the theatre page's map (R7a)
     longitude = db.Column(db.Float)
     showtimes = db.relationship('Showtime', backref='theatre', lazy=True)
@@ -241,6 +251,9 @@ class Theatre(db.Model):
             'color': self.color,
             'short_name': self.short_name or self.name,
             'is_active': bool(self.is_active),
+            'city': self.city or 'dc',
+            'area': self.area,
+            'area_label': cities.area_label(self.city, self.area),
             'lat': self.latitude,
             'lon': self.longitude,
         }
@@ -383,7 +396,8 @@ class Showtime(db.Model):
             'id': self.id,
             'movie': self.movie.to_dict(),
             'theatre': self.theatre.to_dict(),
-            'start_time': self.start_time.isoformat(),
+            'start_time': self.start_time.isoformat(),          # the theatre's wall clock (what's shown)
+            'starts_at': places.starts_at(self),                 # with its city's offset (countdowns)
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'purchase_link': self.purchase_link,
             'is_sold_out': self.is_sold_out,
@@ -798,7 +812,8 @@ class SavedSearch(db.Model):
     `params_json`: the filters (notify.search_params), never a date window."""
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('group.id'))    # the club's theatres; None = every theatre
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'))    # the club's theatres; None = the city's
+    city = db.Column(db.String(20))                                 # whose theatres (None: the owner's city)
     params_json = db.Column(db.Text, nullable=False)
     label = db.Column(db.String(200), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())

@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { SITE_NAME } from "../site";
 
 // A crash anywhere shows this instead of a blank page (R7b). "Reload" starts
 // clean: the installed app's stored files are dropped, so an out-of-date copy
@@ -28,7 +29,7 @@ export default class ErrorBoundary extends Component {
     if (!this.state.failed) return this.props.children;
     return (
       <div className="crash-screen" role="alert">
-        <span className="deco crash-title">Cinema Club DC</span>
+        <span className="deco crash-title">{SITE_NAME}</span>
         <p>“Houston, we have a problem.” Something went wrong showing this page.</p>
         <button type="button" className="btn btn-primary" onClick={cleanReload}>Reload</button>
       </div>

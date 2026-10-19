@@ -24,11 +24,22 @@ function remember(url, data) {
   if (memory.size > MAX_ENTRIES) memory.delete(memory.keys().next().value);
 }
 
-export const cachedJson = url => memory.get(url);
+// The viewer's city (places.js; the shell sets it): every call to the site's
+// API names it, so pages without a club show that city's theatres — and
+// remembered copies are kept per city.
+let requestCity = null;
+export const setRequestCity = city => { requestCity = city || null; };
+export function withCity(url) {
+  if (!requestCity || !/\/api\//.test(url) || /\/api\/internal\//.test(url) || /[?&]city=/.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}city=${encodeURIComponent(requestCity)}`;
+}
+
+export const cachedJson = url => memory.get(withCity(url));
 export const clearCache = () => memory.clear();           // on sign-in / sign-out
 
 // `cache: false` for lookups not worth remembering (type-ahead, polling).
 export async function getJson(url, { timeout = 25000, retries = 1, signal, cache = true } = {}) {
+  url = withCity(url);
   for (let attempt = 0; ; attempt += 1) {
     const ctl = new AbortController();
     const abort = () => ctl.abort();
@@ -87,7 +98,7 @@ export async function send(url, method = "POST", body) {
   const form = body instanceof FormData;
   let r;
   try {
-    r = await fetch(url, {
+    r = await fetch(withCity(url), {
       method, credentials: "include",
       headers: body === undefined || form ? undefined : { "Content-Type": "application/json" },
       body: body === undefined || form ? body : JSON.stringify(body),

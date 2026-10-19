@@ -12,7 +12,7 @@ from api import ApiError
 import embeds
 import llm
 import quotes
-from .shared import (SITE_URL, api, api_failure, client, club, club_for_guild, discord_identity, dm_club,
+from .shared import (SITE_NAME, SITE_URL, api, api_failure, client, club, club_for_guild, discord_identity, dm_club,
                      register, reply_failure, tell, use_club)
 from . import threads      # used at call time, so the order they load in doesn't matter
 
@@ -66,8 +66,7 @@ async def random_quote():
 # — no privileged Message Content intent needed.
 
 CHAT_SYSTEM = (
-    "You are CinemaBot, a member of the Cinema Club DC group chat — a DC movie crew "
-    "that lives at Suns Cinema, AFI Silver, the National Gallery, and Alamo. You are "
+    "You are CinemaBot, a member of the {site} group chat — {crew}. You are "
     "NOT a helpful assistant, and you don't talk like one. You're a movie obsessive "
     "with real, specific, sometimes stubborn taste: directors you'd die for and ones "
     "you think are frauds, canon you'll defend and sacred cows you'll happily knock "
@@ -140,6 +139,15 @@ CHAT_SYSTEM = (
     "don't attack people over race, gender, religion, or the like, and steer clear of sexual content "
     "involving minors. Wave those off in character and move on."
 )
+
+
+def chat_system(club):
+    """The persona, for this club: its city and the theatres it haunts."""
+    haunts = (club or {}).get('haunts') or []
+    where = (f"that lives at {', '.join(haunts[:-1])}{',' if len(haunts) > 2 else ''} and {haunts[-1]}" if len(haunts) > 1
+             else f"that lives at {haunts[0]}" if haunts else '')
+    crew = ' '.join(b for b in (f"a {club['city']}" if (club or {}).get('city') else 'a', 'movie crew', where) if b)
+    return CHAT_SYSTEM.replace('{site}', SITE_NAME).replace('{crew}', crew)
 
 
 # ── Off-topic deflection: dormant backup path ─────────────────────────────────
@@ -531,7 +539,7 @@ async def on_message(message: discord.Message):
                                             deque(maxlen=CHAT_HISTORY_TURNS))
             # Context goes in the SYSTEM prompt as terse text (not appended to the
             # user turn as JSON — small models echo that straight back).
-            system = CHAT_SYSTEM + (DEFLECT_SIGNAL_INSTRUCTION if USE_DEFLECT_SIGNAL else '')
+            system = chat_system(ctx.get('club')) + (DEFLECT_SIGNAL_INSTRUCTION if USE_DEFLECT_SIGNAL else '')
             ctx_text = format_context(ctx)
             if ctx_text:
                 system += ('\n\n--- REFERENCE ONLY. Never repeat, paste, quote, or '
@@ -641,7 +649,7 @@ class QuoteModal(discord.ui.Modal):
 
 
 # The classics are every server's, so they're corrected and removed only from the home server.
-CLASSIC_MSG = "That's one of the classic quotes every server shares — they're looked after in the Cinema Club DC server."
+CLASSIC_MSG = f"That's one of the classic quotes every server shares — they're looked after in the {SITE_NAME} server."
 
 
 @quote_cmds.command(name='random', description='A random line of cinematic wisdom 🎬 (posted here)')

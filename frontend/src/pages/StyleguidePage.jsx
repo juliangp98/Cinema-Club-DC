@@ -16,6 +16,8 @@ import BingoGrid from "../ui/BingoGrid";
 import TicketChips from "../ui/TicketChips";
 import TicketRow from "../ui/TicketRow";
 import Sheet, { SheetTitle } from "../ui/Sheet";
+import TheatrePicker from "../ui/TheatrePicker";
+import CityMenu from "../shell/CityMenu";
 import "./StyleguidePage.css";
 
 // The style guide (R15), for club admins: every piece of the UI kit in one
@@ -25,6 +27,15 @@ const BADGES = [["", "Closed"], ["go", "Going"], ["gold", "Maybe"], ["strong", "
                 ["solid", "3 tonight"]];
 const SAMPLE_SHOW = { id: 0, start_time: "2099-11-09T21:45:00", end_time: "2099-11-10T00:02:00", purchase_link: null,
                       theatre: { slug: "afi", name: "AFI Silver Theatre" }, format_label: "35mm" };
+const SAMPLE_CITIES = [
+  { slug: "dc", name: "Washington, DC", short: "DC", areas: [{ key: "dc", label: "DC" }, { key: "maryland", label: "Maryland" }] },
+  { slug: "testville", name: "Testville", short: "TV", areas: [{ key: "downtown", label: "Downtown" }] },
+];
+const SAMPLE_THEATRES = [
+  { slug: "suns", name: "Suns Cinema", short_name: "SUNS", color: "#e8a838", city: "dc", area_label: "DC" },
+  { slug: "afi", name: "AFI Silver Theatre", short_name: "AFI", color: "#c45c3a", city: "dc", area_label: "Maryland" },
+  { slug: "tv-house", name: "Testville House", short_name: "TV HOUSE", color: "#6aa08f", city: "testville", area_label: "Downtown" },
+];
 const SAMPLE_SQUARES = ["🎞️ On film", "🌍 Not in English", "📼 Before 1970", "🌙 Late show", "⭐ Free", "🏛️ A museum",
                         "🎬 A director's debut", "👯 With a friend", "🏠 At home"].map((t, i) => {
   const [emoji, ...label] = t.split(" ");
@@ -43,6 +54,7 @@ export default function StyleguidePage() {
   const [tickets, setTickets] = useState(null);
   const [rsvp, setRsvp] = useState(null);
   const [sheet, setSheet] = useState(false);
+  const [picks, setPicks] = useState(["afi"]);
   if (!shell?.group) return null;
   if (shell.role !== "admin") return <Navigate to="/club" replace />;
   const me = { name: "Your Name", id: 1 };
@@ -54,7 +66,13 @@ export default function StyleguidePage() {
       <p className="ui-note">The pieces every page is built from. Reach for these before writing new CSS.</p>
 
       <SectionTitle link={{ to: "/club?tab=settings", label: "A section link →" }}>Headings</SectionTitle>
-      <p className="ui-hint">PageHeader (title, back link, meta chips) and SectionTitle (with an optional link at its end).</p>
+      <p className="ui-hint">PageHeader (title, back link, meta chips) and SectionTitle (with an optional link at its end).
+        A <span className="ui-group-label styleguide-inline">.ui-group-label</span> heads a small group inside a section
+        (an area, a city).</p>
+
+      <SectionTitle>Page width</SectionTitle>
+      <p className="ui-hint">Every page is one width: <code>.page</code> uses <code>--page-max</code> (index.css) and nothing else
+        sets a page width — a page that needs columns splits that width (.ui-split) instead.</p>
 
       <SectionTitle>Buttons</SectionTitle>
       <div className="styleguide-row">
@@ -94,6 +112,18 @@ export default function StyleguidePage() {
       <p className="ui-hint">One search bar everywhere (ui/SearchField): Discover, Browse, the Calendar, Help, Your taste, Find a club. Enter searches; ✨ is an optional action.</p>
       <SearchField label="Search (sample)" placeholder="Search, or describe what you want and tap ✨" value={find} onChange={setFind}
                    action={<SearchAction aria-label="AI search (sample)" disabled={find.trim().length < 3}>✨</SearchAction>} />
+
+      <SectionTitle>Theatres and cities</SectionTitle>
+      <p className="ui-hint">TheatrePicker is the one way to choose theatres (a club's, starting a club, Your taste, the Where
+        filter): your city's by area, then "Other cities" with a heading per city. With more than one city, the top bar has a
+        city menu (shell/CityMenu, only without a club) and a theatre outside yours carries its city (CityTag).</p>
+      <TheatrePicker theatres={SAMPLE_THEATRES} home="dc" cities={SAMPLE_CITIES} label="Sample theatres"
+                     isOn={slug => picks.includes(slug)} count={slug => (slug === "afi" ? 12 : undefined)}
+                     onToggle={slug => setPicks(xs => (xs.includes(slug) ? xs.filter(x => x !== slug) : [...xs, slug]))} />
+      <div className="styleguide-row">
+        <CityMenu cities={SAMPLE_CITIES} city="dc" onPick={() => {}} />
+        <span>Testville House<span className="ui-badge city-tag">TV</span></span>
+      </div>
 
       <SectionTitle>Settings</SectionTitle>
       <p className="ui-hint">Every setting on the site (ui/Settings): a section with a line on what it covers, small group headings,

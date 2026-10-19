@@ -3,10 +3,11 @@ scrape events, the chatbot's context, members' alerts and notifications.
 """
 import app as core
 import taste
-from app import (ActivityEvent, BotSetting, DiscordPost, DiscordServer, DiscordServerMember, Group, Notification, RSVP,
-    SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User, Watchlist, _group_showtime_query,
-    _notify_settings, _utcnow_naive, app, attended_showtime_ids, build_leaderboard, datetime, db, jsonify,
-    on_discord, post_dict, render_post, request, set_share_pref, timedelta)
+import places
+from app import (ActivityEvent, BotSetting, DiscordPost, DiscordServer, DiscordServerMember, Group,
+    Notification, RSVP, SavedSearch, ScrapeEvent, Showtime, ShowtimeThread, Theatre, User, Watchlist,
+    _group_showtime_query, _notify_settings, _utcnow_naive, app, attended_showtime_ids, build_leaderboard, db,
+    jsonify, on_discord, post_dict, render_post, request, set_share_pref, timedelta)
 from routes.internal.common import _present_changed, require_internal, resolve_discord_user
 
 
@@ -28,15 +29,16 @@ def internal_posts_due():
     posted ones whose content changed, delete ones with nothing left to show.
     Each item: {id, kind, action: post|edit|delete, message_id, data}.
     Nothing until the bot has reported who's in the server."""
+    import places
     group_id = request.args.get('group_id', type=int)
-    now = datetime.now()
+    now = places.server_now()                                # the post queue's clock
     out = []
     if not members_synced(group_id):
         return jsonify(out)
     for p in (DiscordPost.query.filter(DiscordPost.group_id == group_id, DiscordPost.status == 'pending',
                                        DiscordPost.post_at <= now)
               .order_by(DiscordPost.post_at, DiscordPost.id).limit(10)):
-        data = render_post(p, now) if on_discord(p.user, p.group_id) else None
+        data = render_post(p) if on_discord(p.user, p.group_id) else None
         if data is None:
             p.status = 'cancelled'            # nothing left to say (or they've left the server)
             continue
@@ -88,7 +90,7 @@ def internal_discord_members():
     if changed:
         users = [u.id for u in User.query.filter(User.discord_user_id.in_(changed))]
         upcoming = {r.showtime_id for r in RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
-            RSVP.user_id.in_(users), RSVP.group_id == group_id, Showtime.start_time >= datetime.now())} \
+            RSVP.user_id.in_(users), RSVP.group_id == group_id, Showtime.start_time >= places.club_now(db.session.get(Group, group_id)))} \
             if users else set()
         if upcoming:
             ShowtimeThread.query.filter(ShowtimeThread.group_id == group_id,
@@ -119,7 +121,7 @@ def internal_post_done(post_id):
     data = request.json or {}
     action = data.get('action')
     if action == 'posted':
-        p.status, p.posted_at = 'posted', datetime.now()
+        p.status, p.posted_at = 'posted', places.server_now()
         p.message_id = str(data.get('message_id') or '') or None
         p.jump_url = (data.get('jump_url') or '')[:200] or None
     elif action == 'edited':
@@ -191,7 +193,7 @@ def internal_chat_context():
     discord_id = str(request.args.get('discord_user_id') or '').strip()
     group_id = request.args.get('group_id', type=int)
     group = db.session.get(Group, group_id) if group_id else None
-    now = datetime.now()
+    now = places.club_now(group)
 
     user = User.query.filter_by(discord_user_id=discord_id).first() if discord_id else None
     out = {'user': {'linked': bool(user)}}
@@ -258,6 +260,12 @@ def internal_chat_context():
         'date': s.start_time.strftime('%a %-m/%-d'),
         'time': s.start_time.strftime('%-I:%M %p'),
     } for s in upcoming]
+    # Where the crew is (the chatbot's persona): the club's city and a few of
+    # its theatres, its independent houses first.
+    import cities
+    theatres = [t for t in places.theatres_in() if t.slug in places.club_slugs(group)]
+    theatres.sort(key=lambda t: (t.slug not in places.arthouse_slugs(), t.name))
+    out['club'] = {'city': cities.get(places.club_city(group)).short, 'haunts': [t.name for t in theatres[:4]]}
 
     return jsonify(out)
 

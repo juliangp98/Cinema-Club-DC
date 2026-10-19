@@ -27,6 +27,7 @@ const PersonPage = lazyPage(() => import("./pages/PersonPage"));
 import AppShell from "./shell/AppShell";
 import { rememberNext, safeNext } from "./afterSignIn";
 import { clearCache, getJson } from "./api";
+import { SITE_NAME } from "./site";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
@@ -54,7 +55,7 @@ function readDiscordNotice() {
 function Loading() {
   return (
     <div className="loading-screen">
-      <span className="marquee-text">CINEMA CLUB DC</span>
+      <span className="marquee-text">{SITE_NAME.toUpperCase()}</span>
     </div>
   );
 }

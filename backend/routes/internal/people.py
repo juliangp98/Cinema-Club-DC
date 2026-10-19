@@ -2,9 +2,9 @@
 leaderboard, comparing members, history and "did you go?".
 """
 import taste
-from app import (ATTENDANCE_LOOKBACK, Attendance, Group, IntegrityError, RSVP, Showtime, Theatre, User, Watchlist,
-    _as_int, _screening_item, _update_profile_fields, _utcnow_naive, app, build_leaderboard, compare_members,
-    datetime, db, history_items, jsonify, on_discord, pending_attendance, present_user_ids, request,
+from app import (ATTENDANCE_LOOKBACK, Attendance, Group, IntegrityError, RSVP, Showtime, User,
+    Watchlist, _as_int, _screening_item, _update_profile_fields, _utcnow_naive, app, build_leaderboard,
+    compare_members, db, history_items, jsonify, on_discord, pending_attendance, present_user_ids, request,
     set_attendance, timedelta)
 from routes.internal.common import _discord_member, request_group, require_internal, resolve_discord_user
 
@@ -22,9 +22,9 @@ def internal_club():
     members = [m.user for m in group.memberships if m.status == 'active' and m.user and m.user.is_active]
     shown = present_user_ids(group.id)
     named = sorted((u.name for u in members if u.id in shown), key=str.lower)
-    slugs = [x.strip() for x in (group.theatres or '').split(',') if x.strip()]
-    theatres = Theatre.query.filter(Theatre.is_active.isnot(False))
-    theatres = [t for t in theatres.order_by(Theatre.name) if not slugs or t.slug in slugs]
+    import places
+    slugs = places.club_slugs(group)
+    theatres = [t for t in places.theatres_in() if t.slug in slugs]
     o = club_stats.overview(group)
     o.pop('members', None)
     o['top'] = [{'name': r['user']['name'], 'kernels': r['kernels'], 'place': r['place']} for r in o['top'] if r['user']['id'] in shown]
@@ -67,11 +67,10 @@ def internal_members():
 
 def _profile_payload(user, own=True):
     import kernels
-    now = datetime.now()
+    import places
     k = kernels.breakdown(user.id)
-    upcoming = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
-                .filter(RSVP.user_id == user.id, RSVP.status == 'going', Showtime.start_time > now)
-                .count())
+    upcoming = places.upcoming(RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                               .filter(RSVP.user_id == user.id, RSVP.status == 'going')).count()
     return {
         'user': user.to_dict(),
         # someone else's taste only if they show it (R13)
@@ -183,9 +182,10 @@ def internal_attendance_prompts():
     screenings nobody has asked them about, skipping anyone DMed in the last 20
     hours (so it's at most a daily nudge). Up to 5 screenings each — one DM's
     worth of buttons. Quiet hours are the bot's call."""
-    now = datetime.now()
-    candidates = {r.user_id for r in RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
-        RSVP.status == 'going', Showtime.start_time >= now - ATTENDANCE_LOOKBACK, Showtime.start_time <= now)}
+    import places
+    since = places.now_in() - ATTENDANCE_LOOKBACK - timedelta(days=1)    # pending_attendance trims it per person
+    candidates = {r.user_id for r in places.started(RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id).filter(
+        RSVP.status == 'going', Showtime.start_time >= since))}
     recently_asked = {a.user_id for a in Attendance.query.filter(
         Attendance.prompted_at > _utcnow_naive() - ATTENDANCE_DM_GAP)}
     out = []
@@ -199,7 +199,7 @@ def internal_attendance_prompts():
         if pending:
             import letterboxd
             hints = letterboxd.suggestions(user, [s.id for s in pending])
-            out.append({'discord_user_id': user.discord_user_id, 'name': user.name,
+            out.append({'discord_user_id': user.discord_user_id, 'name': user.name, 'tz': places.person_zone(user),
                         'screenings': [{**_screening_item(s), 'letterboxd': hints.get(s.id)} for s in pending]})
     return jsonify(out)
 

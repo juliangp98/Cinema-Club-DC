@@ -29,7 +29,7 @@ export default function PersonPage({ user, apiBase, groupId }) {
   if (error || !id) {
     const hidden = error?.status === 403;
     return (
-      <div className="page narrow">
+      <div className="page">
         <PageHeader title={hidden ? "Not in your clubs" : "Member not found"} back={BACK} />
         <p className="pv-empty">
           {hidden ? "You can see the members of clubs you're in." : "There's no one here — they may have left."}{" "}
@@ -38,7 +38,7 @@ export default function PersonPage({ user, apiBase, groupId }) {
       </div>
     );
   }
-  if (!person) return <div className="page narrow"><Loading /></div>;
+  if (!person) return <div className="page"><Loading /></div>;
 
   const parts = kernels?.breakdown;
   return (

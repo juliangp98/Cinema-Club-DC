@@ -1,6 +1,9 @@
 import Sheet, { SheetTitle } from "./Sheet";
 import ToggleChip from "./ToggleChip";
+import TheatrePicker from "./TheatrePicker";
 import { TICKET_OPTIONS } from "./TicketChips";
+import { useShell } from "../shell/AppShell";
+import { DEFAULT_CITY, useTheatres } from "../places";
 
 // The one Filters sheet, shared by Browse and the Calendar: same filters,
 // same URL parameter names (the server applies them the same way too).
@@ -22,7 +25,7 @@ export const listOf = v => (v ? v.split(",").filter(Boolean) : []);
 /**
  * query: current params ({theatres: "afi,suns", genres: "horror", …})
  * multi: Set of keys that hold comma-separated lists
- * meta: {facets: {genres, theatres, decades}, regions: {slug: region}}
+ * meta: {facets: {genres, theatres, decades}, regions: {slug: area}}
  * onToggle(key, value): add/remove (lists) or set/clear (single)
  * children: extra sections (e.g. the Calendar's "Who's going")
  * note: a line above the buttons (e.g. a link to Browse)
@@ -40,29 +43,24 @@ export default function FilterSheet({ query, multi, meta, theatreNames, total, o
   const facetGenres = Object.entries(meta?.facets?.genres || {}).sort((a, b) => b[1] - a[1]);
   for (const g of listOf(query.genres)) if (!facetGenres.some(([x]) => x === g)) facetGenres.push([g, 0]);
   const decades = Object.entries(meta?.facets?.decades || {}).sort((a, b) => b[0] - a[0]);
-  const byRegion = {};
-  for (const slug of Object.keys({ ...meta?.facets?.theatres, ...Object.fromEntries(listOf(query.theatres).map(s => [s, 0])) })) {
-    const region = meta?.regions?.[slug] || "Other";
-    (byRegion[region] = byRegion[region] || []).push(slug);
-  }
+  // Where: the theatres with showings here (and any already picked), by area — the shared picker.
+  const shell = useShell();
+  const everyTheatre = useTheatres(shell?.apiBase || "");
+  const offered = new Set([...Object.keys(meta?.facets?.theatres || {}), ...listOf(query.theatres)]);
+  const whereTheatres = everyTheatre.length
+    ? everyTheatre.filter(t => offered.has(t.slug))
+    : [...offered].map(slug => ({ slug, name: theatreNames[slug] || slug, area_label: meta?.regions?.[slug] }));
 
   return (
     <Sheet label="Filters" onClose={onClose}>
       <div className="filters">
         <SheetTitle>Filters</SheetTitle>
         {search}
-        {Object.keys(byRegion).length > 0 && (
+        {whereTheatres.length > 0 && (
           <fieldset><legend>Where</legend>
-            {Object.entries(byRegion).map(([region, slugs]) => (
-              <div key={region} className="filter-group">
-                <span className="filter-sub">{region}</span>
-                <div className="filter-chips">
-                  {slugs.map(slug => (
-                    <Choice key={slug} k="theatres" v={slug} count={meta?.facets?.theatres?.[slug]}>{theatreNames[slug] || slug}</Choice>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <TheatrePicker theatres={whereTheatres} home={shell?.city || DEFAULT_CITY} cities={shell?.cities || []} label="Where"
+                           isOn={slug => listOf(query.theatres).includes(slug)} onToggle={slug => onToggle("theatres", slug)}
+                           count={slug => meta?.facets?.theatres?.[slug]} />
           </fieldset>
         )}
         {facetGenres.length > 0 && (

@@ -8,6 +8,8 @@ month of programming) it emits a ScrapeEvent that the Discord bot announces.
 import datetime
 import json
 
+import places
+
 from .base import (event_label, extract_format_label, normalize_title,
                    parse_movie_title, show_end, title_search_variants)
 
@@ -262,7 +264,7 @@ def sync_announced(cfg, items):
         theatre = Theatre.query.filter_by(slug=cfg.slug).first()
         if not theatre:
             return 0
-        now = datetime.datetime.now()
+        now = places.now_at(theatre)        # its city's clock
         # A film is on sale here if it has an upcoming showtime, or a recent
         # one (sold out, off sale or already started all count) no more than
         # a week before the post's date — so it doesn't flip back to "Coming
@@ -319,7 +321,7 @@ def sync_to_db(cfg, scraped_movies):
             print(f"  Theatre '{cfg.slug}' not found in DB. Run app.py first to seed theatres.")
             return None
 
-        now = datetime.datetime.now()
+        now = places.now_at(theatre)        # its city's clock
         run = ScrapeRun(theatre_id=theatre.id, started_at=datetime.datetime.utcnow(),
                         movies_found=len(scraped_movies))
         db.session.add(run)

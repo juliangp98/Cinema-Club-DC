@@ -175,6 +175,10 @@
    "label": "Club settings → Theatres",
    "to": "/club?tab=settings#club-settings-digest"
   },
+  "club-settings-city": {
+   "label": "Club settings → Theatres",
+   "to": "/club?tab=settings#club-settings-city"
+  },
   "club-settings-discord": {
    "label": "Club settings → Games",
    "to": "/club?tab=settings#settings-games"
@@ -279,6 +283,11 @@
      "a": "Everything playing at the DC area's independent and repertory theatres — AFI, Suns, Alamo, the Smithsonian and more — in one place, plus a club to plan outings with: who's going, what to see, and what you thought."
     },
     {
+     "id": "which-city",
+     "q": "Which city's showtimes am I seeing?",
+     "a": "Your city's. In a club, the club's city; otherwise the one in the city menu at the top of the page — it starts with a guess from your time zone, and you can change it there any time (it's remembered). The menu only shows once the site covers more than one city. A film's page lists every city's showings, yours first, and a theatre outside your city says which city it's in."
+    },
+    {
      "id": "page-tours",
      "q": "Is there a tour of each page?",
      "a": "Yes — every main page has a short one: tap ? at the top, beside the bell (it's also offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour — a quick trip through each main page — replays from the account menu, [the Me page](me) or the button at the top of Help."
@@ -347,7 +356,7 @@
     {
      "id": "film-theatre-pages",
      "q": "What's on a film or theatre page?",
-     "a": "A film page has every showing, ratings, cast and the trailer. A [theatre](theatres) page has what's on, a map, and — if your club uses screening notes — what members say about the screenings there."
+     "a": "A film page has every showing, ratings, cast and the trailer. A [theatre](theatres) page has what's on, a map, and — if your club uses screening notes — what members say about the screenings there. With more than one city, [the Theatres page](theatres) puts yours first, by area, then each other city."
     }
    ]
   },
@@ -467,6 +476,11 @@
      "id": "screening-notes",
      "q": "What are screening notes?",
      "a": "If your club turns them on, people who checked in to a screening can tag the night — gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."
+    },
+    {
+     "id": "club-city",
+     "q": "Can my club follow theatres in another city?",
+     "a": "Yes. A club has a home city — picked when it's started — that sets its clock (the Monday digest, trivia, the week's kernels) and the theatres it shows first. Its theatres can include other cities': in [Club settings → Theatres](club-settings-city) they're under Other cities, each city under its own name. Admins can change the home city there; the theatres it follows stay."
     }
    ]
   },

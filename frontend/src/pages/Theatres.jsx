@@ -4,7 +4,7 @@ import PosterCard from "../ui/PosterCard";
 import Poster from "../ui/Poster";
 import Loading, { LoadError } from "../ui/Loading";
 import { Shelf, DoubleFeatures, Spotlights, Announced, LAYOUT } from "./DiscoverPage";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useJson, hideFilm } from "../api";
 import { useShell } from "../shell/AppShell";
 import { groupParam } from "../scope";
@@ -14,13 +14,14 @@ import "./Theatres.css";
 import { dayShortTime } from "../dates";
 import TicketChips, { AnnouncedCard } from "../ui/TicketChips";
 import usePageMeta, { theatreLd } from "../seo";
+import { DEFAULT_CITY, byArea, byCity, cityOf } from "../places";
 
-const REGION_ORDER = ["DC", "Maryland", "Virginia"];
 const dayTime = dayShortTime;
 
 // Every theatre we follow (R7b), by area: what's on at each (its most
 // interesting films first), how many films and rare ones, film formats,
-// tonight, and the next showing.
+// tonight, and the next showing. Your city first; with more than one city,
+// each other city after it, by area too.
 export function TheatresPage({ apiBase }) {
   const { data: list, error, reload } = useJson(`${apiBase}/api/theatres-overview`);
   const shell = useShell() || {};
@@ -29,22 +30,37 @@ export function TheatresPage({ apiBase }) {
   if (error && !list) return <div className="page"><LoadError what="the theatres" onRetry={reload} /></div>;
   if (!list) return <div className="page"><Loading context="theatre" /></div>;
 
-  const regions = {};
-  for (const t of list) (regions[t.region || "Other"] ||= []).push(t);
-  const order = [...REGION_ORDER.filter(r => regions[r]), ...Object.keys(regions).filter(r => !REGION_ORDER.includes(r))];
-  const films = new Set(list.flatMap(t => t.preview.posters.map(p => p.id))).size;
-  const tonight = list.reduce((n, t) => n + t.preview.tonight, 0);
+  const cities = shell.cities || [];
+  const homeSlug = shell.city || DEFAULT_CITY;
+  const home = cityOf(cities, homeSlug);
+  const { home: here, others } = byCity(list, homeSlug, cities);
+  const films = new Set(here.flatMap(t => t.preview.posters.map(p => p.id))).size;
+  const tonight = here.reduce((n, t) => n + t.preview.tonight, 0);
+  const cards = theatres => (
+    <div className="theatre-cards">{theatres.map(t => <TheatreCard key={t.slug} t={t} forYou={forYou.data?.[t.slug]} />)}</div>
+  );
+  const elsewhere = others.reduce((n, [, ts]) => n + ts.length, 0);
   return (
     <div className="page theatres">
-      <PageHeader title="Theatres" meta={[{ icon: "🎭", label: `${list.length} DC-area theatres` },
+      <PageHeader title="Theatres" meta={[{ icon: "🎭", label: `${here.length} ${home ? `${home.phrase} ` : ""}theatres` },
                                           tonight > 0 && { icon: "🌙", label: `${tonight} showing${tonight === 1 ? "" : "s"} tonight`, gold: true, to: "/calendar" },
+                                          elsewhere > 0 && { label: `+${elsewhere} in other cities` },
                                           { label: "Browse everything on →", to: "/browse?when=week", more: true }]} />
-      {order.map(region => (
-        <section key={region} className="theatres-region">
-          <SectionTitle>{region}</SectionTitle>
-          <div className="theatre-cards">
-            {regions[region].map(t => <TheatreCard key={t.slug} t={t} forYou={forYou.data?.[t.slug]} />)}
-          </div>
+      {byArea(here, home).map(([area, theatres]) => (
+        <section key={area} className="theatres-region">
+          <SectionTitle>{area}</SectionTitle>
+          {cards(theatres)}
+        </section>
+      ))}
+      {others.map(([city, theatres]) => (
+        <section key={city.slug} className="theatres-region theatres-city" id={`city-${city.slug}`}>
+          <SectionTitle>{city.name}</SectionTitle>
+          {byArea(theatres, city).map(([area, list]) => (
+            <Fragment key={area}>
+              <p className="ui-group-label theatres-area">{area}</p>
+              {cards(list)}
+            </Fragment>
+          ))}
         </section>
       ))}
       {films === 0 && <p className="pv-empty">Nothing's scheduled at any theatre right now — check back soon.</p>}
@@ -106,7 +122,7 @@ export function TheatrePage({ apiBase, groupId }) {
 
   if (info.error?.status === 404) {
     return (
-      <div className="page narrow">
+      <div className="page">
         <PageHeader title="Theatre not found" back={{ to: "/theatres", label: "Theatres" }} />
         <p className="pv-empty">We don't follow that theatre (any more). <Link to="/theatres">See all theatres →</Link></p>
       </div>
@@ -135,7 +151,7 @@ export function TheatrePage({ apiBase, groupId }) {
   return (
     <div className="page theatre-page" style={{ "--tcolor": t.color }}>
       <PageHeader title={t.name} back={{ to: "/theatres", label: "Theatres" }} tour="theatre"
-                  meta={[t.region && { icon: "📍", label: t.region },
+                  meta={[t.area_label && { icon: "📍", label: shell.multiCity ? `${t.area_label} · ${cityOf(shell.cities, t.city)?.name || t.city}` : t.area_label },
                          { icon: "🎬", label: t.films ? `${t.films} film${t.films === 1 ? "" : "s"} in the next month` : "Nothing scheduled right now" },
                          t.films > 0 && { label: "Browse them →", to: `/browse?theatres=${t.slug}&when=month`, more: true }]} />
 

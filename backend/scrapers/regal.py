@@ -18,6 +18,8 @@ didn't get are reported so their showtimes are kept as they are.
 import datetime
 import time
 
+import places
+
 from .base import PerDateFetcher, finish_scrape, retry_after, show_end
 
 API_URL = 'https://www.regmovies.com/api/getShowtimes'
@@ -81,7 +83,7 @@ def _load_days(deep=None):
         return _days, _missed
     from curl_cffi import requests as cffi_requests
 
-    today = datetime.date.today()
+    today = places.today_in()          # the days to ask the site for
     try:
         first = _fetch_day(cffi_requests, today.strftime('%m-%d-%Y'))
     except Exception as e:

@@ -23,6 +23,8 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
 
+import places
+
 FEED = 'https://letterboxd.com/{}/rss/'
 NS = {'lb': 'https://letterboxd.com', 'tmdb': 'https://themoviedb.org'}
 USER_AGENT = 'Mozilla/5.0 (compatible; CinemaClubDC/1.0; +https://cinemaclubdc.com)'
@@ -143,7 +145,7 @@ def match(user, entry):
     end = datetime.combine(day + timedelta(days=1), datetime.min.time())
     rows = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
             .filter(RSVP.user_id == user.id, RSVP.status == 'going', Showtime.start_time >= start,
-                    Showtime.start_time < end, Showtime.start_time <= datetime.now())
+                    Showtime.start_time < end, Showtime.start_time <= places.now_in(places.person_city(user)))
             .order_by(Showtime.start_time.desc()).all())
     return next((r.showtime for r in rows if r.showtime.movie and same_film(r.showtime.movie, entry)), None)
 
@@ -155,7 +157,7 @@ def fill_details(user, now=None):
     squares, from the diary's year, can use them). Caller commits."""
     import enrich
     from app import LetterboxdEntry, Movie, _utcnow_naive
-    now = now or datetime.now()
+    now = now or places.person_now(user)
     todo = (LetterboxdEntry.query.filter(LetterboxdEntry.user_id == user.id, LetterboxdEntry.details_at.is_(None),
                                          LetterboxdEntry.watched_on >= (now - DETAILS_WINDOW).date())
             .order_by(LetterboxdEntry.watched_on.desc()).all())
@@ -188,7 +190,7 @@ def sync(user, entries=None, now=None):
             user.letterboxd_synced_at = _utcnow_naive()
             db.session.commit()
             return {'error': error}
-    now = now or datetime.now()
+    now = now or places.person_now(user)
     seen = {e.guid for e in LetterboxdEntry.query.filter_by(user_id=user.id)}
     counts = {'new': 0, 'checked_in': 0, 'suggested': 0}
     choice = user.letterboxd_checkin if user.letterboxd_checkin in CHOICES else 'ask'

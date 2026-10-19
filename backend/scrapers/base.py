@@ -9,6 +9,8 @@ import unicodedata
 import requests
 from bs4 import BeautifulSoup
 
+import places
+
 # Some venues (Regal's Cloudflare, si.edu) reject obvious bot user agents, so
 # browser_session() mimics a real Chrome install. get_soup keeps the polite
 # self-identifying UA for the venues that don't care.
@@ -330,7 +332,7 @@ def parse_movie_title(raw):
 
     year = None
     m = _YEAR_PAREN_RE.search(t)
-    if m and 1900 <= int(m.group(1)) <= datetime.date.today().year + 1:
+    if m and 1900 <= int(m.group(1)) <= places.today_in().year + 1:
         year = m.group(1)
 
     # Trailing " - Series/Program" descriptor.

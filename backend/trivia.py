@@ -14,9 +14,10 @@ One try each.
 """
 import json
 import random
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import film_pool
+import places
 
 # Kernels for a right answer by difficulty (R15; questions from before it count as medium).
 DAILY_KERNELS = {'easy': 1, 'medium': 2, 'hard': 3}        # the question of the day
@@ -35,8 +36,10 @@ CALENDAR_DAYS = 21                     # "on the calendar": playing at the club'
 FAVOR_CALENDAR = 0.7
 
 
-def today():
-    return datetime.now().date()
+def today(group=None):
+    """The club's day (its city's clock)."""
+    import places
+    return places.club_now(group).date()
 
 
 def _choose(rng, subjects, c, ok=lambda f: True):
@@ -181,7 +184,7 @@ def make_question(group, day, rng=None, recent=None):
         recent = {q.ref for q in TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id,
                                                              TriviaQuestion.slot == 'daily',
                                                              TriviaQuestion.day >= day - REPEAT_AFTER)}
-    now = datetime.now()
+    now = places.club_now(group)
     on_calendar = {mid for (mid,) in _group_showtime_query(group).with_entities(Showtime.movie_id).filter(
         Showtime.start_time >= now, Showtime.start_time < now + timedelta(days=CALENDAR_DAYS)).distinct()}
     source = group.trivia_source if group.trivia_source in film_pool.SOURCES else 'both'
@@ -207,7 +210,7 @@ def question_for(group, day=None):
     from app import db, TriviaQuestion
     if not group or not group.trivia_enabled:
         return None
-    day = day or today()
+    day = day or today(group)
     q = TriviaQuestion.query.filter_by(group_id=group.id, day=day, slot='daily').first()
     if q:
         return q
@@ -257,7 +260,7 @@ def waiting_anytime(group, user):
     from app import TriviaAnswer, TriviaQuestion
     answered = TriviaAnswer.query.filter(TriviaAnswer.user_id == user.id).with_entities(TriviaAnswer.question_id)
     return (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.asked_by == user.id,
-                                        TriviaQuestion.day == today(), ~TriviaQuestion.id.in_(answered))
+                                        TriviaQuestion.day == today(group), ~TriviaQuestion.id.in_(answered))
             .order_by(TriviaQuestion.id.desc()).first())
 
 
@@ -275,7 +278,7 @@ def another(group, user):
     waiting = waiting_anytime(group, user)
     if waiting:
         return waiting, None
-    day = today()
+    day = today(group)
     mine = TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day >= day - REPEAT_AFTER,
                                        (TriviaQuestion.asked_by == user.id) | (TriviaQuestion.slot == 'daily')).all()
     n = sum(1 for q in mine if q.asked_by == user.id and q.day == day) + 1
@@ -331,10 +334,10 @@ def today_for(group, user):
     if daily:
         q = question_for(group)
         prev = (TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.slot == 'daily',
-                                            TriviaQuestion.day < today())
+                                            TriviaQuestion.day < today(group))
                 .order_by(TriviaQuestion.day.desc()).first())
         out['question'] = as_dict(q, user) if q else None
-        out['yesterday'] = as_dict(prev, user, reveal=True) if prev and prev.day == today() - timedelta(days=1) else None
+        out['yesterday'] = as_dict(prev, user, reveal=True) if prev and prev.day == today(group) - timedelta(days=1) else None
     if anytime and user:
         w = waiting_anytime(group, user)
         out['waiting'] = as_dict(w, user) if w else None
@@ -353,7 +356,7 @@ def answer(group, user, question_id, choice, source='site'):
         return None, "Only club members can answer."
     if not q or q.group_id != group.id or (q.asked_by and q.asked_by != user.id):
         return None, "That question isn't yours to answer."
-    if q.day != today():
+    if q.day != today(group):
         return None, "That was an earlier day's question — try today's."
     if not isinstance(choice, int) or not 0 <= choice < len(json.loads(q.options_json)):
         return None, 'Pick one of the answers.'
@@ -404,8 +407,9 @@ def kernels_for(user_ids, group_id=None, since=None):
 
 def _anytime_today(user_id, group_id):
     """Kernels from anytime questions today (toward the daily cap)."""
-    from app import TriviaAnswer, TriviaQuestion
+    from app import db, Group, TriviaAnswer, TriviaQuestion
+    day = today(db.session.get(Group, group_id))
     rows = (TriviaQuestion.query.join(TriviaAnswer, TriviaAnswer.question_id == TriviaQuestion.id)
             .filter(TriviaAnswer.user_id == user_id, TriviaAnswer.correct.is_(True), TriviaQuestion.group_id == group_id,
-                    TriviaQuestion.slot != 'daily', TriviaQuestion.day == today()).all())
+                    TriviaQuestion.slot != 'daily', TriviaQuestion.day == day).all())
     return min(sum(worth(q.slot, q.difficulty) for q in rows), ANYTIME_DAILY_CAP)

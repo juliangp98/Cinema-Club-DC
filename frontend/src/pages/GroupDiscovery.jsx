@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getJson, send } from "../api";
-import ToggleChip from "../ui/ToggleChip";
 import { ClubBadge } from "../ui/Avatar";
+import TheatrePicker from "../ui/TheatrePicker";
+import { Segmented } from "../ui/TicketRow";
+import { useShell } from "../shell/AppShell";
+import { DEFAULT_CITY, cityOf } from "../places";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import SearchField from "../ui/SearchField";
@@ -10,6 +13,9 @@ import { SwitchRow } from "../ui/Settings";
 
 export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
+  const shell = useShell();
+  const cities = shell?.cities || [];
+  const multiCity = !!shell?.multiCity;
   const [query, setQuery] = useState("");
   const [myGroups, setMyGroups] = useState([]);
 
@@ -28,7 +34,10 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
   const [newDesc, setNewDesc] = useState("");
   const [newPublic, setNewPublic] = useState(true);
   const [newTheatres, setNewTheatres] = useState(new Set());
+  const [newCity, setNewCity] = useState(shell?.city || DEFAULT_CITY);
   const [creating, setCreating] = useState(false);
+  // A new club starts with every theatre in its city.
+  const cityTheatres = city => new Set(allTheatres.filter(t => (t.city || DEFAULT_CITY) === city).map(t => t.slug));
 
   useEffect(() => {
     fetchMyGroups();
@@ -40,7 +49,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     try {
       const data = await getJson(`${apiBase}/api/theatres`);
       setAllTheatres(data);
-      setNewTheatres(new Set(data.map(t => t.slug)));
+      setNewTheatres(new Set(data.filter(t => (t.city || DEFAULT_CITY) === newCity).map(t => t.slug)));
     } catch { /* ignore */ }
   }
 
@@ -89,7 +98,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
     setCreating(true);
     try {
       const group = await send(`${apiBase}/api/groups`, "POST",
-        { name: newName.trim(), description: newDesc, is_public: newPublic, theatres: [...newTheatres] });
+        { name: newName.trim(), description: newDesc, is_public: newPublic, theatres: [...newTheatres], city: newCity });
       setGroupId(group.id);
       setNewName("");
       setNewDesc("");
@@ -101,6 +110,19 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
   }
 
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const inCity = g => (multiCity ? ` · ${cityOf(cities, g.city)?.name || g.city}` : "");
+  // With more than one city, clubs to find come a city at a time (yours first: the server orders them).
+  const findSections = [];
+  for (const g of publicGroups) {
+    const key = multiCity ? g.city : "all";
+    if (findSections.at(-1)?.key !== key) findSections.push({ key, groups: [] });
+    findSections.at(-1).groups.push(g);
+  }
+  const toggleNew = slug => setNewTheatres(prev => {
+    const next = new Set(prev);
+    if (next.has(slug)) { if (next.size > 1) next.delete(slug); } else next.add(slug);
+    return next;
+  });
 
   // Clubs (R15 style, 7f): your clubs and the ones to find side by side as
   // cards, with Start a club beside them on wide screens.
@@ -116,7 +138,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                 {myGroups.map(g => (
                   <Panel key={g.id} as="article" className={`club-find-card${g.id === activeGroupId ? " active" : ""}`}
                          title={<><ClubBadge group={g} size={36} /> {g.name}</>}
-                         hint={`${plural(g.member_count, "member")}${g.role === "admin" ? " · you're an admin" : ""}`}
+                         hint={`${plural(g.member_count, "member")}${inCity(g)}${g.role === "admin" ? " · you're an admin" : ""}`}
                          aside={g.id === activeGroupId && <span className="ui-badge gold">Viewing</span>}
                          actions={<>
                            {g.id !== activeGroupId && <button className="btn btn-sm" onClick={() => setGroupId(g.id)}>Switch to it</button>}
@@ -138,19 +160,22 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
               <p className="pv-empty">Loading…</p>
             ) : publicGroups.length === 0 ? (
               <p className="pv-empty">No clubs found{query ? ` for “${query}”` : ""}.</p>
-            ) : (
-              <div className="clubs-grid">
-                {publicGroups.map(g => (
-                  <Panel key={g.id} as="article" className="club-find-card"
-                         title={<><ClubBadge group={g} size={36} /> {g.name}</>} hint={plural(g.member_count, "member")}
-                         actions={g.membership_status === "active" ? <span className="ui-badge go">Member</span>
-                           : g.membership_status === "pending" ? <span className="ui-badge gold">Asked to join</span>
-                           : <button className="btn btn-sm btn-primary" onClick={() => handleJoin(g.slug)}>Ask to join</button>}>
-                    {g.description && <p className="club-find-desc">{g.description}</p>}
-                  </Panel>
-                ))}
+            ) : findSections.map(sec => (
+              <div key={sec.key} className="clubs-city">
+                {multiCity && <p className="ui-group-label">{cityOf(cities, sec.key)?.name || sec.key}</p>}
+                <div className="clubs-grid">
+                  {sec.groups.map(g => (
+                    <Panel key={g.id} as="article" className="club-find-card"
+                           title={<><ClubBadge group={g} size={36} /> {g.name}</>} hint={plural(g.member_count, "member")}
+                           actions={g.membership_status === "active" ? <span className="ui-badge go">Member</span>
+                             : g.membership_status === "pending" ? <span className="ui-badge gold">Asked to join</span>
+                             : <button className="btn btn-sm btn-primary" onClick={() => handleJoin(g.slug)}>Ask to join</button>}>
+                      {g.description && <p className="club-find-desc">{g.description}</p>}
+                    </Panel>
+                  ))}
+                </div>
               </div>
-            )}
+            ))}
             {totalPages > 1 && (
               <div className="clubs-pages">
                 <button className="btn btn-sm" disabled={page <= 1}
@@ -182,20 +207,16 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                 <input className="share-input" placeholder="Description (optional)" aria-label="Description" value={newDesc}
                        onChange={e => setNewDesc(e.target.value)} />
                 <SwitchRow label="Anyone can find it" hint="Off: only people you invite." checked={newPublic} onChange={setNewPublic} />
+                {multiCity && (
+                  <fieldset className="clubs-theatres"><legend className="profile-section-label">City</legend>
+                    <Segmented label="City" value={newCity} options={cities.map(c => ({ status: c.slug, label: c.short }))}
+                               onChange={c => { if (c) { setNewCity(c); setNewTheatres(cityTheatres(c)); } }} />
+                  </fieldset>
+                )}
                 {allTheatres.length > 0 && (
                   <fieldset className="clubs-theatres"><legend className="profile-section-label">Theatres</legend>
-                    <div className="filter-chips">
-                      {allTheatres.map(t => (
-                        <ToggleChip key={t.slug} on={newTheatres.has(t.slug)} color={t.color}
-                                    onClick={() => setNewTheatres(prev => {
-                                      const next = new Set(prev);
-                                      if (next.has(t.slug)) { if (next.size > 1) next.delete(t.slug); } else next.add(t.slug);
-                                      return next;
-                                    })}>
-                          {t.short_name || t.name}
-                        </ToggleChip>
-                      ))}
-                    </div>
+                    <TheatrePicker theatres={allTheatres} home={newCity} cities={cities} label="The club's theatres"
+                                   isOn={slug => newTheatres.has(slug)} onToggle={toggleNew} />
                   </fieldset>
                 )}
                 <div className="clubs-create-actions">

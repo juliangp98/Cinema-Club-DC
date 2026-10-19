@@ -17,7 +17,7 @@ def bot(monkeypatch):
     import game_posts
     import notify
     from app import app, db, GroupMembership, Quote, User
-    monkeypatch.setattr(game_posts, '_local_now', lambda: NOON)
+    monkeypatch.setattr(game_posts, '_local_now', lambda *_: NOON)
     setup_db()
     with app.app_context():
         adm = User(name='Adm', email='adm@b.test', discord_user_id='9801', is_active=True)

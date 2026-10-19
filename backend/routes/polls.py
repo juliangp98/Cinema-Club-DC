@@ -3,6 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import json as _json
+import places
 from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote,
     _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes,
     build_poll, can_share, current_user, datetime, db, jsonify, os, poll_scores,
@@ -281,7 +282,7 @@ def score_poll(poll_id):
     # Results go to Discord when asked for, or right away for "always" sharers.
     if can_share(user, poll.group_id) and (data.get('post_results') is True or (
             first_scoring and data.get('post_results') is None and share_prefs(user)['poll'] == 'always')):
-        queue_poll_post(poll, user, 'poll_results', datetime.now())
+        queue_poll_post(poll, user, 'poll_results', places.server_now())
 
     return jsonify(poll.to_dict(include_categories=True))
 

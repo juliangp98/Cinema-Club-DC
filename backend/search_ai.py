@@ -11,6 +11,9 @@ filter values, so it can only ever produce a valid Browse view.
 import json
 import re
 
+import cities
+import places
+
 FILLER = set("""a an the some something anything any me us i we you to for of in on at with and or but
 movie movies film films flick flicks show shows showing showings playing play see watch watching catch find
 looking look want wanna would like good great nice please this that these those next what whats what's is
@@ -21,7 +24,7 @@ SORTS = ('soonest', 'rarest', 'wanted', 'critics', 'title')
 FIXED = {'format': ('film', 'big'), 'time': ('matinee', 'evening', 'late'), 'runtime': ('short', 'long'),
          'rarity': ('rare', 'repertory', 'wide'), 'sort': SORTS}
 
-SYSTEM = """You turn a moviegoer's request into search filters for a Washington, DC film club's showtimes site.
+SYSTEM = """You turn a moviegoer's request into search filters for a {city} film club's showtimes site.
 Reply with ONE JSON object: {"params": {...}, "search": ""}.
 
 Allowed params (leave out anything the request doesn't ask for):
@@ -29,7 +32,7 @@ Allowed params (leave out anything the request doesn't ask for):
 - "mood": one of {moods}
 - "genres": comma-separated, from: {genres}
 - "when": one of tonight, tomorrow, weekend, week, 2weeks, month
-- "regions": comma-separated, from: dc, maryland, virginia
+- "regions": comma-separated, from: {areas}
 - "theatres": comma-separated slugs, from: {theatres}
 - "decade": a decade's first year, e.g. "1980"
 - "format": "film" (35/16/70mm prints) or "big" (IMAX, 70mm, Dolby)
@@ -38,7 +41,7 @@ Allowed params (leave out anything the request doesn't ask for):
 - "rarity": "rare", "repertory" (5+ years old) or "wide" (wide release)
 - "sort": one of soonest, rarest, wanted, critics, title{club}
 "search" is ONLY a film title or a person's name the request names (else ""). Never invent titles.
-Prefer one shelf or mood over many genres. Downtown, Penn Quarter, Georgetown and the like are DC.
+Prefer one shelf or mood over many genres. {hint}
 """
 
 
@@ -77,7 +80,7 @@ def clean(params, search, *, genres, theatres, group, viewer):
     listed('genres', set(genres))
     if p.get('when') in D.WHEN:
         out['when'] = p['when']
-    listed('regions', set(D.REGION_KEYS))
+    listed('regions', set(cities.area_keys(places.club_city(group))))
     listed('theatres', set(theatres))
     decade = str(p.get('decade') or '')
     if re.fullmatch(r'(19[0-9]|20[0-2])0', decade):
@@ -101,9 +104,9 @@ def interpret(group, viewer, text, now=None):
     from app import Theatre
     films = D.catalog(group, *D.window('month', now))
     genres = sorted({g for f in films.values() for g in f.genres} | D.COMMON_GENRES)
-    slugs = {t.strip() for t in ((group.theatres or '') if group else '').split(',') if t.strip()}
+    slugs = places.club_slugs(group)
     theatres = {t.slug: t.short_name or t.name for t in Theatre.query.filter(Theatre.is_active.isnot(False))
-                if not slugs or t.slug in slugs}
+                if t.slug in slugs}
     plain = D.parse_request(text, genres)
     rest = leftover_words(text, genres)
     note = None
@@ -111,7 +114,9 @@ def interpret(group, viewer, text, now=None):
         params, used_ai = plain, False
     else:
         import ai
+        city = cities.get(places.club_city(group))
         fill = dict(
+            city=city.name, areas=', '.join(a.key for a in city.areas), hint=city.hint,
             shelves=', '.join(k for k in D.SHELF_TITLES if not (k in ('friends', 'most-wanted') and not group)),
             moods=', '.join(f"{k} ({v['label']})" for k, v in D.MOODS.items()),
             genres=', '.join(genres), theatres=', '.join(f'{k} ({v})' for k, v in sorted(theatres.items())),

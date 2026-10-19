@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { bringIntoView } from "../arrive";
+import { SITE_NAME } from "../site";
 
 // The welcome tour (R11): a few slides with the essentials, then a spotlight
 // on the real navigation — each step opens the page it points at (`page`),
@@ -13,8 +14,8 @@ import { bringIntoView } from "../arrive";
 // (no club) or that aren't on screen (phones show fewer tabs) are skipped.
 
 const SLIDES = [
-  { emoji: "🎬", title: "Welcome to Cinema Club DC",
-    body: "Everything playing at the DC area's independent and repertory theatres — film prints, Q&As, one-night-only screenings — in one place, and a club to see them with." },
+  { emoji: "🎬", title: `Welcome to ${SITE_NAME}`,
+    body: "Everything playing at your city's independent and repertory theatres — film prints, Q&As, one-night-only screenings — in one place, and a club to see them with." },
   { emoji: "🎟️", title: "Make plans together",
     body: "Tap any screening to say you're Going or Maybe. Your club sees who's going and can talk about it; afterwards, check in to say you went." },
   { emoji: "🍿", title: "Your club", club: true,
@@ -38,6 +39,8 @@ const STEPS = [
     body: "Every poll, open and past, plus trivia, bingo and quiz games when your club turns them on — beside your kernels, this month's standings and this week's movers." },
   { target: "nav:/theatres", page: "/theatres", title: "Theatres",
     body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
+  { target: ".topbar-citymenu", title: "Your city",
+    body: "Which city's theatres and showtimes you see. It started with a guess from your time zone — change it here any time." },
   { target: ".topbar-groupmenu", title: "Your clubs", club: true,
     body: "In more than one club? Switch here — the calendar, feed and games follow." },
   { target: ".topbar-bell", title: "The bell",

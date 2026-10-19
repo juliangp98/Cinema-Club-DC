@@ -129,7 +129,8 @@ def test_the_home_server_registers_itself_and_keeps_its_members(clubs):
         assert on_discord(ana, 1) and not on_discord(ana, clubs['G2'])
     r = bot_post('/api/internal/servers/hello', application_id='123456',
                  home={'guild_id': HOME_GUILD, 'channel_id': '901', 'name': 'Cinema Club', 'channel_name': 'movies'})
-    assert r.json == [{'guild_id': HOME_GUILD, 'group_id': 1, 'channel_id': '901', 'home': True}]
+    assert r.json == [{'guild_id': HOME_GUILD, 'group_id': 1, 'channel_id': '901', 'home': True,
+                       'city': 'dc', 'tz': 'America/New_York'}]
     with app.app_context():
         assert db.session.get(DiscordServer, HOME_GUILD).home
         assert [m.guild_id for m in DiscordServerMember.query] == [HOME_GUILD]          # moved to it

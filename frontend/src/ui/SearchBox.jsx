@@ -52,7 +52,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     return () => { clearTimeout(timer); ctl.abort(); };
   }, [q, apiBase, groupId]);
 
-  // Any film on TMDB (R8c), for signed-in people: films no DC theatre has
+  // Any film on TMDB (R8c), for signed-in people: films no theatre we follow has
   // listed, to open and watchlist. A little slower to ask, so it waits longer.
   const [tmdb, setTmdb] = useState([]);
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
                       </span>
                       <span className="searchbox-option-hint">
                         {key === "films" ? (x.playing ? `Next: ${nextLabel(x.next)} · ${x.theatre}` : "Not playing right now")
-                          : key === "tmdb" ? (x.movie_id ? "Not playing right now" : "Not listed in DC yet — open it to watchlist")
+                          : key === "tmdb" ? (x.movie_id ? "Not playing right now" : "Not listed here yet — open it to watchlist")
                           : key === "people" ? `${ROLE[x.role] || "Person"} · ${x.count} film${x.count === 1 ? "" : "s"} playing`
                           : x.hint}
                       </span>

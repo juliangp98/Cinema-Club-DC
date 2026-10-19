@@ -18,6 +18,10 @@ export const dayDateTime = v => `${dayDate(v)} · ${time(v)}`;                  
 export const dayDateAt = fmt({ weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 export const dayShortTime = v => `${weekday(v)} ${shortTime(v)}`;                         // Tue 7 PM
 
+// Has a screening started? Its start is the theatre's clock; `starts_at`
+// carries that city's offset, so this is right wherever the viewer is.
+export const hasStarted = s => new Date(s.starts_at || s.start_time) <= new Date();
+
 // "just now", "5m ago", "3h ago", "2d ago", then the date.
 export function ago(v) {
   const s = Math.max(0, Math.floor((Date.now() - new Date(v)) / 1000));

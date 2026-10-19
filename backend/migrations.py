@@ -24,6 +24,12 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN bingo_home BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN digest_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE notification ADD COLUMN cleared_at DATETIME",
+        # Cities: theatres, clubs, people and saved searches know theirs (all DC so far)
+        "ALTER TABLE theatre ADD COLUMN city VARCHAR(20) DEFAULT 'dc'",
+        "ALTER TABLE theatre ADD COLUMN area VARCHAR(30)",
+        "ALTER TABLE 'group' ADD COLUMN city VARCHAR(20) DEFAULT 'dc'",
+        "ALTER TABLE user ADD COLUMN city VARCHAR(20)",
+        "ALTER TABLE saved_search ADD COLUMN city VARCHAR(20)",
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
@@ -187,6 +193,13 @@ def migrate():
     _migrate_user_email_nullable()
     _backfill_title_normalized()
     _migrate_server_members()
+    # Cities: every theatre's city and area come from the scraper registry
+    # (seed_theatres keeps them current; this fills them in before it runs).
+    from scrapers import THEATRE_REGISTRY
+    for cfg in THEATRE_REGISTRY:
+        db.session.execute(db.text("UPDATE theatre SET city = :c, area = :a WHERE slug = :s AND area IS NULL"),
+                           {'c': cfg.city, 'a': cfg.area, 's': cfg.slug})
+    db.session.commit()
     # The Monday digest became a club setting: the home club had it all along.
     if not db.session.get(BotSetting, 'digest_setting_done'):
         db.session.execute(db.text("UPDATE 'group' SET digest_enabled = 1 WHERE id = :g"), {'g': HOME_GROUP_ID})
@@ -371,6 +384,7 @@ def seed_theatres():
         theatre.website = cfg.website
         theatre.color = cfg.color
         theatre.is_active = cfg.enabled
+        theatre.city, theatre.area = cfg.city, cfg.area
         theatre.latitude, theatre.longitude = cfg.lat, cfg.lon
 
     for theatre in Theatre.query.all():

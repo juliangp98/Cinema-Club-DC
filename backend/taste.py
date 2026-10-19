@@ -184,15 +184,14 @@ def is_set(user):
 
 def view(user):
     """Everything the Your taste sheet shows: the choices and your picks."""
-    from app import Theatre
+    import places
     mine = items(user)
     by = lambda kind: [i for i in mine if i.kind == kind]
     return {
         'options': {
             'genres': [{'key': k, 'label': label} for k, label in GENRES],
             'ways': [{'key': k, 'label': label, 'emoji': e} for k, label, e in WAYS],
-            'theatres': [{'slug': t.slug, 'name': t.name, 'short_name': t.short_name or t.name, 'color': t.color}
-                         for t in Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name)],
+            'theatres': [t.to_dict() for t in places.theatres_in()],     # with city and area (the picker groups them)
         },
         'genres': genres(user),
         'avoid': [i.key for i in by('avoid')],

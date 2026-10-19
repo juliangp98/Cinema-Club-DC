@@ -3,6 +3,8 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
+import cities
+import places
 from app import (AVATAR_COLORS, Attendance, FRONTEND_URL, GroupMembership, LoginToken, Message, PollVote,
     RSVP, Reaction, SharedRsvp, TasteItem, User, Watchlist, _update_profile_fields, _utcnow_naive, app, current_user,
     datetime, db, follow_discord_avatar, guest_blocked, hashlib, jsonify, merge_users, random, re, redirect,
@@ -48,7 +50,7 @@ def _delete_guest(guest):
 
 def expire_guests(now=None):
     """Delete guest profiles nobody has used for GUEST_IDLE_LIMIT."""
-    now = now or datetime.now()
+    now = now or places.server_now()
     stale = User.query.filter(User.is_guest.is_(True), User.last_seen_at < now - GUEST_IDLE_LIMIT).limit(200).all()
     for g in stale:
         _delete_guest(g)
@@ -95,7 +97,7 @@ def create_guest():
         return jsonify({'error': 'Too many new profiles from here — try again later.'}), 429
     expire_guests()
     guest = User(name='Guest', is_guest=True, is_active=True, avatar_color=random.choice(AVATAR_COLORS),
-                 last_seen_at=datetime.now(), guest_ip_hash=h, created_at=now)
+                 last_seen_at=places.server_now(), guest_ip_hash=h, created_at=now)
     db.session.add(guest)
     db.session.commit()
     _start_session(guest)
@@ -281,6 +283,8 @@ def update_profile():
         user.name = data['name'].strip()[:100]
     if 'avatar_color' in data and data['avatar_color'] in AVATAR_COLORS:
         user.avatar_color = data['avatar_color']
+    if 'city' in data:                                    # the top bar's city menu (None: guess again)
+        user.city = cities.clean(data['city'])
     _update_profile_fields(user, data)
 
     db.session.commit()

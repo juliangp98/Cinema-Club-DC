@@ -1,4 +1,4 @@
-"""Discord embed builders for Cinema Club DC."""
+"""Discord embed builders for the site's bot."""
 
 import os
 from datetime import datetime
@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 import discord
 
 SITE_URL = os.environ.get('SITE_URL', 'https://cinemaclubdc.com')
-ET = ZoneInfo('America/New_York')
+SITE_NAME = os.environ.get('SITE_NAME') or 'Cinema Club DC'
+ET = ZoneInfo('America/New_York')          # a fallback; callers pass the club's clock
 
 AMBER = discord.Colour.from_str('#e8a838')
 MEDALS = ['🥇', '🥈', '🥉']
@@ -96,7 +97,7 @@ def drop_embed(event):
     posters = [p for p in posters if p]
     if posters:
         embed.set_thumbnail(url=posters[0])
-    embed.set_footer(text='Cinema Club DC — tap the title to open the calendar')
+    embed.set_footer(text=f'{SITE_NAME} — tap the title to open the calendar')
     return embed
 
 
@@ -383,7 +384,7 @@ def digest_message(digest, tag_watchers=False):
     so when tag_watchers is set (the scheduled Monday post) the people to ping
     go in `content` — only for films they haven't been tagged about in two
     weeks. plan_picks are the "make plans" screenings, for Going buttons."""
-    group_name = digest.get('group_name') or 'Cinema Club DC'
+    group_name = digest.get('group_name') or SITE_NAME
     embed = discord.Embed(title=f"🍿 This week at the movies — {group_name}",
                           colour=AMBER, url=f'{SITE_URL}/calendar')
 
@@ -600,9 +601,9 @@ def backfill_intro(total, shown, site_path):
     return f"-# Earlier on the site · {total} {'comment' if total == 1 else 'comments'}"
 
 
-def backfilled_comment(item):
-    """A copied site comment: its text, then when it was really written."""
-    day = datetime.fromisoformat(item['created_at']).astimezone(ET).strftime('%b %-d')
+def backfilled_comment(item, zone=ET):
+    """A copied site comment: its text, then when it was really written (the club's day)."""
+    day = datetime.fromisoformat(item['created_at']).astimezone(zone).strftime('%b %-d')
     return f"{item['body'][:1950]}\n-# {day} · on the site"
 
 
@@ -790,10 +791,11 @@ def poll_post_embed(p):
 
 HELP_SECTIONS = [
     ('🎬 Find something to see', [
-        ('/showtimes', "what's playing — pick days, a date, a theatre, tickets; `going:True` for who's going"),
+        ('/showtimes', "what's playing — pick days, a date, a theatre, tickets; `going:True` for who's going; "
+                       "`city:` another city's"),
         ('/movie', "a film's details and showtimes"),
         ('/foryou', "films picked for you from Your taste and what you've seen"),
-        ('/find', 'a kind of film: rare, arthouse, a mood, a genre… (🔔 Alert me saves the search)'),
+        ('/find', 'a kind of film: rare, arthouse, a mood, a genre… (🔔 Alert me saves the search; `city:` another city)'),
         ('/surprise', 'one random pick (spin again for another)'),
         ('/theatre', "a theatre: where it is, what's on this week, your picks there, members' notes"),
         ('@CinemaBot', 'ask for a rec, or just talk movies'),
@@ -869,7 +871,7 @@ def announced_embed(items, title):
 def theatre_embed(t):
     """/theatre: where it is, what's on this week, your For you picks there,
     and what members noted about its screenings lately."""
-    head = [t.get('address') or '', f"📍 {t['region']}" if t.get('region') else '',
+    head = [t.get('address') or '', f"📍 {t['area_label']}" if t.get('area_label') else '',
             plural(t.get('films_month') or 0, 'film', 'films') + ' in the next month']
     try:
         colour = discord.Colour.from_str(t['color'])
@@ -1210,7 +1212,7 @@ def missing_permissions_message(server_name, channel, missing):
 def joined_server_embed():
     """Posted once when the bot is added to a server."""
     embed = discord.Embed(title='🍿 Hi! I\'m CinemaBot', colour=AMBER, url=f'{SITE_URL}/help')
-    embed.description = ("I bring a Cinema Club DC club to this server: what's playing at the DC area's theatres, "
+    embed.description = (f"I bring a {SITE_NAME} club to this server: what's playing at its city's theatres, "
                          "RSVPs, screening threads, the weekly digest and games.\n"
                          "**To connect me to your club:** a club admin makes a code in Club settings → Discord on "
                          f"{SITE_URL}, then a server admin runs `/setup code:…` in the channel I should use.\n"

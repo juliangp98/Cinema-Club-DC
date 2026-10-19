@@ -16,7 +16,7 @@ NOON = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 def noon(monkeypatch):
     """The club's clock at noon, whatever time the tests run."""
     import game_posts
-    monkeypatch.setattr(game_posts, '_local_now', lambda: NOON)
+    monkeypatch.setattr(game_posts, '_local_now', lambda *_: NOON)
 
 
 @pytest.fixture
@@ -240,7 +240,7 @@ def test_a_skipped_question_lapses_at_10_pm(club, monkeypatch):
     [p] = posts(club).json['waiting']
     decide(club, p['id'], 'skip')
     late = NOON.replace(hour=22, minute=5)
-    monkeypatch.setattr(game_posts, '_local_now', lambda: late)
+    monkeypatch.setattr(game_posts, '_local_now', lambda *_: late)
     assert posts(club).json['skipped'] == []                                  # not offered any more
     r = decide(club, p['id'], 'post')
     assert r.status_code == 400 and 'too late' in r.json['error']

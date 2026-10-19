@@ -4,7 +4,9 @@ from members who checked in. Letterboxd covers the film; these cover the
 night. They show on the screening (drawer and feed card), in the club feed,
 and summed up on theatre pages for the club's members. Nobody is sent
 anything."""
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+import places
 
 TAGS = {                     # key: (emoji, label)
     'print': ('🎞️', 'Gorgeous print'),
@@ -102,7 +104,7 @@ def theatre(group, theatre_id, now=None, recent=4):
     from app import db, ScreeningNote, Showtime, _screening_item, member_ids
     if not group or not group.notes_enabled:
         return None
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     members = member_ids(group.id)
     if not members:
         return {'screenings': 0, 'tags': []}

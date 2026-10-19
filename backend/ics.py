@@ -1,32 +1,13 @@
 """Calendar files (R7a): one screening (.ics download) and subscription feeds
 that calendar apps re-check (your plans, a club's plans).
 
-Times are written in America/New_York with its time-zone rules included, so
-every calendar app shows them at the right local time; text is escaped and
-long lines folded as the iCalendar standard (RFC 5545) requires.
+Times are written in UTC (from each theatre's city's clock), so every
+calendar app shows them at the right local time wherever the theatre is;
+text is escaped and long lines folded as the iCalendar standard (RFC 5545)
+requires.
 """
 
 from datetime import datetime, timedelta, timezone
-
-TZID = 'America/New_York'
-VTIMEZONE = """BEGIN:VTIMEZONE
-TZID:America/New_York
-BEGIN:DAYLIGHT
-TZOFFSETFROM:-0500
-TZOFFSETTO:-0400
-TZNAME:EDT
-DTSTART:19700308T020000
-RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
-END:DAYLIGHT
-BEGIN:STANDARD
-TZOFFSETFROM:-0400
-TZOFFSETTO:-0500
-TZNAME:EST
-DTSTART:19701101T020000
-RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
-END:STANDARD
-END:VTIMEZONE""".split('\n')
-
 
 def escape(text):
     return (str(text or '').replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,')
@@ -49,10 +30,6 @@ def fold(line):
     return [out[0]] + [' ' + x for x in out[1:]]
 
 
-def _local(dt):
-    return dt.strftime('%Y%m%dT%H%M%S')
-
-
 def _utc(dt):
     if dt.tzinfo:
         dt = dt.astimezone(timezone.utc)
@@ -60,10 +37,12 @@ def _utc(dt):
 
 
 def event(uid, start, end, summary, location='', description='', url='', cancelled=False,
-          updated=None, sequence=0):
-    """One VEVENT (start/end are naive local DC times, as stored)."""
+          updated=None, sequence=0, city=None):
+    """One VEVENT. start/end are the theatre's wall-clock times, as stored;
+    `city` says whose (cities.py)."""
+    import places
     lines = ['BEGIN:VEVENT', f'UID:{uid}', f'DTSTAMP:{_utc(updated or datetime.now(timezone.utc))}',
-             f'DTSTART;TZID={TZID}:{_local(start)}', f'DTEND;TZID={TZID}:{_local(end)}',
+             f'DTSTART:{_utc(places.to_utc(start, city))}', f'DTEND:{_utc(places.to_utc(end, city))}',
              f'SUMMARY:{escape(summary)}', f'SEQUENCE:{int(sequence)}']
     if location:
         lines.append(f'LOCATION:{escape(location)}')
@@ -79,13 +58,13 @@ def event(uid, start, end, summary, location='', description='', url='', cancell
 
 def calendar(events, name=None, refresh_hours=None):
     """The whole file, CRLF line endings."""
-    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cinema Club DC//Showtimes//EN', 'CALSCALE:GREGORIAN',
+    from app import SITE_NAME
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', f'PRODID:-//{SITE_NAME}//Showtimes//EN', 'CALSCALE:GREGORIAN',
              'METHOD:PUBLISH']
     if name:
-        lines += [f'X-WR-CALNAME:{escape(name)}', f'X-WR-TIMEZONE:{TZID}']
+        lines.append(f'X-WR-CALNAME:{escape(name)}')
     if refresh_hours:
         lines += [f'REFRESH-INTERVAL;VALUE=DURATION:PT{refresh_hours}H', f'X-PUBLISHED-TTL:PT{refresh_hours}H']
-    lines += VTIMEZONE
     for ev in events:
         lines += ev
     lines.append('END:VCALENDAR')

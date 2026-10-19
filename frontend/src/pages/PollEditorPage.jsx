@@ -109,7 +109,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
 
   if (!canRun) {
     return (
-      <div className="page narrow">
+      <div className="page">
         <PageHeader title="New poll" back={{ to: "/play#polls", label: "Play" }} />
         <p className="pv-empty">Organizers and admins make polls. Ask a club admin for the Organizer role.</p>
       </div>
@@ -117,7 +117,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
   }
 
   return (
-    <div className="page narrow polls">
+    <div className="page polls">
       <PageHeader title="New poll" back={{ to: "/play#polls", label: "Play" }} />
 
       <form className="pv-ask" onSubmit={draft}>

@@ -2,24 +2,37 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
+import cities
+import places
 import taste
-from app import (FRONTEND_URL, Group, GroupMembership, Movie, RARE_MIN_SCORE, RSVP, Showtime, Theatre, User,
-    Watchlist, _active_membership, _ai, _ai_searches, ai_blocked, _as_int, _brief_user, _group_showtime_query,
-    _with_attendance, app, attended_showtime_ids, current_user, datetime, db, guest_blocked, interest_counts,
-    jsonify, make_response, movie_for_tmdb, public_cached, public_showtimes, rarity, re, request,
-    require_auth, require_group_member, secrets, time, timedelta, tmdb_matches)
+from app import (FRONTEND_URL, Group, GroupMembership, Movie, RARE_MIN_SCORE, RSVP, SITE_NAME, Showtime,
+    Theatre, User, Watchlist, _active_membership, _ai, _ai_searches, _as_int, _brief_user,
+    _group_showtime_query, _with_attendance, ai_blocked, app, attended_showtime_ids, current_user, datetime,
+    db, guest_blocked, interest_counts, jsonify, make_response, movie_for_tmdb, public_cached,
+    public_showtimes, rarity, re, request, require_auth, require_group_member, secrets, site_pitch, time,
+    timedelta, tmdb_matches)
 
 
 # ─── Routes: Theatres ─────────────────────────────────────────────────────────
 
 @app.route('/api/theatres')
 def get_theatres():
-    theatres = Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name).all()
-    return jsonify([t.to_dict() for t in theatres])
+    """Every active theatre (each says its city and area; the site groups them)."""
+    return jsonify([t.to_dict() for t in places.theatres_in()])
 
 
-def _theatre_summary(t, now):
+@app.route('/api/cities')
+def get_cities():
+    """The cities with theatres (and their areas), and whether there's more
+    than one — the site shows city menus and headings only then."""
+    active = places.active_cities()
+    return jsonify({'cities': [cities.as_dict(c) for c in active], 'multi': len(active) > 1,
+                    'default': cities.DEFAULT_CITY})
+
+
+def _theatre_summary(t, now=None):
     """How busy a theatre is over the next month (films, showings, next one)."""
+    now = now or places.now_at(t)
     q = Showtime.query.filter(Showtime.theatre_id == t.id, Showtime.start_time >= now,
                               Showtime.start_time <= now + timedelta(days=30), Showtime.is_cancelled.isnot(True))
     nxt = q.order_by(Showtime.start_time).first()
@@ -47,26 +60,27 @@ def theatre_notes(slug):
 def get_theatre(slug):
     """A theatre's page (R7a, public): where it is, its area, and how much is
     playing in the next month. Its films come from Browse (?theatres=<slug>)."""
-    import discover
     t = Theatre.query.filter_by(slug=slug).first()
     if not t or t.is_active is False:
         return jsonify({'error': 'Theatre not found'}), 404
-    return jsonify({**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, datetime.now())})
+    return jsonify({**t.to_dict(), **_theatre_summary(t)})
 
 
 @app.route('/api/theatres-overview')
 def theatres_overview():
-    """Every theatre with its area, next month's numbers, and a preview of the
-    next two weeks there (posters, rare films, formats, tonight) — the Theatres page."""
+    """Every theatre with its city and area, next month's numbers, and a
+    preview of the next two weeks there (posters, rare films, formats,
+    tonight) — the Theatres page (it puts the viewer's city first)."""
     import discover
 
     def build():
-        now = datetime.now()
-        previews = discover.theatre_previews(None, now)
         empty = {'posters': [], 'rare': 0, 'formats': [], 'tonight': 0, 'film_count': 0}
-        return [{**t.to_dict(), 'region': discover.REGIONS.get(t.slug), **_theatre_summary(t, now),
-                 'preview': previews.get(t.slug, empty)}
-                for t in Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name)]
+        out = []
+        for c in places.active_cities():
+            previews = discover.theatre_previews(places.CityScope(c.slug))
+            out += [{**t.to_dict(), **_theatre_summary(t), 'preview': previews.get(t.slug, empty)}
+                    for t in places.theatres_in(c.slug)]
+        return out
     return jsonify(public_cached(('theatres-overview',), build))
 
 
@@ -77,11 +91,10 @@ def sitemap():
     the next 60 days. Private pages are never listed (nor Browse's filtered
     addresses — the site marks those noindex)."""
     from xml.sax.saxutils import escape as xesc
-    now = datetime.now()
     urls = [('/', 'daily'), ('/calendar', 'daily'), ('/browse', 'daily'), ('/theatres', 'weekly'), ('/help', 'monthly')]
-    urls += [(f'/theatres/{t.slug}', 'daily') for t in Theatre.query.filter(Theatre.is_active.isnot(False))]
-    films = (db.session.query(Showtime.movie_id).join(Theatre)
-             .filter(Showtime.start_time >= now, Showtime.start_time <= now + timedelta(days=60),
+    urls += [(f'/theatres/{t.slug}', 'daily') for t in places.theatres_in()]           # every city's
+    films = (places.upcoming(db.session.query(Showtime.movie_id).join(Theatre))
+             .filter(Showtime.start_time <= places.now_in() + timedelta(days=61),
                      Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False))
              .distinct().all())
     urls += [(f'/films/{mid}', 'weekly') for (mid,) in films]
@@ -150,8 +163,8 @@ def film_detail(movie_id):
     """A film's page: its details, every upcoming screening at the group's
     theatres (with the viewer's RSVPs and who's going), where the club stands
     on it (want to see / going / seen), and whether this week's screenings
-    are rare. Public mode (no ?group_id): every tracked theatre, anonymous
-    interest only, no club section."""
+    are rare. Public mode (no ?group_id): every city's theatres (the page
+    groups them by city, the viewer's first), anonymous interest only, no club section."""
     import discover
     user, group, err = view_scope()
     if err:
@@ -160,10 +173,12 @@ def film_detail(movie_id):
     movie = db.session.get(Movie, movie_id)
     if not movie:
         return jsonify({'error': 'Film not found'}), 404
-    now = datetime.now()
+    now = places.club_now(group)
 
-    base = _group_showtime_query(group).filter(Showtime.movie_id == movie_id)
-    upcoming = base.filter(Showtime.start_time >= now).order_by(Showtime.start_time).all()
+    base = (_group_showtime_query(group) if group else
+            Showtime.query.join(Theatre).filter(Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False)))
+    base = base.filter(Showtime.movie_id == movie_id)
+    upcoming = places.upcoming(base).order_by(Showtime.start_time).all()
     if group:
         showtimes = _with_attendance(user, upcoming, [
             s.to_dict(user_id=user.id, group_id=group_id, user_genres=taste.genres(user)) for s in upcoming
@@ -176,11 +191,12 @@ def film_detail(movie_id):
     members = {m.user_id: m.user for m in GroupMembership.query.filter_by(group_id=group_id, status='active') if m.user}
     watchers = {w.user_id for w in Watchlist.query.filter_by(movie_id=movie_id)}
     going = {r.user_id for s in upcoming for r in s.rsvps if r.group_id == group_id and r.status == 'going'}
-    past = {s.id for s in base.filter(Showtime.start_time < now)}
+    past = {s.id for s in places.started(base)}
     seen = {uid for uid in members if past and past & attended_showtime_ids(uid, {group_id})}
 
     rare = None
-    week = [s for s in upcoming if s.start_time <= now + timedelta(days=7)]
+    week = [s for s in upcoming if s.start_time <= now + timedelta(days=7)
+            and (group or places.city_of(s.theatre) == group.city)]       # rarity: in one city
     if week:
         venues = len({s.theatre_id for s in week})
         score, why = max((rarity(s, len(week), venues, now.year) for s in week), key=lambda x: x[0])
@@ -210,11 +226,13 @@ def film_detail(movie_id):
 
 
 def view_scope():
-    """(viewer or None, group or None, error). No group_id → public mode."""
+    """(viewer or None, group or CityScope, error). No group_id → public mode:
+    the viewer's city (?city=, else theirs) as a places.CityScope, which is
+    falsy — `if group:` still means "a club"."""
     user = current_user()
     group_id = request.args.get('group_id', type=int)
     if not group_id:
-        return user, None, None
+        return user, places.scope(None, user), None
     if not user:
         return None, None, (jsonify({'error': 'Not authenticated'}), 401)
     if not _active_membership(user, group_id):
@@ -264,8 +282,8 @@ def discover_page():
         return jsonify({'error': 'Theatre not found'}), 404
     if group:
         return jsonify(discover.discover(group, user, theatres=theatres))
-    build = lambda: publicize_cards(discover.discover(None, user, theatres=theatres))
-    return jsonify(build() if user else public_cached(('discover', tuple(sorted(theatres or ()))), build))
+    build = lambda: publicize_cards(discover.discover(group, user, theatres=theatres))
+    return jsonify(build() if user else public_cached(('discover', group.city, tuple(sorted(theatres or ()))), build))
 
 
 @app.route('/api/for-you/theatres')
@@ -292,8 +310,8 @@ def discover_browse():
     try:
         if group:
             return jsonify(discover.browse(group, user, params, offset=offset))
-        build = lambda: publicize_cards(discover.browse(None, user, params, offset=offset))
-        key = ('browse', offset, tuple(sorted((k, v) for k, v in params.items() if v)))
+        build = lambda: publicize_cards(discover.browse(group, user, params, offset=offset))
+        key = ('browse', group.city, offset, tuple(sorted((k, v) for k, v in params.items() if v)))
         return jsonify(build() if user else public_cached(key, build))
     except ValueError:
         return jsonify({'error': 'Bad date'}), 400
@@ -306,18 +324,16 @@ BROWSE_PARAMS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade'
 def _discover_more(name, build):
     """Discover's See-all pages (R7b): ?theatres= and/or ?regions= narrow
     them; club mode with ?group_id, public (cached for visitors) without."""
-    import discover
     user, group, err = _discover_group()
     if err:
         return err
     slugs = {x for x in (request.args.get('theatres') or '').split(',') if x}
-    regions = {x.lower() for x in (request.args.get('regions') or '').split(',') if x}
-    slugs |= {s for s, r in discover.REGIONS.items() if r.lower() in regions}
+    slugs |= places.area_slugs((request.args.get('regions') or '').split(','))
     theatres = slugs or None
     if group:
         return jsonify(build(group, user, theatres))
-    run = lambda: publicize_cards(build(None, user, theatres))
-    return jsonify(run() if user else public_cached((name, tuple(sorted(slugs))), run))
+    run = lambda: publicize_cards(build(group, user, theatres))
+    return jsonify(run() if user else public_cached((name, group.city, tuple(sorted(slugs))), run))
 
 
 @app.route('/api/discover/spotlights')
@@ -369,7 +385,7 @@ def search_suggest():
     build = lambda: discover.suggest(group, user, q)
     if group or user:
         return jsonify(build())
-    return jsonify(public_cached(('suggest', discover.normalize(q)), build))
+    return jsonify(public_cached(('suggest', group.city, discover.normalize(q)), build))
 
 
 @app.route('/api/search/ai', methods=['POST'])
@@ -387,7 +403,7 @@ def search_ai_route():
     q = re.sub(r'\s+', ' ', str(data.get('q') or '')).strip()[:300]
     if len(q) < 3:
         return jsonify({'error': 'Say a bit more about what you want to see.'}), 400
-    group = None
+    group = places.scope(None, user, data.get('city'))
     group_id = _as_int(data.get('group_id'))
     if group_id:
         if not _active_membership(user, group_id):
@@ -446,13 +462,13 @@ def discover_calendar():
             d['movie_id'], d['theatre_id'] = s.movie_id, s.theatre_id
         return {'showtimes': dicts, 'movies': movies, 'theatres': theatres, 'total': len(films), 'facets': discover.facets(films),
                 'announced': discover.announced_matching(group, params),
-                'regions': discover.REGIONS,
+                'regions': places.theatre_areas(places.club_city(group)),
                 'title': discover.SHELF_TITLES.get(params.get('shelf'))
                 or discover.MOODS.get(params.get('mood') or '', {}).get('label')}
     try:
         if group or user:
             return jsonify(build())
-        return jsonify(public_cached(('calendar', tuple(sorted((k, v) for k, v in params.items() if v))), build))
+        return jsonify(public_cached(('calendar', group.city, tuple(sorted((k, v) for k, v in params.items() if v))), build))
     except ValueError:
         return jsonify({'error': 'Bad date'}), 400
 
@@ -484,8 +500,8 @@ def _og_page(title, description, image, path, large=False):
                   f'<meta name="twitter:image" content="{esc(image)}">') if image else ''
     body = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>{esc(title if title == 'Cinema Club DC' else f'{title} · Cinema Club DC')}</title>
-<meta property="og:site_name" content="Cinema Club DC">
+<title>{esc(title if title == SITE_NAME else f'{title} · {SITE_NAME}')}</title>
+<meta property="og:site_name" content="{esc(SITE_NAME)}">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(description)}">
@@ -514,12 +530,10 @@ def _blurb(text, limit=180):
 def og_film(movie_id):
     movie = db.session.get(Movie, movie_id)
     if not movie:
-        return _og_page('Cinema Club DC', "DC's repertory and new-release screenings, together.", None, '/')
-    now = datetime.now()
-    upcoming = (Showtime.query.join(Theatre).filter(
-        Showtime.movie_id == movie_id, Showtime.start_time >= now,
-        Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False))
-        .order_by(Showtime.start_time).all())
+        return _og_page(SITE_NAME, site_pitch(), None, '/')
+    upcoming = places.upcoming(Showtime.query.join(Theatre).filter(
+        Showtime.movie_id == movie_id, Showtime.is_cancelled.isnot(True), Theatre.is_active.isnot(False))
+    ).order_by(Showtime.start_time).all()
     year = f" ({movie.release_year[:4]})" if movie.release_year else ''
     bits = []
     if upcoming:
@@ -542,8 +556,8 @@ def og_film(movie_id):
 def og_theatre(slug):
     t = Theatre.query.filter_by(slug=slug).first()
     if not t or t.is_active is False:
-        return _og_page('Cinema Club DC', "DC's repertory and new-release screenings, together.", None, '/')
-    n = _theatre_summary(t, datetime.now())
+        return _og_page(SITE_NAME, site_pitch(), None, '/')
+    n = _theatre_summary(t)
     bits = [t.address or '', f"{n['films']} film{'s' if n['films'] != 1 else ''} in the next month" if n['films'] else '']
     return _og_page(t.name, ' · '.join(b for b in bits if b), None, f'/theatres/{slug}')
 
@@ -601,7 +615,7 @@ def _screening_event(s, uid, summary=None, extra=(), updated=None):
     return ics.event(uid, start, end, summary or movie.title,
                      location=f"{theatre.name}, {theatre.address}" if theatre.address else theatre.name,
                      description='\n'.join(lines), url=f"{FRONTEND_URL}/calendar?showtime={s.id}",
-                     cancelled=bool(s.is_cancelled), updated=updated,
+                     cancelled=bool(s.is_cancelled), updated=updated, city=places.city_of(theatre),
                      sequence=int(updated.timestamp()) // 60 % 100000 if updated else 0)
 
 
@@ -668,7 +682,7 @@ def personal_feed(token):
     user = User.query.filter_by(calendar_token=token).first() if len(token) >= 30 else None
     if not user or not user.is_active or user.is_guest:
         return jsonify({'error': 'Not found'}), 404
-    since = datetime.now() - FEED_PAST
+    since = places.now_in() - FEED_PAST
     best = {}                     # showtime id -> (rsvp) — going beats maybe across clubs
     for r in (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
               .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')), Showtime.start_time >= since)):
@@ -681,7 +695,7 @@ def personal_feed(token):
         title = s.movie.title + (' (maybe)' if r.status == 'maybe' else '')
         events.append(_screening_event(s, f'plan-{user.id}-{s.id}@cinemaclubdc', summary=title,
                                        updated=r.updated_at or r.created_at))
-    return _feed_response(ics.calendar(events, name='Cinema Club: my plans', refresh_hours=1))
+    return _feed_response(ics.calendar(events, name=f'{SITE_NAME}: my plans', refresh_hours=1))
 
 
 @app.route('/api/calendar/club/<token>.ics')
@@ -691,7 +705,7 @@ def club_feed(token):
     m = GroupMembership.query.filter_by(calendar_token=token).first() if len(token) >= 30 else None
     if not m or m.status != 'active' or not m.user or not m.user.is_active:
         return jsonify({'error': 'Not found'}), 404
-    since = datetime.now() - FEED_PAST
+    since = places.now_in() - FEED_PAST
     by_show = {}
     for r in (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
               .filter(RSVP.group_id == m.group_id, RSVP.status.in_(('going', 'maybe')), Showtime.start_time >= since)
@@ -708,7 +722,7 @@ def club_feed(token):
         updated = max((r.updated_at or r.created_at) for r in rsvps)
         events.append(_screening_event(s, f'club-{m.group_id}-{sid}@cinemaclubdc', summary=summary,
                                        extra=[w for w in who if w], updated=updated))
-    return _feed_response(ics.calendar(events, name=f"Cinema Club: {m.group.name}", refresh_hours=1))
+    return _feed_response(ics.calendar(events, name=f"{SITE_NAME}: {m.group.name}", refresh_hours=1))
 
 
 @app.route('/api/showtimes/<int:sid>/gcal-url')
@@ -736,6 +750,7 @@ def showtime_gcal_url(sid):
         f"https://calendar.google.com/calendar/render?action=TEMPLATE"
         f"&text={quote(movie.title)}"
         f"&dates={fmt_gcal(start)}/{fmt_gcal(end)}"
+        f"&ctz={quote(cities.get(places.city_of(theatre)).tz)}"          # the theatre's clock, not the viewer's
         f"&location={quote(theatre.name + ', ' + (theatre.address or ''))}"
         f"&details={quote(' | '.join(details))}"
     )

@@ -16,9 +16,10 @@ PUBLISH_HOUR = 10          # Monday, the club's clock — when the bot posts it 
 YOURS_MAX = 5              # "your watchlist" lines on a card
 
 
-def _local_now():
-    """The club's clock (tests set it)."""
-    return datetime.now()
+def _local_now(group=None):
+    """The club's clock — its city's (tests set it)."""
+    import places
+    return places.club_now(group)
 
 
 def showtime_brief(s):
@@ -98,11 +99,14 @@ def publish_due(now=None):
     if not has_app_context():
         with app.app_context():
             return publish_due(now)
-    now = now or _local_now()
-    if now.weekday() != 0 or now.hour < PUBLISH_HOUR:
-        return 0
-    done = {d.group_id for d in db.session.query(ClubDigest.group_id).filter_by(week_of=week_of(now))}
-    return sum(publish(g, now) for g in Group.query.filter(Group.digest_enabled.is_(True)) if g.id not in done)
+    published = 0
+    for g in Group.query.filter(Group.digest_enabled.is_(True)):
+        at = now or _local_now(g)                 # each club on its own city's clock
+        if at.weekday() != 0 or at.hour < PUBLISH_HOUR:
+            continue
+        if not db.session.query(ClubDigest.id).filter_by(group_id=g.id, week_of=week_of(at)).first():
+            published += publish(g, at)
+    return published
 
 
 def card(group, viewer, digest):
@@ -116,7 +120,7 @@ def card(group, viewer, digest):
     if wanted:
         for s in (_group_showtime_query(group)
                   .filter(Showtime.movie_id.in_(wanted),
-                          Showtime.start_time >= max(start, _local_now()),
+                          Showtime.start_time >= max(start, _local_now(group)),
                           Showtime.start_time < start + timedelta(days=7))
                   .order_by(Showtime.start_time)):
             if s.movie_id in yours:

@@ -60,7 +60,7 @@ _MODEL_GONE_CODES = ('model_not_found', 'model_decommissioned')
 # A test prompt shaped like the chatbot's (persona + a casual ask), short reply
 # cap: it exposes reasoning models that return nothing.
 PROBE_MESSAGES = [
-    {'role': 'system', 'content': "You're CinemaBot, a movie-obsessed member of a DC film club's Discord. "
+    {'role': 'system', 'content': "You're CinemaBot, a movie-obsessed member of a film club's Discord. "
                                   'Reply in one or two short, casual sentences.'},
     {'role': 'user', 'content': 'what should i see this weekend?'},
 ]

@@ -11,7 +11,9 @@ Screenings are the leaderboard's "attended" (app.attended_showtime_ids):
 confirmed check-ins, plus past "going" RSVPs in this club nobody took back.
 """
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+import places
 
 PERIODS = ('week', 'month', 'year', 'all')     # week: Play's "this week's movers"
 FILM_PRINT = re.compile(r'\b(16|35|70)\s*mm\b|nitrate', re.I)
@@ -33,7 +35,7 @@ SUPERLATIVES = (
 
 def since_of(period, now=None):
     """The local datetime a period starts (None: all time)."""
-    now = now or datetime.now()
+    now = now or places.now_in()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if period == 'week':
         return start - timedelta(days=start.weekday())
@@ -159,7 +161,7 @@ def member_stats(group, user_ids, since=None, now=None):
     """{uid: {screenings, film_prints, theatres, late, crew_nights,
     week_streak, first_going, comments, trivia {...}, bingo {...}, last_out}}."""
     from app import member_ids
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     user_ids = list(dict.fromkeys(user_ids))
     shows = _club_screenings(group, member_ids(group.id), since, now)
     together = {}
@@ -235,7 +237,7 @@ def overview(group, now=None):
     """The Overview's club stats: {month_label, screenings_together, member_screenings,
     most_wanted, busiest_theatre, top, members: {uid: {screenings, last_out}}}."""
     from app import db, Showtime, Theatre, Watchlist, _group_showtime_query, member_ids
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     since = since_of('month', now)
     members = member_ids(group.id)
     month = _club_screenings(group, members, since, now)

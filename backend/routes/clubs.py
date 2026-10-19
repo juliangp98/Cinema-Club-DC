@@ -5,52 +5,37 @@ and the models are imported from app."""
 from html import escape as esc
 
 import app as core
-from app import (AVATAR_COLORS, FRONTEND_URL, ClubDigest, Group, GroupMembership, Message, Poll, PollCategory,
-    PollOption, PollVote, ROLES, RSVP, Reaction, ShowtimeThread, Theatre, User, _active_membership, _as_int,
-    _screening_item, _upload, app, current_user, datetime, db, guest_blocked, jsonify, random, re, request,
-    require_auth, require_role, role_at_least, rsvp_changed, secrets, timezone, upcoming_rsvps)
+from app import (AVATAR_COLORS, ClubDigest, FRONTEND_URL, Group, GroupMembership, Message, Poll, PollCategory,
+    PollOption, PollVote, ROLES, RSVP, Reaction, SITE_NAME, ShowtimeThread, Theatre, User, _active_membership,
+    _as_int, _screening_item, _upload, app, current_user, datetime, db, email_button, email_page,
+    guest_blocked, jsonify, random, re, request, require_auth, require_role, role_at_least, rsvp_changed,
+    secrets, timezone, upcoming_rsvps)
 
 
 def email_invite(to_email, group_name, invite_url):
-    core.send_email(to_email, f"You're invited to {group_name} on Cinema Club DC",
-        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>You've been invited to join <strong>{esc(group_name)}</strong> on Cinema Club DC!</p>
-        <p><a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Accept Invite</a></p>
-        <p style="color:#888;font-size:13px;">Or copy this link: {invite_url}</p>
-        </div>""")
+    core.send_email(to_email, f"You're invited to {group_name} on {SITE_NAME}", email_page(
+        f"""<p>You've been invited to join <strong>{esc(group_name)}</strong> on {esc(SITE_NAME)}!</p>
+        {email_button(invite_url, 'Accept Invite')}
+        <p style="color:#888;font-size:13px;">Or copy this link: {invite_url}</p>"""))
 
 
 def email_added_to_group(to_email, group_name):
-    core.send_email(to_email, f"You've been added to {group_name}",
-        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>You've been added to <strong>{esc(group_name)}</strong>. Open Cinema Club DC to check out upcoming showtimes!</p>
-        <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
-        </div>""")
+    core.send_email(to_email, f"You've been added to {group_name}", email_page(
+        f"""<p>You've been added to <strong>{esc(group_name)}</strong>. Open {esc(SITE_NAME)} to check out
+        upcoming showtimes!</p>{email_button(FRONTEND_URL, f'Open {esc(SITE_NAME)}')}"""))
 
 
 def email_join_request(admin_email, requester_name, group_name):
-    core.send_email(admin_email, f"{requester_name} wants to join {group_name}",
-        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p><strong>{esc(requester_name)}</strong> has requested to join <strong>{esc(group_name)}</strong>.</p>
-        <p>Log in to Cinema Club DC to approve or deny the request.</p>
-        <p><a href="{FRONTEND_URL}/groups" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Manage Group</a></p>
-        </div>""")
+    core.send_email(admin_email, f"{requester_name} wants to join {group_name}", email_page(
+        f"""<p><strong>{esc(requester_name)}</strong> has requested to join <strong>{esc(group_name)}</strong>.</p>
+        <p>Log in to {esc(SITE_NAME)} to approve or deny the request.</p>
+        {email_button(FRONTEND_URL + '/groups', 'Manage Group')}"""))
 
 
 def email_approved(to_email, group_name):
-    core.send_email(to_email, f"Welcome to {group_name}!",
-        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>Your request to join <strong>{esc(group_name)}</strong> has been approved! 🎉</p>
-        <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">Open Cinema Club DC</a></p>
-        </div>""")
+    core.send_email(to_email, f"Welcome to {group_name}!", email_page(
+        f"""<p>Your request to join <strong>{esc(group_name)}</strong> has been approved! 🎉</p>
+        {email_button(FRONTEND_URL, f'Open {esc(SITE_NAME)}')}"""))
 
 def slugify(text):
     slug = re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
@@ -166,13 +151,13 @@ def create_group():
     if Group.query.filter_by(slug=slug).first():
         return jsonify({'error': 'A group with this name already exists'}), 409
 
-    # Validate theatres
-    valid_slugs = {t.slug for t in Theatre.query.all()}
-    requested_theatres = data.get('theatres', [])
-    if requested_theatres:
-        theatres_str = ','.join(s for s in requested_theatres if s in valid_slugs)
-    else:
-        theatres_str = ','.join(valid_slugs)  # default to all
+    # Its home city (yours unless it says), and its theatres — any city's;
+    # none picked: every theatre in its city.
+    import places
+    city = places.viewer_city(user, None, data.get('city'))
+    valid_slugs = {t.slug for t in places.theatres_in()}
+    requested_theatres = [s for s in data.get('theatres') or [] if s in valid_slugs]
+    theatres_str = ','.join(requested_theatres or sorted(places.theatre_slugs(city)))
 
     group = Group(
         name=name,
@@ -180,7 +165,8 @@ def create_group():
         description=data.get('description', ''),
         created_by=user.id,
         is_public=data.get('is_public', True),
-        theatres=theatres_str
+        theatres=theatres_str,
+        city=city,
     )
     db.session.add(group)
     db.session.flush()
@@ -199,15 +185,17 @@ def discover_groups():
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 10, type=int), 50)
 
+    import places
+    user = current_user()
     query = Group.query.filter_by(is_public=True)
     if q:
         query = query.filter(Group.name.ilike(f'%{q}%'))
 
-    pagination = query.order_by(Group.id.desc()).paginate(
+    mine = places.viewer_city(user, None, request.args.get('city'))      # your city's clubs first
+    pagination = query.order_by(db.case((Group.city == mine, 0), else_=1), Group.city, Group.id.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
 
-    user = current_user()
     user_memberships = {m.group_id: m.status for m in GroupMembership.query.filter_by(user_id=user.id).all()}
 
     result = []
@@ -291,6 +279,12 @@ def update_group(slug):
     if isinstance(data.get('is_public'), bool):             # listed on Clubs, open to join requests (admins)
         group.is_public = data['is_public']
 
+    import cities
+    if data.get('city') is not None:                          # its home city (admins): its clock, its theatres
+        city = cities.clean(data.get('city'))
+        if not city:
+            return jsonify({'error': 'Pick one of the cities.'}), 400
+        group.city = city
     if 'theatres' in data:
         valid_slugs = {t.slug for t in Theatre.query.all()}
         theatres_list = data.get('theatres', [])

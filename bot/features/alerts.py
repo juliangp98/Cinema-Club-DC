@@ -4,14 +4,14 @@
 
 import re
 import time
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timezone
 import discord
 from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import (DEFAULT_GROUP_ID, DIGEST_OFF_MSG, ET, GONE_MSG, SITE_URL, api, channel_for, client, club, connected_clubs,
-                     discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club)
+from .shared import (DEFAULT_GROUP_ID, DIGEST_OFF_MSG, GONE_MSG, SITE_URL, api, channel_for, client, club, club_now, connected_clubs,
+                     discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club, zone_now)
 from . import games, polls, threads      # used at call time, so the order they load in doesn't matter
 
 
@@ -88,16 +88,21 @@ async def before_announce():
     await client.wait_until_ready()
 
 
-# ─── Weekly digest (Mondays 10:00 ET) ─────────────────────────────────────────
+# ─── Weekly digest (Mondays 10:00, each club's city's time) ───────────────────
 # Only for clubs that turned it on; the site publishes its copy (the Feed, the
-# bell) at the same time. /digest preview works either way.
+# bell) at the same time. /digest preview works either way. The loop wakes at
+# the top of every hour; a club's digest goes out the hour its city reaches
+# Monday 10:00 (US cities are whole hours apart).
 DIGEST_OFF = 'off'
+DIGEST_DAY, DIGEST_HOUR = 0, 10
 
-@tasks.loop(time=dtime(hour=10, minute=0, tzinfo=ET))
+
+@tasks.loop(time=[dtime(hour=h, minute=0, tzinfo=timezone.utc) for h in range(24)])
 async def digest_loop():
-    if datetime.now(ET).weekday() != 0:   # Monday only
-        return
-    for gid, _ in connected_clubs():      # each club's own digest, in its own server
+    for gid, _ in connected_clubs():      # each club's own digest, in its own server, on its own clock
+        now = club_now(gid)
+        if now.weekday() != DIGEST_DAY or now.hour != DIGEST_HOUR:
+            continue
         use_club(gid)
         await post_digest(channel_for(gid), tag_watchers=True)
 
@@ -216,16 +221,24 @@ def answered_view(message, showtime_id, status, result):
     return view
 
 
+ASK_HOURS = (10, 21)                       # "did you go?" DMs: daytime, the member's own clock
+ALERT_HOURS = (8, 23)                      # alert DMs: likewise; nights wait for the morning
+
+
+def awake(person, hours):
+    return hours[0] <= zone_now(person.get('tz')).hour < hours[1]
+
+
 @tasks.loop(minutes=30)
 async def attendance_loop():
-    if not 10 <= datetime.now(ET).hour < 21:      # no DMs at night
-        return
     try:
         prompts = await api.get('/api/internal/attendance/prompts')
     except Exception as e:
         print(f'attendance_loop: fetch failed: {e}')
         return
     for p in prompts:
+        if not awake(p, ASK_HOURS):               # no DMs at night (theirs)
+            continue
         uid = p['discord_user_id']
         try:
             user = await client.fetch_user(int(uid))
@@ -254,14 +267,14 @@ async def before_attendance():
 
 @tasks.loop(seconds=60)
 async def notify_loop():
-    if not 8 <= datetime.now(ET).hour < 23:
-        return
     try:
         pending = await api.get('/api/internal/notifications/dm')
     except Exception as e:
         print(f'notify_loop: fetch failed: {e}')
         return
     for p in pending:
+        if not awake(p, ALERT_HOURS):
+            continue
         try:
             user = await client.fetch_user(int(p['discord_user_id']))
             await user.send(embed=embeds.alerts_embed(p['items'], p.get('title')))

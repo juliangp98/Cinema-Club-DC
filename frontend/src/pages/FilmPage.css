@@ -12,7 +12,7 @@
 }
 .film-hero.no-backdrop { background: var(--bg2); }
 .film-hero.no-backdrop::after { display: none; }
-.film-hero-inner { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.25rem 1.75rem; }
+.film-hero-inner { position: relative; z-index: 1; max-width: var(--page-max); margin: 0 auto; padding: 1.25rem 1.25rem 1.75rem; }
 .film-hero-row { display: flex; gap: 1.5rem; align-items: flex-end; }
 .film-poster {
   width: 180px; aspect-ratio: 2 / 3; object-fit: cover; flex-shrink: 0;
@@ -75,6 +75,7 @@
 .film-interest { font-size: var(--fs-sm); color: var(--muted); margin-top: 0.5rem; }
 .film-theatre-link { margin: -0.25rem 0 0.9rem; font-size: var(--fs-sm); color: var(--muted); }
 /* Where it's playing (R7b): pick a theatre first when there are lots of showings */
+.film-cities { margin-bottom: 0.75rem; }                       /* a film in more than one city: which city's */
 .film-venues { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 0.5rem; margin-bottom: 0.9rem; }
 .film-venue {
   display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.75rem; text-align: left; cursor: pointer;

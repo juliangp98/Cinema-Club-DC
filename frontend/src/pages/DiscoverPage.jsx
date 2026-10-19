@@ -12,6 +12,7 @@ import AttendancePrompt from "../components/AttendancePrompt";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { useShell } from "../shell/AppShell";
 import { groupParam } from "../scope";
+import { DEFAULT_CITY, cityOf } from "../places";
 import "./DiscoverPage.css";
 import { time, dayDate } from "../dates";
 import { AnnouncedCard } from "../ui/TicketChips";
@@ -288,15 +289,19 @@ export function Spotlights({ items, scope = "" }) {
 // there too, so phones needn't swipe for it).
 const COVERAGE_SHOWN = 4;
 export function Coverage({ apiBase, group }) {
-  const { data: theatres } = useJson(`${apiBase}/api/theatres`);
-  if (!theatres) return null;
+  const { data: every } = useJson(`${apiBase}/api/theatres`);
+  const shell = useShell();
+  if (!every) return null;
+  const home = shell?.city || DEFAULT_CITY;
+  const city = cityOf(shell?.cities, home);
+  const theatres = every.filter(t => (t.city || home) === home);             // without a club: your city's
   const picked = group?.theatres?.length ? theatres.filter(t => group.theatres.includes(t.slug)) : null;
   const rest = picked ? picked.length - COVERAGE_SHOWN : 0;
   const items = picked ? [
     { key: "n", icon: "🎭", label: `The club's ${picked.length} theatre${picked.length === 1 ? "" : "s"}`, gold: true, to: "/theatres" },
     ...picked.slice(0, COVERAGE_SHOWN).map(t => ({ key: t.slug, node: <TheatreLink theatre={t} short /> })),
     rest > 0 && { key: "rest", label: `+${rest} more`, to: "/theatres", title: picked.slice(COVERAGE_SHOWN).map(t => t.name).join(", ") },
-  ] : [{ key: "n", icon: "🎭", label: `${group ? "All " : ""}${theatres.length} DC-area theatres`, gold: true, to: "/theatres" }];
+  ] : [{ key: "n", icon: "🎭", label: `${group ? "All " : ""}${theatres.length} ${city ? `${city.phrase} ` : ""}theatres`, gold: true, to: "/theatres" }];
   return <PageMeta className="discover-coverage" label="What Discover covers"
                    items={[...items, { key: "when", icon: "📅", label: "Next 2 weeks" },
                            { key: "all", label: "All theatres →", to: "/theatres", more: true }]} />;

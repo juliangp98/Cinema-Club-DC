@@ -9,6 +9,7 @@ import { useShell } from "../shell/AppShell";
 import { send } from "../api";
 import { SECTIONS, TOPICS, plain, rank, words } from "../help";
 import usePageMeta, { faqLd } from "../seo";
+import { SITE_NAME } from "../site";
 
 // The help guide (R11): one searchable page, a section per area of the site,
 // each a few questions with short answers — in help.json (7f), with links
@@ -43,7 +44,7 @@ export default function HelpPage({ apiBase = "" }) {
   const canAsk = !!shell.user && !shell.user.is_guest && !!shell.groupId;   // ✨ is for club members
   // Search engines: Help's questions as an FAQ (plain words, no link markup).
   usePageMeta(() => ({ title: "Help", path: "/help",
-    description: "How Cinema Club DC works: finding films, making plans with a club, alerts, Discord and more.",
+    description: `How ${SITE_NAME} works: finding films, making plans with a club, alerts, Discord and more.`,
     jsonLd: faqLd(Object.values(TOPICS).map(t => ({ q: t.q, a: plain(t.a) }))) }), []);
   const shown = useMemo(() => {
     const ws = norm(q).split(/\s+/).filter(Boolean);
@@ -112,7 +113,7 @@ export default function HelpPage({ apiBase = "" }) {
           ))}
         </section>
       ))}
-      {!q && <p className="ui-hint help-foot"><RichText text="Start a club in your city: Cinema Club DC is open source — [run your own](repo)." /></p>}
+      {!q && <p className="ui-hint help-foot"><RichText text={`Start a club in your city: ${SITE_NAME} is open source — [run your own](repo).`} /></p>}
       </div>
       </div>
     </div>

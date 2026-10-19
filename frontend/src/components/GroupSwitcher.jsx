@@ -5,8 +5,9 @@ import { UsersIcon, CompassIcon } from "../ui/icons";
 
 // The club pill in the top bar: the club's picture and name — the full name
 // on wide screens, its short name (or initials) when space is tight, only its
-// badge on phones — and a menu to switch clubs or open the club's page.
-export default function GroupSwitcher({ groups, activeGroupId, setGroupId }) {
+// badge on phones — and a menu to switch clubs or open the club's page. With
+// more than one city, the menu names the club's (its pages are that city's).
+export default function GroupSwitcher({ groups, activeGroupId, setGroupId, cityName = null }) {
   const navigate = useNavigate();
   const active = groups.find(g => g.id === activeGroupId);
 
@@ -26,7 +27,7 @@ export default function GroupSwitcher({ groups, activeGroupId, setGroupId }) {
         <span className="caret">▾</span>
       </>}
     >
-      {active && <MenuLabel>{active.name}</MenuLabel>}
+      {active && <MenuLabel>{active.name}{cityName && ` · ${cityName}`}</MenuLabel>}
       {active && <MenuItem onSelect={() => navigate("/club")}><UsersIcon /> Club page</MenuItem>}
       {groups.length > 1 && (
         <>

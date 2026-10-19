@@ -89,6 +89,15 @@ def _discord_member(discord_id, group_id):
     return user if user and user.is_active and on_discord(user, group_id) else None
 
 
+def request_scope():
+    """What a bot request is about: its club (?group_id), or — in a server
+    that isn't connected — the city it names (?city=), as a places.CityScope."""
+    import places
+    group_id = request.args.get('group_id', type=int)
+    group = db.session.get(Group, group_id) if group_id else None
+    return group if group else places.scope(None, None, request.args.get('city'))
+
+
 def request_group():
     """The club a bot request is for (its group_id; the home club if none)."""
     body = request.get_json(silent=True) if request.method != 'GET' else None

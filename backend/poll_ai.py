@@ -13,7 +13,10 @@ drafts likely contenders and says so in `notes`.
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+import cities
+import places
 
 MAX_CATEGORIES = 25
 MAX_OPTIONS = 15
@@ -22,7 +25,7 @@ WINDOW_DAYS = 45
 
 SCOPES = ('playing', 'all')
 
-SYSTEM = """You draft polls for a film club's website (Washington, DC). Reply with ONE JSON object and nothing else:
+SYSTEM = """You draft polls for a film club's website ({city}). Reply with ONE JSON object and nothing else:
 {"title": str, "description": str, "poll_type": "standard" | "prediction", "scoring_mode": "none" | "single" | "ranked" | "confidence",
  "categories": [{"title": str, "options": [str, ...]}], "notes": str}
 
@@ -53,7 +56,7 @@ def playing_films(group, prompt, now=None):
     """[(Film, line)] for the prompt: films that fit the ask first (Discover's
     own reading of it), then the club's most wanted and rarest."""
     import discover
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     start, end = now, now + timedelta(days=WINDOW_DAYS)
     films = discover.catalog(group, start, end)
     if not films:
@@ -186,7 +189,7 @@ def draft(group, prompt, now=None, scope='playing'):
     """Draft a poll for `prompt`, based on local showings ("playing") or films
     in general ("all"). Raises ai.RateLimited, ai.Unavailable or DraftError."""
     import ai
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     scope = scope if scope in SCOPES else 'playing'
     today = f"Today is {now.strftime('%A, %B %-d, %Y')}. Club: {group.name}.\n"
     if scope == 'playing':
@@ -196,7 +199,8 @@ def draft(group, prompt, now=None, scope='playing'):
     else:
         playing = []
         user = f"{today}Request: {prompt}"
-    messages = [{'role': 'system', 'content': SYSTEM.replace('{scope_rule}', SCOPE_RULES[scope])},
+    city = cities.get(places.club_city(group))
+    messages = [{'role': 'system', 'content': SYSTEM.replace('{scope_rule}', SCOPE_RULES[scope]).replace('{city}', city.name)},
                 {'role': 'user', 'content': user}]
     data = _parse(ai.chat(messages, max_tokens=2000, json_mode=True))
     if scope == 'all':

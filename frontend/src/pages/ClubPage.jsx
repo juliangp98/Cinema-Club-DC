@@ -49,7 +49,7 @@ export default function ClubPage({ user, apiBase }) {
 
   if (!group) {
     return (
-      <div className="page narrow">
+      <div className="page">
         <p className="pv-empty">You're not in a club yet. <Link to="/groups">Find or start one →</Link></p>
       </div>
     );

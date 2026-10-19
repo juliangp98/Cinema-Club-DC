@@ -15,7 +15,7 @@ keep watchlists, check in after screenings, and earn 🍿 kernels.
 | Page | What it does |
 |---|---|
 | **Discover** (home) | Shelves of what's worth seeing — rare screenings and 35/70mm prints, last chances, openings, **For you** (from Your taste), double features, spotlights — plus one search bar (✨ describes what you want in words, for club members) and *Surprise me*. |
-| **Browse** | Every film in a time window with filters: theatres and regions, genres, decade, format, time of day, rarity, runtime, mood, tickets (available, sold out, coming soon). Any search can be saved as an alert. |
+| **Browse** | Every film in a time window with filters: theatres and areas, genres, decade, format, time of day, rarity, runtime, mood, tickets (available, sold out, coming soon). Any search can be saved as an alert. |
 | **Calendar** | Every showtime as an agenda, a week or a month, with the same filters. Announced films show on the day a theatre expects them. |
 | **Film** and **Theatre** pages | A film's details, ratings, trailer and every showing; a theatre's map, what's on this week, and members' notes. |
 | **Feed** | The club's activity: who's going where, check-ins (with Letterboxd ratings if shared), discussion, polls, weekly recaps, and the Monday digest of the week ahead (a club setting). |
@@ -39,6 +39,10 @@ Around the pages:
   viewings, and show your ratings; bring in your watchlist from Letterboxd's export (its films join
   your watchlist as theatres book them).
 - **Calendar feeds** — your plans (or your club's) in Google, Apple or Outlook calendar.
+- **Cities** — every theatre is in a city (DC for now) and an area of it; a showtime is on its city's
+  clock. Adding Chicago or New York is a city entry and its scrapers: the site then shows a city menu,
+  groups theatres and clubs by city, and keeps every page, alert, digest and calendar on the right clock
+  ([docs/scrapers.md](docs/scrapers.md#adding-a-city)).
 
 ### Theatres
 
@@ -69,6 +73,7 @@ How each is read: [docs/scrapers.md](docs/scrapers.md).
 │   ├── routes/                # The site's API by area (auth, people, clubs, schedule, plans,
 │   │   │                      #   social, polls, quizzes, alerts, help, discord)
 │   │   └── internal/          # The bot's API by area (posts, schedule, threads, people, games, admin, servers)
+│   ├── cities.py, places.py   # The cities and their areas; "which theatres" and "what time is it there"
 │   ├── discover.py            # Shelves, Browse, Calendar, digest picks
 │   ├── notify.py              # Personal alerts: bell, Discord DM, email, push
 │   ├── digest.py              # The Monday digest on the site: published weekly, the Feed card

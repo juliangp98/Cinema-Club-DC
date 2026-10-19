@@ -49,13 +49,15 @@
   --card-radius: var(--radius-lg);
   --card-pad: 1rem 1.1rem;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --page-max: 1100px;  /* every page's width: .page uses it, nothing else sets one */
   --topbar-h: 58px;
   --tabbar-h: 62px;
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-padding-top: calc(var(--topbar-h) + 12px); }   /* anchors land below the pinned top bar */
+html { scroll-padding-top: calc(var(--topbar-h) + 12px);   /* anchors land below the pinned top bar */
+       overflow-y: scroll; }                               /* a scrollbar's room on every page: short ones sit where long ones do */
 html, body { min-height: 100%; background: var(--bg); color: var(--cream); font-family: var(--font-body); font-size: 15px; -webkit-font-smoothing: antialiased; }
 body { line-height: 1.45; }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
@@ -841,6 +843,8 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .clubs-section { margin-bottom: 1.75rem; }
 .group-search { margin-bottom: 0.9rem; }
 .clubs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+.clubs-city + .clubs-city { margin-top: 1.1rem; }                 /* clubs to find, a city at a time */
+.clubs-city > .ui-group-label { margin: 0 0 0.45rem; }
 .club-find-card .ui-panel-title { display: inline-flex; align-items: center; gap: 0.55rem; }
 .club-find-card.active { border-color: var(--gold-line); }
 .club-find-desc { margin: 0; color: var(--cream); font-size: var(--fs-sm); line-height: 1.5; }
@@ -1069,16 +1073,14 @@ button.feed-title:hover { color: var(--amber); }
 @media (hover: none) { .chat-delete { opacity: 1; } }
 
 /* The feed page (R10c) */
-.page.feed-full { max-width: 680px; }        /* one column: header, filters and cards line up */
 .feed-layout { display: block; }
 .games-rail { display: none; }
 .games-strip { display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; margin: 0 0 0.9rem; padding-bottom: 2px; }
 .games-strip::-webkit-scrollbar { display: none; }
 .games-strip .chip { flex: none; text-decoration: none; }
 @media (min-width: 1024px) {                  /* wide screens: the feed with a games rail beside it */
-  .page.feed-full { max-width: 1020px; }
   .feed-strip { display: none; }
-  .feed-layout { display: grid; grid-template-columns: minmax(0, 680px) 280px; gap: 1.75rem; align-items: start; }
+  .feed-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1.75rem; align-items: start; }
   .games-rail { display: block; position: sticky; top: calc(var(--topbar-h) + 5rem); }
 }
 .games-rail-inner { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -1145,7 +1147,7 @@ button.feed-title:hover { color: var(--amber); }
 .play-board li.me .play-board-name { color: var(--amber); }
 .play-board-name { flex: 1; }
 .club-games { margin: 0 0 1rem; }
-.feed-full .feed-main { padding-left: 0; padding-right: 0; }
+.feed-full .feed-main { max-width: none; padding-left: 0; padding-right: 0; }   /* the Feed page: cards fill its column */
 .feed-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
 .feed-divider {
   display: flex; align-items: center; gap: 0.75rem; margin: 0.25rem 0 0.75rem;

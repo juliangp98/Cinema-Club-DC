@@ -4,8 +4,10 @@ import Avatar, { ClubBadge, initialsOf } from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
 import { getJson, send } from "../api";
-import ToggleChip from "../ui/ToggleChip";
 import Panel from "../ui/Panel";
+import TheatrePicker from "../ui/TheatrePicker";
+import { useShell } from "../shell/AppShell";
+import { DEFAULT_CITY } from "../places";
 import { NEVER_ALWAYS, POST_MODES, Segmented } from "../ui/TicketRow";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow, useSaveStatus } from "../ui/Settings";
 import ClubDiscord from "./ClubDiscord";
@@ -35,6 +37,7 @@ const SECTIONS = [
 
 export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true, onChanged, onDeleted }) {
   const base = `${apiBase}/api/groups/${group.slug}`;
+  const shell = useShell();
   const [name, setName] = useState(group.name || "");
   const [description, setDescription] = useState(group.description || "");
   const [shortName, setShortName] = useState(group.short_name || "");
@@ -98,7 +101,10 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
   };
   const announce = (slug, on) => run(() => update({ announce_theatres: on ? [...announced, slug] : [...announced].filter(x => x !== slug) }));
   const discord = !!group.discord;
-  const postRow = (label, hint, field, value, options = POST_MODES) => discord && (
+  const cities = shell?.cities || [];
+  const multiCity = !!shell?.multiCity;
+  const homeCity = group.city || shell?.city || DEFAULT_CITY;
+  const postRow =(label, hint, field, value, options = POST_MODES) => discord && (
     <SettingRow stack label={label} hint={hint}>
       <Segmented label={label} options={options} value={value || "never"} onChange={v => v && run(() => update({ [field]: v }))} />
     </SettingRow>
@@ -213,14 +219,16 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                        hint={`Mondays at 10 AM, the week's picks from these theatres: a card in the Feed and a note in members' bells${
                          discord ? ", and a post in the club's Discord channel" : ""}. Members choose where else they hear about it.`} />
           </div>
+          {multiCity && isAdmin && (
+            <SettingRow stack label="Home city" id="club-settings-city"
+                        hint="Its clock (the digest, trivia, the week) and the theatres it shows first. Theatres it follows elsewhere stay.">
+              <Segmented label="Home city" value={homeCity} onChange={v => v && run(() => update({ city: v }))}
+                         options={cities.map(c => ({ status: c.slug, label: c.short }))} />
+            </SettingRow>
+          )}
           {allTheatres.length > 0 && (
-            <div className="club-chips" role="group" aria-label="Followed theatres">
-              {allTheatres.map(t => (
-                <ToggleChip key={t.slug} on={theatres.has(t.slug)} color={t.color} onClick={() => toggleTheatre(t.slug)}>
-                  {t.short_name || t.name}
-                </ToggleChip>
-              ))}
-            </div>
+            <TheatrePicker theatres={allTheatres} home={homeCity} cities={cities} label="Followed theatres"
+                           isOn={slug => theatres.has(slug)} onToggle={toggleTheatre} />
           )}
           {discord && followed.length > 0 && (
             <SettingsGroup title="New showtimes in Discord">

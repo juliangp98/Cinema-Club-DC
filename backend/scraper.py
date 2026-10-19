@@ -5,6 +5,7 @@ Run on a cron job: 0 */6 * * * python scraper.py
 Usage:
     python scraper.py                     # scrape every enabled venue
     python scraper.py --only suns,afi     # scrape specific venues (even if disabled)
+    python scraper.py --city dc           # one city's venues (its own schedule)
     python scraper.py --list              # list registered venues
     python scraper.py --emit-test-event [slug]   # synthetic new_drop event (bot testing)
 """
@@ -60,7 +61,8 @@ def emit_test_event(slug):
         if not theatre:
             print(f"Theatre '{slug}' not found — run app.py once to seed theatres.")
             return
-        now = datetime.datetime.now()
+        import places
+        now = places.now_at(theatre)
         payload = {
             'theatre_slug': slug,
             'theatre_name': theatre.name,
@@ -86,6 +88,7 @@ def emit_test_event(slug):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Cinema Club scraper')
     parser.add_argument('--only', help='comma-separated venue slugs to scrape')
+    parser.add_argument('--city', help="one city's venues (cities.py), e.g. --city dc")
     parser.add_argument('--list', action='store_true', help='list registered venues')
     parser.add_argument('--emit-test-event', nargs='?', const='suns', metavar='SLUG',
                         help='insert a synthetic new_drop event (default slug: suns)')
@@ -94,7 +97,7 @@ if __name__ == '__main__':
     if args.list:
         for cfg in THEATRE_REGISTRY:
             state = 'enabled' if cfg.enabled else 'DISABLED'
-            print(f"  {cfg.slug:16s} {cfg.name:34s} [{state}]")
+            print(f"  {cfg.slug:16s} {cfg.name:34s} {cfg.city:10s} [{state}]")
         sys.exit(0)
 
     if args.emit_test_event:
@@ -116,6 +119,12 @@ if __name__ == '__main__':
                 print(f"Unknown venue slug: {slug}")
                 sys.exit(1)
             configs.append(cfg)
+    elif args.city:
+        import cities
+        if not cities.get(args.city):
+            print(f"Unknown city: {args.city} (cities.py has {', '.join(c.slug for c in cities.CITIES)})")
+            sys.exit(1)
+        configs = [cfg for cfg in enabled_configs() if cfg.city == args.city]
     else:
         configs = enabled_configs()
 

@@ -6,11 +6,13 @@ scheduled every 6 hours, and Suns alone every 30 minutes ([deploying.md](deployi
 ```bash
 python scraper.py                    # every enabled theatre
 python scraper.py --only suns,afi    # some (even if switched off)
-python scraper.py --list             # the registry
+python scraper.py --city dc          # one city's (each city can have its own schedule)
+python scraper.py --list             # the registry, with each theatre's city
 ```
 
 Each theatre is a `TheatreConfig` in `backend/scrapers/__init__.py` (name, address, map pin, color,
-its scrape function, whether it's enabled, and how a schedule drop is announced). One module per chain
+its city and area, whether it's an arthouse or a big screen, its scrape function, whether it's enabled,
+and how a schedule drop is announced). One module per chain
 in `backend/scrapers/` returns a list of films, each with its showtimes; `scrapers/sync.py` writes them.
 
 ## The theatres
@@ -63,10 +65,28 @@ in `backend/scrapers/` returns a list of films, each with its showtimes; `scrape
    with `finish_scrape(label, movies, error, missed_dates=…, skipped=…)` — it raises when nothing was read
    and marks a run partial when pages failed.
 2. Mark sold out wherever the site says so; leave `runtime_minutes=None` if the site doesn't give one.
-3. Add a `TheatreConfig` to the registry (start it `enabled=False` until it's checked).
-4. Save a trimmed copy of the site's page or feed in `tests/fixtures/scrapers/` (a few films, no
+3. Add a `TheatreConfig` to the registry (start it `enabled=False` until it's checked) with its `city`
+   and one of that city's `area`s (`backend/cities.py`), and `arthouse=True` or `big_screen=True` if it
+   is one (Discover's shelves use them). Its color must differ from the city's other theatres and its
+   short name from every theatre's — a test checks.
+4. Its showtimes are its city's wall-clock times, as the site shows them; the scraper needn't convert
+   anything.
+5. Save a trimmed copy of the site's page or feed in `tests/fixtures/scrapers/` (a few films, no
    personal details) and test the scraper against it in `tests/backend/test_scraper_pages.py`.
-5. Add it to the theatre lists in the README and this page.
+6. Add it to the theatre lists in the README and this page.
+
+## Adding a city
+
+1. Add a `City` to `backend/cities.py`: its slug, name, short name ("CHI"), time zone
+   (`America/Chicago`), phrase ("Chicago-area"), center, its areas — each with the words someone might
+   use for it ("the loop", "evanston") — a line for the AI search on its neighborhoods, and a few of its
+   theatres for page descriptions (`known_for`).
+2. Add its theatres as above, each with `city=` and an `area=`.
+3. Schedule its run: `python scraper.py --city <slug>` (its own Task Scheduler entry, like DC's).
+
+Nothing else changes: the moment a second city has an active theatre, the site shows the city menu, puts
+each city's theatres and clubs under its name, and keeps every page, alert, digest and calendar on the
+right city's clock. Clubs in it pick it as their home city.
 
 ## When a site changes
 

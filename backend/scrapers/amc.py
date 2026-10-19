@@ -17,6 +17,8 @@ import time
 
 import requests
 
+import places
+
 from .base import finish_scrape, show_end
 
 API_BASE = 'https://api.amctheatres.com'
@@ -42,7 +44,7 @@ def scrape_amc(theatre_id, theatre_slug):
     print(f"Scraping AMC ({theatre_slug})...")
     movies = {}
     missed = set()
-    today = datetime.date.today()
+    today = places.today_in()          # the days to ask the site for
     offset = 0
     error = None
 

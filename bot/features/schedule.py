@@ -8,8 +8,8 @@ import discord
 from discord import app_commands
 from api import ApiError
 import embeds
-from .shared import (GONE_MSG, SITE_URL, api, client, club, club_of, date_choices, discord_identity,
-                     dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_window,
+from .shared import (GONE_MSG, SITE_NAME, SITE_URL, api, city_choices, client, club, club_city, club_now, club_of, date_choices, discord_identity,
+                     dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_window, where_args,
                      parse_iso_date, register, reply_failure, resolve_window, rsvp_date_autocomplete,
                      rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, tell,
                      theatre_choices, theatre_match)
@@ -28,7 +28,7 @@ async def link(interaction: discord.Interaction, code: str):
             'discord_username': interaction.user.name,
         })
         await interaction.followup.send(
-            f"🔗 Linked! You're **{result['user']['name']}** on Cinema Club DC — anything you did "
+            f"🔗 Linked! You're **{result['user']['name']}** on {SITE_NAME} — anything you did "
             "here (RSVPs, watchlist, profile) is now part of that account.", ephemeral=True)
     except ApiError as e:
         msg = 'That code is invalid.' if e.status == 404 else \
@@ -51,21 +51,22 @@ TICKET_CHOICES = [app_commands.Choice(name=n, value=v) for v, n in (
     theatre='Optional: filter to a theatre',
     going="Only screenings members RSVP'd to (who's going)",
     tickets='Optional: tickets available, sold out, or coming soon (default: all)',
+    city="Optional: another city's showtimes (when the site has more than one)",
 )
 @app_commands.choices(tickets=TICKET_CHOICES)
 async def showtimes(interaction: discord.Interaction, days: app_commands.Range[int, 1, 30] = 7,
                     date: str = None, end: str = None, theatre: str = None, going: bool = False,
-                    tickets: app_commands.Choice[str] = None):
+                    tickets: app_commands.Choice[str] = None, city: str = None):
     await interaction.response.defer()
     start_iso, end_iso, label = resolve_window(days, date, end)
     t = tickets.value if tickets else None
     try:
         if t == 'soon':
-            soon = await api.get('/api/internal/announced', group_id=club(), theatre=theatre,
+            soon = await api.get('/api/internal/announced', **where_args(city), theatre=theatre,
                                  start=start_iso[:10], end=end_iso[:10])
             await interaction.followup.send(embed=embeds.announced_embed(soon, f"🔜 Coming soon — {label}"))
             return
-        sts = await fetch_range(start_iso, end_iso, tickets=t)
+        sts = await fetch_range(start_iso, end_iso, tickets=t, city=city)
     except Exception as e:
         await reply_failure(interaction, e, '/showtimes', ephemeral=False)
         return
@@ -80,6 +81,11 @@ async def showtimes(interaction: discord.Interaction, days: app_commands.Range[i
     empty = (f"No RSVPs yet for {label}. Be the first: `/rsvp` or {SITE_URL}/calendar" if going
              else 'Nothing on the calendar for that window.')
     await interaction.followup.send(embed=embeds.showtimes_embed(sts[:120], title, empty_text=empty))
+
+
+@showtimes.autocomplete('city')
+async def showtimes_city_autocomplete(interaction: discord.Interaction, current: str):
+    return await city_choices(current)
 
 
 @showtimes.autocomplete('theatre')
@@ -338,13 +344,17 @@ async def fetch_find_options():
     hit = _find_options_cache.get(club())
     if hit is None or time.monotonic() - hit[0] > 600:
         hit = _find_options_cache[club()] = (time.monotonic(),
-                                             await api.get('/api/internal/discover/options', group_id=club()))
+                                             await api.get('/api/internal/discover/options', group_id=club(), city=club_city()))
     return hit[1]
 
 
-def viewer_args(interaction):
-    """Who's asking, for personal touches only (never creates an account)."""
-    return {'discord_user_id': str(interaction.user.id), 'group_id': club_of(interaction)}
+def viewer_args(interaction, city=None):
+    """Who's asking, for personal touches only (never creates an account) —
+    and what about: the club, or another city it asked for (its public view)."""
+    args = {'discord_user_id': str(interaction.user.id), 'group_id': club_of(interaction), 'city': club_city()}
+    if city and city != club_city():
+        args.update(group_id=None, city=city)
+    return args
 
 
 async def type_ac(interaction, current):
@@ -395,7 +405,7 @@ class FindPickSelect(discord.ui.DynamicItem[discord.ui.Select], template=r'find:
 
 
 async def send_film_details(interaction, movie_id):
-    now = datetime.now()
+    now = club_now()
     try:
         sts = await api.get('/api/internal/showtimes', group_id=club(), movie_id=movie_id,
                             start=now.isoformat(timespec='seconds'),
@@ -471,16 +481,17 @@ def find_view(result, alert=False):
 @app_commands.describe(
     type='What kind of film: rare, one night only, arthouse, a mood, a genre… (or type your own words)',
     when='When (default: next 7 days)',
-    where='A region or theatre',
+    where='An area or theatre',
     search='Words in the title, director or cast',
     private='Show the answer only to you instead of posting it',
+    city="Optional: another city (when the site has more than one)",
 )
 @app_commands.choices(when=WHEN_CHOICES)
 async def find(interaction: discord.Interaction, type: str = None, when: app_commands.Choice[str] = None,
-               where: str = None, search: str = None, private: bool = False):
+               where: str = None, search: str = None, private: bool = False, city: str = None):
     await interaction.response.defer(ephemeral=private)
     try:
-        result = await api.get('/api/internal/discover/find', **viewer_args(interaction), type=type,
+        result = await api.get('/api/internal/discover/find', **viewer_args(interaction, city), type=type,
                                when=when.value if when else None, where=where, q=search, limit=8)
     except Exception as e:
         await reply_failure(interaction, e, '/find')
@@ -491,6 +502,11 @@ async def find(interaction: discord.Interaction, type: str = None, when: app_com
 @find.autocomplete('type')
 async def find_type_autocomplete(interaction: discord.Interaction, current: str):
     return await type_ac(interaction, current)
+
+
+@find.autocomplete('city')
+async def find_city_autocomplete(interaction: discord.Interaction, current: str):
+    return await city_choices(current)
 
 
 @find.autocomplete('where')
@@ -566,16 +582,17 @@ def surprise_view(pick, when, where_code, seen=()):
 @client.tree.command(name='surprise', description='One random pick: rare, the club’s favorites and your taste weigh in')
 @app_commands.describe(
     when='When (default: tonight; widens to the week if tonight is empty)',
-    where='A region or theatre',
+    where='An area or theatre',
     private='Show the pick only to you instead of posting it',
+    city="Optional: another city (when the site has more than one)",
 )
 @app_commands.choices(when=WHEN_CHOICES)
 async def surprise(interaction: discord.Interaction, when: app_commands.Choice[str] = None,
-                   where: str = None, private: bool = False):
+                   where: str = None, private: bool = False, city: str = None):
     await interaction.response.defer(ephemeral=private)
     w = when.value if when else 'tonight'
     try:
-        pick = await api.get('/api/internal/discover/surprise', **viewer_args(interaction), when=w, where=where)
+        pick = await api.get('/api/internal/discover/surprise', **viewer_args(interaction, city), when=w, where=where)
     except ApiError as e:
         msg = "Nothing's playing that matches — try a wider `when` or another `where`." if e.status == 404 \
             else f'Surprise failed ({e.status}).'
@@ -587,6 +604,11 @@ async def surprise(interaction: discord.Interaction, when: app_commands.Choice[s
     await interaction.followup.send(
         embed=embeds.surprise_embed(pick, w, spun_by=interaction.user.display_name),
         view=surprise_view(pick, w, _where_code(where)))
+
+
+@surprise.autocomplete('city')
+async def surprise_city_autocomplete(interaction: discord.Interaction, current: str):
+    return await city_choices(current)
 
 
 @surprise.autocomplete('where')

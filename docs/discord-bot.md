@@ -13,7 +13,7 @@ joins it to a site account later.
 ## What it does
 
 - **Slash commands** — below; `/help` lists them in Discord.
-- **The Monday digest** (10:00 ET) — who's going where, rare screenings, what each theatre added, open
+- **The Monday digest** (Mondays at 10, the club's city's time) — who's going where, rare screenings, what each theatre added, open
   polls, and members whose watchlisted films are playing (only those who said yes to being tagged). Only
   for clubs that have it on (Club settings → Theatres: on for the home club, off for new ones); the site
   publishes the same picks in the Feed and the bell at the same time. With it off, `/digest` only previews.
@@ -25,7 +25,7 @@ joins it to a site account later.
 - **Game posts** — the question of the day, bingo cards and wins, poll openings and results, as each club
   chooses (Never / Ask first, where an admin approves each by DM / Always).
 - **What members share** — RSVPs, "who's in?" invites and polls, only for members who choose to share.
-- **"Did you go?"** — after a screening someone was going to, a private DM (10 AM–9 PM, at most one a day)
+- **"Did you go?"** — after a screening someone was going to, a private DM (10 AM–9 PM their time, at most one a day)
   with Went / Didn't go. Closed DMs: it asks after their next command instead.
 - **Alerts by DM** — for members who chose Discord for their alerts (watchlist, saved searches, favorites).
 - **Chat** — `@CinemaBot what should I see this weekend?`: recommendations grounded in the club's data
@@ -38,7 +38,7 @@ joins it to a site account later.
 
 | | |
 |---|---|
-| **Find something to see** | `/showtimes` what's playing (days, a date, a theatre, tickets; `going:True` for who's going) · `/movie` a film's details and showtimes · `/foryou` picks from Your taste · `/find` a kind of film (🔔 Alert me saves the search) · `/surprise` one random pick · `/theatre` where it is, what's on, members' notes |
+| **Find something to see** | `/showtimes` what's playing (days, a date, a theatre, tickets; `going:True` for who's going; `city:` another city's) · `/movie` a film's details and showtimes · `/foryou` picks from Your taste · `/find` a kind of film (🔔 Alert me saves the search) · `/surprise` one random pick · `/theatre` where it is, what's on, members' notes |
 | **Make plans** | `/rsvp` Going / Maybe / Can't go · `/discuss` open a screening's thread · `/watch` add to, remove from or show a watchlist · `/notifications` your alerts and where they go |
 | **Play, polls & kernels** | `/play` the games hub · `/poll list` · `/poll vote` your private ballot · `/poll make` describe a poll and the AI drafts it (organizers) · `/leaderboard` |
 | **You and the club** | `/profile` yours or @someone's (history, watchlist, compare, give kernels) · `/club` the club at a glance · `/link` connect an existing site account |
@@ -46,6 +46,11 @@ joins it to a site account later.
 | **Server admins** | `/setup` connect this server to your club (with a code from Club settings), or move the bot's channel · `/llm show` / `/llm set` the AI models — the whole site's, so only in the home server (Manage Server by default; grant them to other roles in Server Settings → Integrations) |
 
 Filters depend on each other: pick a film and the date and theatre options narrow to where it's showing.
+
+**Cities:** a club is in a city, and the bot keeps its clock (the digest, game posts, dates in its
+menus). Theatre choices list the club's first; once the site has more than one city, other cities'
+theatres carry their city's name, and `/showtimes`, `/find` and `/surprise` take `city:` to look at
+another city. An unconnected server gets the site's first city.
 
 **Which club a command is for:** its server's. In a server that isn't connected yet, only `/showtimes`,
 `/movie`, `/find`, `/surprise`, `/theatre` and `/help` work (they're all public); the rest say how to

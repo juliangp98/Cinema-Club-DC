@@ -11,6 +11,8 @@ import re
 
 import requests
 
+import places
+
 from .base import PerDateFetcher, finish_scrape, with_retry
 
 API_BASE = 'https://production-api.readingcinemas.com'
@@ -88,7 +90,7 @@ def scrape_angelika(cinema_id, site_path):
         day_movies = data.get('movies', [])
         dates = [f.get('value') for f in data.get('filter', {}).get('session', [])
                  if f.get('value')]
-        today = datetime.date.today().isoformat()
+        today = places.today_in().isoformat()
 
         _ingest(by_slug, day_movies, cinema_id, site_path)
         fetcher.run([d for d in sorted(set(dates))[:MAX_DATES] if d != today], _films,

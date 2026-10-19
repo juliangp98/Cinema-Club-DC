@@ -3,6 +3,7 @@
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import taste
+import places
 from app import (Attendance, CINEMA_EMOJIS, ClubDigest, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
@@ -87,19 +88,19 @@ FEED_TYPES = {                 # ?type= on the feed page
 }
 
 
-def _local_to_utc(dt):
-    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+def _local_to_utc(dt, city):
+    return places.to_utc(dt, city)
 
 
-def _recap_skeletons(events, since):
+def _recap_skeletons(events, since, city):
     """One "last week in the club" card each Monday (R10c), placed at Monday
-    midnight and holding that week's events — only for weeks with any."""
-    today = datetime.now().date()
+    midnight (the club's city's) and holding that week's events — only for weeks with any."""
+    today = places.today_in(city)
     monday = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
     out = []
     for weeks_back in range(FEED_DAYS // 7 + 1):
         end = monday - timedelta(days=7 * weeks_back)
-        start_utc, end_utc = _local_to_utc(end - timedelta(days=7)), _local_to_utc(end)
+        start_utc, end_utc = _local_to_utc(end - timedelta(days=7), city), _local_to_utc(end, city)
         if end_utc < since:
             break
         week = [e for e in events if start_utc <= e[2] < end_utc]
@@ -125,7 +126,7 @@ def feed_skeletons(group_id, kind=None):
     for c in cards.values():
         c['events'].sort(key=lambda e: e[2], reverse=True)
         c['at'] = c['events'][0][2]
-    out = list(cards.values()) + _recap_skeletons(events, since) + _digest_skeletons(group_id, since)
+    out = list(cards.values()) + _recap_skeletons(events, since, places.club_city(db.session.get(Group, group_id))) + _digest_skeletons(group_id, since)
     if kind in FEED_TYPES:
         out = [c for c in out if FEED_TYPES[kind](c)]
     return sorted(out, key=lambda c: (c['at'], c['key']), reverse=True), member_ids
@@ -401,7 +402,7 @@ def club_week():
     err = require_group_member(group_id)
     if err:
         return err
-    viewer, now = current_user(), datetime.now()
+    viewer, now = current_user(), places.club_now(db.session.get(Group, group_id))
     rows = (db.session.query(RSVP, Showtime).join(Showtime, RSVP.showtime_id == Showtime.id)
             .filter(RSVP.group_id == group_id, RSVP.status == 'going',
                     Showtime.start_time >= now, Showtime.start_time <= now + timedelta(days=7)).all())

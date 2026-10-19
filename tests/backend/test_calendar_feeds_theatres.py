@@ -71,7 +71,7 @@ def test_your_feed_is_a_proper_calendar_file(feeds):
     assert r.status_code == 200 and r.mimetype == 'text/calendar' and body.startswith('BEGIN:VCALENDAR')   # no sign-in
     assert '\r\n' in body and all(len(line.encode()) <= 75 for line in body.split('\r\n'))   # CRLF, folded at 75 octets
     unfolded = body.replace('\r\n ', '')
-    assert 'DTSTART;TZID=America/New_York:' in unfolded and 'BEGIN:VTIMEZONE' in unfolded
+    assert re.search(r'DTSTART:\d{8}T\d{6}Z', unfolded)                                  # UTC, from the theatre's city
     assert 'LOCATION:AFI Silver Theatre\\, 8633 Colesville Rd\\, Silver Spring' in unfolded              # escaped
 
 
@@ -105,18 +105,18 @@ def test_links_can_be_turned_off(feeds):
 
 def test_one_screening_downloads_the_same_way(feeds):
     one = client().get(f"/api/showtimes/{feeds['go']}/ical")
-    assert one.status_code == 200 and 'TZID=America/New_York' in one.get_data(as_text=True)
+    assert one.status_code == 200 and re.search(r'DTSTART:\d{8}T\d{6}Z', one.get_data(as_text=True))
     assert 'GOING FILM.ics' in one.headers['Content-Disposition']
 
 
 def test_theatre_pages(feeds):
     t = client().get('/api/theatres/afi').json
-    assert t['name'] == 'AFI Silver Theatre' and t['region'] == 'Maryland' and t['films'] >= 3 and t['next']
+    assert t['name'] == 'AFI Silver Theatre' and t['area_label'] == 'Maryland' and t['city'] == 'dc' and t['films'] >= 3 and t['next']
     assert abs(t['lat'] - 38.9966) < 0.01 and abs(t['lon'] + 77.0272) < 0.01
     assert client().get('/api/theatres/nope').status_code == 404
     assert client().get('/api/theatres/amc-hoffman').status_code == 404              # closed
     overview = client().get('/api/theatres-overview').json
-    assert len(overview) >= 10 and all('films' in x and 'region' in x for x in overview)
+    assert len(overview) >= 10 and all('films' in x and x['area_label'] and x['city'] == 'dc' for x in overview)
     assert not any(x['slug'] == 'amc-hoffman' for x in overview)
     og = client().get('/api/og/theatres/afi').get_data(as_text=True)
     assert 'og:title" content="AFI Silver Theatre"' in og and '/theatres/afi' in og

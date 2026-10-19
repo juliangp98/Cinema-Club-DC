@@ -31,7 +31,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
 
   if (!groupId) {
     return (
-      <div className="page narrow">
+      <div className="page">
         <PageHeader title="Play" />
         <p className="pv-empty">Trivia, bingo and polls happen in a club. <Link to="/groups">Find or start a club</Link> to play.</p>
       </div>

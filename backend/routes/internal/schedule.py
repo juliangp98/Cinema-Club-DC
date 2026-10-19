@@ -3,13 +3,15 @@ watchlists, saved searches, account linking and the weekly digest.
 """
 import app as core
 import html as _html
+import cities
+import places
 import taste
-from app import (DIGEST_CAPS, FRONTEND_URL, Group, Message, Movie, PLAN_MIN_WATCHERS, Poll, Showtime,
-    ShowtimeThread, Theatre, User, Watchlist, _as_int, _group_showtime_query, _utcnow_naive, app, apply_rsvp,
+from app import (DIGEST_CAPS, FRONTEND_URL, Message, Movie, PLAN_MIN_WATCHERS, Poll, Showtime, ShowtimeThread,
+    Theatre, User, Watchlist, _as_int, _group_showtime_query, _utcnow_naive, app, apply_rsvp,
     attended_showtime_ids, datetime, db, jsonify, merge_users, movie_for_tmdb, on_discord, poll_scores,
     present_user_ids, public_showtimes, request, require_role, share_prefs, split_present, timedelta,
     tmdb_matches, watch_shared)
-from routes.internal.common import _discord_member, request_group, require_internal, resolve_discord_user
+from routes.internal.common import _discord_member, request_group, request_scope, require_internal, resolve_discord_user
 
 
 @app.route('/api/internal/films/find')
@@ -38,7 +40,7 @@ def internal_films_find():
 @require_internal
 def internal_showtimes():
     group_id = request.args.get('group_id', type=int)
-    group = db.session.get(Group, group_id) if group_id else None
+    group = request_scope()
     q = _group_showtime_query(group)
 
     start_str = request.args.get('start')
@@ -85,8 +87,7 @@ def for_discord(d, group_id):
 def _internal_discover_args():
     discord_id = str(request.args.get('discord_user_id') or '').strip()
     viewer = User.query.filter_by(discord_user_id=discord_id, is_active=True).first() if discord_id.isdigit() else None
-    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
-    return viewer, group
+    return viewer, request_scope()
 
 
 @app.route('/api/internal/discover/options')
@@ -94,10 +95,9 @@ def _internal_discover_args():
 def internal_discover_options():
     import discover
     _, group = _internal_discover_args()
-    if not group:
-        return jsonify({'error': 'group not found'}), 404
     return jsonify({'types': discover.find_types(group),
-                    'regions': [{'value': f'region:{k}', 'label': v} for k, v in discover.REGION_KEYS.items()]})
+                    'regions': [{'value': f'region:{k}', 'label': v}
+                                for k, v in cities.area_keys(places.club_city(group)).items()]})
 
 
 @app.route('/api/internal/discover/find')
@@ -130,7 +130,7 @@ def internal_foryou():
     user, err = resolve_discord_user(request.args)
     if err:
         return err
-    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    group = request_scope()
     params = {'shelf': 'for-you', 'when': '2weeks'}
     result = discover.browse(group, user, params, limit=max(1, min(request.args.get('limit', 6, type=int), 10)))
     return jsonify({'films': result['films'], 'total': result['total'], 'taste_set': taste.is_set(user),
@@ -142,12 +142,10 @@ def internal_foryou():
 def internal_discover_surprise():
     import discover
     viewer, group = _internal_discover_args()
-    if not group:
-        return jsonify({'error': 'group not found'}), 404
     a = request.args
     params = discover.find_params(where=a.get('where'))
     theatres = {x for x in params.get('theatres', '').split(',') if x} | \
-        {s for s, r in discover.REGIONS.items() if r.lower() in params.get('regions', '').split(',')}
+        places.area_slugs(params.get('regions', '').split(','))
     exclude = [_as_int(x) for x in (a.get('exclude') or '').split(',') if _as_int(x)]
     when = a.get('when') if a.get('when') in discover.WHEN else 'tonight'
     pick = discover.surprise(group, viewer, when, exclude, theatres=theatres or None)
@@ -157,16 +155,15 @@ def internal_discover_surprise():
 @app.route('/api/internal/theatres')
 @require_internal
 def internal_theatres():
-    """Active theatres for the bot's theatre autocomplete. Scoped to a group's
-    theatre list when a group_id is given (all active theatres otherwise)."""
-    group_id = request.args.get('group_id', type=int)
-    group = db.session.get(Group, group_id) if group_id else None
-    theatres = Theatre.query.filter(Theatre.is_active.isnot(False)).order_by(Theatre.name).all()
-    if group:
-        slugs = [t.strip() for t in (group.theatres or '').split(',') if t.strip()]
-        if slugs:
-            theatres = [t for t in theatres if t.slug in slugs]
-    return jsonify([t.to_dict() for t in theatres])
+    """Active theatres for the bot's theatre autocomplete: the club's (or, no
+    club, the city's) first, then every other active theatre — each says its
+    city, so the bot can label other cities' when there's more than one."""
+    group = request_scope()
+    mine = places.club_slugs(group)
+    theatres = places.theatres_in()
+    ordered = [t for t in theatres if t.slug in mine] + [t for t in theatres if t.slug not in mine]
+    return jsonify({'theatres': [{**t.to_dict(), 'yours': t.slug in mine} for t in ordered],
+                    'multi': places.multi_city(), 'city': places.club_city(group)})
 
 
 @app.route('/api/internal/announced')
@@ -176,7 +173,7 @@ def internal_announced():
     tickets aren't on sale yet, in a window (start/end, YYYY-MM-DD), at the
     club's theatres or one (`theatre`, a slug)."""
     import discover
-    group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
+    group = request_scope()
     a = request.args
     params = {'tickets': 'soon', 'theatres': a.get('theatre'), 'from': a.get('start'), 'to': a.get('end')}
     return jsonify(discover.announced_matching(group, params))
@@ -197,10 +194,11 @@ def internal_theatre():
     week = discover.browse(group, viewer, {'theatres': t.slug, 'when': 'week', 'sort': 'soonest'}, limit=8)
     mine = (discover.browse(group, viewer, {'theatres': t.slug, 'when': '2weeks', 'shelf': 'for-you'}, limit=3)['films']
             if viewer and taste.is_set(viewer) else [])
-    month = Showtime.query.filter(Showtime.theatre_id == t.id, Showtime.start_time >= datetime.now(),
-                                  Showtime.start_time <= datetime.now() + timedelta(days=30),
+    now = places.now_at(t)
+    month = Showtime.query.filter(Showtime.theatre_id == t.id, Showtime.start_time >= now,
+                                  Showtime.start_time <= now + timedelta(days=30),
                                   Showtime.is_cancelled.isnot(True))
-    return jsonify({**t.to_dict(), 'region': discover.REGIONS.get(t.slug),
+    return jsonify({**t.to_dict(),
                     'films_month': month.with_entities(db.func.count(db.distinct(Showtime.movie_id))).scalar() or 0,
                     'week': week['films'], 'week_total': week['total'], 'announced': week.get('announced') or [],
                     'for_you': mine, 'notes': notes.theatre(group, t.id),
@@ -214,9 +212,8 @@ def internal_showtime_facets():
     powering dependent autocompletes (pick a movie -> only its dates/theatres).
     Computed with DISTINCT so it's complete and cheap regardless of volume.
     Optional filters: q (movie title), theatre (slug), start/end (ISO)."""
-    group_id = request.args.get('group_id', type=int)
-    group = db.session.get(Group, group_id) if group_id else None
-    now = datetime.now()
+    group = request_scope()
+    now = places.club_now(group)
     q = _group_showtime_query(group)
 
     start = request.args.get('start')
@@ -297,10 +294,9 @@ def internal_digest():
       open_polls, recap (last week), new_on_calendar (schedule-drop counts per theatre)."""
     import digest
     import discover
-    group_id = request.args.get('group_id', type=int)
     days = request.args.get('days', 7, type=int)
-    group = db.session.get(Group, group_id) if group_id else None
-    now = datetime.now()
+    group = request_scope()
+    now = places.club_now(group)
     digest.publish_due()                 # the site's copy (Feed, bell) goes out with the bot's
     _showtime_brief = digest.showtime_brief
 
@@ -397,12 +393,8 @@ def internal_digest_delivered():
     for user, movies in by_user.values():
         items = ''.join(f'<li><strong>{_html.escape(m.title)}</strong></li>' for m in movies)
         core.send_email(user.email, 'Your watchlist is playing this week',
-            f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-            <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-            <p>Films on your watchlist are showing this week:</p><ul>{items}</ul>
-            <p><a href="{FRONTEND_URL}" style="display:inline-block;padding:12px 24px;background:#e8a838;
-            color:#0d0c09;text-decoration:none;border-radius:6px;font-weight:bold;">See showtimes</a></p>
-            </div>""")
+            core.email_page(f"""<p>Films on your watchlist are showing this week:</p><ul>{items}</ul>
+            {core.email_button(FRONTEND_URL, 'See showtimes')}"""))
     return jsonify({'marked': len(ids), 'emailed': len(by_user)})
 
 
@@ -545,16 +537,16 @@ def internal_watchlist():
     end = request.args.get('end')
     start_dt = datetime.fromisoformat(start) if start else None
     end_dt = datetime.fromisoformat(end) if end else None
-    now = datetime.now()
+    in_cities = places.user_cities(target)          # their cities' showings only
 
     items = []
     for w in Watchlist.query.filter_by(user_id=target.id).all():
         if not w.movie:
             continue
-        q = (Showtime.query
-             .filter(Showtime.movie_id == w.movie_id,
-                     Showtime.is_cancelled.isnot(True))
-             .filter(Showtime.start_time > (start_dt or now)))
+        q = (Showtime.query.join(Theatre, Showtime.theatre_id == Theatre.id)
+             .filter(Showtime.movie_id == w.movie_id, Theatre.city.in_(in_cities),
+                     Showtime.is_cancelled.isnot(True)))
+        q = q.filter(Showtime.start_time > start_dt) if start_dt else places.upcoming(q)
         if end_dt:
             q = q.filter(Showtime.start_time <= end_dt)
         next_st = q.order_by(Showtime.start_time).first()

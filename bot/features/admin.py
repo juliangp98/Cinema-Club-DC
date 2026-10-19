@@ -5,7 +5,7 @@ whole site's, so other clubs' servers can't change it).
 import discord
 from discord import app_commands
 import llm
-from .shared import api, client, is_home_guild
+from .shared import SITE_NAME, api, client, is_home_guild
 
 
 # ─── /llm (server admins) ────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ llm_admin = app_commands.Group(
     name='llm', description="The chatbot's AI models (server admins)",
     default_permissions=discord.Permissions(manage_guild=True), guild_only=True)
 
-HOME_ONLY_MSG = "The AI models are the whole site's — they're changed from the Cinema Club DC server."
+HOME_ONLY_MSG = f"The AI models are the whole site's — they're changed from the {SITE_NAME} server."
 
 
 async def home_only(interaction):

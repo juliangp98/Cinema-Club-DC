@@ -49,10 +49,11 @@ test("Discover: the club's theatres, one tap each, then the rest and every theat
 
 test("Discover: a club on every theatre, and visitors", async () => {
   mockApi({ "GET /api/theatres": THEATRES });
-  const { unmount } = renderPage(<Coverage apiBase="" group={{ theatres: [] }} />);
+  const shell = { city: "dc", cities: [{ slug: "dc", name: "Washington, DC", short: "DC", phrase: "DC-area", areas: [] }] };
+  const { unmount } = renderPage(<Coverage apiBase="" group={{ theatres: [] }} />, { shell });
   expect(await screen.findByRole("link", { name: /All 7 DC-area theatres/ })).toHaveAttribute("href", "/theatres");
   unmount();
-  renderPage(<Coverage apiBase="" group={null} />);
+  renderPage(<Coverage apiBase="" group={null} />, { shell });
   expect(await screen.findByRole("link", { name: /^7 DC-area theatres/ })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "All theatres →" })).toBeInTheDocument();
 });

@@ -68,8 +68,8 @@ def test_only_the_warm_up_forces_a_rebuild():
 def test_the_warm_up_covers_the_pages_the_site_opens(history):
     import app as A
     day = history['day']
-    urls = A._warm_urls(history['now'].date())
-    assert urls[0] == '/api/discover'
+    urls = A._warm_urls('dc', history['now'].date())
+    assert urls[0] == '/api/discover?city=dc' and all('city=dc' in u for u in urls)      # what the site asks for
     assert any('calendar' in u and f'to={day(6)}' in u for u in urls) and any(f'to={day(13)}' in u for u in urls)
     for u in urls:
         assert client().get(u, headers={**H, 'X-Warm': '1'}).status_code == 200, u

@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#1f070c" />
     <link rel="icon" href="/pwa-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>Cinema Club DC — repertory and independent film in DC</title>
+    <title>%SITE_NAME% — repertory and independent film in DC</title>
     <meta name="description" content="Every screening at the DC area's independent and repertory theatres — AFI, Suns, Alamo, the Smithsonian and more — film prints, Q&amp;As and one-night-only shows, in one place." />
-    <meta property="og:site_name" content="Cinema Club DC" />
+    <meta property="og:site_name" content="%SITE_NAME%" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cinema Club DC" />
+    <meta property="og:title" content="%SITE_NAME%" />
     <meta property="og:description" content="Every screening at the DC area's independent and repertory theatres, in one place." />
     <meta property="og:image" content="/pwa-512.png" />
   </head>
@@ -27,7 +27,7 @@
           shown = true;
           var root = document.getElementById('root');
           root.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:2rem;text-align:center;background:#1f070c;color:#f3e7d3;font-family:system-ui,sans-serif">'
-            + '<strong style="color:#dcb15c;font-size:1.4rem">Cinema Club DC</strong>'
+            + '<strong style="color:#dcb15c;font-size:1.4rem">%SITE_NAME%</strong>'
             + '<p style="max-width:28rem;margin:0">The site didn\'t finish loading. This usually fixes it:</p>'
             + '<button id="boot-reload" style="padding:.6rem 1.4rem;border-radius:999px;border:0;background:#dcb15c;color:#1f070c;font-weight:700;cursor:pointer">Reload</button></div>';
           document.getElementById('boot-reload').onclick = function () {

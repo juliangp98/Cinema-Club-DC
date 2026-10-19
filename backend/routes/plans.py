@@ -4,9 +4,9 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import app as core
 import taste
-from app import (Movie, RSVP, Showtime, Watchlist, _active_membership, _as_int, _profile_target,
-    _screening_item, _with_attendance, app, apply_rsvp, can_share, current_user, discord_clubs, datetime, db, history_items,
-    jsonify, pending_attendance, public_showtimes, queue_rsvp_share, request, require_auth, require_role,
+from app import (Movie, RSVP, Watchlist, _active_membership, _as_int, _profile_target, _screening_item,
+    _with_attendance, app, apply_rsvp, can_share, current_user, db, discord_clubs, history_items, jsonify,
+    next_showings, pending_attendance, public_showtimes, queue_rsvp_share, request, require_auth, require_role,
     set_attendance, set_share_pref, share_prefs, watch_shared)
 
 
@@ -143,15 +143,13 @@ def watchlist_discord(movie_id):
 @app.route('/api/watchlist')
 @require_auth
 def get_watchlist():
+    import places
     user = current_user()
-    now = datetime.now()
+    rows = Watchlist.query.filter_by(user_id=user.id).all()
+    nexts = next_showings({w.movie_id for w in rows}, places.user_cities(user))    # in your cities
     items = []
-    for w in Watchlist.query.filter_by(user_id=user.id).all():
-        next_st = (Showtime.query
-                   .filter(Showtime.movie_id == w.movie_id,
-                           Showtime.start_time > now,
-                           Showtime.is_cancelled.isnot(True))
-                   .order_by(Showtime.start_time).first())
+    for w in rows:
+        next_st = nexts.get(w.movie_id)
         items.append({
             'movie': w.movie.to_dict() if w.movie else None,
             'added_at': w.created_at.isoformat() if w.created_at else None,

@@ -16,10 +16,21 @@ const head = () => ({
   ld: document.head.querySelector("#page-ld")?.textContent,
 });
 
-test("DC times carry DC's offset, summer and winter", async () => {
-  const { withDcOffset } = await import("../src/seo");
-  expect(withDcOffset("2026-07-04T21:00:00")).toBe("2026-07-04T21:00:00-04:00");
-  expect(withDcOffset("2026-12-24T19:00:00")).toBe("2026-12-24T19:00:00-05:00");
+test("screenings carry their city's offset (the server's starts_at)", async () => {
+  const { filmLd } = await import("../src/seo");
+  const ld = filmLd({ title: "X" }, [{ start_time: "2026-12-24T19:00:00", starts_at: "2026-12-24T19:00:00-06:00",
+                                       theatre: { name: "Testville House" } }]);
+  expect(ld["@graph"][1].startDate).toBe("2026-12-24T19:00:00-06:00");
+});
+
+test("the words follow the viewer's city", async () => {
+  const { setSeoCity } = await import("../src/seo");
+  setSeoCity({ short: "Testville", phrase: "Testville-area", known_for: "" });
+  setPageMeta(routeMeta("/calendar"));
+  expect(head().description).toMatch(/^Every showtime at Testville-area repertory/);
+  setPageMeta(routeMeta("/"));
+  expect(head().title).toBe("Cinema Club DC — repertory and independent film in Testville");
+  setSeoCity({ short: "DC", phrase: "DC-area", known_for: "AFI, Suns, Alamo, the Smithsonian and more" });
 });
 
 test("each address: its title, and noindex for private pages and filtered Browse", () => {
@@ -38,7 +49,7 @@ test("each address: its title, and noindex for private pages and filtered Browse
 });
 
 test("a film page: its title, description and screenings as structured data — no one's name", async () => {
-  const showing = { id: 7, start_time: "2026-10-24T19:30:00", format_label: "35mm", is_sold_out: false, purchase_link: "https://afi.test/t/7",
+  const showing = { id: 7, start_time: "2026-10-24T19:30:00", starts_at: "2026-10-24T19:30:00-04:00", format_label: "35mm", is_sold_out: false, purchase_link: "https://afi.test/t/7",
                     theatre: { slug: "afi", name: "AFI Silver Theatre", short_name: "AFI", address: "8633 Colesville Rd" },
                     attendees: [{ id: 3, name: "Secret Sam" }] };
   mockApi({ "GET /api/films/12": { movie: { id: 12, title: "VERTIGO", release_year: "1958", director: "Alfred Hitchcock",
@@ -48,10 +59,10 @@ test("a film page: its title, description and screenings as structured data — 
   await screen.findByRole("heading", { name: "VERTIGO" });
   const h = head();
   expect(h.title).toBe("VERTIGO (1958) · Cinema Club DC");
-  expect(h.description).toContain("showtimes in DC at AFI");
+  expect(h.description).toContain("showtimes at AFI");
   const ld = JSON.parse(h.ld);
   const event = ld["@graph"].find(x => x["@type"] === "ScreeningEvent");
-  expect(event).toMatchObject({ startDate: "2026-10-24T19:30:00-04:00", videoFormat: "35mm",           // DC time, EDT
+  expect(event).toMatchObject({ startDate: "2026-10-24T19:30:00-04:00", videoFormat: "35mm",           // its city's offset (the server's starts_at)
                                 location: { "@type": "MovieTheater", name: "AFI Silver Theatre" } });
   expect(event.offers.url).toBe("https://afi.test/t/7");
   expect(h.ld).not.toContain("Secret Sam");

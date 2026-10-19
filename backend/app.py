@@ -17,6 +17,8 @@ from functools import wraps
 from dotenv import load_dotenv
 import sys as _sys
 
+import places
+
 # Run directly (`python app.py`) this module is __main__; let `import app`
 # (discover.py, the scrapers) find it instead of loading a second copy with
 # its own database connection. Under gunicorn (`app:app`) it's already `app`.
@@ -63,6 +65,16 @@ CINEMA_EMOJIS = [
 ]
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# The site's name, everywhere it's said (pages, emails, calendars, the bot).
+SITE_NAME = os.environ.get('SITE_NAME', 'Cinema Club DC')
+
+
+def site_pitch():
+    """One line about the site — naming the city while there's only one."""
+    import places
+    active = places.active_cities()
+    where = f"{active[0].short}'s" if len(active) == 1 else 'Your city\'s'
+    return f"{where} repertory and new-release screenings, together."
 # Web push (R8d): a key pair made once with `python vapid_keys.py`. Without
 # it, push simply isn't offered.
 VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
@@ -98,7 +110,7 @@ def send_email(to, subject, html_body):
 
     try:
         msg = MIMEMultipart('alternative')
-        msg['From'] = f"Cinema Club DC <{SMTP_EMAIL}>"
+        msg['From'] = f"{SITE_NAME} <{SMTP_EMAIL}>"
         msg['To'] = to
         msg['Subject'] = subject
         msg.attach(MIMEText(html_body, 'html'))
@@ -111,23 +123,31 @@ def send_email(to, subject, html_body):
         print(f"⚠️  Email failed to {to}: {e}")
 
 
+def email_page(body):
+    """Every email's HTML: the site's name at the top, then `body` (HTML)."""
+    import html
+    return (f'<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">'
+            f'<h2 style="color:#e8a838;">🎬 {html.escape(SITE_NAME)}</h2>{body}</div>')
+
+
+def email_button(href, label):
+    """The gold button emails link with."""
+    return (f'<p><a href="{href}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;'
+            f'text-decoration:none;border-radius:6px;font-weight:bold;">{label}</a></p>')
+
+
 def email_signin_link(to_email, link_url, purpose):
     if purpose == 'signup':
-        subject, intro, button = ('Confirm your Cinema Club DC account',
+        subject, intro, button = (f'Confirm your {SITE_NAME} account',
                                   'Confirm your email to finish creating your account.',
                                   'Confirm &amp; Sign In')
     else:
-        subject, intro, button = ('Your Cinema Club DC sign-in link',
+        subject, intro, button = (f'Your {SITE_NAME} sign-in link',
                                   'Use this link to sign in.', 'Sign In')
-    send_email(to_email, subject,
-        f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
-        <h2 style="color:#e8a838;">🎬 Cinema Club DC</h2>
-        <p>{intro} It works once and expires in 15 minutes.</p>
-        <p><a href="{link_url}" style="display:inline-block;padding:12px 24px;background:#e8a838;color:#0d0c09;
-        text-decoration:none;border-radius:6px;font-weight:bold;">{button}</a></p>
+    send_email(to_email, subject, email_page(
+        f"""<p>{intro} It works once and expires in 15 minutes.</p>{email_button(link_url, button)}
         <p style="color:#888;font-size:13px;">If you didn't ask for this, you can ignore this email —
-        nobody can sign in without this link.</p>
-        </div>""")
+        nobody can sign in without this link.</p>"""))
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, ClubDigest, DiscordDeletion, DiscordPost,
@@ -186,7 +206,7 @@ def _session_upkeep():
         session['seen'] = now
     if session.get('guest') and now - session.get('touched', 0) > 86400:
         session['touched'] = now
-        User.query.filter_by(id=session['user_id'], is_guest=True).update({'last_seen_at': datetime.now()})
+        User.query.filter_by(id=session['user_id'], is_guest=True).update({'last_seen_at': places.server_now()})
         db.session.commit()
 
 
@@ -475,7 +495,8 @@ def public_showtimes(showtimes, viewer=None):
         movie_genres = {g.strip().lower() for g in (s.movie.genres or '').split(',') if g.strip()}
         out.append({
             'id': s.id, 'movie': s.movie.to_dict(), 'theatre': s.theatre.to_dict(),
-            'start_time': s.start_time.isoformat(), 'end_time': s.end_time.isoformat() if s.end_time else None,
+            'start_time': s.start_time.isoformat(), 'starts_at': places.starts_at(s),
+            'end_time': s.end_time.isoformat() if s.end_time else None,
             'purchase_link': s.purchase_link, 'is_sold_out': s.is_sold_out, 'off_sale': bool(s.off_sale_at),
             'format_label': s.format_label, 'event_label': s.event_label,
             'attendees': [], 'maybes': [], 'user_rsvp': mine.get(s.id), 'reactions': reactions.get(s.id, {}),
@@ -742,7 +763,7 @@ def post_dict(p):
 
 def queue_rsvp_share(user, showtime_id, group_id, now=None):
     """Share an RSVP. Several in quick succession go out as one post."""
-    now = now or datetime.now()
+    now = now or places.server_now()                 # the post queue's clock
     item = (SharedRsvp.query.join(DiscordPost)
             .filter(SharedRsvp.user_id == user.id, SharedRsvp.showtime_id == showtime_id,
                     DiscordPost.group_id == group_id, DiscordPost.status.in_(LIVE_POSTS)).first())
@@ -811,13 +832,14 @@ def poll_payload(poll, results=False):
 
 def _brief_screening(s):
     return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
+            'starts_at': places.starts_at(s),
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label}
 
 
 def render_post(p, now=None):
     """What a post shows right now, or None when there's nothing left to show
-    (the bot then deletes it, or never posts it)."""
-    now = now or datetime.now()
+    (the bot then deletes it, or never posts it). `now`: tests fix the clock;
+    otherwise each screening is "started" by its own city's."""
     if p.status == 'removing':
         return None
     if p.kind == 'rsvp':
@@ -839,7 +861,7 @@ def render_post(p, now=None):
         for who in ('going', 'maybe'):
             card[who] = [{'name': x['name']} for x in card[who]]      # names only: no pings
         return {'by': p.user.name if on_discord(p.user, p.group_id) else None, 'note': p.note, 'card': card,
-                'started': s.start_time <= now}
+                'started': s.start_time <= (now or places.now_at(s.theatre))}
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
         return None
@@ -850,8 +872,9 @@ def render_post(p, now=None):
     return None
 
 
-def _parse_post_at(value, now):
-    """'Now' (None) or a local date-time from the site's picker."""
+def _parse_post_at(value, now, city=None):
+    """'Now' (None) or a date-time from the site's picker, on the post queue's
+    clock (`now`, the server's): a time without a zone is the club's city's."""
     if not value:
         return now
     try:
@@ -860,6 +883,8 @@ def _parse_post_at(value, now):
         return None
     if at.tzinfo:
         at = at.astimezone().replace(tzinfo=None)
+    else:
+        at = places.to_server(at, city)
     if at < now - timedelta(minutes=5) or at > now + MAX_SCHEDULE:
         return None
     return max(at, now)
@@ -892,8 +917,8 @@ def announce_new_poll(poll, user, data):
         choice = 'now' if share_prefs(user)['poll'] == 'always' else 'none'
     if choice == 'none':
         return
-    now = datetime.now()
-    at = _parse_post_at(data.get('announce_at'), now) if choice == 'later' else now
+    now = places.server_now()                        # the post queue's clock
+    at = _parse_post_at(data.get('announce_at'), now, places.club_city(poll.group)) if choice == 'later' else now
     queue_poll_post(poll, user, 'poll', at or now)
 
 
@@ -934,18 +959,17 @@ def pending_attendance(user, include_prompted=True):
     """Screenings `user` RSVP'd going to that ended 2h+ ago, within the past
     week, and they haven't said whether they made it — oldest first.
     include_prompted=False leaves out ones the bot already asked about."""
-    now = datetime.now()
-    rsvps = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
-             .filter(RSVP.user_id == user.id, RSVP.status == 'going',
-                     Showtime.is_cancelled.isnot(True),
-                     Showtime.start_time >= now - ATTENDANCE_LOOKBACK, Showtime.start_time <= now)
-             .order_by(Showtime.start_time).all())
+    now = places.person_now(user)
+    rsvps = places.started(RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                           .filter(RSVP.user_id == user.id, RSVP.status == 'going',
+                                   Showtime.is_cancelled.isnot(True),
+                                   Showtime.start_time >= now - ATTENDANCE_LOOKBACK)).order_by(Showtime.start_time).all()
     known = {a.showtime_id: a for a in Attendance.query.filter(
         Attendance.user_id == user.id, Attendance.showtime_id.in_([r.showtime_id for r in rsvps]))} if rsvps else {}
     out, seen = [], set()
     for r in rsvps:
         s, a = r.showtime, known.get(r.showtime_id)
-        if s.id in seen or _screening_end(s) + ATTENDANCE_ASK_AFTER > now:
+        if s.id in seen or _screening_end(s) + ATTENDANCE_ASK_AFTER > places.now_at(s.theatre):
             continue
         seen.add(s.id)
         if a and (a.status or not include_prompted):
@@ -958,9 +982,8 @@ def attended_showtime_ids(user_id, group_ids=None):
     """Screenings someone saw: confirmed 'went', plus past 'going' RSVPs they
     haven't answered about, minus any they said they missed. group_ids limits
     which groups' RSVPs count (confirmed answers are personal and always do)."""
-    q = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
-         .filter(RSVP.user_id == user_id, RSVP.status == 'going',
-                 Showtime.start_time < datetime.now(), Showtime.is_cancelled.isnot(True)))
+    q = places.started(RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                       .filter(RSVP.user_id == user_id, RSVP.status == 'going', Showtime.is_cancelled.isnot(True)))
     if group_ids is not None:
         q = q.filter(RSVP.group_id.in_(list(group_ids)))
     ids = {r.showtime_id for r in q}
@@ -989,6 +1012,7 @@ def went_visible_in(group_id, rows):
 
 def _screening_item(s, status=None):
     return {'showtime_id': s.id, 'title': s.movie.title, 'start_time': s.start_time.isoformat(),
+            'starts_at': places.starts_at(s),
             'theatre': s.theatre.short_name or s.theatre.name, 'format_label': s.format_label,
             'poster_url': s.movie.poster_url, 'status': status}
 
@@ -998,7 +1022,7 @@ def set_attendance(user, showtime_id, status, source):
     showtime = db.session.get(Showtime, _as_int(showtime_id))
     if not showtime:
         return None, (jsonify({'error': 'Screening not found'}), 404)
-    if showtime.start_time > datetime.now():
+    if not places.has_started(showtime):
         return None, (jsonify({'error': "That screening hasn't happened yet"}), 400)
     if status not in ('went', 'missed', None):
         return None, (jsonify({'error': 'status must be went, missed, or null'}), 400)
@@ -1048,11 +1072,9 @@ def upcoming_rsvps(user, group_ids, personal=False):
     in_scope = RSVP.group_id.in_(list(group_ids or []))
     if personal:
         in_scope = db.or_(in_scope, RSVP.group_id.is_(None))
-    rows = (RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
-            .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')),
-                    in_scope, Showtime.start_time > datetime.now(),
-                    Showtime.is_cancelled.isnot(True))
-            .order_by(Showtime.start_time).all())
+    rows = places.upcoming(RSVP.query.join(Showtime, RSVP.showtime_id == Showtime.id)
+                           .filter(RSVP.user_id == user.id, RSVP.status.in_(('going', 'maybe')),
+                                   in_scope, Showtime.is_cancelled.isnot(True))).order_by(Showtime.start_time).all()
     best = {}
     for r in rows:
         if best.get(r.showtime_id, (None, None))[1] != 'going':
@@ -1060,12 +1082,16 @@ def upcoming_rsvps(user, group_ids, personal=False):
     return sorted(best.values(), key=lambda pair: pair[0].start_time)
 
 
-def next_showings(movie_ids):
-    """{movie_id: its soonest upcoming screening} in one query."""
+def next_showings(movie_ids, cities=None):
+    """{movie_id: its soonest upcoming screening} in one query — in these
+    cities only, if given (a person's: places.user_cities)."""
     first = {}
     if movie_ids:
-        for s in (Showtime.query.filter(Showtime.movie_id.in_(list(movie_ids)), Showtime.start_time > datetime.now(),
-                                        Showtime.is_cancelled.isnot(True)).order_by(Showtime.start_time)):
+        q = places.upcoming(Showtime.query.filter(Showtime.movie_id.in_(list(movie_ids)),
+                                                  Showtime.is_cancelled.isnot(True)))
+        if cities:
+            q = q.join(Theatre, Showtime.theatre_id == Theatre.id).filter(Theatre.city.in_(list(cities)))
+        for s in q.order_by(Showtime.start_time):
             first.setdefault(s.movie_id, s)
     return first
 
@@ -1184,7 +1210,7 @@ def _draft_poll(user, group, prompt, scope='playing'):
     if len(prompt) < 3:
         return {'error': 'Describe the poll you want (e.g. "spookiest Halloween movies").'}, 400
     recent = PollDraft.query.filter(PollDraft.user_id == user.id,
-                                    PollDraft.created_at >= datetime.now() - timedelta(hours=1)).count()
+                                    PollDraft.created_at >= places.server_now() - timedelta(hours=1)).count()
     if recent >= DRAFTS_PER_HOUR:
         return {'error': "That's a lot of drafts this hour. Try again in a bit, or build the poll by hand."}, 429
     try:
@@ -1330,16 +1356,11 @@ def _utcnow_naive():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _group_showtime_query(group):
-    """Showtimes filtered to a group's selected theatres (all when unset)."""
-    q = Showtime.query.join(Movie).join(Theatre).filter(
-        Showtime.is_cancelled.isnot(True),
-        Theatre.is_active.isnot(False),
-    )
-    slugs = [t.strip() for t in (group.theatres or '').split(',') if t.strip()] if group else []
-    if slugs:
-        q = q.filter(Theatre.slug.in_(slugs))
-    return q
+def _group_showtime_query(group, city=None):
+    """Showtimes at a club's theatres (none chosen: its city's), or a city's
+    without a club (places.showtime_query)."""
+    import places
+    return places.showtime_query(group, city)
 RARE_MIN_SCORE = 4                       # a screening needs this rarity score to be called rare
 PLAN_MIN_WATCHERS = 2                    # "make plans": members wanting a film nobody's going to yet
 LAST_CHANCE_MARGIN = timedelta(days=3)   # the theatre's schedule must run this far past the last showing
@@ -1501,13 +1522,15 @@ def enable_wal():
 WARM_EVERY_SECONDS = 240
 
 
-def _warm_urls(today):
-    """The public views most visits open first (the same URLs the site asks for)."""
+def _warm_urls(city, today):
+    """The public views most visits open first, for one city (the same URLs
+    the site asks for: it adds ?city= to every call)."""
     days = lambda n: (today + timedelta(days=n)).isoformat()
-    return ['/api/discover', '/api/discover/browse?when=week', '/api/theatres-overview',
+    urls = ['/api/discover', '/api/discover/browse?when=week', '/api/theatres-overview',
             '/api/discover/doubles', '/api/discover/spotlights',
             f'/api/discover/calendar?from={today.isoformat()}&to={days(6)}',      # Week
             f'/api/discover/calendar?from={today.isoformat()}&to={days(13)}']     # Agenda
+    return [u + ('&' if '?' in u else '?') + f'city={city}' for u in urls]
 
 
 def start_warming():
@@ -1517,7 +1540,9 @@ def start_warming():
         time.sleep(3)
         while True:
             client = app.test_client()
-            for url in _warm_urls(datetime.now().date()):
+            with app.app_context():
+                urls = [u for c in places.active_cities() for u in _warm_urls(c.slug, places.today_in(c.slug))]
+            for url in urls:
                 try:
                     client.get(url, headers={'X-Internal-Token': INTERNAL_API_TOKEN, 'X-Warm': '1'})
                 except Exception as e:            # never let warming take a worker down

@@ -13,7 +13,7 @@ from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
-from .shared import (DEFAULT_GROUP_ID, GONE_MSG, SITE_URL, api, api_failure, channel_for, client, club, club_of,
+from .shared import (DEFAULT_GROUP_ID, GONE_MSG, SITE_URL, api, api_failure, channel_for, client, club, club_of, club_zone,
                      connected_clubs, discord_identity, dm_owner, register, reply_failure, rsvp_date_autocomplete,
                      rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, use_club)
 from . import alerts, polls, servers      # used at call time, so the order they load in doesn't matter
@@ -165,7 +165,7 @@ async def backfill_thread(thread, info):
                       allowed_mentions=discord.AllowedMentions.none())
     mirrored = []
     for item in items:
-        sent = await post_comment(thread, item['author'], embeds.backfilled_comment(item))
+        sent = await post_comment(thread, item['author'], embeds.backfilled_comment(item, club_zone()))
         mirrored.append({'message_id': item['message_id'], 'discord_message_id': str(sent.id)})
     await api.post('/api/internal/discussion/mirrored', {'items': mirrored})
     await thread.send('-# ── new ──', allowed_mentions=discord.AllowedMentions.none())

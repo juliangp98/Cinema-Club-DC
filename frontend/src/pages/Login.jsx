@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getJson, send } from "../api";
+import { SITE_NAME } from "../site";
 
 // `keeping`: a guest is keeping their profile (R5b) — signing up turns it into
 // the account; signing in (or Discord) brings their plans to the account they have.
@@ -76,7 +77,7 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
     return (
       <div className="auth-page">
         <div className="auth-box">
-          <span className="auth-logo">CINEMA CLUB DC</span>
+          <span className="auth-logo">{SITE_NAME.toUpperCase()}</span>
           <p className="auth-subtitle">Check Your Email</p>
           <p className="auth-note">
             We sent a {mode === "signup" ? "confirmation" : "sign-in"} link to <strong>{sentTo}</strong>.
@@ -99,7 +100,7 @@ export default function Login({ onLogin, apiBase, inviteToken, next, keeping = f
   return (
     <div className="auth-page">
       <div className="auth-box">
-        <span className="auth-logo">CINEMA CLUB DC</span>
+        <span className="auth-logo">{SITE_NAME.toUpperCase()}</span>
         <p className="auth-subtitle">
           {isInvite ? "You've Been Invited" : keeping ? "Keep Your Profile" : mode === "signup" ? "Create Your Account" : "Private Cinema Schedule"}
         </p>

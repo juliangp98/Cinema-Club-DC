@@ -2,10 +2,11 @@
 
 Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
-from app import (DiscordPost, GroupMembership, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
-    _as_int, _live_post, _parse_post_at, app, current_user, datetime, db, discord_clubs, discord_group, jsonify, on_discord,
-    post_dict, queue_poll_post, queue_rsvp_share, request, require_auth, require_role, role_at_least,
-    set_share_pref, share_prefs, unshare_rsvp)
+import places
+from app import (DiscordPost, Group, GroupMembership, Poll, RSVP, Showtime, ShowtimeThread, _active_membership,
+    _as_int, _live_post, _parse_post_at, app, current_user, db, discord_clubs, discord_group, jsonify,
+    on_discord, post_dict, queue_poll_post, queue_rsvp_share, request, require_auth, require_role,
+    role_at_least, set_share_pref, share_prefs, unshare_rsvp)
 
 
 def _can_manage_post(user, p):
@@ -54,8 +55,9 @@ def create_share():
     if not on_discord(user, group_id):
         return jsonify({'error': "Only members in the club's Discord server (with Discord linked) can share there",
                         'code': 'not_on_discord'}), 403
-    now = datetime.now()
-    post_at = _parse_post_at(data.get('post_at'), now)
+    import places
+    now = places.server_now()                                 # the post queue's clock
+    post_at = _parse_post_at(data.get('post_at'), now, places.club_city(db.session.get(Group, group_id)))
     if post_at is None:
         return jsonify({'error': 'Pick a time in the next 60 days'}), 400
 
@@ -119,7 +121,7 @@ def share_now(post_id):
     if err:
         return err
     if p.status == 'pending':
-        p.post_at = datetime.now()
+        p.post_at = places.server_now()
         db.session.commit()
     return jsonify(post_dict(p))
 

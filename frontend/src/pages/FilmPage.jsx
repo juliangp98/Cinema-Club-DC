@@ -18,6 +18,8 @@ import { longDayDate, time, monthDay } from "../dates";
 import { TourOffer } from "../ui/PageTourControls";
 import usePageMeta, { filmLd } from "../seo";
 import { soldOutLabel } from "../ui/TicketRow";
+import ToggleChip from "../ui/ToggleChip";
+import { cityOf } from "../places";
 
 const dayLabel = longDayDate, timeLabel = time, shortDay = monthDay;
 const dateRange = (a, b) => (!a ? "" : shortDay(a) === shortDay(b) ? shortDay(a) : `${shortDay(a)} – ${shortDay(b)}`);
@@ -47,10 +49,11 @@ export default function FilmPage({ user, apiBase, groupId }) {
   const [watching, setWatching] = useState(false);
   const [watchPrompt, setWatchPrompt] = useState(null);     // {alerts, digest}: what to ask after a watchlist add
   const [copied, setCopied] = useState(false);
+  const [cityPick, setCityPick] = useState(null);       // a film playing in more than one city: which city's showings
   const shell = useShell();
 
   const { data, error: loadError, reload: load } = useJson(`${apiBase}/api/films/${id}?${groupParam(groupId)}`);
-  useEffect(() => { setTheatre("all"); setShowAll(false); }, [id]);
+  useEffect(() => { setTheatre("all"); setShowAll(false); setCityPick(null); }, [id]);
   useEffect(() => { if (data) setWatching(data.viewer_wants); }, [data]);
   usePageMeta(() => {
     const m = data?.movie;
@@ -60,7 +63,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
     return {
       title: `${m.title}${m.release_year ? ` (${m.release_year})` : ""}`, path: `/films/${m.id}`, image: m.poster_url,
       jsonLd: filmLd(m, data.showtimes || []),
-      description: `${m.title}${bits ? ` (${bits})` : ""}${where.length ? ` — showtimes in DC at ${where.slice(0, 4).join(", ")}` : ""}.`
+      description: `${m.title}${bits ? ` (${bits})` : ""}${where.length ? ` — showtimes at ${where.slice(0, 4).join(", ")}` : ""}.`
         + (m.description ? ` ${m.description.slice(0, 160)}` : ""),
     };
   }, [data]);
@@ -70,33 +73,42 @@ export default function FilmPage({ user, apiBase, groupId }) {
     user, apiBase, groupId, onChange: load,
   });
 
+  // The cities it's playing in, yours first; with more than one, one city's showings at a time.
+  const homeCity = shell?.city;
+  const filmCities = useMemo(() => {
+    const seen = [...new Set((data?.showtimes || []).map(s => s.theatre.city).filter(Boolean))];
+    return seen.sort((a, b) => (b === homeCity) - (a === homeCity));
+  }, [data, homeCity]);
+  const city = filmCities.length > 1 ? (cityPick && filmCities.includes(cityPick) ? cityPick : filmCities[0]) : null;
+  const showtimes = useMemo(() => (data?.showtimes || []).filter(s => !city || s.theatre.city === city), [data, city]);
+
   const theatres = useMemo(() => {
     const seen = new Map();
-    for (const s of data?.showtimes || []) seen.set(s.theatre.slug, s.theatre);
+    for (const s of showtimes) seen.set(s.theatre.slug, s.theatre);
     return [...seen.values()];
-  }, [data]);
+  }, [showtimes]);
 
   // Where it's playing (R7b): showings, dates and formats per theatre. With
   // lots of showings at several theatres, you pick a theatre first instead of
   // scrolling a wall of times.
   const venues = useMemo(() => theatres.map(t => {
-    const shows = (data?.showtimes || []).filter(s => s.theatre.slug === t.slug);
+    const shows = showtimes.filter(s => s.theatre.slug === t.slug);
     return { t, count: shows.length, first: shows[0]?.start_time, last: shows[shows.length - 1]?.start_time,
              formats: [...new Set(shows.map(s => s.format_label).filter(Boolean))] };
-  }), [theatres, data]);
-  const crowded = (data?.showtimes?.length || 0) > 12 && theatres.length > 1;
+  }), [theatres, showtimes]);
+  const crowded = showtimes.length > 12 && theatres.length > 1;
   const picking = crowded && theatre === "all" && !showAll;
 
   const days = useMemo(() => {
     const groups = new Map();
-    for (const s of data?.showtimes || []) {
+    for (const s of showtimes) {
       if (theatre !== "all" && s.theatre.slug !== theatre) continue;
       const key = s.start_time.slice(0, 10);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(s);
     }
     return [...groups.values()];
-  }, [data, theatre]);
+  }, [showtimes, theatre]);
 
   async function onWatch() {      // (not "toggleWatch": that's the shared call it makes)
     if (!user && !(await shell.ensureProfile())) return;      // a visitor's first save makes a guest profile
@@ -123,16 +135,16 @@ export default function FilmPage({ user, apiBase, groupId }) {
     } catch { /* cancelled */ }
   }
 
-  if (loadError && !data && !missing) return <div className="page narrow"><LoadError what="this film" onRetry={load} /></div>;
+  if (loadError && !data && !missing) return <div className="page"><LoadError what="this film" onRetry={load} /></div>;
   if (missing) {
     return (
-      <div className="page narrow film-empty">
+      <div className="page film-empty">
         <p>That film isn't in our listings.</p>
         <Link className="btn" to="/">Go to Discover</Link>
       </div>
     );
   }
-  if (!data) return <div className="page narrow"><Loading context="film" /></div>;
+  if (!data) return <div className="page"><Loading context="film" /></div>;
 
   const { movie, club, rare, interest } = data;           // club is null in public mode (R5a)
   const genres = (movie.genres || "").split(",").map(g => g.trim()).filter(Boolean);
@@ -202,6 +214,16 @@ export default function FilmPage({ user, apiBase, groupId }) {
             </div>
           </div>
         ))}
+        {filmCities.length > 1 && (
+          <div className="film-cities filter-chips" role="group" aria-label="City">
+            {filmCities.map(c => (
+              <ToggleChip key={c} on={c === city} count={(data.showtimes || []).filter(s => s.theatre.city === c).length}
+                          onClick={() => { setCityPick(c); setTheatre("all"); setShowAll(false); }}>
+                {cityOf(shell?.cities, c)?.name || c}
+              </ToggleChip>
+            ))}
+          </div>
+        )}
         {theatres.length > 1 && (
           <div className="film-venues" role="group" aria-label="Where it's playing">
             {venues.map(({ t, count, first, last, formats }) => (
@@ -216,7 +238,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
             <button type="button" className={`film-venue all${theatre === "all" && !picking ? " on" : ""}`}
                     onClick={() => { setTheatre("all"); setShowAll(true); }}>
               <span className="film-venue-name">All theatres</span>
-              <span className="film-venue-meta">{data.showtimes.length} showings</span>
+              <span className="film-venue-meta">{showtimes.length} showings</span>
             </button>
           </div>
         )}

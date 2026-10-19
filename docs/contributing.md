@@ -30,13 +30,24 @@ one you work in.
   through `api.js` (`getJson`, `useJson`, `send`); the bot's failures go through `api_failure` /
   `reply_failure`.
 - **The UI kit first.** Build from `frontend/src/ui` (Panel, PageHeader, SectionTitle, Settings rows,
-  SearchField, Segmented, TicketRow, Sheet, StatTiles…) and the tokens in `index.css` — no new colors, no
-  inline static styles. Admins see every piece live at `/styleguide`; a new kit piece goes there too.
+  SearchField, Segmented, TicketRow, TheatrePicker, Sheet, StatTiles…) and the tokens in `index.css` — no
+  new colors, no inline static styles, and no page widths: every page is `.page`, one width
+  (`--page-max`). Admins see every piece live at `/styleguide`; a new kit piece goes there too.
 - **Tests** — pytest for the backend and bot, Vitest for components.
 - **The page tour** — `frontend/src/shell/pageTours.js` gets a step for anything new on a page.
 - **Help** — `frontend/src/help.json` gets the answer (links are `[words](place-id)` or
   `[words](help:topic)`; ✨ Ask reads the same file).
 - **The bot's `/help`** — `bot/embeds.py` `HELP_SECTIONS`, whenever a command changes.
+
+**Cities.** A theatre is in a city (`backend/cities.py`), and a showtime is that city's wall-clock time.
+So "now" comes from `backend/places.py` — `now_in(city)`, `now_at(theatre)`, `club_now(group)`,
+`upcoming(query)` — never `datetime.now()` (a test fails on a bare one; `places.server_now()` is for
+bookkeeping like the Discord post queue). Theatre lists go through `places` too: `showtime_query(group,
+city)`, `theatres_in(city)`, `club_slugs(group)`. Without a club, a page is about the viewer's city — a
+`places.CityScope`, which stands where a club would and is falsy, so `if group:` still means a club. On
+the site, choose theatres with `ui/TheatrePicker`, tag another city's with `ui/CityTag`, and take
+cities from `useShell()` (`city`, `cities`, `multiCity`); `api.js` adds `?city=` to every call. City
+UI shows only with more than one city.
 
 **Notifications are opt-in.** Nothing emails, DMs, pushes or pings anyone until they've said yes; ask once,
 at the moment it first matters. **New games and features start switched off** (a club setting) until a

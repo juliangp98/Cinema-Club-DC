@@ -21,7 +21,9 @@ Check-ins are personal (not per club), so "went" counts in every club, as
 the leaderboard's attendance always has; RSVP-based kernels count in the club
 the RSVP was made in.
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+import places
 
 WENT, PLANNED = 5, 2
 TRAIL_EACH, TRAIL_MAX = 1, 5
@@ -34,7 +36,7 @@ ACTIVITY = ('went', 'going', 'maybe', 'commented', 'reacted')
 
 def week_start(now=None):
     """The Monday a give or take counts against (allowances reset then)."""
-    d = (now or datetime.now()).date()
+    d = (now or places.now_in()).date()
     return d - timedelta(days=d.weekday())
 
 
@@ -198,6 +200,7 @@ def card_people(group_id, showtime_id):
 def allowance(giver_id, now=None):
     """What's left of this week's allowance: {give_left, take_left, resets}."""
     from app import KernelGift
+    now = now or places.person_now(giver_id)
     rows = KernelGift.query.filter_by(giver_id=giver_id, week=week_start(now)).all()
     given = sum(max(r.amount, 0) for r in rows)
     taken = sum(max(-r.amount, 0) for r in rows)
@@ -209,6 +212,7 @@ def card_kernels(group_id, showtime_id, viewer_id, now=None):
     """{'net': {uid: kernels from members on this screening}, 'mine': {uid:
     what you've given (or taken) this week}}."""
     from app import KernelGift
+    now = now or places.person_now(viewer_id)
     net, mine = {}, {}
     for g in KernelGift.query.filter_by(group_id=group_id, showtime_id=showtime_id):
         net[g.recipient_id] = net.get(g.recipient_id, 0) + g.amount
@@ -225,7 +229,7 @@ def member_cards(group_id, user_id, viewer_id, now=None, limit=10):
     give them kernels for on the feed), newest first: [{screening, did,
     mine, net}] — `mine` is what you've given (or taken) this week."""
     from app import Attendance, Message, RSVP, Reaction, Showtime, _screening_item
-    now = now or datetime.now()
+    now = now or places.person_now(viewer_id)
     ids = {a.showtime_id for a in Attendance.query.filter_by(user_id=user_id, status='went')}
     ids |= {r.showtime_id for r in RSVP.query.filter(RSVP.group_id == group_id, RSVP.user_id == user_id,
                                                      RSVP.status.in_(('going', 'maybe')))}
@@ -261,7 +265,7 @@ def toss(giver, recipient_id, group_id, showtime_id, delta, now=None):
         return None, 'Not a club member.'
     if recipient_id not in card_people(group_id, showtime_id):
         return None, "They haven't done anything on this screening yet."
-    week = week_start(now)
+    week = week_start(now or places.person_now(giver))
     row = KernelGift.query.filter_by(giver_id=giver.id, recipient_id=recipient_id, group_id=group_id,
                                      showtime_id=showtime_id, week=week).first()
     before = row.amount if row else 0

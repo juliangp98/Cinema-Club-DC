@@ -14,7 +14,7 @@ import { groupParam } from "../scope";
 import Loading, { LoadError } from "../ui/Loading";
 import { getJson, cachedJson, rsvp, attend } from "../api";
 import ToggleChip from "../ui/ToggleChip";
-import { time, dayDate, monthDay, monthYear } from "../dates";
+import { hasStarted, time, dayDate, monthDay, monthYear } from "../dates";
 import TicketChips from "../ui/TicketChips";
 
 // The server sends each film and theatre once (R7b); put them back on each screening.
@@ -80,7 +80,7 @@ function viewRange(view, anchor, span) {
 }
 
 // Every showing of this film that day has already started (the Calendar keeps ~60 days of history).
-const isPast = entry => entry.shows.every(s => new Date(s.start_time) < new Date());
+const isPast = entry => entry.shows.every(hasStarted);
 
 function passes(s, members) {
   if (!members.length) return true;

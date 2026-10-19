@@ -14,19 +14,14 @@ decade, rarity, club, search…) then pick films.
 
 import random
 import re
+
+import cities
+import places
 import unicodedata
 from datetime import datetime, timedelta
 
-# Rough regions for the Where filter.
-REGIONS = {
-    'suns': 'DC', 'alamo-dc': 'DC', 'regal-gallery': 'DC', 'smi-dc': 'DC', 'avalon': 'DC', 'nga': 'DC',
-    'angelika-popup': 'DC', 'amc-georgetown': 'DC',
-    'afi': 'Maryland', 'regal-majestic': 'Maryland',
-    'alamo-crystal': 'Virginia', 'regal-ballston': 'Virginia', 'smi-udvar': 'Virginia',
-    'angelika-mosaic': 'Virginia', 'amc-hoffman': 'Virginia',
-}
-ARTHOUSE_THEATRES = {'afi', 'suns', 'angelika-mosaic', 'angelika-popup', 'nga', 'avalon'}
-BIG_SCREEN_THEATRES = {'smi-dc', 'smi-udvar'}
+# Where a theatre is (its city and area) and what kind it is (arthouse, big
+# screen) live in the scraper registry; places.py reads them.
 FILM_PRINTS = ('35mm', '16mm', '70mm')
 BIG_FORMATS = ('IMAX', '70mm', 'Dolby')
 
@@ -54,7 +49,7 @@ def window(when, now=None, start=None, end=None, past_days=0):
     """(start, end) for a When choice, or explicit YYYY-MM-DD dates. Explicit
     dates never reach further back than `past_days` (the Calendar shows recent
     history; everything else starts now)."""
-    now = now or datetime.now()
+    now = now or places.now_in()
     day_end = lambda d: datetime.combine(d, datetime.max.time())
     if start or end:
         s = datetime.fromisoformat(start) if start else now
@@ -125,7 +120,7 @@ def _show_ok(s, theatres, formats, time_of_day, tickets=None):
     fmt = s.format_label or ''
     if formats:
         wants_film = 'film' in formats and any(f in fmt for f in FILM_PRINTS)
-        wants_big = 'big' in formats and (any(f in fmt for f in BIG_FORMATS) or s.theatre.slug in BIG_SCREEN_THEATRES)
+        wants_big = 'big' in formats and (any(f in fmt for f in BIG_FORMATS) or s.theatre.slug in places.big_screen_slugs())
         if not (wants_film or wants_big):
             return False
     if time_of_day == 'late' and (s.start_time.hour, s.start_time.minute) < (21, 30):
@@ -152,7 +147,7 @@ def catalog(group, start, end, viewer=None, theatres=None, formats=None, time_of
     for s in rows:
         if _show_ok(s, theatres, formats, time_of_day, tickets):
             films.setdefault(s.movie_id, Film(s.movie)).shows.append(s)
-    this_year = datetime.now().year
+    this_year = places.today_in().year
     for f in films.values():
         f.finish(this_year, rarity, EVENT_WORDS)
     if not films:
@@ -297,7 +292,7 @@ def shelf(key, films, ctx):
         out = []
         for f in fl:
             big = [x for x in BIG_FORMATS if x in f.formats]
-            if not big and f.venues & BIG_SCREEN_THEATRES:
+            if not big and f.venues & places.big_screen_slugs():
                 big = ['IMAX']
             if big:
                 out.append((f, big))
@@ -321,7 +316,7 @@ def shelf(key, films, ctx):
     if key == 'arthouse':
         return by_soonest([(f, sorted({x.theatre.short_name or x.theatre.name for x in f.shows}))
                            for f in fl if f.year and f.year >= y - 3 and len(f.venues) <= 2
-                           and f.venues & ARTHOUSE_THEATRES and len(f.shows) < 10])
+                           and f.venues & places.arthouse_slugs() and len(f.shows) < 10])
     if key == 'classics':
         return sorted([(f, [str(f.year), _decade(f.year)]) for f in fl if f.year and f.year <= y - 20],
                       key=lambda p: (-p[0].rare_score, p[0].year))
@@ -352,7 +347,7 @@ def way_fits(key, f, ctx):
         prints = sorted(f.formats & set(FILM_PRINTS))
         return f'on {prints[0]}' if prints else None
     if key == 'big':
-        big = [x for x in BIG_FORMATS if x in f.formats] or (['IMAX'] if f.venues & BIG_SCREEN_THEATRES else [])
+        big = [x for x in BIG_FORMATS if x in f.formats] or (['IMAX'] if f.venues & places.big_screen_slugs() else [])
         return big[0] if big else None
     if key == 'events':
         return f.events[0] if f.events else None
@@ -362,7 +357,7 @@ def way_fits(key, f, ctx):
         lang = f.movie.original_language
         return f'in {LANGUAGES.get(lang, "another language")}' if lang and lang != 'en' else None
     if key == 'arthouse':
-        return 'arthouse' if f.year and f.year >= ctx['year'] - 3 and len(f.venues) <= 2 and f.venues & ARTHOUSE_THEATRES else None
+        return 'arthouse' if f.year and f.year >= ctx['year'] - 3 and len(f.venues) <= 2 and f.venues & places.arthouse_slugs() else None
     if key == 'late':
         s = _late(f)
         return f"late show {s.start_time.strftime('%-I:%M %p')}" if s else None
@@ -405,7 +400,7 @@ def discover(group, viewer, per_shelf=12, now=None, theatres=None):
     """The Discover page: every non-empty shelf for the next two weeks. With
     `theatres` (a set of slugs), the same page for just those theatres (a
     theatre's own page)."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     start, end = window('2weeks', now)
     films = catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST)
     ctx = context(group, viewer, films, now)
@@ -429,7 +424,7 @@ def announced(group=None, theatres=None, movie_id=None, now=None):
     """Films announced with a date whose tickets aren't on sale yet (R8b),
     soonest first — at the club's theatres, or `theatres` (slugs)."""
     from app import Announcement
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     q = Announcement.query.filter(Announcement.on_sale_at.is_(None), Announcement.expected_on >= now.date(),
                                   Announcement.last_seen_at >= datetime.utcnow() - timedelta(days=7))
     if movie_id:
@@ -458,7 +453,7 @@ def weekly(group, now=None, days=7, caps=None, plan_min=2):
       opening     — the 'opening' shelf, at the first showing (+ how many theatres)
     Returns (films, {section: [(Film, Showtime, extra)]}); `films` is the
     window's catalog ({movie_id: Film}), for the digest's people sections."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     caps = caps or {}
     films = catalog(group, now, now + timedelta(days=days), tickets=SUGGEST)
     ctx = context(group, None, films, now)
@@ -480,7 +475,7 @@ def weekly(group, now=None, days=7, caps=None, plan_min=2):
 def for_you_by_theatre(group, viewer, now=None):
     """{slug: how many films for you there} over the next two weeks (the
     Theatres page's "N for you", R13)."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     films = catalog(group, *window('2weeks', now), viewer, tickets=SUGGEST)
     out = {}
     for f, _ in shelf('for-you', films, context(group, viewer, films, now)):
@@ -494,7 +489,7 @@ def theatre_previews(group, now=None, posters=5):
     theatre — its most interesting films (rarest first, then soonest), how
     many films and how many rare ones, the film formats on offer, tonight's
     showings and the next one."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     start, end = window('2weeks', now)
     films = catalog(group, start, end, tickets=SUGGEST)
     ctx = context(group, None, films, now)
@@ -531,12 +526,11 @@ def select(group, viewer, params, now=None, past_days=0):
     theatres, regions, genres, decade, format, time, rarity, club, runtime,
     mood, shelf, q, sort, tickets. Browse and the Calendar both use this, so a filter
     means the same thing on both."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     p = {k: v for k, v in params.items() if v not in (None, '')}
     split = lambda k: {x.strip().lower() for x in str(p.get(k, '')).split(',') if x.strip()}
     start, end = window(p.get('when', 'week'), now, p.get('from'), p.get('to'), past_days=past_days)
-    theatres = split('theatres') | {slug for slug, region in REGIONS.items()
-                                    if region.lower() in split('regions')} or None
+    theatres = split('theatres') | places.area_slugs(split('regions')) or None
     films = catalog(group, start, end, viewer, theatres=theatres, formats=split('format') or None,
                     time_of_day=p.get('time'), tickets=p.get('tickets') if p.get('tickets') in TICKETS else None)
     ctx = context(group, viewer, films, now)
@@ -602,14 +596,14 @@ def announced_matching(group, params, now=None):
     filters (R15): with no ticket filter ("All") or Coming soon, in the window,
     at the chosen theatres, matching genres / decade / words; never with
     Available or Sold out, or a filter only showings can answer."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     p = {k: v for k, v in params.items() if v not in (None, '')}
     if p.get('tickets') not in (None, 'soon') or any(k in p for k in SHOWING_FILTERS):
         return []
     from app import db, Movie
     split = lambda k: {x.strip().lower() for x in str(p.get(k, '')).split(',') if x.strip()}
     start, end = window(p.get('when', 'week'), now, p.get('from'), p.get('to'))
-    theatres = split('theatres') | {slug for slug, region in REGIONS.items() if region.lower() in split('regions')}
+    theatres = split('theatres') | places.area_slugs(split('regions'))
     genres = split('genres') | (MOODS.get(p.get('mood'), {}).get('genres') or set())
     q, decade = normalize(p.get('q', '')), p.get('decade')
     out = []
@@ -651,7 +645,7 @@ def browse(group, viewer, params, now=None, limit=24, offset=0):
     return {'films': [card(f, reasons.get(f.movie.id) or (f.rare_reasons if f.rare_score >= ctx['rare_min'] else []))
                       for f in page],
             'total': len(out), 'next_offset': offset + limit if len(out) > offset + limit else None, 'announced': soon,
-            'facets': facets(out), 'regions': REGIONS, 'window': {'start': start.isoformat(), 'end': end.isoformat()},
+            'facets': facets(out), 'regions': places.theatre_areas(places.club_city(group)), 'window': {'start': start.isoformat(), 'end': end.isoformat()},
             'title': SHELF_TITLES.get(p.get('shelf')) or MOODS.get(p.get('mood'), {}).get('label') or _person_name(out, p)}
 
 
@@ -668,7 +662,7 @@ def _person_name(films, p):
 def surprise(group, viewer, when='tonight', exclude=(), now=None, rng=random, theatres=None):
     """One pick, weighted toward rare screenings, your genres, and what the
     club wants. Falls back to a wider window when tonight is empty."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     for w in (when, 'week') if when != 'week' else ('week',):
         start, end = window(w, now)
         films = [f for f in catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST).values()
@@ -767,7 +761,7 @@ def people(f):
 def spotlights(group, viewer, now=None, limit=6, theatres=None, films_each=6):
     """Directors (2+ films) and actors (3+ films) with work playing this month
     (at `theatres`, if given). limit=None: all of them (the Spotlights page)."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     start, end = window('month', now)
     films = catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST)
     found = {}
@@ -784,7 +778,7 @@ def spotlights(group, viewer, now=None, limit=6, theatres=None, films_each=6):
 
 def every_double(group, viewer, now=None, theatres=None):
     """The Double Features page: every double bill in the next six weeks."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     start, end = window('6weeks', now)
     return {'window': {'start': start.isoformat(), 'end': end.isoformat()},
             'doubles': double_features(catalog(group, start, end, viewer, theatres=theatres, tickets=SUGGEST), every=True)}
@@ -797,7 +791,6 @@ def every_double(group, viewer, now=None, theatres=None):
 
 BROWSE_KEYS = ('when', 'from', 'to', 'theatres', 'regions', 'genres', 'decade', 'format', 'time',
                'rarity', 'club', 'runtime', 'mood', 'shelf', 'q', 'person', 'sort')
-REGION_KEYS = {'dc': 'DC', 'maryland': 'Maryland', 'virginia': 'Virginia'}
 # /find's type list, in the order it's offered before anyone types.
 FIND_SHELVES = ('rare', 'one-night', 'on-film', 'big-screen', 'events', 'arthouse', 'classics', 'opening',
                 'last-chance', 'friends', 'most-wanted', 'for-you', 'critics', 'awards', 'blockbusters',
@@ -833,7 +826,7 @@ def describe(params, title=None, when=True):
     if when:
         bits.append(WHEN.get(params.get('when') or 'week'))
     if params.get('regions'):
-        bits.append(' + '.join(REGION_KEYS.get(r, r) for r in params['regions'].split(',')))
+        bits.append(' + '.join(cities.area_keys().get(r, r) for r in params['regions'].split(',')))
     if params.get('theatres'):
         bits.append(params.get('_theatre_label') or params['theatres'].replace(',', ', '))
     return ' · '.join(b for b in bits if b)
@@ -842,7 +835,7 @@ def describe(params, title=None, when=True):
 def find_types(group, now=None):
     """Everything /find's type box offers: shelves, moods, and the genres
     actually playing in the next month (most common first)."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     blurbs = {k: b for k, _, b in SHELVES}
     out = [{'value': f'shelf:{k}', 'label': SHELF_TITLES[k], 'hint': blurbs[k]} for k in FIND_SHELVES]
     out += [{'value': f'mood:{k}', 'label': v['label'], 'hint': 'Mood'} for k, v in MOODS.items()]
@@ -897,11 +890,7 @@ _WHEN_WORDS = [
     ('week', r"\bthis week\b|\bnext few days\b"),
     ('month', r"\b(this|next) month\b"),
 ]
-_REGION_WORDS = [
-    ('dc', r"\bd\.?c\.?\b|\bthe district\b"),
-    ('maryland', r"\bmaryland\b|\bmd\b|\bsilver spring\b|\bbethesda\b|\brockville\b"),
-    ('virginia', r"\bvirginia\b|\bva\b|\bnova\b|\barlington\b|\balexandria\b|\bfairfax\b|\bcrystal city\b"),
-]
+_REGION_WORDS = [(a.key, a.words) for c in cities.CITIES for a in c.areas]   # areas, by what an ask calls them
 _THEATRE_WORDS = [
     ('afi', r"\bafi\b"), ('suns', r"\bsuns\b"), ('alamo', r"\balamo\b"), ('regal', r"\bregal\b"),
     ('angelika', r"\bangelika\b"), ('amc', r"\bamc\b"), ('avalon', r"\bavalon\b"),
@@ -916,8 +905,11 @@ def _match(words, text):
     return [key for key, pattern in words if re.search(pattern, text)]
 
 
-def _theatre_slugs(prefix):
-    return {s for s in REGIONS if s == prefix or s.startswith(prefix + '-')}
+def _theatre_slugs(prefix, city=None):
+    """Registry theatres a word names ("regal" → every Regal), in one city if given."""
+    from scrapers import THEATRE_REGISTRY
+    return {c.slug for c in THEATRE_REGISTRY if c.enabled and (city is None or c.city == city)
+            and (c.slug == prefix or c.slug.startswith(prefix + '-'))}
 
 
 def parse_request(text, genres=()):
@@ -979,13 +971,13 @@ def find_params(type_value=None, where=None, when=None, q=None):
 
     w = (where or '').strip()
     kind, _, key = w.partition(':')
-    if kind == 'region' and key in REGION_KEYS:
+    if kind == 'region' and key in cities.area_keys():
         p['regions'] = key
     elif kind == 'theatre' and key:
         p['theatres'] = key
     elif w:
         n = normalize(w)
-        if n in REGIONS:
+        if n in places.theatre_slugs(None):
             p['theatres'] = n
         else:
             parsed = parse_request(w)
@@ -1020,7 +1012,7 @@ def chat_picks(group, viewer, text, now=None, limit=10):
     what was asked (or, for a vague ask, a mix of rare, club and soonest),
     plus anything playing that the message names. `link` says whether the
     reply should carry a "more like this" Browse link."""
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     films = catalog(group, *window('2weeks', now), viewer, tickets=SUGGEST)
     genres = {g for f in films.values() for g in f.genres}
     p = parse_request(text, genres)
@@ -1064,7 +1056,7 @@ def chat_picks(group, viewer, text, now=None, limit=10):
         else:
             start, end = window(params['when'], now)
             theatres = {x for x in (p.get('theatres') or '').split(',') if x} | \
-                {s for s, r in REGIONS.items() if r.lower() in (p.get('regions') or '').split(',')}
+                places.area_slugs((p.get('regions') or '').split(','))
             scoped = catalog(group, start, end, viewer, theatres=theatres or None, tickets=SUGGEST)
             _mix(scoped, group, viewer, now, add)
             total = len(scoped)
@@ -1187,7 +1179,7 @@ def suggest(group, viewer, text, now=None, limit_films=6, limit_people=4, limit_
     {id, title, year, poster_url, playing, next?, theatre?}; people and filters
     carry the Browse `params` that picking them applies."""
     from app import Movie, Theatre
-    now = now or datetime.now()
+    now = now or places.club_now(group)
     n = normalize(text).strip()
     empty = {'films': [], 'people': [], 'filters': [], 'order': ['films', 'people', 'filters']}
     if len(n) < 2:
@@ -1237,11 +1229,11 @@ def suggest(group, viewer, text, now=None, limit_films=6, limit_people=4, limit_
         options.append(({'genres': g}, g.title(), f"Genre · {count} film{'s' if count != 1 else ''}", [g]))
     for k, label in WHEN.items():
         options.append(({'when': k}, label, 'When', [label, *(['today', 'this evening'] if k == 'tonight' else [])]))
-    for k, label in REGION_KEYS.items():
+    for k, label in cities.area_keys(places.club_city(group)).items():
         options.append(({'regions': k}, label, 'Area', [label, k]))
-    slugs = {t.strip() for t in ((group.theatres or '') if group else '').split(',') if t.strip()}
+    slugs = places.club_slugs(group)
     for t in Theatre.query.filter(Theatre.is_active.isnot(False)).all():
-        if not slugs or t.slug in slugs:
+        if t.slug in slugs:
             options.append(({'theatres': t.slug}, t.name, 'Theatre', [t.name, t.short_name or '', t.slug]))
     options += _OTHER_FILTERS
     if group:

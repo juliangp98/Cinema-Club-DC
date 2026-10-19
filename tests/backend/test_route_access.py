@@ -20,7 +20,7 @@ PUBLIC = {
     ('GET', '/api/films/<int:movie_id>'), ('GET', '/api/search/suggest'),
     ('GET', '/api/showtimes'), ('GET', '/api/showtimes/<int:showtime_id>'),
     ('GET', '/api/showtimes/<int:sid>/gcal-url'), ('GET', '/api/showtimes/<int:sid>/ical'),
-    ('GET', '/api/theatres'), ('GET', '/api/theatres-overview'), ('GET', '/api/theatres/<slug>'),
+    ('GET', '/api/theatres'), ('GET', '/api/cities'), ('GET', '/api/theatres-overview'), ('GET', '/api/theatres/<slug>'),
     ('GET', '/api/og/films/<int:movie_id>'), ('GET', '/api/og/showtimes/<int:showtime_id>'),
     ('GET', '/api/og/theatres/<slug>'), ('GET', '/api/sitemap.xml'), ('GET', '/api/push/key'),
     ('GET', '/api/media/<name>'),

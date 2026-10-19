@@ -29,9 +29,15 @@ WIN_FRESH = timedelta(hours=24)         # a win older than this when first seen 
 TICK_EVERY = timedelta(minutes=5)       # how often the bot's checks run tick()
 
 
-def _local_now():
-    """The club's clock (tests set it)."""
-    return datetime.now()
+def _club(post):
+    from app import db, Group
+    return db.session.get(Group, post.group_id)
+
+
+def _local_now(group=None):
+    """The club's clock — its city's (tests set it)."""
+    import places
+    return places.club_now(group)
 
 
 def mode(group, kind):
@@ -188,12 +194,12 @@ def tick(now=None):
     if not has_app_context():
         with app.app_context():
             return tick(now)
-    now = now or _local_now()
     groups = Group.query.filter((Group.trivia_enabled.is_(True)) | (Group.bingo_enabled.is_(True))).all()
     for g in groups:
-        _trivia(g, now)
-        _bingo(g, now)
-        _expire(g, now)
+        at = now or _local_now(g)               # each club on its own city's clock
+        _trivia(g, at)
+        _bingo(g, at)
+        _expire(g, at)
     db.session.commit()
     return len(groups)
 
@@ -226,7 +232,7 @@ def preview(post):
     from app import db, Group, TriviaAnswer, TriviaQuestion, User
     group = db.session.get(Group, post.group_id)
     out = {'id': post.id, 'kind': post.kind, 'status': post.status, 'ref': post.ref}
-    if post.status == 'skipped' and not _late(post, _local_now()):        # it can still go up, until…
+    if post.status == 'skipped' and not _late(post, _local_now(_club(post))):        # it can still go up, until…
         out['until'] = '10 PM' if post.kind == 'trivia' else f"the end of {bingo.month_bounds(post.ref)[0].strftime('%B')}"
     if post.kind == 'trivia':
         q = TriviaQuestion.query.filter_by(group_id=group.id, slot='daily', day=datetime.fromisoformat(post.ref).date()).first()
@@ -252,7 +258,7 @@ def preview(post):
 def ready_to_post(group):
     """Approved posts the bot should put in #movies now (the question only in its hours)."""
     from app import GamePost
-    now = _local_now()
+    now = _local_now(group)
     out = []
     for post in GamePost.query.filter_by(group_id=group.id, status='approved').order_by(GamePost.id):
         if post.kind == 'trivia' and (post.ref != now.date().isoformat() or not TRIVIA_HOURS[0] <= now.hour < TRIVIA_HOURS[1]):
@@ -281,7 +287,7 @@ def waiting(group):
 def skipped(group):
     """Skipped posts that could still go up ("Post it after all", R15)."""
     from app import GamePost
-    now = _local_now()
+    now = _local_now(group)
     return [preview(p) for p in GamePost.query.filter_by(group_id=group.id, status='skipped').order_by(GamePost.id)
             if not _late(p, now)]
 
@@ -296,7 +302,7 @@ def decide(post, user, action):
     group = db.session.get(Group, post.group_id)
     if not role_at_least(_active_membership(user, group.id), 'organizer'):
         return None, 'Only club organizers and admins can do that.'
-    if post.status == 'skipped' and action == 'post' and not _late(post, _local_now()):
+    if post.status == 'skipped' and action == 'post' and not _late(post, _local_now(_club(post))):
         post.status, post.decided_by, post.decided_at = 'approved', user.id, datetime.utcnow()
         db.session.commit()
         return preview(post), None
