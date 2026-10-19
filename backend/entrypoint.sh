@@ -4,8 +4,10 @@ set -e
 # Run database migrations and seed data on startup
 python -c "
 from app import prepare_db
+import config_check
 prepare_db()
 print('Database initialized.')
+config_check.report()
 "
 
 # Start Gunicorn

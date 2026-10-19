@@ -3935,7 +3935,25 @@ async def on_member_remove(member):
     await member_changed(member, 'left')
 
 
+# What the bot needs from its environment (docs/discord-bot.md): it can't
+# start without the token; the rest is named once if unset.
+BOT_SETTINGS = (
+    ('INTERNAL_API_TOKEN', "every command fails: the backend won't answer the bot"),
+    ('DISCORD_CHANNEL_ID', 'no schedule drops, digests or game posts in a channel'),
+    ('GROQ_API_KEY', 'no chat replies, emoji plots or AI poll drafts'),
+)
+
+
+def report_settings(env=os.environ, out=print):
+    gaps = [(name, why) for name, why in BOT_SETTINGS if not env.get(name, '').strip()]
+    if gaps:
+        out('\n'.join(['⚠️  Settings not set (see docs/discord-bot.md):']
+                      + [f'   {name:<20} {why}' for name, why in gaps]))
+    return gaps
+
+
 if __name__ == '__main__':
     if not DISCORD_BOT_TOKEN:
-        raise SystemExit('DISCORD_BOT_TOKEN is not set')
+        raise SystemExit('DISCORD_BOT_TOKEN is not set (see docs/discord-bot.md)')
+    report_settings()
     client.run(DISCORD_BOT_TOKEN)

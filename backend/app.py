@@ -30,12 +30,10 @@ else:
     load_dotenv()
 
 app = Flask(__name__)
+# Without SECRET_KEY each process signs sessions with its own random key:
+# gunicorn workers disagree (random sign-outs) and every restart signs
+# everyone out. config_check names it (and anything else unset) at start.
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
-if not os.environ.get('SECRET_KEY'):
-    # A per-process random key means each gunicorn worker signs sessions
-    # differently (random logouts) and every restart logs everyone out.
-    print('⚠️  SECRET_KEY is not set — sessions will not survive restarts or '
-          'work across workers. Set it in .env.production.')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///cinemaclub.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Sign-ins last 30 days (sessions are marked permanent at sign-in).
@@ -1871,4 +1869,6 @@ from routes import (alerts, auth, clubs, discord, help, internal, people, plans,
 
 if __name__ == '__main__':
     prepare_db()
+    import config_check
+    config_check.report()
     app.run(debug=True, port=5001)
