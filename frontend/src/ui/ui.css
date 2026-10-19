@@ -41,7 +41,7 @@
 .btn:hover { border-color: var(--amber); color: var(--amber); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn-primary { background: var(--amber); color: var(--ink); border-color: var(--amber); }
-.btn-primary:hover { background: #e7c27a; color: var(--ink); }
+.btn-primary:hover { background: var(--amber-bright); color: var(--ink); }
 .btn-ghost { border-color: transparent; }
 .btn-ghost:hover { background: var(--gold-wash); border-color: transparent; }
 .btn-danger { color: var(--red); border-color: rgba(224, 105, 78, 0.45); }
@@ -59,7 +59,7 @@
   display: inline-flex; align-items: center; gap: 0.3rem;
   padding: 0.2rem 0.65rem; border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
-  font-size: var(--fs-xs); color: #ead6b0; white-space: nowrap;
+  font-size: var(--fs-xs); color: var(--parchment); white-space: nowrap;
 }
 .chip.gold { color: var(--amber); border-color: var(--amber); background: var(--gold-wash); }
 a.chip { text-decoration: none; }
@@ -74,7 +74,7 @@ a.chip { text-decoration: none; }
 .ui-badge.go { color: var(--green); border-color: rgba(111, 191, 152, 0.5); }
 .ui-badge.gold { color: var(--amber); border-color: var(--gold-line); }
 .ui-badge.strong { color: var(--cream); border-color: var(--muted); }
-.ui-badge.discord { color: #8f9cf2; border-color: rgba(143, 156, 242, 0.4); }
+.ui-badge.discord { color: var(--discord-soft); border-color: rgba(143, 156, 242, 0.4); }
 .ui-badge.solid { color: var(--bg); background: var(--amber); border-color: var(--amber); }
 /* A chip you switch on and off (ui/ToggleChip.jsx) */
 .chip-toggle {
@@ -438,7 +438,7 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .seg-btn.on { color: var(--ink); background: var(--amber); }   /* RSVP states recolor it below */
 .seg-going.on, .seg-went.on { background: var(--green); }
 .seg-maybe.on { background: var(--amber); }
-.seg-not_going.on, .seg-missed.on { background: #d98a78; }
+.seg-not_going.on, .seg-missed.on { background: var(--soft-red); }
 
 /* ── Ticket stub (one screening) ───────────────────────────────────────── */
 .ticket {
@@ -466,7 +466,7 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .ticket-links .btn svg { width: 15px; height: 15px; }
 .ticket-note { font-size: var(--fs-xs); color: var(--green); }
 .ticket.sold-out .ticket-time { text-decoration: line-through; color: var(--muted); }
-.ticket-soldout { color: #d98a78; border-color: rgba(217, 138, 120, 0.5); }
+.ticket-soldout { color: var(--soft-red); border-color: rgba(217, 138, 120, 0.5); }
 @media (max-width: 480px) {
   .ticket-links { margin-left: 0; }
   .seg-btn { padding: 0.35rem 0.7rem; }
@@ -556,7 +556,7 @@ a.feed-poster { display: block; }
 .share-link:disabled { opacity: 0.5; cursor: default; }
 .share-state { color: var(--muted); }
 a.share-state { color: var(--green); }
-.share-error { color: #d98a78; font-size: var(--fs-xs); margin: 0.25rem 0 0; }
+.share-error { color: var(--soft-red); font-size: var(--fs-xs); margin: 0.25rem 0 0; }
 .share-when { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .share-when-at, .share-input {
   background: var(--bg3); border: 1px solid var(--border); color: var(--cream);

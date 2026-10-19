@@ -87,7 +87,7 @@
 .pv-confidence strong { color: var(--cream); min-width: 3.5rem; }
 .pv-saved { font-size: var(--fs-xs); color: var(--muted); min-height: 1em; }
 .pv-saved.saved { color: var(--green); }
-.pv-saved.error { color: #d98a78; }
+.pv-saved.error { color: var(--soft-red); }
 
 /* Results */
 .pv-bars { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -100,7 +100,7 @@
 .pv-bar-count { color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
 .pv-bar-you { margin-left: 0.5rem; font-size: var(--fs-xs); color: var(--amber); }
 .pv-bar.right .pv-bar-you { color: var(--green); }
-.pv-bar.wrong .pv-bar-you { color: #d98a78; }
+.pv-bar.wrong .pv-bar-you { color: var(--soft-red); }
 .pv-winner { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; font-size: var(--fs-xs); color: var(--muted); }
 .pv-winner .group-role-select { margin-left: 0; }
 
@@ -113,7 +113,7 @@
 .pv-board-name { flex: 1; font-weight: 500; }
 .pv-board-stats { font-size: var(--fs-xs); color: var(--muted); }
 .pv-board-kernels { font-weight: 700; color: var(--amber); }
-.pv-danger { color: #d98a78; margin-right: auto; }
+.pv-danger { color: var(--soft-red); margin-right: auto; }
 @media (max-width: 767px) {
   .pv-ask-row { flex-direction: column; }
   .pv-card { flex-direction: column; align-items: stretch; }

@@ -22,6 +22,12 @@
   --green:    #6fbf98;   /* going / went */
   --discord:  #5865f2;   /* Discord's own blurple, for its buttons */
   --discord-dark: #4752c4;
+  --discord-soft: #8f9cf2;   /* Discord's color as text on velvet */
+  --amber-bright: #e7c27a;   /* gold, hovered */
+  --parchment: #ead6b0;      /* warm secondary text: film details, meta */
+  --soft-red:  #d98a78;      /* no / missed / sold out / an error */
+  /* Chart series (kernel bars): one hue per game */
+  --series-trivia: #8fb3e8;  --series-bingo: #d98ab8;  --series-games: #b59be0;
 
   --font-body:    'DM Sans', system-ui, sans-serif;
   --font-deco:    'Limelight', 'Playfair Display', serif;   /* titles only, set ~12% narrower (.deco) */

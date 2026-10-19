@@ -21,7 +21,7 @@
 .film-hero-text { flex: 1; min-width: 0; }
 .film-title { font-family: var(--font-serif); font-weight: 700; font-size: 2.4rem; line-height: 1.1; }
 .film-tagline { font-style: italic; color: var(--muted); margin-top: 0.35rem; }
-.film-meta { color: #ead6b0; margin-top: 0.5rem; font-size: var(--fs-sm); }
+.film-meta { color: var(--parchment); margin-top: 0.5rem; font-size: var(--fs-sm); }
 .film-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
 .film-ratings { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
 .film-ratings:empty { display: none; }
@@ -61,7 +61,7 @@
 .show-friends { display: inline-flex; }
 .show-friends .ui-avatar { margin-left: -5px; border: 1px solid var(--bg3); }
 .show-friends .ui-avatar:first-child { margin-left: 0; }
-.film-desc { max-width: 70ch; line-height: 1.65; color: #ead6b0; }
+.film-desc { max-width: 70ch; line-height: 1.65; color: var(--parchment); }
 .film-desc + .film-desc { margin-top: 0.5rem; }
 
 @media (max-width: 767px) {

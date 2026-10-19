@@ -79,9 +79,9 @@
 .kbar-dot { width: 9px; height: 9px; border-radius: 2px; }
 .kbar-polls { background: var(--amber); }
 .kbar-going_out { background: var(--green); }
-.kbar-trivia { background: #8fb3e8; }
-.kbar-bingo { background: #d98ab8; }
-.kbar-games { background: #b59be0; }
+.kbar-trivia { background: var(--series-trivia); }
+.kbar-bingo { background: var(--series-bingo); }
+.kbar-games { background: var(--series-games); }
 .kbar-members { background: var(--cream); }
 .kbar { display: block; height: 7px; margin-top: 0.3rem; border-radius: 4px; background: var(--border); overflow: hidden; }
 .kbar-fill { display: flex; height: 100%; }

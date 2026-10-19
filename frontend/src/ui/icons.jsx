@@ -20,9 +20,6 @@ export const PlayIcon = () => (
   <svg {...base}><rect x="2.5" y="7" width="19" height="11" rx="5.5" /><path d="M7.5 10.5v4M5.5 12.5h4" />
     <circle cx="15.5" cy="11.5" r="0.9" /><circle cx="17.8" cy="13.8" r="0.9" /></svg>
 );
-export const PollIcon = () => (
-  <svg {...base}><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
-);
 export const UserIcon = () => (
   <svg {...base}><circle cx="12" cy="8" r="4" /><path d="M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6" /></svg>
 );

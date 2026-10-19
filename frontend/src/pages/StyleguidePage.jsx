@@ -10,6 +10,12 @@ import Avatar, { ClubBadge } from "../ui/Avatar";
 import SearchField, { SearchAction } from "../ui/SearchField";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow } from "../ui/Settings";
 import SectionMenu from "../ui/SectionMenu";
+import StatTiles from "../ui/StatTiles";
+import MiniBingo from "../ui/MiniBingo";
+import BingoGrid from "../ui/BingoGrid";
+import TicketChips from "../ui/TicketChips";
+import TicketRow from "../ui/TicketRow";
+import Sheet, { SheetTitle } from "../ui/Sheet";
 import "./StyleguidePage.css";
 
 // The style guide (R15), for club admins: every piece of the UI kit in one
@@ -17,6 +23,13 @@ import "./StyleguidePage.css";
 // Nothing on it saves anything. Linked from Club → Settings.
 const BADGES = [["", "Closed"], ["go", "Going"], ["gold", "Maybe"], ["strong", "Saw it"], ["discord", "via Discord"],
                 ["solid", "3 tonight"]];
+const SAMPLE_SHOW = { id: 0, start_time: "2099-11-09T21:45:00", end_time: "2099-11-10T00:02:00", purchase_link: null,
+                      theatre: { slug: "afi", name: "AFI Silver Theatre" }, format_label: "35mm" };
+const SAMPLE_SQUARES = ["🎞️ On film", "🌍 Not in English", "📼 Before 1970", "🌙 Late show", "⭐ Free", "🏛️ A museum",
+                        "🎬 A director's debut", "👯 With a friend", "🏠 At home"].map((t, i) => {
+  const [emoji, ...label] = t.split(" ");
+  return { key: i === 4 ? "free" : `s${i}`, emoji, label: label.join(" "), hint: "What fills it", done: [0, 4, 8].includes(i) };
+});
 
 export default function StyleguidePage() {
   const shell = useShell();
@@ -27,6 +40,9 @@ export default function StyleguidePage() {
   const [find, setFind] = useState("");
   const [sw, setSw] = useState(true);
   const [sw2, setSw2] = useState(false);
+  const [tickets, setTickets] = useState(null);
+  const [rsvp, setRsvp] = useState(null);
+  const [sheet, setSheet] = useState(false);
   if (!shell?.group) return null;
   if (shell.role !== "admin") return <Navigate to="/club" replace />;
   const me = { name: "Your Name", id: 1 };
@@ -120,6 +136,48 @@ export default function StyleguidePage() {
                 <button type="button" className="btn btn-sm btn-primary">Yes</button>
                 <button type="button" className="btn btn-sm">Not now</button>
               </>} />
+
+      <SectionTitle>Numbers and tables</SectionTitle>
+      <p className="ui-hint">StatTiles for numbers at a glance (game records, club totals); .ui-table (in .ui-table-wrap, which
+        scrolls on phones) for rows to compare, with a sort button in each heading.</p>
+      <StatTiles label="Sample records" items={[{ label: "Trivia", value: "72%", sub: "18 of 25 · best streak 6" },
+                                                 { label: "Bingo", value: "2 lines", sub: "1 full card" },
+                                                 { label: "Polls", value: 4, sub: "right picks" }]} />
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label="Sample table">
+          <thead><tr><th scope="col">Member</th><th scope="col" aria-sort="descending"><button type="button">Trivia ↓</button></th>
+            <th scope="col"><button type="button">Polls</button></th></tr></thead>
+          <tbody><tr className="me"><td>You</td><td>72%</td><td>4</td></tr><tr><td>A member</td><td>60%</td><td>6</td></tr></tbody>
+        </table>
+      </div>
+
+      <SectionTitle>Tickets</SectionTitle>
+      <p className="ui-hint">TicketChips filter by ticket status (kept in the address); TicketRow is one showing — time, theatre,
+        RSVP, tickets, add to calendar. Sold out, or off sale (gone from the theatre's site, likely sold out), still takes RSVPs.</p>
+      <TicketChips value={tickets} onChange={setTickets} />
+      <TicketRow showtime={{ ...SAMPLE_SHOW, is_sold_out: true, off_sale: true, user_rsvp: rsvp }} apiBase="" onRsvp={(_, v) => setRsvp(v)} />
+
+      <SectionTitle>Bingo</SectionTitle>
+      <p className="ui-hint">MiniBingo is a card at a glance (a line gives a gold edge, a full card a double one); BingoGrid is the
+        card itself, square by square (compact for someone else's).</p>
+      <div className="styleguide-row">
+        <MiniBingo cells={[1, 0, 0, 0, 1, 0, 0, 0, 1].map(Boolean)} line size="md" label="A line" />
+        <MiniBingo cells={Array(9).fill(true)} full size="md" label="A full card" />
+        <MiniBingo cells={[1, 1, 0, 0, 1, 0, 0, 0, 0].map(Boolean)} label="Three of nine" />
+      </div>
+      <BingoGrid squares={SAMPLE_SQUARES} label="Sample card" compact />
+
+      <SectionTitle>Sheets</SectionTitle>
+      <p className="ui-hint">Sheet: a panel over the page for details (a showing, a member's card) — × or Escape closes it.</p>
+      <button type="button" className="btn" onClick={() => setSheet(true)}>Open a sheet</button>
+      {sheet && (
+        <Sheet label="Sample sheet" onClose={() => setSheet(false)}>
+          <div className="share-sheet-body">
+            <SheetTitle>A sheet</SheetTitle>
+            <p className="ui-hint">Its title, then what it's about.</p>
+          </div>
+        </Sheet>
+      )}
 
       <SectionTitle>Text</SectionTitle>
       <p className="ui-note">.ui-note — a muted lead-in under a heading.</p>
