@@ -6,11 +6,11 @@ import { ClubBadge, initialsNudge } from "../src/ui/Avatar";
 
 test("open-right initials sit a little right; symmetric ones don't", () => {
   expect(initialsNudge("MH")).toBeCloseTo(0.02);
-  expect(initialsNudge("MP")).toBeCloseTo(0.08);
-  expect(initialsNudge("FF")).toBeCloseTo(0.14);
+  expect(initialsNudge("MP")).toBeCloseTo(0.05);
+  expect(initialsNudge("FF")).toBeCloseTo(0.08);
   const { container } = render(<ClubBadge group={{ name: "Film Friends" }} size={64} />);
   expect(container.firstChild).toHaveTextContent("FF");
-  expect(container.firstChild.style.paddingLeft).toBe("0.14em");
+  expect(container.firstChild.style.paddingLeft).toBe("0.08em");
   const emoji = render(<ClubBadge group={{ name: "Film Friends", emoji: "🎬" }} />).container.firstChild;
   expect(emoji.style.paddingLeft).toBe("");                                  // only initials are nudged
 });

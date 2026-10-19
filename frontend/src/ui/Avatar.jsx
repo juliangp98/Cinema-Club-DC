@@ -75,7 +75,7 @@ export function initialsOf(name) {
 const OPEN_RIGHT = new Set("CEFKLPRTZ");
 const BADGE_SPACING = 0.02;                           // em, as in .ui-club-badge
 export const initialsNudge = text =>
-  Math.round((BADGE_SPACING + 0.06 * [...text].filter(c => OPEN_RIGHT.has(c)).length) * 100) / 100;
+  Math.round((BADGE_SPACING + 0.03 * [...text].filter(c => OPEN_RIGHT.has(c)).length) * 100) / 100;
 
 export function ClubBadge({ group, size = 32 }) {
   const [broken, setBroken] = useState(false);
