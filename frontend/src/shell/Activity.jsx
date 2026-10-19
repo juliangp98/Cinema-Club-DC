@@ -6,7 +6,6 @@ import Tabs from "../ui/Tabs";
 import Poster from "../ui/Poster";
 import lazyPage from "../lazyPage";
 import Loading from "../ui/Loading";
-import NotifySettings from "../components/NotifySettings";
 import { BellIcon } from "../ui/icons";
 import { ago } from "../dates";
 
@@ -94,7 +93,6 @@ export function ActivityBell({ unread, onOpen }) {
 // Your alerts, newest first; opening them marks them read.
 function ForYou({ apiBase, onSeen, onClose }) {
   const [items, setItems] = useState(null);
-  const [settings, setSettings] = useState(false);
   useEffect(() => {
     getJson(`${apiBase}/api/notifications`, { cache: false })
       .then(d => {
@@ -110,11 +108,8 @@ function ForYou({ apiBase, onSeen, onClose }) {
   return (
     <div className="alerts">
       <div className="alerts-bar">
-        <button type="button" className="btn btn-sm btn-ghost" aria-expanded={settings} onClick={() => setSettings(v => !v)}>
-          {settings ? "Done" : "Notification settings"}
-        </button>
+        <Link className="btn btn-sm btn-ghost" to="/me?tab=settings#settings-notify" onClick={onClose}>Notification settings</Link>
       </div>
-      {settings && <NotifySettings apiBase={apiBase} />}
       {items === null ? null : !items.length ? (
         <p className="feed-empty">
           No alerts yet. Add films to your watchlist — even ones that aren't playing — or tap 🔔 Alert me on a

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { PushDevice } from "../components/NotifySettings";
 import { getJson, send } from "../api";
+import { Link } from "react-router-dom";
 import Prompt from "./Prompt";
+import { SettingRow, SwitchRow } from "./Settings";
 
 // Notifications are opt-in: these ask once, at the first moment they matter.
 // Nothing leaves the site unless the person picks something here (or in the
-// bell's Notification settings, which can change it all later).
+// Settings → Notifications, which can change it all later).
 
 const put = (apiBase, path, body) => send(`${apiBase}${path}`, "PUT", body);
 
@@ -37,25 +39,19 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
   }
   return (
     <Prompt question={question} label="How to get alerts" onClose={() => onDone?.()}
-            hint="They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise. Change it any time: 🔔 → Notification settings."
+            hint="They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise."
             actions={<>
               <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
               <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onDone?.()}>Not now</button>
             </>}>
       <div className="ui-prompt-choices">
         {ways.map(([k, label]) => (
-          <label key={k} className="notify-row">
-            <input type="checkbox" checked={pick[k]} onChange={e => setPick(p => ({ ...p, [k]: e.target.checked }))} />
-            <span className="notify-name">{label}</span>
-          </label>
+          <SwitchRow key={k} label={label} checked={pick[k]} onChange={v => setPick(p => ({ ...p, [k]: v }))} />
         ))}
-        {digest && (
-          <label className="notify-row">
-            <input type="checkbox" checked={pick.mention} onChange={e => setPick(p => ({ ...p, mention: e.target.checked }))} />
-            <span className="notify-name">Mention me in the Monday digest on Discord</span>
-          </label>
-        )}
-        {s.push_ready && <div><span className="notify-name">Push on this device</span><PushDevice apiBase={apiBase} onSettings={setS} /></div>}
+        {digest && <SwitchRow label="Mention me in the Monday digest on Discord" checked={pick.mention}
+                              onChange={v => setPick(p => ({ ...p, mention: v }))} />}
+        {s.push_ready && <SettingRow label="Push on this device"><PushDevice apiBase={apiBase} onSettings={setS} /></SettingRow>}
+        <p className="ui-hint">Change it any time in <Link to="/me?tab=settings#settings-notify">Settings → Notifications</Link>.</p>
       </div>
     </Prompt>
   );

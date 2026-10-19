@@ -54,11 +54,12 @@ test("Club settings: each game post is Never / Ask first / Always (wins Never / 
   const calls = mockApi({ "GET /api/theatres": [], "GET /api/groups/club/members": [], "GET /api/groups/club/game-posts": { waiting: [] },
                           "PUT /api/groups/club": body => ({ ...group, ...body }) });
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} onChanged={() => {}} />);
-  const trivia = (await screen.findByText("The question of the day")).closest(".club-post-choice");
+  const triviaCard = (await screen.findByText("🧠 Trivia: question of the day")).closest(".game-setting");   // on the game's own card (7g)
+  const trivia = within(triviaCard).getByRole("group", { name: "Post it in #movies" });
   expect(within(trivia).getByRole("button", { name: "Never" })).toHaveAttribute("aria-pressed", "true");
   await userEvent.click(within(trivia).getByRole("button", { name: "Ask first" }));
   expect(calls.find(c => c.method === "PUT").body).toEqual({ trivia_post: "ask" });
-  const wins = screen.getByText("Bingo wins").closest(".club-post-choice");
+  const wins = screen.getByRole("group", { name: "Post wins" });
   expect(within(wins).getAllByRole("button").map(b => b.textContent)).toEqual(["Never", "Always"]);
-  expect(screen.getByText("Each month's bingo card")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Post each month's card" })).toBeInTheDocument();
 });

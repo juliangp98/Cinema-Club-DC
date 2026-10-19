@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
 import Panel from "../ui/Panel";
@@ -9,13 +9,19 @@ import ProfileLists from "../components/ProfileLists";
 import { useShell } from "../shell/AppShell";
 import useShowtimeSheet from "../shell/useShowtimeSheet";
 import { accountLabel } from "../accountLabel";
-import CalendarLinks from "../components/CalendarLinks";
+import MeSettings from "../components/MeSettings";
+import Tabs from "../ui/Tabs";
 
 // "Me": your profile, your lists, and your group's pages — one place to find
-// what used to hide in the avatar and group dropdowns.
+// what used to hide in the avatar and group dropdowns — and (7g) your
+// Settings, as its second tab (?tab=settings).
+const TABS = [{ key: "profile", label: "Profile" }, { key: "settings", label: "Settings" }];
 export default function MePage({ user, apiBase, groupId }) {
-  const { editProfile, logout, group, startTour } = useShell();
+  const { logout, group, startTour } = useShell();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "settings" ? "settings" : "profile";
+  const setTab = key => setParams(key === "profile" ? {} : { tab: key }, { replace: true });
   const [listKey, setListKey] = useState(0);   // refresh lists after RSVP / check-in changes
   const { openShowtime, sheet } = useShowtimeSheet({
     user, apiBase, groupId, onChange: () => setListKey(k => k + 1),
@@ -24,6 +30,8 @@ export default function MePage({ user, apiBase, groupId }) {
   return (
     <div className="page me-page">
       <PageHeader title="Me" tour="me" />
+      <Tabs tabs={TABS} value={tab} onChange={setTab} label="Me" />
+      {tab === "settings" ? <MeSettings user={user} apiBase={apiBase} /> : <>
 
       {user.is_guest && (
         <Panel tone="callout" title="Keep your profile"
@@ -42,7 +50,7 @@ export default function MePage({ user, apiBase, groupId }) {
           <div className="me-sub">{accountLabel(user)}</div>
         </div>
         <div className="me-card-actions">
-          <button className="btn" onClick={editProfile}><EditIcon /> Edit profile</button>
+          <button className="btn" onClick={() => setTab("settings")}><EditIcon /> Settings</button>
           <button className="btn btn-ghost" onClick={logout}><LogoutIcon /> Sign out</button>
         </div>
       </section>
@@ -56,10 +64,10 @@ export default function MePage({ user, apiBase, groupId }) {
       <aside className="ui-split-side me-side" aria-label="Calendar, club and help">
 
       {!user.is_guest && (
-        <div className="me-block" id="me-calendar">
+        <div className="me-block">
           <SectionTitle>In your calendar</SectionTitle>
-          <p className="ui-hint">Subscribe once and your plans stay in sync with Google, Apple or Outlook Calendar.</p>
-          <CalendarLinks apiBase={apiBase} />
+          <p className="ui-hint">Your plans in Google, Apple or Outlook Calendar: <Link to="/me?tab=settings#me-calendar">subscribe in
+            Settings → Connections</Link>.</p>
         </div>
       )}
 
@@ -101,6 +109,7 @@ export default function MePage({ user, apiBase, groupId }) {
       </aside>
       </div>
 
+      </>}
       {sheet}
     </div>
   );

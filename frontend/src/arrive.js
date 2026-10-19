@@ -16,7 +16,7 @@ const GAP = 12;                                           // room above a target
 
 const scroller = () => document.querySelector(".shell-main") || document.scrollingElement || document.documentElement;
 
-// What scrolls `el`: a sheet it's in (Edit profile), or the page.
+// What scrolls `el`: a sheet it's in, or the page.
 function scrollerOf(el) {
   for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
     const y = getComputedStyle(p).overflowY;
@@ -25,25 +25,29 @@ function scrollerOf(el) {
   return scroller();
 }
 
-// Bring `el` into view inside what scrolls it: the top of a tall thing, the
-// middle of anything else.
-export function bringIntoView(el) {
+// Bring `el` into view inside what scrolls it: the top of a tall thing (or,
+// `atTop`, of anything — a section menu's jump), the middle of anything else.
+export function bringIntoView(el, atTop = false) {
   const box = scrollerOf(el);
   const view = box.getBoundingClientRect?.() || { top: 0, height: window.innerHeight };
   const r = el.getBoundingClientRect();
   const height = Math.min(view.height, window.innerHeight - Math.max(view.top, 0));
-  const offset = r.height > height * 0.6 ? GAP : (height - r.height) / 2;
+  const offset = atTop || r.height > height * 0.6 ? GAP : (height - r.height) / 2;
   box.scrollTop += r.top - Math.max(view.top, 0) - offset;
 }
 
-export function glow(el) {
+// `quiet`: just bring it to the top (a section menu's jump), no glow.
+export function glow(el, quiet = false) {
   for (let d = el.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
-  bringIntoView(el);
+  bringIntoView(el, quiet);
+  if (quiet) return;
+  // The glow follows the thing's own corners — or the site's, if it has none.
+  el.classList.toggle("arrive-round", !(parseFloat(getComputedStyle(el).borderTopLeftRadius) > 0));
   el.classList.remove("arrive-glow");
   void el.offsetWidth;                                   // restart the animation if it's already glowing
   el.classList.add("arrive-glow");
   clearTimeout(el._arriveTimer);
-  el._arriveTimer = setTimeout(() => el.classList.remove("arrive-glow"), GLOW_MS);
+  el._arriveTimer = setTimeout(() => el.classList.remove("arrive-glow", "arrive-round"), GLOW_MS);
 }
 
 // Stop adjusting the moment the reader scrolls on their own.
@@ -55,7 +59,8 @@ function onUserScroll(stop) {
 
 // In the app shell, on every navigation.
 export default function useArrival() {
-  const { pathname, hash, key } = useLocation();
+  const { pathname, hash, key, state } = useLocation();
+  const quiet = state?.arrive === "quiet";
   const action = useNavigationType();
   const positions = useRef({});                          // location key -> where you'd scrolled
   const last = useRef({ pathname, key });
@@ -101,13 +106,13 @@ export default function useArrival() {
       const view = scrollerOf(el).getBoundingClientRect?.() || { top: 0 };
       const want = el._arriveTop;
       const now = el.getBoundingClientRect().top - Math.max(view.top, 0);
-      if (Math.abs(now - want) > 8) bringIntoView(el);
+      if (Math.abs(now - want) > 8) bringIntoView(el, quiet);
       timer = setTimeout(settle, 150);
     };
     const look = () => {
       el = document.getElementById(id);
       if (el) {
-        glow(el);
+        glow(el, quiet);
         const view = scrollerOf(el).getBoundingClientRect?.() || { top: 0 };
         el._arriveTop = el.getBoundingClientRect().top - Math.max(view.top, 0);
         settleUntil = Date.now() + SETTLE_MS;
@@ -118,5 +123,5 @@ export default function useArrival() {
     };
     timer = setTimeout(look, 60);
     return () => { clearTimeout(timer); off(); };
-  }, [hash, key]);
+  }, [hash, key, quiet]);
 }

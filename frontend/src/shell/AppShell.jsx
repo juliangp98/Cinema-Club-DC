@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useCallback, useEffect, Suspense }
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import GroupSwitcher from "../components/GroupSwitcher";
 import lazyPage from "../lazyPage";
-import Sheet from "../ui/Sheet";
 import Loading from "../ui/Loading";
 import Menu, { MenuItem, MenuDivider, MenuLabel } from "../ui/Menu";
 import Avatar from "../ui/Avatar";
@@ -15,10 +14,8 @@ import useArrival from "../arrive";
 import { PAGE_TOURS } from "./pageTours";
 import { TopbarTour } from "../ui/PageTourControls";
 
-const ProfileEditor = lazyPage(() => import("../components/ProfileMenu"));   // opens on demand
 const Tour = lazyPage(() => import("./Tour"));                                 // R11, on demand
 const PageTour = lazyPage(() => import("./Tour"), "PageTour");                  // 7f, on demand
-const TasteEditor = lazyPage(() => import("../components/TasteEditor"));          // R13, on demand
 
 // Everything signed-in pages share: the top bar (desktop nav, group switcher,
 // the activity bell, your menu), the bottom tab bar on phones, the profile
@@ -51,10 +48,8 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
   const { pathname, search } = useLocation();
   const NAV = !user || user.is_guest ? PUBLIC_NAV : groupId ? CLUB_NAV : NO_CLUB_NAV;
   const signInLink = `/signin?next=${encodeURIComponent(pathname + search)}`;
-  const [editing, setEditing] = useState(false);
   const [touring, setTouring] = useState(false);
-  const [tasting, setTasting] = useState(false);
-  const [tasteVersion, setTasteVersion] = useState(0);        // bumped when the taste sheet closes
+  const [tasteVersion, setTasteVersion] = useState(0);        // bumped when Your taste changes: Discover re-picks
 
   // The welcome tour (R11): on its own once per account (new ones, and
   // everyone the first time it shipped); replayable from the menu and Help.
@@ -108,28 +103,31 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
 
   useArrival();                                   // any #link glows on arrival (7f)
   const activity = useActivity({ apiBase, groupId: user ? groupId : null, user });
-  // Links that open something the address can't show (7f, places in
-  // help.json): ?alerts=1 the bell (a push about several alerts), ?taste=1
-  // Your taste (Discord's /profile), ?profile=1 Edit profile — with any
-  // #anchor kept, so the arrival glow finds its section inside.
+  // Links that open something the address can't show (7f): ?alerts=1 the
+  // bell (a push about several alerts). Older links to the Edit profile and
+  // Your taste sheets (?profile=1, ?taste=1 — Discord's /profile has them) go
+  // to Me → Settings since 7g, keeping any #anchor for the arrival glow.
   useEffect(() => {
     const q = new URLSearchParams(search);
     const opener = ["alerts", "taste", "profile"].find(k => q.has(k));
     if (!user || !opener) return;
-    if (opener === "alerts") activity.open("mine");
-    else if (opener === "taste") setTasting(true);
-    else setEditing(true);
-    q.delete(opener);
-    const rest = q.toString();
-    navigate(`${pathname}${rest ? `?${rest}` : ""}${window.location.hash}`, { replace: true });
+    if (opener === "alerts") {
+      activity.open("mine");
+      q.delete(opener);
+      const rest = q.toString();
+      navigate(`${pathname}${rest ? `?${rest}` : ""}${window.location.hash}`, { replace: true });
+      return;
+    }
+    navigate(`/me?tab=settings${window.location.hash || (opener === "taste" ? "#settings-taste" : "#settings-profile")}`, { replace: true });
   }, [user, search]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Your role in the club you're viewing (R5c): read-only members see, but don't post.
   const role = group?.role || null;
   const canParticipate = !!groupId && role !== "viewer";
   const shell = { user, setUser, apiBase, groupId, group, role, canParticipate, setGroupId, refreshGroups, logout, ensureProfile,
-                  editProfile: () => setEditing(true), startTour: () => setTouring(true),
+                  editProfile: () => navigate("/me?tab=settings"), startTour: () => setTouring(true),
                   startPageTour, offerPageTour, markPageTour,
-                  editTaste: () => setTasting(true), tasteVersion,
+                  editTaste: () => navigate("/me?tab=settings#settings-taste"), tasteVersion,
+                  tasteChanged: () => setTasteVersion(v => v + 1),
                   openActivity: () => activity.open("club") };
 
   return (
@@ -157,7 +155,7 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
             <MenuLabel>{user.name} · {accountLabel(user)}</MenuLabel>
             <MenuItem onSelect={() => navigate("/me")}><UserIcon /> {user.is_guest ? "Your plans & watchlist" : <>Your profile &amp; lists</>}</MenuItem>
             {user.is_guest && <MenuItem onSelect={() => navigate("/signin?next=%2Fme")}><EditIcon /> Keep your profile</MenuItem>}
-            <MenuItem onSelect={() => setEditing(true)}><EditIcon /> Edit profile</MenuItem>
+            <MenuItem onSelect={() => navigate("/me?tab=settings")}><EditIcon /> Settings</MenuItem>
             {!user.is_guest && <MenuItem onSelect={() => setTouring(true)}><CompassIcon /> Take the tour</MenuItem>}
             <MenuItem onSelect={() => navigate("/help")}><HelpIcon /> Help</MenuItem>
             <MenuDivider />
@@ -183,27 +181,12 @@ export default function AppShell({ user, setUser, apiBase, groupId, group, group
           <PageTour tour={PAGE_TOURS[pageTour]} onFinish={() => setPageTour(null)} /></Suspense>}
 
         {touring && <Suspense fallback={null}>
-          <Tour inClub={!!groupId} onFinish={finishTour} onTaste={() => setTasting(true)} /></Suspense>}
+          <Tour inClub={!!groupId} onFinish={finishTour} onTaste={() => navigate("/me?tab=settings#settings-taste")} /></Suspense>}
 
         {activity.isOpen && (
           <ActivityPanel user={user} apiBase={apiBase} groupId={groupId} activity={activity} />
         )}
 
-        {editing && (
-          <Sheet label="Edit profile" onClose={() => setEditing(false)}>
-            <div className="profile-editor">
-              <Suspense fallback={<Loading />}><ProfileEditor user={user} apiBase={apiBase} onUpdate={setUser} /></Suspense>
-            </div>
-          </Sheet>
-        )}
-
-        {tasting && (
-          <Sheet label="Your taste" onClose={() => { setTasting(false); setTasteVersion(v => v + 1); }}>
-            <div className="profile-editor">
-              <Suspense fallback={<Loading />}><TasteEditor apiBase={apiBase} /></Suspense>
-            </div>
-          </Sheet>
-        )}
       </div>
     </ShellContext.Provider>
   );

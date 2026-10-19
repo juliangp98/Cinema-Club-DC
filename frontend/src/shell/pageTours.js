@@ -82,9 +82,9 @@ export const PAGE_TOURS = {
     { target: ".pv-manage", title: "Running the poll", body: "Organizers close voting, mark the winners and award the kernels here." },
   ] },
   me: { title: "the Me page", help: "lists", steps: [
-    { target: ".me-card", title: "You", body: "Edit profile: your picture, bio, Your taste, Discord, Letterboxd and notifications." },
+    { target: ".me-card", title: "You", body: "Your picture, name and a line about you, as your clubs see them." },
     { target: "#me-lists", title: "Your lists", body: "Your watchlist, what you're going to and your watch history." },
-    { target: "#me-calendar", title: "In your calendar", body: "Subscribe once and your plans stay in sync with Google, Apple or Outlook." },
+    { target: '[data-tab="settings"]', title: "Settings", body: "Your profile and taste, notifications, Discord, Letterboxd and calendar links, privacy — all in one place." },
     { target: ".me-links", title: "Your club, and more", body: "The Club page, theatres, other clubs, the tour and Help." },
   ] },
 };

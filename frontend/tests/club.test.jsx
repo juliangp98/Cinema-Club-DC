@@ -18,27 +18,26 @@ const settingsApi = () => mockApi({
   "PUT /api/groups/club": body => ({ ...group, ...body }),
 });
 
-test("organizers get theatres, join requests, games and Discord — not the club's details", async () => {
+test("organizers get join requests, theatres and games — not the club's details", async () => {
   const calls = settingsApi();
   renderPage(<ClubSettings group={group} apiBase="" viewerId={3} isAdmin={false} onChanged={() => {}} />, { route: "/club?tab=settings" });
-  const jump = screen.getByRole("list", { name: "Settings sections" });
-  expect(within(jump).getAllByRole("link").map(a => a.textContent)).toEqual(["Theatres", "Members & roles", "Games", "Discord"]);
+  const jump = screen.getByRole("navigation", { name: "Settings sections" });
+  expect(within(jump).getAllByRole("link").map(a => a.textContent)).toEqual(["Members", "Theatres", "Games"]);
   expect(await screen.findByText("Newt")).toBeInTheDocument();                         // join requests
   expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Name")).toBeNull();                                 // admins'
   expect(screen.queryByText("Roles (1)")).toBeNull();
   expect(screen.queryByRole("button", { name: "Delete club" })).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "Suns" }));
-  await userEvent.click(screen.getByRole("button", { name: "Save theatres" }));
+  await userEvent.click(screen.getByRole("button", { name: "Suns" }));             // saved as you pick
   expect(calls.find(c => c.method === "PUT").body).toEqual({ theatres: ["afi", "suns"] });
 });
 
 test("admins get every section", async () => {
   settingsApi();
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} isAdmin onChanged={() => {}} />, { route: "/club?tab=settings" });
-  const jump = screen.getByRole("list", { name: "Settings sections" });
+  const jump = screen.getByRole("navigation", { name: "Settings sections" });
   expect(within(jump).getAllByRole("link").map(a => a.textContent))
-    .toEqual(["Club", "Theatres", "Members & roles", "Games", "Discord", "Look", "Danger zone"]);
+    .toEqual(["Club", "Members", "Theatres", "Games", "Admin"]);
   expect(within(jump).getByRole("link", { name: "Games" })).toHaveAttribute("href", "/club?tab=settings#settings-games");
   expect(await screen.findByText("Roles (1)")).toBeInTheDocument();
 });

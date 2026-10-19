@@ -1786,7 +1786,7 @@ class ProfileView(discord.ui.View):
         self.add_item(self.genres)
         for what in ('hist', 'watch'):
             self.add_item(ProfileButton(what, ident['discord_user_id'], row=1))
-        self.add_item(discord.ui.Button(label='✨ Your taste on the site', url=f'{SITE_URL}/me?taste=1', row=2))
+        self.add_item(discord.ui.Button(label='✨ Your taste on the site', url=f'{SITE_URL}/me?tab=settings#settings-taste', row=2))
 
     async def on_genres(self, interaction: discord.Interaction):
         await self.save(interaction, self.ident, {'genres': self.genres.values})

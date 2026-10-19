@@ -177,6 +177,8 @@ class Group(db.Model):
                       'wins_post': self.bingo_wins_post or 'never', 'home': bool(self.bingo_home)},
             'notes': {'enabled': bool(self.notes_enabled)},
             'quizzes': __import__('quizzes').switches(self),
+            # 7g: theatres whose new showtimes the bot announces in #movies (the same as /announcements)
+            'announce_theatres': [t.strip() for t in (self.announce_enabled_theatres or '').split(',') if t.strip()],
         }
         if include_members:
             d['members'] = [m.to_dict(with_email) for m in self.memberships if m.status == 'active']

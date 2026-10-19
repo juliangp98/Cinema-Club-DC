@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getJson, send } from "../api";
+import { SettingRow, SettingsGroup, SwitchRow } from "../ui/Settings";
 
 // Push on this device (R8d): needs the browser's permission and, on iPhone,
 // the site added to the Home Screen.
@@ -73,63 +74,65 @@ export function PushDevice({ apiBase, onSettings }) {
 }
 
 // Your one notification setting (R8): where alerts reach you, and which you
-// get. The same setting as /notifications in Discord. Saved as you change it.
+// get, grouped (7g: Your films / Going out / Games / Running a club — the
+// backend's notify.TYPE_GROUPS), and your saved searches. The same setting
+// as /notifications in Discord. Saved as you change it (`save`: the page's
+// useSaveStatus, so it says "Saved" in one place).
 const CHANNELS = [
-  ["discord", "Discord DMs", "Link Discord (in Edit profile) to get alerts as DMs."],
+  ["discord", "Discord DMs", "Link Discord (Settings → Connections) to get alerts as DMs."],
   ["email", "Email", "Add an email address to your account to get alerts by email."],
   ["push", "Push notifications", "Pop-ups on your phone or computer, even with the site closed."],
 ];
 
-export default function NotifySettings({ apiBase }) {
+export default function NotifySettings({ apiBase, save = fn => fn() }) {
   const [s, setS] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     getJson(`${apiBase}/api/me/notifications`).then(setS).catch(() => setFailed(true));
   }, [apiBase]);
 
-  async function save(change) {
-    const d = await send(`${apiBase}/api/me/notifications`, "PUT", change).catch(() => null);
-    if (d) setS(d);
-  }
-  async function removeSearch(id) {
-    const ok = await send(`${apiBase}/api/searches/${id}`, "DELETE").then(() => true, () => false);
-    if (ok) setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
-  }
+  const put = change => save(async () => setS(await send(`${apiBase}/api/me/notifications`, "PUT", change)));
+  const removeSearch = id => save(async () => {
+    await send(`${apiBase}/api/searches/${id}`, "DELETE");
+    setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
+  }, "Removed");
 
   if (failed) return <p className="ui-hint">Couldn't load your notification settings — try again in a bit.</p>;
   if (!s) return null;
+  const groups = [];
+  for (const t of s.types_info) {
+    if (!groups.length || groups.at(-1).key !== t.group) groups.push({ key: t.group, label: t.group_label, types: [] });
+    groups.at(-1).types.push(t);
+  }
   return (
     <div className="notify-settings">
-      <div className="profile-section-label">Where alerts reach you</div>
-      <p className="ui-hint">Nothing is sent anywhere until you turn it on here.</p>
-      <label className="notify-row">
-        <input type="checkbox" checked disabled />
-        <span><span className="notify-name">Site bell</span><span className="ui-hint">Always — every alert is kept here.</span></span>
-      </label>
-      {CHANNELS.filter(([key]) => key !== "push" || s.push_ready).map(([key, name, missing]) => (
-        <div key={key}>
-          <label className={`notify-row${s.available[key] ? "" : " off"}`}>
-            <input type="checkbox" checked={s.channels[key]} disabled={!s.available[key]}
-                   onChange={e => save({ channels: { [key]: e.target.checked } })} />
-            <span><span className="notify-name">{name}</span>{!s.available[key] && <span className="ui-hint">{missing}</span>}</span>
-          </label>
-          {key === "push" && <PushDevice apiBase={apiBase} onSettings={setS} />}
-        </div>
-      ))}
-      <div className="profile-section-label" id="notify-which">Which alerts</div>
-      {s.types_info.map(t => (
-        <label key={t.key} className="notify-row">
-          <input type="checkbox" checked={s.types[t.key]} onChange={e => save({ types: { [t.key]: e.target.checked } })} />
-          <span><span className="notify-name">{t.label}</span><span className="ui-hint">{t.hint}</span></span>
-        </label>
-      ))}
-      <div className="profile-section-label" id="notify-searches">Saved searches</div>
-      {s.searches?.length ? s.searches.map(x => (
-        <div key={x.id} className="notify-row notify-search">
-          <Link to={x.path} className="notify-name">{x.label}</Link>
-          <button type="button" className="linkish" onClick={() => removeSearch(x.id)}>Remove</button>
-        </div>
-      )) : <p className="ui-hint">None yet. On Browse, pick some filters and tap 🔔 Alert me.</p>}
+      <SettingsGroup title="Where alerts reach you">
+        <SwitchRow label="Site bell" hint="Always on — every alert is kept here." checked disabled onChange={() => {}} />
+        {CHANNELS.filter(([key]) => key !== "push" || s.push_ready).map(([key, name, missing]) => (
+          <div key={key}>
+            <SwitchRow label={name} hint={s.available[key] ? null : missing} checked={s.channels[key]} disabled={!s.available[key]}
+                       onChange={v => put({ channels: { [key]: v } })} />
+            {key === "push" && <PushDevice apiBase={apiBase} onSettings={setS} />}
+          </div>
+        ))}
+      </SettingsGroup>
+      <div id="notify-which">
+        {groups.map(g => (
+          <SettingsGroup key={g.key} title={g.label}>
+            {g.types.map(t => <SwitchRow key={t.key} label={t.label} hint={t.hint} checked={s.types[t.key]}
+                                         onChange={v => put({ types: { [t.key]: v } })} />)}
+          </SettingsGroup>
+        ))}
+      </div>
+      <div id="notify-searches">
+        <SettingsGroup title="Saved searches">
+          {s.searches?.length ? s.searches.map(x => (
+            <SettingRow key={x.id} label={<Link to={x.path}>{x.label}</Link>} hint="A theatre books a film that fits it">
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => removeSearch(x.id)}>Remove</button>
+            </SettingRow>
+          )) : <p className="ui-hint">None yet. On Browse, pick some filters and tap 🔔 Alert me.</p>}
+        </SettingsGroup>
+      </div>
     </div>
   );
 }

@@ -44,7 +44,7 @@ test("genres you love and aren't into, saved as you tap", async () => {
   expect(within(section("Not into")).getByRole("button", { name: "Horror" })).toHaveAttribute("aria-pressed", "true");
 });
 
-test("ways to watch, theatres in their color, and showing it on your profile", async () => {
+test("ways to watch, and theatres in their color", async () => {
   const calls = server();
   renderPage(<TasteEditor apiBase="" />);
   await userEvent.click(await screen.findByRole("button", { name: /On film prints/ }));
@@ -52,11 +52,7 @@ test("ways to watch, theatres in their color, and showing it on your profile", a
   const afi = within(section("Favorite theatres")).getByRole("button", { name: "AFI" });
   expect(afi.style.getPropertyValue("--tcolor")).toBe("#c33");
   await userEvent.click(afi);
-  expect(calls.at(-1).body).toEqual({ theatres: ["afi"] });
-  const show = screen.getByRole("checkbox", { name: /Show my taste on my profile/ });
-  expect(show).not.toBeChecked();
-  await userEvent.click(show);
-  expect(calls.at(-1).body).toEqual({ public: true });
+  expect(calls.at(-1).body).toEqual({ theatres: ["afi"] });         // showing it on your profile: Settings → Privacy (settings.test)
 });
 
 test("favorite films: ours first, then any film on TMDB; remove with ×", async () => {

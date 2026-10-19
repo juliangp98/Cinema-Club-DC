@@ -25,7 +25,7 @@ const SLIDES = [
 
 // Last of all (R13): an invitation to set up Your taste, or leave it for later.
 const TASTE = { emoji: "✨", title: "Make it yours",
-  body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Edit profile." };
+  body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Me → Settings." };
 
 const STEPS = [
   { target: "nav:/", page: "/", title: "Discover",
@@ -43,7 +43,7 @@ const STEPS = [
   { target: ".topbar-bell", title: "The bell",
     body: "Club activity and your alerts. Alerts are opt-in: watchlist a film, or tap 🔔 Alert me on a Browse search, to hear when a theatre books it." },
   { target: "account", page: "/me", title: "You",
-    body: "Your profile and lists: link Discord, connect Letterboxd, choose your notifications. Replay this tour, or find Help, here any time." },
+    body: "Your lists, and your Settings: profile, taste, notifications, Discord and Letterboxd. Replay this tour, or find Help, here any time." },
   { target: ".topbar-tour", page: "/me", title: "A tour of any page",
     body: "On any page, tap ? up here for a quick tour of what that page does — and where its Help is." },
 ];

@@ -31,19 +31,9 @@
 .club-role-select { width: auto; }
 
 .club-settings .ui-section-title { margin-top: 1.5rem; }
-.club-saved { color: var(--amber); font-size: var(--fs-sm); margin: 0; }
-.club-form { display: flex; flex-direction: column; }
-.club-inline { display: flex; gap: 0.5rem; align-items: center; }
-.club-inline .share-input { flex: 1; min-width: 0; }
 .club-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .club-chips .chip { cursor: pointer; }
-.club-form-foot { margin-top: 0.75rem; }
 .club-code { word-break: break-all; }
-.club-danger {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-  margin-top: 2rem; padding: 0.9rem 1rem; border: 1px solid rgba(224, 105, 78, 0.45); border-radius: var(--radius);
-}
-.club-danger p { margin: 0.2rem 0 0; }
 
 @media (max-width: 767px) {
   .club-hero { gap: 0.8rem; }

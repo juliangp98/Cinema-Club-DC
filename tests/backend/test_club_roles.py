@@ -162,3 +162,23 @@ def test_bringing_personal_plans_into_the_club(club):
     mo = as_(club, 'mo')
     assert 'Newbie' in [a['name'] for a in mo.get(f'/api/showtimes/{S1}', query_string={'group_id': G}).json['attendees']]
     assert 'Newbie' not in [a['name'] for a in mo.get(f'/api/showtimes/{S2}', query_string={'group_id': G}).json['maybes']]
+
+
+def test_organizers_choose_which_theatres_announce_new_showtimes(club):
+    """7g: the site's switch is the same setting as /announcements in Discord (unknown theatres are ignored)."""
+    from helpers import H
+    r = as_(club, 'olly').put('/api/groups/role-club', json={'announce_theatres': ['afi', 'nowhere', 'afi']})
+    assert r.status_code == 200 and r.json['announce_theatres'] == ['afi']
+    bot = as_(club, 'olly').get('/api/internal/alerts', query_string={'group_id': club['group']}, headers=H).json
+    assert bot['slugs'] == ['afi']
+    assert as_(club, 'mo').put('/api/groups/role-club', json={'announce_theatres': []}).status_code == 403
+
+
+def test_alerts_come_in_groups_for_settings(club):
+    """7g: Settings → Notifications groups the alert types (notify.TYPE_GROUPS) — every type in one group."""
+    import notify
+    assert set(notify.GROUP_OF) == set(notify.TYPES)
+    info = as_(club, 'olly').get('/api/me/notifications').json['types_info']
+    groups = [t['group'] for t in info]
+    assert groups == sorted(groups, key=['films', 'going', 'games', 'running'].index)   # in order, each group together
+    assert {t['group_label'] for t in info} >= {'Your films', 'Going out', 'Games', 'Running a club'}

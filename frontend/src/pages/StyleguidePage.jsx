@@ -8,6 +8,8 @@ import ToggleChip, { RemovableChip } from "../ui/ToggleChip";
 import { Segmented, ASK_ALWAYS_NEVER, POST_MODES } from "../ui/TicketRow";
 import Avatar, { ClubBadge } from "../ui/Avatar";
 import SearchField, { SearchAction } from "../ui/SearchField";
+import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow } from "../ui/Settings";
+import SectionMenu from "../ui/SectionMenu";
 import "./StyleguidePage.css";
 
 // The style guide (R15), for club admins: every piece of the UI kit in one
@@ -23,6 +25,8 @@ export default function StyleguidePage() {
   const [on, setOn] = useState(true);
   const [picked, setPicked] = useState(["Agnès Varda", "Wong Kar-wai"]);
   const [find, setFind] = useState("");
+  const [sw, setSw] = useState(true);
+  const [sw2, setSw2] = useState(false);
   if (!shell?.group) return null;
   if (shell.role !== "admin") return <Navigate to="/club" replace />;
   const me = { name: "Your Name", id: 1 };
@@ -74,6 +78,30 @@ export default function StyleguidePage() {
       <p className="ui-hint">One search bar everywhere (ui/SearchField): Discover, Browse, the Calendar, Help, Your taste, Find a club. Enter searches; ✨ is an optional action.</p>
       <SearchField label="Search (sample)" placeholder="Search, or describe what you want and tap ✨" value={find} onChange={setFind}
                    action={<SearchAction aria-label="AI search (sample)" disabled={find.trim().length < 3}>✨</SearchAction>} />
+
+      <SectionTitle>Settings</SectionTitle>
+      <p className="ui-hint">Every setting on the site (ui/Settings): a section with a line on what it covers, small group headings,
+        rows with the label and hint on the left and the control on the right — a switch for on / off, a segmented choice for three
+        ways — saved as they change, with one status line. A whole thing with its own switch (a club's game) is a panel with the
+        switch at its head. A page of sections has a section menu (ui/SectionMenu) beside it.</p>
+      <div className="ui-split" style={{ "--split-side": "200px" }}>
+        <div>
+          <SaveStatus status={{ ok: true, text: "Saved" }} />
+          <SettingsSection id="sg-settings" title="A section" intro="One line on what these settings cover.">
+            <SettingsGroup title="A group">
+              <SwitchRow label="An on / off setting" hint="What it does, in a few words." checked={sw} onChange={setSw} />
+              <SwitchRow label="Another, off" hint="Off until someone turns it on." checked={sw2} onChange={setSw2} />
+              <SettingRow label="A three-way choice" hint="Ask, Always or Never.">
+                <Segmented label="Three-way (sample)" options={ASK_ALWAYS_NEVER} value={seg} onChange={v => setSeg(v || "ask")} />
+              </SettingRow>
+            </SettingsGroup>
+          </SettingsSection>
+          <Panel as="div" className="game-setting" title="🎱 A game" aside={<Switch label="A game (sample)" checked={sw} onChange={setSw} />}>
+            <p className="ui-hint">A setting that's a whole thing: its switch at the head, its options under it.</p>
+          </Panel>
+        </div>
+        <div className="ui-split-side"><SectionMenu label="Sample sections" items={[{ id: "sg-settings", label: "A section" }, { id: "sg-other", label: "Another" }]} /></div>
+      </div>
 
       <SectionTitle>Panels</SectionTitle>
       <p className="ui-hint">Every box sits on the one card surface (--card-bg, --card-border, --card-radius, --card-pad).</p>

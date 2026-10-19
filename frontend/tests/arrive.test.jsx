@@ -61,3 +61,29 @@ test("a new page starts at the top; a filter or tab keeps your place; Back retur
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(main.scrollTop).toBe(900);                                     // Back: where you were
 });
+
+test("a section menu's jump lands at the section's top without the glow, and marks it selected", async () => {
+  const { default: SectionMenu } = await import("../src/ui/SectionMenu");
+  const tops = { one: 0, two: 900 };                                    // jsdom lays nothing out: where each section is
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+    const top = tops[this.id] ?? 0;
+    return { top, bottom: top + 100, height: 100, left: 0, right: 100, width: 100 };
+  });
+  render(<MemoryRouter initialEntries={["/help"]}><main className="shell-main"><Shell>
+    <SectionMenu label="Topics" items={[{ id: "one", label: "One" }, { id: "two", label: "Two" }]} />
+    <section id="one">1</section><section id="two">2</section></Shell></main></MemoryRouter>);
+  const one = screen.getByRole("link", { name: "One" });
+  expect(one).toHaveClass("gold");
+  expect(one).toHaveAttribute("aria-current", "true");
+  await userEvent.click(screen.getByRole("link", { name: "Two" }));
+  await act(async () => { vi.advanceTimersByTime(300); });
+  expect(screen.getByRole("link", { name: "Two" })).toHaveClass("gold");
+  expect(screen.getByRole("link", { name: "One" })).not.toHaveClass("gold");
+  expect(document.getElementById("two")).not.toHaveClass("arrive-glow");          // navigation, not "look here"
+});
+
+test("the glow takes the site's rounded corners on square things", async () => {
+  render(<MemoryRouter initialEntries={["/play#sq"]}><Shell><section id="sq">square</section></Shell></MemoryRouter>);
+  await act(async () => { vi.advanceTimersByTime(100); });
+  expect(document.getElementById("sq")).toHaveClass("arrive-glow", "arrive-round");
+});

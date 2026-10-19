@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import Sheet, { SheetTitle } from "./Sheet";
 import { dayDateAt } from "../dates";
 import { send } from "../api";
@@ -150,6 +151,7 @@ export function TicketDiscord({ showtime: s, apiBase, groupId }) {
             <button type="button" className="linkish" onClick={() => share(true)}>Always share</button>
             {" · "}
             <button type="button" className="linkish" onClick={() => notNow(true)}>Never ask</button>
+            {" · "}<Link to="/me?tab=settings#profile-sharing">Settings</Link>
           </p>
         </Prompt>
       ) : d.my_share ? (
@@ -215,6 +217,7 @@ export function WatchDiscordPrompt({ apiBase, movieId, onDone }) {
         <button type="button" className="linkish" onClick={() => answer(true, true)}>Always</button>
         {" · "}
         <button type="button" className="linkish" onClick={() => answer(false, true)}>Never ask</button>
+        {" · "}<Link to="/me?tab=settings#profile-sharing">Settings</Link>
       </p>
       {error && <p className="share-error">{error}</p>}
     </Prompt>

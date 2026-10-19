@@ -103,10 +103,8 @@ a.chip { text-decoration: none; }
 .taste-editor { display: flex; flex-direction: column; gap: 1rem; }
 .taste-editor section { display: flex; flex-direction: column; gap: 0.45rem; }
 .taste-editor section > .seg { align-self: flex-start; }   /* Directors / Actors / Writers: as wide as its words */
-.taste-editor .profile-section-label { margin: 0; }
-.taste-public { margin-top: 0.25rem; }
+.taste-editor .ui-settings-group-title { margin: 0; }
 /* Club settings: a game's Discord post (R14) */
-.club-post-choice { flex-direction: column; align-items: flex-start; gap: 0.45rem; cursor: default; }
 .game-preview-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: var(--fs-sm); }
 .game-preview-options li.right strong { color: var(--green); }
 .taste-match { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 0.6rem; }
@@ -366,16 +364,8 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 /* Notification settings (bell panel and Edit profile) */
 .notify-settings { display: flex; flex-direction: column; gap: 0.45rem; margin-bottom: 1rem; }
 .notify-settings .profile-section-label { margin-top: 0.4rem; }
-.notify-row { display: flex; gap: 0.6rem; align-items: flex-start; cursor: pointer; }
-.notify-row input { margin-top: 0.25rem; accent-color: var(--amber); }
-.notify-row.off { cursor: default; opacity: 0.75; }
-.notify-row > span { display: flex; flex-direction: column; }
-.notify-name { font-weight: 600; }
-.notify-search { cursor: default; align-items: baseline; justify-content: space-between; }
-.notify-search .notify-name { color: inherit; }
-.notify-push { margin: 0.2rem 0 0.3rem 1.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.notify-push { margin: 0 0 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .linkish { background: none; border: 0; padding: 0; color: var(--amber); font: inherit; cursor: pointer; text-decoration: underline; }
-.profile-notify-title { font-size: var(--fs-md, 1rem); color: var(--amber); }
 
 @media (max-width: 767px) {
   .topbar { height: 52px; padding: 0 0.85rem; gap: 0.75rem; }
@@ -435,8 +425,6 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 
 /* Profile editor inside a Sheet */
 .profile-editor { padding: 1.5rem 1.25rem 2rem; }
-.profile-editor .profile-menu { position: static; width: auto; max-height: none; box-shadow: none;
-                                border: none; background: transparent; padding: 0; animation: none; }
 
 /* ── Segmented control (RSVP, Went / Didn't go) ────────────────────────── */
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); overflow: hidden; }
@@ -593,15 +581,8 @@ a.share-state { color: var(--green); }
 .chat-to-discord { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; font-size: var(--fs-xs); color: var(--muted); cursor: pointer; }
 .chat-to-discord input { accent-color: var(--amber); }
 
-.profile-sharing { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.7rem; }
-.profile-sharing-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
-.profile-lb-connect { display: flex; gap: 0.5rem; align-items: center; }
-.profile-lb-connect .profile-input { margin: 0; flex: 1; }
 .attendance-diary { display: block; font-size: var(--fs-xs); color: var(--green); margin-top: 0.15rem; }
 .attendance-diary-choice { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--muted); margin-top: 0.5rem; }
-.profile-sharing-kind { font-size: var(--fs-sm); color: var(--cream); font-weight: 500; }
-.profile-sharing-hint { font-size: var(--fs-xs); color: var(--muted); max-width: 30ch; }
-.profile-sharing > .profile-sharing-hint { max-width: none; }
 
 .poll-discord {
   display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;
@@ -771,15 +752,67 @@ a.share-state { color: var(--green); }
   .ui-split.side-top { display: flex; flex-direction: column; }
   .ui-split.side-top > .ui-split-side { order: -1; }
 }
-/* A page's section menu in the side column: chips on phones, a list on wide screens. */
+/* A page's section menu (ui/SectionMenu): chips on phones (one swipeable row),
+   a list in the side column on wide screens; the current section is the
+   selected .chip.gold. */
+.section-menu ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; }
+.section-menu ul::-webkit-scrollbar { display: none; }
+.section-menu li { flex: none; }
+.section-menu .chip { text-decoration: none; }
+.section-menu .chip:hover { border-color: var(--amber); color: var(--cream); }
+.section-menu .chip.gold:hover { color: var(--amber); }
 @media (min-width: 1024px) {
-  .ui-split-side .ui-page-meta.section-menu { flex-direction: column; align-items: stretch; flex-wrap: nowrap; margin: 0; }
-  .ui-split-side .ui-page-meta.section-menu .chip { display: block; border-radius: var(--radius); }
+  .ui-split-side .section-menu ul { flex-direction: column; overflow: visible; gap: 0.3rem; }
+  .ui-split-side .section-menu .chip { display: flex; width: 100%; border-radius: var(--radius); padding: 0.4rem 0.7rem; }
 }
+
+/* Settings (7g, ui/Settings.jsx): sections, small group headings, rows with
+   the label and hint on the left and the control on the right (stacked on
+   phones), switches for on / off, and one "Saved" status. */
+.ui-settings-section { margin-bottom: 2rem; }
+.ui-settings-intro { margin: -0.35rem 0 0.75rem; }
+.ui-settings-group { margin-top: 1rem; }
+.ui-settings-group-title { margin: 0 0 0.15rem; font: 600 var(--fs-xs)/1.4 var(--font-body); letter-spacing: 0.06em;
+                           text-transform: uppercase; color: var(--muted); }
+.ui-setting { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
+              padding: 0.7rem 0; border-top: 1px solid var(--border); }
+.ui-settings-group .ui-setting:first-of-type, .ui-settings-intro + .ui-setting { border-top: 0; }
+.ui-setting.off .ui-setting-label { color: var(--muted); }
+.ui-setting-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.ui-setting-label { color: var(--cream); font-weight: 600; font-size: var(--fs-sm); }
+.ui-setting-text .ui-hint { font-size: var(--fs-xs); }
+.ui-setting-control { flex: none; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.ui-setting.stack { flex-direction: column; align-items: stretch; gap: 0.45rem; }
+.ui-setting.stack .ui-setting-control { justify-content: flex-start; }
+.settings-inline { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.settings-inline .share-input, .settings-name { width: min(18rem, 100%); margin: 0; }
+@media (max-width: 600px) {
+  .ui-setting { flex-direction: column; align-items: flex-start; }
+  .ui-setting-control { justify-content: flex-start; }
+}
+.ui-switch { position: relative; flex: none; width: 40px; height: 22px; border-radius: 11px; padding: 0; cursor: pointer;
+             background: var(--bg3); border: 1px solid var(--border-strong); transition: background 0.15s, border-color 0.15s; }
+.ui-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted);
+                  transition: transform 0.15s, background 0.15s; }
+.ui-switch.on { background: var(--amber); border-color: var(--amber); }
+.ui-switch.on .ui-switch-knob { transform: translateX(18px); background: var(--ink); }
+.ui-switch:disabled { opacity: 0.45; cursor: default; }
+.ui-switch:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ui-switch, .ui-switch-knob { transition: none; } }
+.settings-short { width: 8rem; margin: 0; }
+/* A setting that's a whole thing (a club's games, 7g): a panel with its switch at the head, its options as rows. */
+.game-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 0.75rem; align-items: start; }
+.game-setting .ui-panel-head { align-items: center; }
+.game-setting .ui-panel-aside { margin-left: auto; }
+.game-setting > .ui-hint { margin: 0 0 0.25rem; }
+.ui-save-status { min-height: 1.3em; margin: 0 0 0.5rem; font-size: var(--fs-sm); }
+.ui-save-status.ok { color: var(--green); }
+.ui-save-status.err { color: var(--red); }
 
 /* The arrival glow (7f, arrive.js): whatever a #link points at, lit gold for
    2.5 s when you land on it. It never blocks: no overlay, no pointer events. */
 .arrive-glow { animation: arrive-glow 2.5s ease-out forwards; outline: 2px solid var(--amber); outline-offset: 3px; }
+.arrive-round { border-radius: var(--radius); }                /* things with square corners glow rounded, like the site */
 @keyframes arrive-glow {
   0%, 36%, 72% { box-shadow: 0 0 0 3px var(--gold-line), 0 0 22px 6px rgba(220, 177, 92, 0.5); }
   18%, 54%     { box-shadow: 0 0 0 2px var(--gold-wash), 0 0 8px 2px rgba(220, 177, 92, 0.2); }

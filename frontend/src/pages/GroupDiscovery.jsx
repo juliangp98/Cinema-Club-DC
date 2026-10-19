@@ -6,6 +6,7 @@ import { ClubBadge } from "../ui/Avatar";
 import PageHeader, { SectionTitle } from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import SearchField from "../ui/SearchField";
+import { SwitchRow } from "../ui/Settings";
 
 export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, setGroupId }) {
   const navigate = useNavigate();
@@ -180,10 +181,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
                        onChange={e => setNewName(e.target.value)} required />
                 <input className="share-input" placeholder="Description (optional)" aria-label="Description" value={newDesc}
                        onChange={e => setNewDesc(e.target.value)} />
-                <label className="notify-row">
-                  <input type="checkbox" checked={newPublic} onChange={e => setNewPublic(e.target.checked)} />
-                  <span><span className="notify-name">Anyone can find it</span><span className="ui-hint">Off: only people you invite.</span></span>
-                </label>
+                <SwitchRow label="Anyone can find it" hint="Off: only people you invite." checked={newPublic} onChange={setNewPublic} />
                 {allTheatres.length > 0 && (
                   <fieldset className="clubs-theatres"><legend className="profile-section-label">Theatres</legend>
                     <div className="filter-chips">

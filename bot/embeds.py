@@ -667,7 +667,7 @@ def foryou_embed(result):
         embed.description = ("Nothing for you in the next two weeks yet — theatres add films every week."
                              if result.get('taste_set') else
                              "Tell us what you like and this fills with films for you: pick genres with `/profile`, "
-                             f"or set favorite films, people and theatres in Your taste on the site: {SITE_URL}/me?taste=1")
+                             f"or set favorite films, people and theatres in Your taste on the site: {SITE_URL}/me?tab=settings#settings-taste")
         return embed
     lines = []
     for c in films:

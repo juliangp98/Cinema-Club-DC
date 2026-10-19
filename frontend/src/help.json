@@ -164,7 +164,7 @@
    "to": "/club?tab=settings#settings-theatres"
   },
   "club-settings-members": {
-   "label": "Club settings → Members & roles",
+   "label": "Club settings → Members",
    "to": "/club?tab=settings#settings-members"
   },
   "club-settings-games": {
@@ -172,8 +172,8 @@
    "to": "/club?tab=settings#settings-games"
   },
   "club-settings-discord": {
-   "label": "Club settings → Discord",
-   "to": "/club?tab=settings#settings-discord"
+   "label": "Club settings → Games",
+   "to": "/club?tab=settings#settings-games"
   },
   "club-game-posts": {
    "label": "game posts waiting for an OK",
@@ -192,40 +192,40 @@
    "to": "/me#me-lists"
   },
   "me-calendar": {
-   "label": "Me → In your calendar",
-   "to": "/me#me-calendar"
+   "label": "Settings → Connections",
+   "to": "/me?tab=settings#me-calendar"
   },
   "edit-profile": {
-   "label": "Edit profile",
-   "to": "/me?profile=1"
+   "label": "Settings → Profile",
+   "to": "/me?tab=settings#settings-profile"
   },
   "profile-taste": {
-   "label": "Your taste",
-   "to": "/me?taste=1"
+   "label": "Settings → Your taste",
+   "to": "/me?tab=settings#settings-taste"
   },
   "profile-discord": {
-   "label": "Edit profile → Connect Discord",
-   "to": "/me?profile=1#profile-discord"
+   "label": "Settings → Connections",
+   "to": "/me?tab=settings#profile-discord"
   },
   "profile-sharing": {
-   "label": "Edit profile → Sharing to Discord",
-   "to": "/me?profile=1#profile-sharing"
+   "label": "Settings → Privacy and sharing",
+   "to": "/me?tab=settings#profile-sharing"
   },
   "profile-letterboxd": {
-   "label": "Edit profile → Letterboxd",
-   "to": "/me?profile=1#profile-letterboxd"
+   "label": "Settings → Connections",
+   "to": "/me?tab=settings#profile-letterboxd"
   },
   "notify-settings": {
-   "label": "Notification settings",
-   "to": "/me?profile=1#profile-notify"
+   "label": "Settings → Notifications",
+   "to": "/me?tab=settings#settings-notify"
   },
   "notify-which": {
-   "label": "Notification settings → Which alerts",
-   "to": "/me?profile=1#notify-which"
+   "label": "Settings → Notifications",
+   "to": "/me?tab=settings#notify-which"
   },
   "notify-searches": {
    "label": "your saved searches",
-   "to": "/me?profile=1#notify-searches"
+   "to": "/me?tab=settings#notify-searches"
   },
   "bell": {
    "label": "the 🔔 bell",
@@ -234,6 +234,18 @@
   "help": {
    "label": "Help",
    "to": "/help"
+  },
+  "settings": {
+   "label": "Settings",
+   "to": "/me?tab=settings"
+  },
+  "settings-privacy": {
+   "label": "Settings → Privacy and sharing",
+   "to": "/me?tab=settings#settings-privacy"
+  },
+  "club-announcements": {
+   "label": "Club settings → Theatres",
+   "to": "/club?tab=settings#settings-theatres"
   }
  },
  "sections": [
@@ -255,6 +267,11 @@
      "id": "ask-help",
      "q": "Can I ask Help a question in my own words?",
      "a": "Yes — signed in, type it in the search box at the top of Help and tap ✨ Ask. The answer comes only from these topics, with links straight to the right place (which lights up when you land on it), and the topics it came from underneath. Without an account, the search box finds topics by their words."
+    },
+    {
+     "id": "where-settings",
+     "q": "Where are my settings?",
+     "a": "On the Me page, under [Settings](settings) (the account menu's Settings goes straight there): your profile, [Your taste](profile-taste), [notifications](notify-settings), connections — Discord, Letterboxd and your calendar — [privacy and sharing](settings-privacy), and your account. Everything saves as you change it. A club's own settings are on its [Club page → Settings](club-settings), for organizers and admins."
     },
     {
      "id": "need-account",
@@ -326,7 +343,7 @@
     {
      "id": "plans-calendar",
      "q": "Can I see my plans in my own calendar?",
-     "a": "Yes — [Me → In your calendar](me-calendar): subscribe once in Google Calendar or Apple / Outlook and your plans (or the club's) stay in sync. Anyone with the link can see it, so keep it to yourself; New link turns the old one off."
+     "a": "Yes — [Settings → Connections](me-calendar) on the Me page: subscribe once in Google Calendar or Apple / Outlook and your plans (or the club's) stay in sync. Anyone with the link can see it, so keep it to yourself; New link turns the old one off."
     }
    ]
   },
@@ -358,12 +375,12 @@
     {
      "id": "taste-where",
      "q": "Where do I set it?",
-     "a": "[Edit profile → Your taste](profile-taste) (it's also offered at the end of the welcome tour). Changes save as you make them. Genres can also be picked in Discord with /profile (its ✨ Your taste button opens the rest here)."
+     "a": "[Settings → Your taste](profile-taste) on the Me page (it's also offered at the end of the welcome tour). Changes save as you make them. Genres can also be picked in Discord with /profile (its ✨ Your taste button opens the rest here)."
     },
     {
      "id": "taste-who",
      "q": "Who can see my taste?",
-     "a": "Only you, unless you switch on “Show my taste on my profile” — then people in your clubs see it on your profile and with /profile in Discord."
+     "a": "Only you, unless you switch on “Show my taste on my profile” in [Settings → Privacy and sharing](settings-privacy) — then people in your clubs see it on your profile and with /profile in Discord."
     },
     {
      "id": "for-you",
@@ -383,7 +400,7 @@
     {
      "id": "favorites-booked",
      "q": "Will I hear when a favorite's film is booked?",
-     "a": "Yes — when a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in [the 🔔 bell](bell) (by DM, email or push too only if you've turned those on). Switch it off under [Notification settings → A favorite's film is booked](notify-which)."
+     "a": "Yes — when a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in [the 🔔 bell](bell) (by DM, email or push too only if you've turned those on). Switch it off under [Settings → Notifications → A favorite's film is booked](notify-which)."
     },
     {
      "id": "taste-match",
@@ -465,22 +482,22 @@
     {
      "id": "games-discord",
      "q": "Do the games post in the club's Discord?",
-     "a": "Only if a club organizer or admin says so, in [Club settings → Discord](club-settings-discord): the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an organizer or admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Skipped one by mistake? Post it after all (on Play, in [Club settings](club-game-posts) or from the DM) until 10 PM for the question, or the month's end for the card. Posts never ping anyone."
+     "a": "Only if a club organizer or admin says so, in [Club settings → Games](club-settings-discord), on each game's card: the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an organizer or admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Skipped one by mistake? Post it after all (on Play, in [Club settings](club-game-posts) or from the DM) until 10 PM for the question, or the month's end for the card. Posts never ping anyone."
     },
     {
      "id": "join-requests",
      "q": "Can organizers get join requests by email?",
-     "a": "Yes, if they want them: [Notification settings → Someone asks to join your club](notify-which). It's off until you turn it on (admins always get one). Requests also wait in [Club settings → Members & roles](club-settings-members)."
+     "a": "Yes, if they want them: [Settings → Notifications → Someone asks to join your club](notify-which). It's off until you turn it on (admins always get one). Requests also wait in [Club settings → Members](club-settings-members)."
     },
     {
      "id": "bingo-win-name",
      "q": "Will a bingo win post name me?",
-     "a": "Only if your [Edit profile → Sharing to Discord](profile-sharing) says Always for My game wins (it starts at Never) — otherwise the post just says someone got bingo."
+     "a": "Only if your [Settings → Privacy and sharing](profile-sharing) says Always for My game wins (it starts at Never) — otherwise the post just says someone got bingo."
     },
     {
      "id": "game-reminders",
      "q": "Can I get reminders about the games?",
-     "a": "Yes, each one your own choice in [Notification settings](notify-which): the question of the day is up, yesterday's answer, a new bingo card, and your own bingo (that one's on in the bell to start with). By DM, email or push only if you've turned those on."
+     "a": "Yes, each one your own choice in [Settings → Notifications](notify-which): the question of the day is up, yesterday's answer, a new bingo card, and your own bingo (that one's on in the bell to start with). By DM, email or push only if you've turned those on."
     },
     {
      "id": "earn-kernels",
@@ -501,7 +518,7 @@
     {
      "id": "email-messages",
      "q": "Will you email or message me?",
-     "a": "Not unless you say so. Nothing is emailed, sent by Discord DM or pushed until you turn that on in [Notification settings](notify-settings). Alerts always land in [the 🔔 bell](bell) on the site."
+     "a": "Not unless you say so. Nothing is emailed, sent by Discord DM or pushed until you turn that on in [Settings → Notifications](notify-settings). Alerts always land in [the 🔔 bell](bell) on the site."
     },
     {
      "id": "alert-kinds",
@@ -511,12 +528,12 @@
     {
      "id": "save-search",
      "q": "How do I save a search?",
-     "a": "On [Browse](browse-filters), pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage [your saved searches](notify-searches) in Notification settings."
+     "a": "On [Browse](browse-filters), pick some filters and tap 🔔 Alert me. You'll hear when a theatre books a new film that fits it. Manage [your saved searches](notify-searches) in Settings → Notifications."
     },
     {
      "id": "phone-push",
      "q": "Can I get notifications on my phone?",
-     "a": "Yes — in [Notification settings](notify-settings), turn on push for this device. On iPhone, add the site to your Home Screen first."
+     "a": "Yes — in [Settings → Notifications](notify-settings), turn on push for this device. On iPhone, add the site to your Home Screen first."
     }
    ]
   },
@@ -527,12 +544,12 @@
     {
      "id": "link-discord",
      "q": "How do I link Discord?",
-     "a": "[Edit profile → Connect Discord](profile-discord) (or sign in with Discord). Linking puts your site and Discord activity together."
+     "a": "[Settings → Connections](profile-discord) → Connect Discord (or sign in with Discord). Linking puts your site and Discord activity together."
     },
     {
      "id": "discord-shows",
      "q": "What shows up in the club's Discord?",
-     "a": "Only what you choose. In [Edit profile → Sharing to Discord](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Only members who've linked Discord and are in the club's server ever appear there."
+     "a": "Only what you choose. In [Settings → Privacy and sharing](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Only members who've linked Discord and are in the club's server ever appear there."
     },
     {
      "id": "bot",
@@ -548,7 +565,7 @@
     {
      "id": "letterboxd-connect",
      "q": "How do I connect Letterboxd?",
-     "a": "[Edit profile → Letterboxd](profile-letterboxd) → enter your username. We read your public diary feed every few hours — nothing else, and we never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
+     "a": "[Settings → Connections](profile-letterboxd) → Letterboxd → enter your username. We read your public diary feed every few hours — nothing else, and we never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
     },
     {
      "id": "diary-sync",
@@ -558,12 +575,12 @@
     {
      "id": "reviews-in-games",
      "q": "Can my reviews end up in a game?",
-     "a": "Guess from the reviews may use one sentence of a review in your diary — never with your name, and never one that names the film, its year or its people. Don't want that? [Edit profile → Letterboxd](profile-letterboxd) → turn off “Let a line from my reviews be a quiz clue”."
+     "a": "Guess from the reviews may use one sentence of a review in your diary — never with your name, and never one that names the film, its year or its people. Don't want that? In [Settings → Privacy and sharing](settings-privacy), turn off “Let a line from my reviews be a quiz clue”."
     },
     {
      "id": "ratings-shown",
      "q": "Will people see my ratings?",
-     "a": "Only if you turn on “Show my star ratings with my check-ins” in [Edit profile → Letterboxd](profile-letterboxd) — then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."
+     "a": "Only if you turn on “Show my star ratings with my check-ins” in [Settings → Privacy and sharing](settings-privacy) — then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."
     }
    ]
   },

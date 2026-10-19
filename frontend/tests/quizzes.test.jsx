@@ -43,9 +43,9 @@ test("each game is its own switch in Club settings", async () => {
   const calls = mockApi({ "GET /api/theatres": [], "GET /api/groups/club/members": [], "GET /api/groups/club/game-posts": { waiting: [], skipped: [] },
                           "PUT /api/groups/club": body => ({ ...group, ...body }) });
   renderPage(<ClubSettings group={group} apiBase="" viewerId={1} isAdmin onChanged={() => {}} />, { route: "/club?tab=settings" });
-  const hl = await screen.findByRole("checkbox", { name: /Higher or lower/ });
+  const hl = await screen.findByRole("switch", { name: /Higher or lower/ });
   expect(hl).not.toBeChecked();
-  expect(screen.getByRole("checkbox", { name: /Who said it/ })).toBeChecked();
+  expect(screen.getByRole("switch", { name: /Who said it/ })).toBeChecked();
   await userEvent.click(hl);
   expect(calls.find(c => c.method === "PUT").body).toEqual({ quizzes: { higher_lower: true } });
 });

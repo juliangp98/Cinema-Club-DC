@@ -263,7 +263,7 @@ def get_group(slug):
 def organizer_fields():
     import game_posts
     return {'theatres', 'trivia_enabled', 'trivia_anytime', 'trivia_source', 'quizzes', 'bingo_enabled', 'bingo_home',
-            'notes_enabled',
+            'notes_enabled', 'announce_theatres',
             *game_posts.SETTINGS.values()}
 
 
@@ -293,6 +293,9 @@ def update_group(slug):
         valid_slugs = {t.slug for t in Theatre.query.all()}
         theatres_list = data.get('theatres', [])
         group.theatres = ','.join(s for s in theatres_list if s in valid_slugs)
+    if isinstance(data.get('announce_theatres'), list):       # 7g: which theatres' new showtimes post in #movies
+        valid_slugs = {t.slug for t in Theatre.query.all()}
+        group.announce_enabled_theatres = ','.join(dict.fromkeys(s for s in data['announce_theatres'] if s in valid_slugs))
 
     # Picture (R6b): an emoji replaces a photo; "photo": null removes it.
     import media

@@ -50,7 +50,7 @@ def test_nothing_yet_says_how_to_set_your_taste(bot):
         TasteItem.query.filter_by(user_id=User.query.filter_by(discord_user_id='9502').first().id).delete()
         db.session.commit()
     e = run(bot, 9502)[2]['embed']
-    assert '/profile' in e.description and 'Your taste' in e.description and '/me?taste=1' in e.description
+    assert '/profile' in e.description and 'Your taste' in e.description and '/me?tab=settings#settings-taste' in e.description
 
 
 def test_compare_shows_the_taste_match(bot):

@@ -16,9 +16,9 @@ from datetime import datetime, timedelta
 TYPES = {
     'showings': ('A film on your watchlist is booked or announced', 'When a theatre books or announces it (not every new time in a run).'),
     'on_sale': ('Tickets go on sale', 'For announced films on your watchlist.'),
-    'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
     'searches': ('A film fits a search you saved', 'When a theatre books a film that fits one of your saved searches.'),
     'favorites': ('A favorite’s film is booked', 'When a theatre books one of your favorite films, or one by a director, actor or writer in Your taste.'),
+    'attendance': ('"Did you make it?" DMs', 'After screenings you said you were going to, a Discord DM to log it.'),
     # Games (R14, game_posts.py) — only in clubs with the game on
     'trivia_daily': ('Trivia: the question of the day is up', 'Once a day, around 11 AM.'),
     'trivia_result': ('Trivia: yesterday\u2019s answer', 'The answer, whether you got it, and how the club did.'),
@@ -28,6 +28,12 @@ TYPES = {
     # Running a club (R15): an email per join request (admins always get one)
     'join_requests': ('Someone asks to join your club', 'Club organizers: an email when someone asks to join, to approve or deny it. (Admins always get one.)'),
 }
+# How Settings → Notifications groups them (7g), in this order.
+TYPE_GROUPS = (('films', 'Your films', ('showings', 'on_sale', 'searches', 'favorites')),
+               ('going', 'Going out', ('attendance',)),
+               ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win')),
+               ('running', 'Running a club', ('reviews', 'join_requests')))
+GROUP_OF = {t: (key, label) for key, label, types in TYPE_GROUPS for t in types}
 # Switches only for people who run a club: {type: the roles it's for}.
 RUNNERS = {'reviews': ('organizer', 'admin'), 'join_requests': ('organizer',)}
 CHANNELS = ('discord', 'email', 'push')

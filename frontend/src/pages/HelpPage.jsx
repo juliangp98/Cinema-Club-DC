@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import PageHeader, { PageMeta } from "../ui/PageHeader";
+import PageHeader from "../ui/PageHeader";
+import SectionMenu from "../ui/SectionMenu";
 import Panel from "../ui/Panel";
 import RichText from "../ui/RichText";
 import SearchField, { SearchAction } from "../ui/SearchField";
@@ -78,9 +79,7 @@ export default function HelpPage({ apiBase = "" }) {
       <div className="ui-split side-first" style={{ "--split-side": "220px" }}>
       <aside className="ui-split-side sticky">
       {!q && (
-        <nav className="help-toc" aria-label="Help topics">
-          <PageMeta label="Topics" className="section-menu" items={SECTIONS.map(s => ({ key: s.id, label: s.title, to: `#${s.id}` }))} />
-        </nav>
+        <div className="help-toc"><SectionMenu label="Help topics" items={SECTIONS.map(s => ({ id: s.id, label: s.title }))} /></div>
       )}
       </aside>
       <div className="help-main">
