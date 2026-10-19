@@ -103,7 +103,9 @@ def toggle_watchlist():
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
     prompt = False
     if existing:
+        import letterboxd
         db.session.delete(existing)
+        letterboxd.removed_here(user.id, movie.id)            # if it's on your Letterboxd list: stays off
         watching = False
     else:
         # The digest may mention it in Discord only if you say so: "always" /
@@ -155,6 +157,7 @@ def get_watchlist():
             'movie': w.movie.to_dict() if w.movie else None,
             'added_at': w.created_at.isoformat() if w.created_at else None,
             'discord_share': watch_shared(w),       # may the Discord digest mention you about it
+            'source': w.source,                     # 'letterboxd' = imported
             # Public serializer: the old one listed every club's attendees here.
             'next_showtime': public_showtimes([next_st], user)[0] if next_st else None,
         })

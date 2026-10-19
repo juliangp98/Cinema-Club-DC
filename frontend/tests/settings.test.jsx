@@ -83,3 +83,42 @@ test("a club's theatres: follow them, and choose which announce new showtimes in
   await userEvent.click(within(screen.getByRole("group", { name: "Followed theatres" })).getByRole("button", { name: "AFI" }));
   expect(calls.at(-1).body).toEqual({ theatres: ["suns"] });                   // saved as you pick (no Save button)
 });
+
+// The Letterboxd watchlist (Connections → Letterboxd → Watchlist): upload the
+// export, answer the alerts question once, import again, or turn it off.
+test("the Letterboxd watchlist: import, the alerts question, import again, turn off", async () => {
+  const off = { connected: false, username: "", watchlist: { on: false, films: 0, matched: 0, alerts: null, imported_at: null } };
+  const on = alerts => ({ ...off, watchlist: { on: true, films: 312, matched: 41, alerts, imported_at: "2026-10-19T14:00:00Z" } });
+  const calls = mockApi({
+    "GET /api/me/notifications": notify, "GET /api/me/taste": taste, "GET /api/me/letterboxd": off,
+    "GET /api/auth/providers": { discord: false }, "GET /api/me/calendar": null,
+    "GET /api/me/share-prefs": { available: false, reason: "not_linked" },
+    "POST /api/me/letterboxd/watchlist": () => ({ ...on(null), ask_alerts: true, imported: { films: 312, matched: 41, added: 40, removed: 0 } }),
+    "PUT /api/me/letterboxd": body => on(body.watch_alerts),
+    "DELETE /api/me/letterboxd/watchlist": off,
+  });
+  renderPage(<MeSettings user={user} apiBase="" />);
+  const group = await screen.findByRole("group", { name: "Letterboxd" });
+  expect(within(group).getByText("Diary")).toBeInTheDocument();
+  expect(within(group).getByText(/Export your data/)).toBeInTheDocument();
+
+  const file = new File(["Date,Name,Year,Letterboxd URI\n"], "watchlist.csv", { type: "text/csv" });
+  await userEvent.upload(screen.getByLabelText("Letterboxd export file"), file);
+  const sent = calls.find(c => c.method === "POST" && c.path === "/api/me/letterboxd/watchlist");
+  expect(sent.body).toBeInstanceOf(FormData);
+  expect(sent.body.get("file").name).toBe("watchlist.csv");
+  expect(await screen.findByText(/312 films · 41 in our listings/)).toBeInTheDocument();
+
+  const ask = screen.getByRole("group", { name: "Alert you about these like your watchlist?" });
+  await userEvent.click(within(ask).getByRole("button", { name: "Just For you" }));
+  expect(calls.at(-1)).toEqual({ method: "PUT", path: "/api/me/letterboxd", body: { watch_alerts: false } });
+  const choice = await screen.findByRole("group", { name: "Alerts for Letterboxd watchlist films" });
+  expect(within(choice).getByRole("button", { name: "Just For you" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Import again" })).toBeInTheDocument();
+
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  await userEvent.click(screen.getByRole("button", { name: "Turn off" }));
+  expect(calls.at(-1)).toMatchObject({ method: "DELETE", path: "/api/me/letterboxd/watchlist" });
+  expect(await screen.findByRole("button", { name: "Choose the file" })).toBeInTheDocument();
+  window.confirm.mockRestore();
+});

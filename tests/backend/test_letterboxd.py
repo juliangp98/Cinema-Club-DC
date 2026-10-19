@@ -172,7 +172,8 @@ def test_disconnecting_and_changing_the_username(club):
     client(club['Ana']).put('/api/auth/profile', json={'letterboxd_username': 'someone_else'})
     assert client(club['Ana']).get('/api/me/letterboxd').json == {
         'username': 'someone_else', 'connected': False, 'synced_at': client(club['Ana']).get('/api/me/letterboxd').json['synced_at'],
-        'checkin': 'ask', 'ratings': False, 'clues': True}                                   # a different diary: connect it again
+        'checkin': 'ask', 'ratings': False, 'clues': True,
+        'watchlist': {'on': False, 'imported_at': None, 'films': 0, 'matched': 0, 'alerts': None}}   # a different diary: connect it again
     connect(club)
     gone = client(club['Ana']).delete('/api/me/letterboxd').json
     assert gone['connected'] is False and gone['username'] == ''

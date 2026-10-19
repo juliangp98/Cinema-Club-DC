@@ -239,15 +239,17 @@ def watchlist_embed(items, owner_name, window_label=None):
     lines = []
     for it in items[:40]:
         year = f" ({it['year']})" if it.get('year') else ''
+        mark = ' 📓' if it.get('source') == 'letterboxd' else ''      # from their Letterboxd watchlist
         st = it.get('next_showtime')
         if st:
             theatre = st['theatre'].get('short_name') or st['theatre']['name']
             when = datetime.fromisoformat(st['start_time']).strftime('%a %-m/%-d %-I:%M %p')
-            lines.append(f"• **{it['title']}**{year} — next: {when} @ {theatre}")
+            lines.append(f"• **{it['title']}**{year}{mark} — next: {when} @ {theatre}")
         else:
-            lines.append(f"• **{it['title']}**{year} — *(no upcoming showtimes)*")
+            lines.append(f"• **{it['title']}**{year}{mark} — *(no upcoming showtimes)*")
     embed.description = '\n'.join(lines)[:4000]
-    embed.set_footer(text=f'Full watchlist → {SITE_URL}')
+    imported = any(it.get('source') == 'letterboxd' for it in items[:40])
+    embed.set_footer(text=f"{'📓 = from Letterboxd · ' if imported else ''}Full watchlist → {SITE_URL}")
     return embed
 
 

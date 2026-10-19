@@ -43,13 +43,15 @@ function ScreeningRow({ item, status, onOpen }) {
   );
 }
 
-// A watchlisted film: opens its film page (every showing, details).
-function FilmRow({ movie, next }) {
+// A watchlisted film: opens its film page (every showing, details). 📓 = it
+// came from their Letterboxd watchlist.
+function FilmRow({ movie, next, source }) {
   const navigate = useNavigate();
   const text = (
     <span className="list-row-text">
       <span className="list-row-title">
         {movie.title}{movie.release_year ? ` (${movie.release_year})` : ""}
+        {source === "letterboxd" && <span className="chip list-row-chip" title="From their Letterboxd watchlist">📓 Letterboxd</span>}
       </span>
       <span className="list-row-meta">
         {next ? `Next: ${formatWhen(next.start_time)} · ${next.theatre}` : "No showings scheduled"}
@@ -78,7 +80,7 @@ export function WatchlistTab({ userId, apiBase, onOpen }) {
   }
   return (
     <ul className="list-rows">
-      {data.items.map(i => <FilmRow key={i.movie.id} movie={i.movie} next={i.next} />)}
+      {data.items.map(i => <FilmRow key={i.movie.id} movie={i.movie} next={i.next} source={i.source} />)}
     </ul>
   );
 }

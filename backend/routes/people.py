@@ -106,6 +106,7 @@ def watchlist_items(user):
     return [{'movie': {'id': w.movie.id, 'title': w.movie.title, 'release_year': w.movie.release_year,
                        'poster_url': w.movie.poster_url},
              'added_at': w.created_at.isoformat() if w.created_at else None,
+             'source': w.source,                           # 'letterboxd' = imported
              'next': _screening_item(nxt[w.movie_id]) if w.movie_id in nxt else None}
             for w in rows if w.movie]
 
@@ -149,7 +150,8 @@ def user_compare(user_id):
 def my_letterboxd():
     """Your Letterboxd diary link. POST {username} connects it (the diary feed
     must exist; one site account per username) and reads it once; PUT
-    {checkin: ask|always|never, ratings: bool} changes your choices; DELETE
+    {checkin: ask|always|never, ratings: bool, clues: bool, watch_alerts: bool}
+    changes your choices; DELETE
     disconnects it (and forgets the username and what was read)."""
     import letterboxd
     from app import LetterboxdEntry
@@ -183,12 +185,41 @@ def my_letterboxd():
             user.letterboxd_ratings = data['ratings']
         if isinstance(data.get('clues'), bool):                  # reviews as quiz clues (R15), on unless turned off
             user.letterboxd_clues = data['clues']
+        if isinstance(data.get('watch_alerts'), bool):           # imported films alert you like your watchlist?
+            user.letterboxd_watch_alerts = data['watch_alerts']
         db.session.commit()
     elif request.method == 'DELETE':
         user.letterboxd_sync, user.letterboxd_ratings, user.letterboxd_username = False, False, None
         LetterboxdEntry.query.filter_by(user_id=user.id).delete()
         db.session.commit()
     return jsonify(letterboxd.status(user))
+
+
+@app.route('/api/me/letterboxd/watchlist', methods=['POST', 'DELETE'])
+@require_auth
+def my_letterboxd_watchlist():
+    """Your Letterboxd watchlist. POST (a file: Letterboxd's export zip or its
+    watchlist.csv) imports it — again any time, mirroring Letterboxd; the
+    first import answers with ask_alerts. DELETE turns it off: the imported
+    films leave your watchlist (ones you added here stay)."""
+    import letterboxd
+    user = current_user()
+    if user.is_guest:
+        return jsonify({'error': 'Make an account to bring in your Letterboxd watchlist.'}), 403
+    if request.method == 'DELETE':
+        letterboxd.remove_import(user)
+        return jsonify(letterboxd.status(user))
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': "Choose your Letterboxd export (the zip, or watchlist.csv)."}), 400
+    rows, error = letterboxd.read_export(f.read())
+    if error == 'empty':
+        return jsonify({'error': 'That watchlist has no films in it.'}), 400
+    if error:
+        return jsonify({'error': "That isn't a Letterboxd watchlist export — use the zip from Letterboxd → "
+                                 "Settings → Import & Export → Export your data, or the watchlist.csv inside it."}), 400
+    result = letterboxd.import_watchlist(user, rows)
+    return jsonify({**letterboxd.status(user), 'imported': result, 'ask_alerts': user.letterboxd_watch_alerts is None})
 
 
 @app.route('/api/me/letterboxd/sync', methods=['POST'])

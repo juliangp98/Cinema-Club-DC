@@ -83,8 +83,8 @@ export const PAGE_TOURS = {
   ] },
   me: { title: "the Me page", help: "lists", steps: [
     { target: ".me-card", title: "You", body: "Your picture, name and a line about you, as your clubs see them." },
-    { target: "#me-lists", title: "Your lists", body: "Your watchlist, what you're going to and your watch history." },
-    { target: '[data-tab="settings"]', title: "Settings", body: "Your profile and taste, notifications, Discord, Letterboxd and calendar links, privacy — all in one place." },
+    { target: "#me-lists", title: "Your lists", body: "Your watchlist (📓 marks films from Letterboxd), what you're going to and your watch history." },
+    { target: '[data-tab="settings"]', title: "Settings", body: "Your profile and taste, notifications, Discord, Letterboxd (your diary, and your watchlist brought in) and calendar links, privacy — all in one place." },
     { target: ".me-links", title: "Your club, and more", body: "The Club page, theatres, other clubs, the tour and Help." },
   ] },
 };

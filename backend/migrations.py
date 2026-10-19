@@ -114,6 +114,11 @@ def migrate():
         # Phase 8: a show gone from the venue's site is off sale (likely sold out), not cancelled
         "ALTER TABLE showtime ADD COLUMN off_sale_at DATETIME",
         "ALTER TABLE scrape_run ADD COLUMN off_sale_showtimes INTEGER DEFAULT 0",
+        # Letterboxd watchlist import
+        "ALTER TABLE watchlist ADD COLUMN source VARCHAR(12)",
+        "ALTER TABLE user ADD COLUMN letterboxd_watch_on BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN letterboxd_watch_alerts BOOLEAN",
+        "ALTER TABLE user ADD COLUMN letterboxd_watch_imported_at DATETIME",
     ]
     for sql in stmts:
         try:

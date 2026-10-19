@@ -254,6 +254,10 @@
   "repo": {
    "label": "Cinema Club DC on GitHub",
    "to": "https://github.com/juliangp98/Cinema-Club-DC#docs"
+  },
+  "profile-letterboxd-watchlist": {
+   "label": "Settings → Connections → Letterboxd watchlist",
+   "to": "/me?tab=settings#profile-letterboxd-watchlist"
   }
  },
  "sections": [
@@ -367,7 +371,7 @@
     {
      "id": "watchlist",
      "q": "What's the watchlist for?",
-     "a": "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can [get an alert](help:alert-kinds); your club can see what you want to see too."
+     "a": "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can [get an alert](help:alert-kinds); your club can see what you want to see too. Already keep one on Letterboxd? [Bring it in](help:letterboxd-watchlist)."
     },
     {
      "id": "plans-history",
@@ -546,7 +550,7 @@
     {
      "id": "alert-kinds",
      "q": "What can I get alerts about?",
-     "a": "A film on your watchlist being booked or announced, tickets going on sale, a newly booked film that fits [a search you saved](help:save-search), a favorite's film being booked (from [Your taste](profile-taste)), the club's games (if you turn those on), and (Discord members) a “Did you make it?” DM after screenings."
+     "a": "A film on your watchlist being booked or announced (films from your Letterboxd watchlist too, if you said so when you imported it), tickets going on sale, a newly booked film that fits [a search you saved](help:save-search), a favorite's film being booked (from [Your taste](profile-taste)), the club's games (if you turn those on), and (Discord members) a “Did you make it?” DM after screenings."
     },
     {
      "id": "save-search",
@@ -588,12 +592,17 @@
     {
      "id": "letterboxd-connect",
      "q": "How do I connect Letterboxd?",
-     "a": "[Settings → Connections](profile-letterboxd) → Letterboxd → enter your username. We read your public diary feed every few hours — nothing else, and we never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
+     "a": "[Settings → Connections](profile-letterboxd) → Letterboxd has a row for each thing you can connect. Diary: enter your username — we read your public diary feed every few hours. Watchlist: [bring it in from Letterboxd's export](help:letterboxd-watchlist). We never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
     },
     {
      "id": "diary-sync",
      "q": "What does the diary sync do?",
      "a": "When your diary has a film you said you were going to (that day or the next), you choose what happens: Ask (your [“Did you make it?”](help:check-in) prompt says so), Always (you're checked in automatically) or Never. And if your club counts diaries for [bingo](help:bingo), the films you log that month can fill its film squares (🏠)."
+    },
+    {
+     "id": "letterboxd-watchlist",
+     "q": "Can I bring in my Letterboxd watchlist?",
+     "a": "Yes. On Letterboxd, go to Settings → Import & Export → Export your data, then upload the zip (or just the watchlist.csv inside it) in [Settings → Connections → Letterboxd → Watchlist](profile-letterboxd-watchlist). Its films join your watchlist here once they're in our listings — now, or whenever a theatre books one later — marked 📓. The first time, you choose whether they alert you like the rest of your watchlist or just shape For you. Import again any time: films you've taken off Letterboxd leave, ones you added here stay, and one you remove here stays off. Imports don't show in the club feed. Turn it off and the films it brought in leave."
     },
     {
      "id": "reviews-in-games",

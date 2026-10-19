@@ -49,7 +49,8 @@ def feed_events(group_id, since):
                                        Attendance.answered_at >= since).all()
         for a in went_visible_in(group_id, went):
             ev.append(('went', f's{a.showtime_id}', a.answered_at, a.user_id, None))
-        for w in Watchlist.query.filter(Watchlist.user_id.in_(members), Watchlist.created_at >= since):
+        for w in Watchlist.query.filter(Watchlist.user_id.in_(members), Watchlist.created_at >= since,
+                                        Watchlist.source.is_(None)):     # imports don't flood the feed
             ev.append(('watch', f'w{w.movie_id}', w.created_at, w.user_id, None))
     for g in KernelGift.query.filter(KernelGift.group_id == group_id, KernelGift.amount != 0,
                                      KernelGift.updated_at >= since):

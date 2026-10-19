@@ -460,6 +460,7 @@ button.list-row:hover .list-row-title { color: var(--amber); }
 .list-row.muted .list-row-title { color: var(--muted); }
 .list-row-text { display: flex; flex-direction: column; min-width: 0; }
 .list-row-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--cream); }
+.list-row-chip { margin-left: 0.4rem; font-family: var(--font-body); font-size: var(--fs-2xs); vertical-align: middle; }
 .list-row-meta { font-size: var(--fs-sm); color: var(--muted); }
 
 .compare-section + .compare-section { margin-top: 1rem; }

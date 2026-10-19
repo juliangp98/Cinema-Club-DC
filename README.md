@@ -35,7 +35,8 @@ Around the pages:
   screening threads mirrored with the site's discussions, a Monday digest, game posts, and an
   @-mention chatbot. See [docs/discord-bot.md](docs/discord-bot.md).
 - **Letterboxd** — connect your diary to check in automatically, fill bingo squares from home
-  viewings, and show your ratings.
+  viewings, and show your ratings; bring in your watchlist from Letterboxd's export (its films join
+  your watchlist as theatres book them).
 - **Calendar feeds** — your plans (or your club's) in Google, Apple or Outlook calendar.
 
 ### Theatres

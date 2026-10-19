@@ -326,15 +326,17 @@ def internal_digest():
             shown, more = [u for u in shown if u not in quiet], more + len(quiet)
             whos_going.append({**_showtime_brief(s), 'going': [u.name for u in shown], 'going_more': more})
 
+    import notify
     retag_before = _utcnow_naive() - DIGEST_RETAG_AFTER
     watchers_by_movie = {}
     for w in (Watchlist.query.filter(Watchlist.movie_id.in_(by_movie)).all() if by_movie else []):
         if w.user and w.user.is_active and (members is None or w.user_id in members):
+            alerts = notify.watch_alerts(w)      # an imported film they didn't want alerts for: counted only
             watchers_by_movie.setdefault(w.movie_id, []).append({
                 'watchlist_id': w.id, 'name': w.user.name,
                 'discord_user_id': w.user.discord_user_id,
-                'fresh': not w.last_notified_at or w.last_notified_at < retag_before,
-                'shown': watch_shared(w),
+                'fresh': alerts and (not w.last_notified_at or w.last_notified_at < retag_before),
+                'shown': alerts and watch_shared(w),
             })
 
     def watchers_out(ws):
@@ -498,18 +500,25 @@ def internal_watch():
         return jsonify({'error': 'Movie not found'}), 404
 
     # Digest pings are opt-in too: your "watchlist" choice decides (asked below).
+    # A film from Letterboxd that's added here becomes yours (re-imports leave
+    # it); one removed here stays off (letterboxd.removed_here).
+    import letterboxd
     existing = Watchlist.query.filter_by(user_id=user.id, movie_id=movie.id).first()
     if action == 'add':
         if not existing:
             db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
+        elif existing.source == 'letterboxd':
+            existing.source = None
         watching = True
     elif action == 'remove':
         if existing:
             db.session.delete(existing)
+        letterboxd.removed_here(user.id, movie.id)
         watching = False
     else:  # toggle
         if existing:
             db.session.delete(existing)
+            letterboxd.removed_here(user.id, movie.id)
             watching = False
         else:
             db.session.add(Watchlist(user_id=user.id, movie_id=movie.id))
@@ -564,6 +573,7 @@ def internal_watchlist():
         items.append({
             'title': w.movie.title,
             'year': w.movie.release_year,
+            'source': w.source,                       # 'letterboxd' = imported (/watch show marks it 📓)
             'next_showtime': public_showtimes([next_st])[0] if next_st else None,   # no names needed
         })
     items.sort(key=lambda i: i['next_showtime']['start_time'] if i['next_showtime'] else '9999')

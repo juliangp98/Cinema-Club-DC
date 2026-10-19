@@ -131,7 +131,7 @@ def email_signin_link(to_email, link_url, purpose):
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, DiscordDeletion, DiscordPost, EmojiPlot,
-    DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LoginToken, Message, Movie, MovieAlias,
+    DiscordServerMember, Group, GroupMembership, KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias,
     Notification, Poll, PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
     Reaction,
     GamePost, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime, ShowtimeThread, TasteItem, Theatre,
@@ -249,6 +249,14 @@ def merge_users(keep, gone):
     move(RSVP, 'showtime_id', 'group_id')
     move(Attendance, 'showtime_id')
     move(Watchlist, 'movie_id')
+    if LetterboxdWatch.query.filter_by(user_id=keep.id).first():   # their own import wins
+        LetterboxdWatch.query.filter_by(user_id=gone.id).delete()
+    else:
+        move(LetterboxdWatch)
+        if gone.letterboxd_watch_on:
+            keep.letterboxd_watch_on, keep.letterboxd_watch_imported_at = True, gone.letterboxd_watch_imported_at
+            if keep.letterboxd_watch_alerts is None:
+                keep.letterboxd_watch_alerts = gone.letterboxd_watch_alerts
     move(Reaction, 'showtime_id', 'group_id', 'emoji')
     move(Message)
     move(PollVote, 'category_id', 'rank')
@@ -353,6 +361,9 @@ def _upload(kind):
 
 @app.errorhandler(413)
 def too_large(_):
+    if request.path == '/api/me/letterboxd/watchlist':
+        return jsonify({'error': "That export is too big to upload whole — unzip it and upload just "
+                                 "watchlist.csv from inside."}), 413
     return jsonify({'error': 'That file is over 5 MB. Try a smaller one.'}), 413
 
 
@@ -545,8 +556,13 @@ def movie_for_tmdb(tmdb_id):
         db.session.commit()
     except IntegrityError:                       # added by a simultaneous request
         db.session.rollback()
-        movie = Movie.query.filter_by(tmdb_id=tmdb_id).first()
+        return Movie.query.filter_by(tmdb_id=tmdb_id).first()
+    import letterboxd
+    if letterboxd.match_films([movie]):          # on someone's imported Letterboxd list
+        db.session.commit()
     return movie
+
+
 _ai_searches = {}            # user id -> recent search times (per server process)
 
 

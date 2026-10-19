@@ -92,6 +92,8 @@ def _merge_movie(db, MovieAlias, Showtime, Watchlist, keep, dup):
             setattr(keep, col, getattr(dup, col))
     Showtime.query.filter_by(movie_id=dup.id).update({'movie_id': keep.id})
     MovieAlias.query.filter_by(movie_id=dup.id).update({'movie_id': keep.id})
+    from app import LetterboxdWatch
+    LetterboxdWatch.query.filter_by(movie_id=dup.id).update({'movie_id': keep.id})
     for w in Watchlist.query.filter_by(movie_id=dup.id).all():
         if Watchlist.query.filter_by(user_id=w.user_id, movie_id=keep.id).first():
             db.session.delete(w)
@@ -240,6 +242,9 @@ def _movie_for(db, Movie, MovieAlias, m, enrich_movie):
     adopt_matched_title(movie, enriched, label)
     _apply_movie_fields(movie, m, enriched)
     db.session.flush()
+    if is_new or enriched:                  # new, or newly identified: on someone's Letterboxd list?
+        import letterboxd
+        letterboxd.match_films([movie])
     if not MovieAlias.query.filter_by(title=label).first():
         db.session.add(MovieAlias(title=label, movie_id=movie.id))
     return movie, is_new

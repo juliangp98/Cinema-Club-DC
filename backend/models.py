@@ -49,6 +49,12 @@ class User(db.Model):
     letterboxd_ratings = db.Column(db.Boolean, default=False)
     letterboxd_clues = db.Column(db.Boolean, default=True)    # R15: diary reviews may be quiz clues (unnamed)
     letterboxd_synced_at = db.Column(db.DateTime)
+    # Your Letterboxd watchlist, brought in from Letterboxd's export (an upload,
+    # not a sync): on?, whether its films alert you like your site watchlist
+    # (None = not asked yet), and when it was last imported.
+    letterboxd_watch_on = db.Column(db.Boolean, default=False)
+    letterboxd_watch_alerts = db.Column(db.Boolean)
+    letterboxd_watch_imported_at = db.Column(db.DateTime)
     tour_seen_at = db.Column(db.DateTime)    # R11: the welcome tour, shown once (replay any time)
     tours_json = db.Column(db.Text)          # 7f: the page tours offered and done/declined (a JSON list of pages)
     # R13: show your taste (favorite genres, films, people…) on your profile to
@@ -499,6 +505,7 @@ class Watchlist(db.Model):
     # May the digest name or ping you about this one? None = not chosen yet
     # (your "watchlist" sharing choice decides; see watch_shared).
     share_discord = db.Column(db.Boolean)
+    source = db.Column(db.String(12))      # None = added on the site (or Discord); 'letterboxd' = imported
     user = db.relationship('User', lazy=True)
     movie = db.relationship('Movie', lazy=True)
     __table_args__ = (db.UniqueConstraint('user_id', 'movie_id'),)
@@ -571,6 +578,25 @@ class LetterboxdEntry(db.Model):
     details_at = db.Column(db.DateTime)             # when they were looked up
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     __table_args__ = (db.UniqueConstraint('user_id', 'guid'),)
+
+
+class LetterboxdWatch(db.Model):
+    """A film on a member's Letterboxd watchlist, from their last import (the
+    export's watchlist.csv). It joins their watchlist here (a Watchlist row,
+    source 'letterboxd') once the film is in our catalog — at import, or when
+    a scrape or a TMDB search adds it (letterboxd.match_films). `dismissed`:
+    they removed it here, so re-imports leave it out."""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    title_key = db.Column(db.String(255), nullable=False, index=True)   # letterboxd.clean_title(title)
+    year = db.Column(db.Integer)
+    uri = db.Column(db.String(200))
+    added_on = db.Column(db.Date)                    # when they added it on Letterboxd
+    movie_id = db.Column(db.Integer, db.ForeignKey('movie.id'), index=True)
+    dismissed = db.Column(db.Boolean, default=False)
+    imported_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    movie = db.relationship('Movie', lazy=True)
 
 
 class GamePost(db.Model):

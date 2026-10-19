@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { accountLabel } from "../accountLabel";
 import { getJson, send } from "../api";
 import Avatar from "../ui/Avatar";
 import PicturePicker, { sendPicture } from "../ui/PicturePicker";
+import Prompt from "../ui/Prompt";
 import SectionMenu from "../ui/SectionMenu";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, SwitchRow, useSaveStatus } from "../ui/Settings";
 import { ALWAYS_NEVER, ASK_ALWAYS_NEVER, Segmented } from "../ui/TicketRow";
@@ -114,14 +115,15 @@ function DiscordRow({ user, apiBase }) {
   );
 }
 
-// Your Letterboxd diary (R10f): connect it by username (we check the diary
-// exists); then what a diary entry for a screening you were going to does.
-// (Showing ratings and quiz clues are in Privacy and sharing.)
-function LetterboxdRows({ lb, call, busy }) {
+// Letterboxd (Connections): one row per thing connected. The diary (R10f):
+// connect it by username (we check the diary exists); then what a diary entry
+// for a screening you were going to does. (Showing ratings and quiz clues are
+// in Privacy and sharing.)
+function DiaryRows({ lb, call, busy }) {
   const [name, setName] = useState(lb.username || "");
   if (!lb.connected) {
     return (
-      <SettingRow label="Letterboxd" id="profile-letterboxd"
+      <SettingRow label="Diary" id="profile-letterboxd"
                   hint="Connect your diary and screenings you log there can count as check-ins here — you choose how. We only read your public diary feed.">
         <form className="settings-inline" onSubmit={e => { e.preventDefault(); call("POST", { username: name }); }}>
           <input className="share-input" value={name} onChange={e => setName(e.target.value)} maxLength={60}
@@ -134,7 +136,7 @@ function LetterboxdRows({ lb, call, busy }) {
   const read = lb.synced_at && new Date(lb.synced_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <>
-      <SettingRow label="Letterboxd" id="profile-letterboxd"
+      <SettingRow label="Diary" id="profile-letterboxd"
                   hint={<>📓 Connected to <a href={`https://letterboxd.com/${lb.username}/`} target="_blank" rel="noreferrer">@{lb.username}</a>
                     {read && ` · read ${read}`}</>}>
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => call("POST", null, "/sync")}>Read it now</button>
@@ -145,6 +147,93 @@ function LetterboxdRows({ lb, call, busy }) {
         <Segmented label="Check me in from my diary" options={ASK_ALWAYS_NEVER} value={lb.checkin} onChange={v => v && call("PUT", { checkin: v })} />
       </SettingRow>
     </>
+  );
+}
+
+// The watchlist: Letterboxd's export (the zip, or its watchlist.csv),
+// imported again whenever you like. Its films join your watchlist as they
+// turn up in our listings; the first import asks whether they alert you.
+const WATCH_ALERTS = [{ status: "yes", label: "Alert me" }, { status: "no", label: "Just For you" }];
+
+function WatchlistRows({ lb, apiBase, save, onChange }) {
+  const file = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState(false);
+  const w = lb.watchlist || {};
+
+  async function upload(f) {
+    if (!f) return;
+    const body = new FormData();
+    body.append("file", f);
+    setBusy(true);
+    const d = await save(() => send(`${apiBase}/api/me/letterboxd/watchlist`, "POST", body), "Imported");
+    setBusy(false);
+    if (file.current) file.current.value = "";
+    if (!d) return;
+    onChange(d);
+    setAsk(!!d.ask_alerts);
+  }
+  async function setAlerts(on) {
+    const d = await save(() => send(`${apiBase}/api/me/letterboxd`, "PUT", { watch_alerts: on }));
+    if (d) { onChange(d); setAsk(false); }
+  }
+  async function turnOff() {
+    if (!window.confirm("Turn off your Letterboxd watchlist? The films it brought in leave your watchlist (films you added here stay).")) return;
+    const d = await save(() => send(`${apiBase}/api/me/letterboxd/watchlist`, "DELETE"), "Turned off");
+    if (d) onChange(d);
+  }
+
+  const picker = (
+    <>
+      <input ref={file} type="file" accept=".zip,.csv,application/zip,text/csv" hidden
+             aria-label="Letterboxd export file" onChange={e => upload(e.target.files?.[0])} />
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => file.current?.click()}>
+        {busy ? "Importing…" : w.on ? "Import again" : "Choose the file"}
+      </button>
+    </>
+  );
+  if (!w.on) {
+    return (
+      <SettingRow label="Watchlist" id="profile-letterboxd-watchlist"
+                  hint="Bring in your Letterboxd watchlist: on Letterboxd, Settings → Import & Export → Export your data, then choose the zip (or the watchlist.csv inside). Its films join your watchlist here as theatres book them.">
+        {picker}
+      </SettingRow>
+    );
+  }
+  const when = w.imported_at && new Date(w.imported_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <>
+      <SettingRow label="Watchlist" id="profile-letterboxd-watchlist"
+                  hint={`📓 ${w.films} film${w.films === 1 ? "" : "s"} · ${w.matched} in our listings${when ? ` · imported ${when}` : ""}. Import again whenever your list changes — films you've taken off Letterboxd leave.`}>
+        {picker}
+        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={turnOff}>Turn off</button>
+      </SettingRow>
+      {ask ? (
+        <Prompt question="Alert you about these like your watchlist?"
+                hint="When a theatre books or announces one, or tickets go on sale. Or just use them for For you and the digest's counts."
+                onClose={() => setAsk(false)}
+                actions={<>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => setAlerts(true)}>Alert me</button>
+                  <button type="button" className="btn btn-sm" onClick={() => setAlerts(false)}>Just For you</button>
+                </>} />
+      ) : (
+        <SettingRow label="Alerts for these films"
+                    hint="Alert me: like the rest of your watchlist (where alerts reach you is under Notifications). Just For you: they shape your picks, nothing more.">
+          <Segmented label="Alerts for Letterboxd watchlist films" options={WATCH_ALERTS}
+                     value={w.alerts === true ? "yes" : w.alerts === false ? "no" : null}
+                     onChange={v => v && setAlerts(v === "yes")} />
+        </SettingRow>
+      )}
+    </>
+  );
+}
+
+function LetterboxdRows({ lb, call, busy, apiBase, save, onChange }) {
+  return (
+    <SettingsGroup title="Letterboxd">
+      <DiaryRows lb={lb} call={call} busy={busy} />
+      <WatchlistRows lb={lb} apiBase={apiBase} save={save} onChange={onChange} />
+    </SettingsGroup>
   );
 }
 
@@ -215,7 +304,7 @@ export default function MeSettings({ user, apiBase }) {
         <SettingsSection id="settings-connections" title="Connections"
                          intro="Discord, Letterboxd and your calendar app — linked to your account here.">
           <DiscordRow user={user} apiBase={apiBase} />
-          {lb && <LetterboxdRows lb={lb} call={lbCall} busy={lbBusy} />}
+          {lb && <LetterboxdRows lb={lb} call={lbCall} busy={lbBusy} apiBase={apiBase} save={save} onChange={setLb} />}
           {!user.is_guest && (
             <div id="me-calendar">
               <SettingsGroup title="Calendar subscriptions">

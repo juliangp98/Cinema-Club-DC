@@ -138,7 +138,7 @@ def alert_new_showings(theatre, new_future, had_upcoming):
         Notification.movie_id.in_(booked), Notification.created_at > _now() - REALERT_AFTER)}
     made = 0
     for w in Watchlist.query.filter(Watchlist.movie_id.in_(booked)).all():
-        if not w.user or (w.user_id, w.movie_id) in recent or not wants(w.user, 'showings'):
+        if not w.user or (w.user_id, w.movie_id) in recent or not wants(w.user, 'showings') or not watch_alerts(w):
             continue
         shows = sorted(booked[w.movie_id], key=lambda s: s.start_time)
         m = shows[0].movie
@@ -194,9 +194,15 @@ def alert_favorites(theatre, new_future, had_upcoming):
     return made
 
 
+def watch_alerts(w):
+    """Does this watchlist entry alert its owner? One imported from Letterboxd
+    only if they said yes when they imported (opt-in: not asked = no)."""
+    return w.source != 'letterboxd' or bool(w.user and w.user.letterboxd_watch_alerts)
+
+
 def _watchers(Watchlist, movie_ids, kind):
     return [w for w in (Watchlist.query.filter(Watchlist.movie_id.in_(movie_ids)).all() if movie_ids else [])
-            if w.user and wants(w.user, kind)]
+            if w.user and wants(w.user, kind) and watch_alerts(w)]
 
 
 def alert_announced(theatre, announcements):

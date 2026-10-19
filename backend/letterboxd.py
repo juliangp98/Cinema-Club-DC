@@ -1,4 +1,6 @@
-"""Letterboxd diary sync (R10f), only for members who connect their diary in
+"""Letterboxd: the diary sync (R10f) and the watchlist import (below).
+
+The diary sync is only for members who connect their diary in
 their profile. Letterboxd has no sign-in we can use and blocks profile-page
 fetches, but every member's diary is a public RSS feed
 (https://letterboxd.com/<username>/rss/): we confirm it exists, allow one
@@ -106,11 +108,14 @@ _NOISE = re.compile(r"\b(in\s+)?(70|35|16)\s*mm\b|\b(4k|imax|digital|restoration
 
 
 def clean_title(title):
-    """'NORTH BY NORTHWEST in 70mm' → 'north by northwest' (to match diary titles)."""
+    """'NORTH BY NORTHWEST in 70mm' → 'north by northwest', 'VERTIGO (Digital)'
+    → 'vertigo', "Schindler’s List" → 'schindlers list' (to match diary and
+    watchlist titles): no format notes, no punctuation."""
     import discover
     t = _NOISE.sub(' ', title or '')
     t = re.sub(r'\s+-\s+.*$', '', t)            # "BRAZIL - DIRECTOR'S CUT"
-    return re.sub(r'\s+', ' ', discover.normalize(t)).strip()
+    t = re.sub(r"['’]", '', discover.normalize(t))
+    return re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', ' ', t)).strip()
 
 
 def _year(m):
@@ -268,4 +273,164 @@ def status(user):
     return {'username': user.letterboxd_username or '', 'connected': bool(user.letterboxd_sync),
             'synced_at': user.letterboxd_synced_at.isoformat() + 'Z' if user.letterboxd_synced_at else None,
             'checkin': user.letterboxd_checkin if user.letterboxd_checkin in CHOICES else 'ask',
-            'ratings': bool(user.letterboxd_ratings), 'clues': user.letterboxd_clues is not False}
+            'ratings': bool(user.letterboxd_ratings), 'clues': user.letterboxd_clues is not False,
+            'watchlist': watch_status(user)}
+
+
+# ─── The watchlist, from Letterboxd's export ──────────────────────────────────
+# Letterboxd has no watchlist feed (and its pages sit behind a bot check), so
+# members upload the export it gives them (Settings → Import & Export): the
+# whole zip, or the watchlist.csv inside. Each import replaces the stored
+# list and mirrors it: films from Letterboxd that are gone from the file leave
+# the watchlist; films added here never do. A film joins the watchlist once
+# it's in our catalog — now, or when a scrape or a TMDB search adds it later
+# (match_films) — so a long list costs no lookups up front.
+
+MAX_WATCHLIST = 10_000                   # rows read from one file
+MAX_CSV_BYTES = 5_000_000                # the CSV inside a zip, unpacked
+
+
+def read_export(data):
+    """([{title, year, uri, added_on}], error) from the export's bytes — the
+    zip or the CSV. error: 'not_export' (not Letterboxd's watchlist) | 'empty'."""
+    import csv
+    import io
+    import zipfile
+    if data[:4] == b'PK\x03\x04':
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                names = [n for n in z.namelist() if n.rsplit('/', 1)[-1].lower() == 'watchlist.csv']
+                if not names:
+                    return None, 'not_export'
+                info = z.getinfo(min(names, key=lambda n: n.count('/')))    # the top one, not deleted/
+                if info.file_size > MAX_CSV_BYTES:
+                    return None, 'not_export'
+                text = z.read(info).decode('utf-8-sig', 'replace')
+        except zipfile.BadZipFile:
+            return None, 'not_export'
+    else:
+        text = data.decode('utf-8-sig', 'replace')
+    reader = csv.reader(io.StringIO(text))
+    header = [h.strip().lower() for h in next(reader, [])]
+    if 'name' not in header or 'letterboxd uri' not in header:
+        return None, 'not_export'
+    col = {h: i for i, h in enumerate(header)}
+    cell = lambda row, h: row[col[h]].strip() if h in col and col[h] < len(row) else ''
+    rows, seen = [], set()
+    for row in reader:
+        title = cell(row, 'name')[:255]
+        if not title:
+            continue
+        year = int(cell(row, 'year')) if cell(row, 'year').isdigit() else None
+        key = (clean_title(title), year)
+        if not key[0] or key in seen:
+            continue
+        seen.add(key)
+        try:
+            added = date.fromisoformat(cell(row, 'date'))
+        except ValueError:
+            added = None
+        rows.append({'title': title, 'year': year, 'uri': cell(row, 'letterboxd uri')[:200], 'added_on': added})
+        if len(rows) >= MAX_WATCHLIST:
+            break
+    return (rows, None) if rows else (None, 'empty')
+
+
+def watch_match(year, films):
+    """Which of `films` (ones with the entry's clean title) the entry is: the
+    year must agree within one (re-release dates) — a film whose year we don't
+    know isn't guessed at; with no year, only when there's just one."""
+    if year:
+        hits = [m for m in films if _year(m) and abs(_year(m) - year) <= 1]
+        hits.sort(key=lambda m: abs(_year(m) - year))
+        return hits[0] if hits else None
+    return films[0] if len(films) == 1 else None
+
+
+def import_watchlist(user, rows):
+    """Replace `user`'s imported list with `rows` and mirror their watchlist.
+    Returns {films, matched, added, removed}. Commits."""
+    from app import db, LetterboxdWatch, Movie, Watchlist, _utcnow_naive
+    old = {(w.title_key, w.year): w for w in LetterboxdWatch.query.filter_by(user_id=user.id)}
+    index = {}
+    for m in Movie.query.all():
+        index.setdefault(clean_title(m.title), []).append(m)
+    now, keep = _utcnow_naive(), set()
+    for r in rows:
+        key = (clean_title(r['title']), r['year'])
+        lw = old.get(key)
+        if lw is None:
+            lw = LetterboxdWatch(user_id=user.id, title_key=key[0], year=r['year'])
+            db.session.add(lw)
+        lw.title, lw.uri, lw.added_on, lw.imported_at = r['title'], r['uri'], r['added_on'], now
+        if lw.movie_id is None:
+            m = watch_match(r['year'], index.get(key[0], []))
+            lw.movie_id = m.id if m else None
+        keep.add(key)
+    for key, lw in old.items():
+        if key not in keep:                                  # gone from Letterboxd
+            db.session.delete(lw)
+    db.session.flush()
+    wanted = {lw.movie_id for lw in LetterboxdWatch.query.filter_by(user_id=user.id)
+              if lw.movie_id and not lw.dismissed}
+    current = {w.movie_id: w for w in Watchlist.query.filter_by(user_id=user.id)}
+    added = removed = 0
+    for mid in wanted - set(current):
+        # share_discord stays unset: the digest follows your "watchlist" sharing choice (never asks per film)
+        db.session.add(Watchlist(user_id=user.id, movie_id=mid, source='letterboxd'))
+        added += 1
+    for mid, w in current.items():
+        if w.source == 'letterboxd' and mid not in wanted:
+            db.session.delete(w)
+            removed += 1
+    user.letterboxd_watch_on, user.letterboxd_watch_imported_at = True, now
+    db.session.commit()
+    return {'films': len(keep), 'matched': len(wanted), 'added': added, 'removed': removed}
+
+
+def remove_import(user):
+    """Watchlist off: the imported films leave (films added here stay). Commits."""
+    from app import db, LetterboxdWatch, Watchlist
+    Watchlist.query.filter_by(user_id=user.id, source='letterboxd').delete()
+    LetterboxdWatch.query.filter_by(user_id=user.id).delete()
+    user.letterboxd_watch_on, user.letterboxd_watch_imported_at = False, None
+    db.session.commit()
+
+
+def match_films(movies):
+    """Films just added to the catalog (or newly identified): put them on the
+    watchlist of everyone whose imported list has them. Before the caller
+    commits — the scraper calls this before that run's alerts, so a film
+    booked the day it's matched alerts its watchers."""
+    from app import db, LetterboxdWatch, User, Watchlist
+    added = 0
+    for m in movies:
+        key = clean_title(m.title)
+        for lw in (LetterboxdWatch.query.join(User, User.id == LetterboxdWatch.user_id)
+                   .filter(LetterboxdWatch.title_key == key, LetterboxdWatch.movie_id.is_(None),
+                           LetterboxdWatch.dismissed.isnot(True), User.letterboxd_watch_on.is_(True))):
+            if watch_match(lw.year, [m]) is None:
+                continue
+            lw.movie_id = m.id
+            if not Watchlist.query.filter_by(user_id=lw.user_id, movie_id=m.id).first():
+                db.session.add(Watchlist(user_id=lw.user_id, movie_id=m.id, source='letterboxd'))
+                added += 1
+    if added:
+        db.session.flush()
+    return added
+
+
+def removed_here(user_id, movie_id):
+    """A film taken off the watchlist here (the site or /watch): if it's on
+    their Letterboxd list, the next import leaves it out."""
+    from app import LetterboxdWatch
+    LetterboxdWatch.query.filter_by(user_id=user_id, movie_id=movie_id).update({'dismissed': True})
+
+
+def watch_status(user):
+    from app import LetterboxdWatch
+    rows = LetterboxdWatch.query.filter_by(user_id=user.id).filter(LetterboxdWatch.dismissed.isnot(True))
+    return {'on': bool(user.letterboxd_watch_on),
+            'imported_at': user.letterboxd_watch_imported_at.isoformat() + 'Z' if user.letterboxd_watch_imported_at else None,
+            'films': rows.count(), 'matched': rows.filter(LetterboxdWatch.movie_id.isnot(None)).count(),
+            'alerts': user.letterboxd_watch_alerts}
