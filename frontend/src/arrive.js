@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
-// Where you land (7f): pages scroll inside .shell-main, so the browser never
-// moves it for us. A new page starts at the top; Back (and Forward) returns
+// Where you land (7f): a single-page app, so the browser never moves the
+// page for us on navigation. A new page starts at the top; Back (and Forward) returns
 // to where you were; and a link to a specific thing (#id) brings it into
 // view and lights it gold for GLOW_MS — on every page (Help's links, tours,
 // the bell, the bot's links). It waits for slow pages to draw the thing (up
@@ -14,7 +14,13 @@ const WAIT_MS = 6000;
 const SETTLE_MS = 1500;
 const GAP = 12;                                           // room above a target at the top
 
-const scroller = () => document.querySelector(".shell-main") || document.scrollingElement || document.documentElement;
+const scroller = () => document.scrollingElement || document.documentElement;
+
+// The top of what you can see in `box`: for the page, just below the pinned top bar.
+function viewTop(box) {
+  if (box === scroller()) return Math.max(document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0, 0);
+  return Math.max(box.getBoundingClientRect().top, 0);
+}
 
 // What scrolls `el`: a sheet it's in, or the page.
 function scrollerOf(el) {
@@ -29,11 +35,12 @@ function scrollerOf(el) {
 // `atTop`, of anything — a section menu's jump), the middle of anything else.
 export function bringIntoView(el, atTop = false) {
   const box = scrollerOf(el);
-  const view = box.getBoundingClientRect?.() || { top: 0, height: window.innerHeight };
+  const top = viewTop(box);
   const r = el.getBoundingClientRect();
-  const height = Math.min(view.height, window.innerHeight - Math.max(view.top, 0));
+  const height = box === scroller() ? window.innerHeight - top
+    : Math.min(box.getBoundingClientRect().height, window.innerHeight - top);
   const offset = atTop || r.height > height * 0.6 ? GAP : (height - r.height) / 2;
-  box.scrollTop += r.top - Math.max(view.top, 0) - offset;
+  box.scrollTop += r.top - top - offset;
 }
 
 // `quiet`: just bring it to the top (a section menu's jump), no glow.
@@ -66,10 +73,9 @@ export default function useArrival() {
   const last = useRef({ pathname, key });
 
   useEffect(() => {                                      // remember where you are on each page
-    const box = scroller();
-    const save = () => { positions.current[last.current.key] = box.scrollTop; };
-    box.addEventListener("scroll", save, { passive: true });
-    return () => box.removeEventListener("scroll", save);
+    const save = () => { positions.current[last.current.key] = scroller().scrollTop; };
+    window.addEventListener("scroll", save, { passive: true });   // the page's scroll is the window's
+    return () => window.removeEventListener("scroll", save);
   }, []);
 
   useLayoutEffect(() => {
@@ -103,9 +109,8 @@ export default function useArrival() {
     const off = onUserScroll(() => { stopped = true; });
     const settle = () => {                               // content loading above it pushes it down: put it back
       if (stopped || Date.now() > settleUntil || !el.isConnected) return;
-      const view = scrollerOf(el).getBoundingClientRect?.() || { top: 0 };
       const want = el._arriveTop;
-      const now = el.getBoundingClientRect().top - Math.max(view.top, 0);
+      const now = el.getBoundingClientRect().top - viewTop(scrollerOf(el));
       if (Math.abs(now - want) > 8) bringIntoView(el, quiet);
       timer = setTimeout(settle, 150);
     };
@@ -113,8 +118,7 @@ export default function useArrival() {
       el = document.getElementById(id);
       if (el) {
         glow(el, quiet);
-        const view = scrollerOf(el).getBoundingClientRect?.() || { top: 0 };
-        el._arriveTop = el.getBoundingClientRect().top - Math.max(view.top, 0);
+        el._arriveTop = el.getBoundingClientRect().top - viewTop(scrollerOf(el));
         settleUntil = Date.now() + SETTLE_MS;
         timer = setTimeout(settle, 150);
         return;

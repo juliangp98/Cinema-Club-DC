@@ -10,8 +10,8 @@ export default function SectionMenu({ items, label }) {
   const { search, hash } = useLocation();
   const [current, setCurrent] = useState(items[0]?.id);
   useEffect(() => {
-    const box = document.querySelector(".shell-main") || window;
-    const top = () => (box.getBoundingClientRect ? box.getBoundingClientRect().top : 0);
+    const box = window;                                  // the page scrolls; the top bar stays pinned over it
+    const top = () => document.querySelector(".topbar")?.getBoundingClientRect().bottom || 0;
     const spy = () => {
       let on = items[0]?.id;
       for (const it of items) {

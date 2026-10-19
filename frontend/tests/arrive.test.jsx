@@ -50,16 +50,16 @@ test("a new page starts at the top; a filter or tab keeps your place; Back retur
     </>;
   }
   render(<MemoryRouter initialEntries={["/calendar"]}><main className="shell-main"><Shell><Nav /></Shell></main></MemoryRouter>);
-  const main = document.querySelector(".shell-main");
-  main.scrollTop = 900;
-  main.dispatchEvent(new Event("scroll"));
+  const page = document.scrollingElement || document.documentElement;   // the page itself scrolls (toolbars can hide)
+  page.scrollTop = 900;
+  window.dispatchEvent(new Event("scroll"));
   await userEvent.click(screen.getByRole("button", { name: "Filter" }));
-  expect(main.scrollTop).toBe(900);                                     // same page: stays put
-  main.dispatchEvent(new Event("scroll"));
+  expect(page.scrollTop).toBe(900);                                     // same page: stays put
+  window.dispatchEvent(new Event("scroll"));
   await userEvent.click(screen.getByRole("button", { name: "Discover" }));
-  expect(main.scrollTop).toBe(0);                                       // a new page: the top
+  expect(page.scrollTop).toBe(0);                                       // a new page: the top
   await userEvent.click(screen.getByRole("button", { name: "Back" }));
-  expect(main.scrollTop).toBe(900);                                     // Back: where you were
+  expect(page.scrollTop).toBe(900);                                     // Back: where you were
 });
 
 test("a section menu's jump lands at the section's top without the glow, and marks it selected", async () => {

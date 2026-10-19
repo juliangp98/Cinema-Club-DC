@@ -284,16 +284,19 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .ui-menu-divider { height: 1px; background: var(--border); margin: 0.35rem 0.25rem; }
 
 /* ── App shell ─────────────────────────────────────────────────────────── */
-.shell { display: flex; flex-direction: column; height: 100dvh; }
-.shell-main { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-   /* calendar manages its own scroll */
+/* The page itself scrolls (not a box inside it), so phone browsers can tuck
+   their toolbars away as you scroll; the top bar (and the phone tab bar) stay
+   pinned. Notches: the shell keeps clear of them in landscape. */
+.shell { display: flex; flex-direction: column; min-height: 100dvh;
+         padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+.shell-main { flex: 1; overflow-x: clip; }
 
 .topbar {
   flex-shrink: 0; height: var(--topbar-h);
   display: flex; align-items: center; gap: 1.25rem; padding: 0 1.25rem;
   background: var(--bg2);
   border-bottom: 3px double var(--gold-line);
-  position: relative; z-index: 40;
+  position: sticky; top: 0; z-index: 40;
 }
 .topbar-logo { font-size: var(--fs-xl); color: var(--amber); line-height: 1; }
 .topbar-nav { display: flex; gap: 0.35rem; }
@@ -369,7 +372,8 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .linkish { background: none; border: 0; padding: 0; color: var(--amber); font: inherit; cursor: pointer; text-decoration: underline; }
 
 @media (max-width: 767px) {
-  .topbar { height: 52px; padding: 0 0.85rem; gap: 0.75rem; }
+  :root { --topbar-h: 52px; }
+  .topbar { padding: 0 0.85rem; gap: 0.75rem; }
   .topbar-logo { font-size: var(--fs-lg); }
   .topbar-nav, .topbar-avatar, .topbar-spacer { display: none; }
   .topbar-logo { flex-shrink: 0; }
@@ -384,7 +388,7 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--bg2); border-top: 3px double var(--gold-line);
-    position: relative; z-index: 40;
+    position: sticky; bottom: 0; z-index: 40;
   }
   .tabbar-link {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -746,7 +750,7 @@ a.share-state { color: var(--green); }
 @media (min-width: 1024px) {
   .ui-split { display: grid; grid-template-columns: minmax(0, 1fr) var(--split-side, 300px); gap: 1.75rem; align-items: start; }
   .ui-split.side-first { grid-template-columns: var(--split-side, 220px) minmax(0, 1fr); }
-  .ui-split-side.sticky { position: sticky; top: 1rem; }
+  .ui-split-side.sticky { position: sticky; top: calc(var(--topbar-h) + 1rem); }
 }
 /* .side-top: on phones the side comes first (a section menu, a topic list). */
 @media (max-width: 1023px) {
