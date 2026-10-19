@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import discord
 import pytest
 
-from helpers import all_linked_present, client, patch_bot_api, setup_db
+from helpers import all_linked_present, client, patch_bot_api, setup_db, patch_bot
 
 _ids = itertools.count(91000)
 
@@ -95,7 +95,7 @@ def world():
     bot = patch_bot_api()
     all_linked_present()
     ch = Channel()
-    bot.movies_channel = lambda: ch
+    patch_bot(movies_channel=lambda: ch)
     return types.SimpleNamespace(bot=bot, ch=ch, tick=lambda: asyncio.run(bot.share_loop.coro()), **ids)
 
 
@@ -190,7 +190,7 @@ def test_starting_a_thread(world):
     async def fake_ensure(sid):
         made.append(sid)
         return types.SimpleNamespace(id=4444, jump_url='https://discord.com/channels/900/4444'), {}, True
-    world.bot.ensure_thread = fake_ensure
+    patch_bot(ensure_thread=fake_ensure)
     client(world.bo).post('/api/discord/shares', json={'kind': 'thread', 'group_id': 1, 'showtime_id': world.s2})
     world.tick()
     assert made == [world.s2]

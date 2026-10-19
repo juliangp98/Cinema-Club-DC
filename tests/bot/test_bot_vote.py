@@ -9,7 +9,7 @@ import types
 import discord
 import pytest
 
-from helpers import patch_bot_api, setup_db
+from helpers import patch_bot_api, setup_db, patch_bot
 
 VEE, WES, LONE = 9101, 9102, 9109
 
@@ -305,7 +305,7 @@ def test_poll_posts_in_movies(polls, monkeypatch):
     class Channel:
         async def send(self, content=None, embed=None, view=None, **k):
             sent.append((content, embed, view))
-    monkeypatch.setattr(polls.bot, 'movies_channel', lambda: Channel())
+    patch_bot(movies_channel=lambda: Channel())
     top = [{'name': 'Vee', 'discord_user_id': '9101', 'kernels': 9, 'correct': 2},
            {'name': 'Ann', 'discord_user_id': None, 'kernels': 3, 'correct': 1}]
     with app.app_context():

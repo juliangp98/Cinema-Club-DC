@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from helpers import patch_bot_api, setup_db
+from helpers import patch_bot_api, setup_db, patch_bot
 
 
 def member(uid, is_bot=False, gid=900):
@@ -97,7 +97,7 @@ def bot():
     b = patch_bot_api()
     b.test_showtime = sid
     b.guild = Guild([member(8801), member(4242, is_bot=True), member(5555)])
-    b.movies_channel = lambda: types.SimpleNamespace(guild=b.guild)
+    patch_bot(movies_channel=lambda: types.SimpleNamespace(guild=b.guild))
     return b
 
 

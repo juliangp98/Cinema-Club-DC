@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 import discord
 import pytest
 
-from helpers import all_linked_present, client, patch_bot_api, setup_db
+from helpers import all_linked_present, client, patch_bot_api, setup_db, patch_bot
+from features import chat, threads      # the bot, by feature (bot.py gathers the public names)
 
 _ids = itertools.count(70000)
 THREADS = {}
@@ -167,8 +168,7 @@ def world(monkeypatch):
 
     async def dm_owner(text):
         owner_dms.append(text)
-    monkeypatch.setattr(bot, 'movies_channel', lambda: ch)
-    monkeypatch.setattr(bot, 'dm_owner', dm_owner)
+    patch_bot(movies_channel=lambda: ch, dm_owner=dm_owner)
     monkeypatch.setattr(bot.client._connection, 'user', types.SimpleNamespace(id=4242))
     monkeypatch.setattr(bot.client, 'get_channel', lambda i: THREADS.get(i))
     monkeypatch.setattr(bot.client, 'fetch_channel', fetch_channel)
@@ -283,7 +283,7 @@ def test_no_ambient_quotes_inside_screening_threads(started, monkeypatch):
     trig = dmsg(started, 'That 70mm IMAX print is gorgeous')
     trig.reply = reply
     monkeypatch.setattr(started.bot.random, 'random', lambda: 0.0)
-    started.bot._trigger_cooldown.clear()
+    chat._trigger_cooldown.clear()
     asyncio.run(started.bot.on_message(trig))
     assert replies == []
 
@@ -421,7 +421,7 @@ def test_a_thread_deleted_in_discord_restarts_only_on_request(started):
 
 
 def test_missing_permissions(started, monkeypatch):
-    monkeypatch.setattr(started.bot, '_webhook', None)
+    monkeypatch.setattr(threads, '_webhook', None)
     started.ch.forbid = True
     comment(started, 'perm test')
     discussion(started)

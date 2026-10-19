@@ -46,6 +46,24 @@ def patch_bot_api():
     return bot
 
 
+BOT_MODULES = ('bot', 'features.shared', 'features.chat', 'features.alerts', 'features.schedule', 'features.threads',
+               'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.club')
+
+
+def patch_bot(**names):
+    """Swap module-level names in the bot — the channel lookup, the owner DM,
+    the clock. The bot is split by feature, so a name like movies_channel lives
+    in each module that uses it; this swaps it in all of them (conftest puts
+    them back after each test)."""
+    import sys
+    import bot  # noqa: F401 — loads every module
+    for m in BOT_MODULES:
+        mod = sys.modules.get(m)
+        for name, value in names.items():
+            if mod is not None and hasattr(mod, name):
+                setattr(mod, name, value)
+
+
 def all_linked_present():
     """Everyone with Discord linked is in the club's server, as the bot reports
     after its member sync (only they ever appear in Discord, R6a.1)."""

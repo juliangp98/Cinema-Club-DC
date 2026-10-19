@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from helpers import FakeInteraction, client, items_of, patch_bot_api, setup_db
+from helpers import FakeInteraction, client, items_of, patch_bot_api, setup_db, patch_bot
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def at_hour(bot, h):
         @classmethod
         def now(cls, tz=None):
             return real.now(tz).replace(hour=h)
-    bot.datetime = Fake
+    patch_bot(datetime=Fake)
 
 
 def test_alerts_go_out_bundled_once_and_not_at_night(bot_with_alerts):

@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from helpers import all_linked_present, client, items_of, patch_bot_api, setup_db
+from helpers import all_linked_present, client, items_of, patch_bot_api, setup_db, patch_bot
 
 NOON = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
 
@@ -41,7 +41,7 @@ def bot(monkeypatch):
         async def send(self, content=None, embed=None, view=None, **k):
             b.sent.append((embed, view, k))
             return types.SimpleNamespace(id=4242 + len(b.sent))
-    monkeypatch.setattr(b, 'movies_channel', lambda: Channel())
+    patch_bot(movies_channel=lambda: Channel())
     return b
 
 
@@ -90,7 +90,7 @@ def test_an_admin_reviews_by_dm(bot, monkeypatch):
         @classmethod
         def now(cls, tz=None):
             return datetime.now(tz).replace(hour=12)
-    bot.datetime = Day
+    patch_bot(datetime=Day)
     run(bot.notify_loop.coro())
     review = next(d for d in dms if d[2] is not None)
     assert review[0].startswith('👀 Waiting for your OK') and 'The answer:' in review[0]

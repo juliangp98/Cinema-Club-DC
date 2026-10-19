@@ -4,7 +4,7 @@ import types
 
 import pytest
 
-from helpers import patch_bot_api, setup_db
+from helpers import patch_bot_api, setup_db, patch_bot
 
 
 @pytest.fixture
@@ -62,8 +62,7 @@ def test_model_changes_reach_the_owner_by_dm_not_the_channel(bot_ai):
     class Ch:
         async def send(self, *a, **k):
             posts.append((a, k))
-    bot.dm_owner = dm
-    bot.movies_channel = lambda: Ch()
+    patch_bot(dm_owner=dm, movies_channel=lambda: Ch())
     bot.client.get_channel = lambda _id: Ch()
     asyncio.run(bot.announce_loop.coro())
     assert any('AI models' in m for m in dms) and not posts

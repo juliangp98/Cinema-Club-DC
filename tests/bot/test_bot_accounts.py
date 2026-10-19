@@ -6,7 +6,7 @@ import types
 import pytest
 from discord import app_commands
 
-from helpers import patch_bot_api, setup_db
+from helpers import patch_bot_api, setup_db, patch_bot
 
 HOME = 1000
 Choice = app_commands.Choice
@@ -78,7 +78,7 @@ def bot():
     import os
     setup_db()
     b = patch_bot_api()
-    b.movies_channel = lambda: Channel()
+    patch_bot(movies_channel=lambda: Channel())
     shows = run(b.api.get('/api/internal/showtimes', group_id=1, limit=1))
     sid = str(shows[0]['id']) if shows else str(sqlite3.connect(os.environ['DATABASE_URL'].replace('sqlite:///', ''))
                                                  .execute('select id from showtime limit 1').fetchone()[0])

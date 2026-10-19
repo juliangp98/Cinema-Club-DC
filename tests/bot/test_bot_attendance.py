@@ -8,7 +8,8 @@ from datetime import datetime as real_datetime, timedelta
 import discord
 import pytest
 
-from helpers import all_linked_present, patch_bot_api, setup_db
+from helpers import all_linked_present, patch_bot_api, setup_db, patch_bot
+from features import alerts      # the bot, by feature (bot.py gathers the public names)
 
 OPTED_IN = '{"types": {"attendance": true}}'
 
@@ -103,8 +104,8 @@ def bot(monkeypatch):
     async def fetch_user(uid):
         return b.users[uid]
     b.client.fetch_user = fetch_user
-    b._dm_fallback.clear()
-    b.at_hour = lambda h: monkeypatch.setattr(b, 'datetime', type('Clock', (real_datetime,), {
+    alerts._dm_fallback.clear()
+    b.at_hour = lambda h: patch_bot(datetime=type('Clock', (real_datetime,), {
         'now': classmethod(lambda cls, tz=None: real_datetime.now(tz).replace(hour=h))}))
     return b
 
@@ -161,14 +162,14 @@ def test_answering_in_the_dm(asked):
 
 
 def test_closed_dms_ask_after_the_next_command(asked):
-    assert '6603' in asked._dm_fallback
+    assert '6603' in alerts._dm_fallback
     it = Interaction(6603)
     run(asked.on_app_command_completion(it, None))
     kind, ephemeral, content, _, view = it.log[-1]
     assert kind == 'followup' and ephemeral and 'Did you make it?' in content and len(view.children) == 4
-    assert '6603' not in asked._dm_fallback                                                 # once
+    assert '6603' not in alerts._dm_fallback                                                 # once
     run(asked.attendance_loop.coro())
-    assert '6603' not in asked._dm_fallback                                                 # marked asked: no retries
+    assert '6603' not in alerts._dm_fallback                                                 # marked asked: no retries
 
 
 def history(bot, member=None, uid=6601):
