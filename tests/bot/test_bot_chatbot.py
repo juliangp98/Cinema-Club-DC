@@ -73,3 +73,24 @@ def test_model_changes_reach_the_owner_by_dm_not_the_channel(bot_ai):
     bot.client.get_channel = lambda _id: Ch()
     asyncio.run(bot.announce_loop.coro())
     assert any('AI models' in m for m in dms) and not posts
+
+
+def test_a_key_that_starts_working_reaches_the_owner_by_dm(bot_ai):
+    """The scraper's "AMC accepted the API key" note: the owner's DMs, never the channel."""
+    bot, _ = bot_ai
+    from app import app
+    from scrapers.sync import set_service_ready
+    with app.app_context():
+        set_service_ready('amc', True)
+    dms, posts = [], []
+
+    async def dm(msg):
+        dms.append(msg)
+
+    class Ch:
+        async def send(self, *a, **k):
+            posts.append((a, k))
+    patch_bot(dm_owner=dm, movies_channel=lambda: Ch())
+    bot.client.get_channel = lambda _id: Ch()
+    asyncio.run(bot.announce_loop.coro())
+    assert any(m.startswith('✅ AMC accepted the API key') for m in dms) and not posts

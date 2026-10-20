@@ -260,17 +260,31 @@ def service_ready(need):
 
 
 def set_service_ready(need, ok):
-    """Remember a service's check and show or hide the theatres that need it."""
-    from app import app, db, BotSetting, Theatre
+    """Remember a service's check and show or hide the theatres that need it.
+    Returns the check before this one (True, False, or None: never checked).
+    When it starts working, the owner gets a DM saying so — they asked to be
+    told rather than keep checking."""
+    from app import app, db, ActivityEvent, BotSetting, Theatre
     from scrapers import THEATRE_REGISTRY
     with app.app_context():
         row = db.session.get(BotSetting, f'ready_{need}') or BotSetting(key=f'ready_{need}')
+        before = {'1': True, '0': False}.get(row.value)
         row.value = '1' if ok else '0'
         db.session.add(row)
-        slugs = [c.slug for c in THEATRE_REGISTRY if c.needs == need and c.enabled]
-        if slugs:
-            Theatre.query.filter(Theatre.slug.in_(slugs)).update({'is_active': bool(ok)}, synchronize_session=False)
+        configs = [c for c in THEATRE_REGISTRY if c.needs == need and c.enabled]
+        if configs:
+            Theatre.query.filter(Theatre.slug.in_([c.slug for c in configs])).update(
+                {'is_active': bool(ok)}, synchronize_session=False)
+        if ok and before is not True:
+            names = ', '.join(c.name for c in configs)
+            db.session.add(ActivityEvent(kind='owner_note', payload_json=json.dumps({'message': (
+                f"✅ {SERVICE_NAMES.get(need, need)} accepted the API key: {len(configs)} theatres are on the site now "
+                f"({names}). Their showtimes are coming in with this scrape.")})))
         db.session.commit()
+        return before
+
+
+SERVICE_NAMES = {'amc': 'AMC'}
 
 
 def sync_announced(cfg, items):
@@ -540,8 +554,9 @@ def _emit_events(db, ScrapeEvent, cfg, theatre, run, new_future, prev_max_date, 
     ))
 
 
-def record_scrape_error(cfg, error_text):
-    """Record a failed scrape as a ScrapeRun + (rate-limited) ScrapeEvent."""
+def record_scrape_error(cfg, error_text, notify=True):
+    """Record a failed scrape as a ScrapeRun + (rate-limited) ScrapeEvent —
+    the owner's DM; `notify=False` records the run only."""
     from app import app, db, Theatre, ScrapeRun, ScrapeEvent
 
     with app.app_context():
@@ -561,7 +576,7 @@ def record_scrape_error(cfg, error_text):
             ScrapeEvent.event_type == 'scrape_error',
             ScrapeEvent.created_at > cutoff,
         ).first()
-        if not recent:
+        if notify and not recent:
             db.session.add(ScrapeEvent(
                 theatre_id=theatre.id,
                 run=run,

@@ -281,25 +281,48 @@ def _amc_active():
 
 def test_amc_theatres_wait_for_the_key_then_switch_on_by_themselves(monkeypatch):
     """New York's AMCs (and DC's) stay hidden while AMC rejects the key — one
-    error for the lot, not one per theatre — and switch on when it works."""
+    error for the lot, not one per theatre — and switch on when it works. The
+    owner hears when it changes, not every run: once that it's refused, then
+    nothing, then a DM the moment it works."""
     import scraper
     from migrations import seed_theatres
     from scrapers import amc, enabled_configs
-    from app import app, ScrapeRun
+    from app import app, db, ActivityEvent, ScrapeEvent, ScrapeRun
     setup_db()
     with app.app_context():
         seed_theatres()
+
+    def told():
+        with app.app_context():
+            return ([json.loads(e.payload_json)['error'] for e in ScrapeEvent.query.filter_by(event_type='scrape_error')],
+                    [json.loads(e.payload_json)['message'] for e in ActivityEvent.query.filter_by(kind='owner_note')])
+
+    def forget_dms():                                         # past the once-a-day limit: only the change rule is left
+        with app.app_context():
+            ScrapeEvent.query.delete()
+            db.session.commit()
+
     assert set(_amc_active().values()) == {False}                                     # never checked: hidden
-    monkeypatch.setattr(amc, 'key_check', lambda tid: (False, 'AMC hasn\'t authorized the API key yet'))
+    monkeypatch.setattr(amc, 'key_check', lambda tid: (False, 'AMC hasn\'t authorized the API key yet.'))
     left = scraper.ready(enabled_configs())
     assert not any(c.needs == 'amc' for c in left) and any(c.slug == 'suns' for c in left)
     with app.app_context():
         errors = ScrapeRun.query.filter_by(status='error').all()
         assert len(errors) == 1 and 'authorized' in errors[0].error_text               # one, for the lot
+    refused, works = told()
+    assert len(refused) == 1 and refused[0].endswith("You'll get a DM when it works.") and not works
     assert set(_amc_active().values()) == {False}
+    forget_dms()
+    scraper.ready(enabled_configs())                                                   # still refused: no DM
+    assert told() == ([], [])
 
     monkeypatch.setattr(amc, 'key_check', lambda tid: (True, ''))
     left = scraper.ready(enabled_configs())
+    works = told()[1]
+    assert len(works) == 1 and works[0].startswith('✅ AMC accepted the API key: 7 theatres are on the site now')
+    assert 'AMC Empire 25' in works[0] and 'AMC Georgetown 14' in works[0]
+    scraper.ready(enabled_configs())                                                   # still working: no more
+    assert len(told()[1]) == 1
     assert {c.slug for c in left if c.needs == 'amc'} >= {'amc-lincoln-square', 'amc-empire', 'amc-34th-street',
                                                           'amc-newport', 'amc-clifton-commons'}
     assert set(_amc_active().values()) == {True}
@@ -310,6 +333,10 @@ def test_amc_theatres_wait_for_the_key_then_switch_on_by_themselves(monkeypatch)
     assert [c['slug'] for c in cities['cities']] == ['dc', 'nyc'] and cities['multi'] is True
     nyc = {t['slug']: t['area_label'] for t in client().get('/api/theatres').json if t['city'] == 'nyc'}
     assert nyc['amc-newport'] == 'New Jersey' and nyc['amc-empire'] == 'Manhattan'
+
+    monkeypatch.setattr(amc, 'key_check', lambda tid: (False, "Couldn't reach AMC's API."))
+    scraper.ready(enabled_configs())                                                   # it stops working: told again
+    assert len(told()[0]) == 1 and set(_amc_active().values()) == {False}
 
 
 def test_the_regals_come_from_the_registry():

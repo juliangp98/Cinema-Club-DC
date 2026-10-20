@@ -31,7 +31,7 @@ amc-empire: area 'brooklyn' isn't one of nyc's (manhattan, new-jersey)".
 | **Avalon** | Agile Ticketing feed | JSON with a ticket link per showing; in-person only. | `SalesState` |
 | **National Gallery of Art** | nga.gov | The film calendar (the date and time are in each link), then each event page for details. | Free — never |
 | **Angelika** (Mosaic, Union Market Pop-Up) | Reading Cinemas API | A token, then one request per date (1 s apart, up to 60 dates). | `soldout` |
-| **AMC** (DC: Georgetown, Hoffman Center · New York: Lincoln Square, Empire 25, 34th Street · New Jersey: Newport Centre, Clifton Commons) | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`, authorized by AMC: each full run checks it once first; the AMCs are shown and scraped only while it works (until then, one owner DM a day). | `isSoldOut`; `isCanceled` → cancelled |
+| **AMC** (DC: Georgetown, Hoffman Center · New York: Lincoln Square, Empire 25, 34th Street · New Jersey: Newport Centre, Clifton Commons) | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`, authorized by AMC: each full run checks it once first; the AMCs are shown and scraped only while it works. The owner gets one DM when it's refused, then none until it works, then one saying it does ("✅ AMC accepted the API key: 7 theatres are on the site now"). | `isSoldOut`; `isCanceled` → cancelled |
 
 ## Being a good guest
 

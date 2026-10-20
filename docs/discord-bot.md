@@ -31,8 +31,8 @@ joins it to a site account later.
 - **Chat** — `@CinemaBot what should I see this weekend?`: recommendations grounded in the club's data
   (club members, needs `GROQ_API_KEY`); typing `what is thy wisdom CinemaBot` gets a movie quote, and
   movie talk in the channel sometimes does too. Never inside screening threads.
-- **Owner DMs** — scraper failures (once a day per theatre) and AI model changes go to the application's
-  owner, not the channel.
+- **Owner DMs** — scraper failures (once a day per theatre), AI model changes, and a chain's API key
+  (AMC's) when it's refused and again when it starts working go to the application's owner, not the channel.
 
 ## Commands
 

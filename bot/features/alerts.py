@@ -64,7 +64,7 @@ async def announce_loop():
     for ev in activity:
         try:
             p = ev.get('payload') or {}
-            if ev['kind'] == 'llm_switch':                      # the shared AI changed models: owner only
+            if ev['kind'] in ('llm_switch', 'owner_note'):      # the AI changed models, a key works: owner only
                 await dm_owner(p.get('message') or 'The AI models changed.')
             elif ev['kind'] in ('poll_opened', 'poll_scored'):
                 channel = channel_for(p.get('group_id'))       # the poll's own club's server, if it has one
