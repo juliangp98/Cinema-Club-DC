@@ -23,7 +23,11 @@ import places
 from .base import PerDateFetcher, finish_scrape, retry_after, show_end
 
 API_URL = 'https://www.regmovies.com/api/getShowtimes'
-CODES = ('1551', '0296', '1862')     # every Regal in the registry — one request covers them all
+def codes():
+    """Every enabled Regal in the registry (its theatre code) — one request covers them all."""
+    from . import THEATRE_REGISTRY
+    return tuple(c.scrape.args[0] for c in THEATRE_REGISTRY
+                 if c.enabled and getattr(c.scrape, 'func', None) is scrape_regal)
 MAX_DATES = 90              # safety cap on per-date requests per run
 NEAR_DAYS = 14              # checked on every run
 DEEP_EVERY = datetime.timedelta(hours=20)    # the dates past NEAR_DAYS: once a day
@@ -41,7 +45,7 @@ _error = None               # …or why the first request failed (not retried pe
 def _fetch_day(cffi_requests, date_str):
     for attempt in range(len(BACKOFF) + 1):
         r = cffi_requests.get(API_URL, params={
-            'theatres': ','.join(CODES), 'date': date_str,
+            'theatres': ','.join(codes()), 'date': date_str,
             'hoCode': '', 'ignoreCache': 'false', 'moviesOnly': 'false',
         }, impersonate='chrome', timeout=25)
         if r.status_code in (429, 503) and attempt < len(BACKOFF):
@@ -75,7 +79,7 @@ def _mark_deep(now=None):
 
 
 def _load_days(deep=None):
-    """Every date's payload, fetched once per process for all CODES."""
+    """Every date's payload, fetched once per process for all the Regals (codes())."""
     global _days, _missed, _error
     if _error is not None:
         raise _error

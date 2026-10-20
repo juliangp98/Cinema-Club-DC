@@ -1,8 +1,9 @@
 """AMC Theatres — official developer API (developers.amctheatres.com).
 
-DISABLED until an API key is approved: apply at developers.amctheatres.com,
-then set AMC_API_KEY in the backend .env and flip enabled=True for the AMC
-entries in scrapers/__init__.py.
+Needs AMC_API_KEY, and AMC has to authorize it (a new key answers
+"Unauthorized VendorKey" until then). The AMC theatres in the registry say
+needs='amc': each full scrape run asks key_check() first, and they're shown
+and scraped only while it passes — they switch on by themselves.
 
 Uses Theatre/Showtime API v2. The theatre id may be the numeric theatre
 number or the URL slug (e.g. 'amc-georgetown-14'). Showtimes are fetched
@@ -37,6 +38,20 @@ def _session():
         'User-Agent': 'CinemaClubDC/1.0',
     })
     return s
+
+
+def key_check(theatre_id):
+    """(True, '') if AMC accepts the key (asked about one theatre), else (False, why)."""
+    if not os.environ.get('AMC_API_KEY', ''):
+        return False, "AMC_API_KEY isn't set, so the AMC theatres wait."
+    try:
+        r = _session().get(f'{API_BASE}/v2/theatres/{theatre_id}', timeout=20)
+    except Exception as e:
+        return False, f"Couldn't reach AMC's API to check the key ({e}); the AMC theatres wait."
+    if r.status_code in (401, 403):
+        return False, ("AMC hasn't authorized the API key yet (it answers \"Unauthorized VendorKey\"), so the AMC "
+                       "theatres wait — they switch on by themselves once it does.")
+    return True, ''
 
 
 def scrape_amc(theatre_id, theatre_slug):

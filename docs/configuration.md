@@ -58,7 +58,7 @@ See [discord-bot.md](discord-bot.md) for setting the bot up.
 
 | Setting | Needed | What it's for | Where to get it |
 |---|---|---|---|
-| `AMC_API_KEY` | optional | AMC's showtimes (AMC Georgetown 14, Hoffman Center 22). Then set `enabled=True` for the AMC entries in `backend/scrapers/__init__.py`. | developers.amctheatres.com (approval required) |
+| `AMC_API_KEY` | optional | AMC's showtimes (DC: Georgetown 14, Hoffman Center 22; New York: Lincoln Square 13, Empire 25, 34th Street 14, Newport Centre 11, Clifton Commons 16). The AMC theatres stay hidden until AMC has authorized the key — each full scrape run checks, and they switch on by themselves (one owner DM a day while it's refused). | developers.amctheatres.com (approval required; a new key answers "Unauthorized VendorKey" until then) |
 
 ## Set by the Docker setup
 

@@ -1,7 +1,7 @@
 # Cinema Club DC
 
 A film club for the DC area's repertory and independent theatres — **[cinemaclubdc.com](https://cinemaclubdc.com)**.
-It gathers every showtime from 13 theatres into one place, helps you find something worth seeing,
+It gathers every showtime from the area's theatres into one place, helps you find something worth seeing,
 and lets a club of friends make plans, talk about films, and play games around them — on the site
 and in the club's Discord server.
 
@@ -48,7 +48,9 @@ Around the pages:
 
 Suns Cinema · AFI Silver · Alamo Drafthouse (DC Bryant Street, Crystal City) · Regal (Gallery Place,
 Ballston Quarter, Majestic) · Smithsonian IMAX (Air & Space, Udvar-Hazy) · Avalon · National Gallery of
-Art · Angelika (Mosaic, Union Market Pop-Up). AMC is ready and waits for an API key.
+Art · Angelika (Mosaic, Union Market Pop-Up) · AMC (Georgetown, Hoffman Center). **New York:** AMC Lincoln Square,
+Empire 25 and 34th Street; **New Jersey:** AMC Newport Centre and Clifton Commons. The AMCs switch on once AMC
+authorizes the site's API key.
 How each is read: [docs/scrapers.md](docs/scrapers.md).
 
 ---

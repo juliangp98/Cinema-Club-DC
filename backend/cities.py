@@ -46,6 +46,14 @@ CITIES = [
        hint='Downtown, Penn Quarter, Georgetown and the like are DC; Silver Spring and Bethesda are Maryland; '
             'Arlington, Alexandria and Fairfax are Virginia.',
        known_for='AFI, Suns, Alamo, the Smithsonian and more'),
+    City('nyc', 'New York', 'NYC', 'America/New_York', 'NYC-area', 40.7549, -73.9840, areas=(
+        Area('manhattan', 'Manhattan', r"\bmanhattan\b|\bmidtown\b|\btimes square\b|\bupper west side\b|\buws\b"
+                                       r"|\blincoln (square|center)\b|\bherald square\b|\bpenn station\b"),
+        Area('new-jersey', 'New Jersey', r"\bnew jersey\b|\bnj\b|\bjersey city\b|\bnewport\b|\bhoboken\b|\bclifton\b"),
+    ), words=r"\bnew york\b|\bnyc\b",
+       hint='Times Square, Midtown, Lincoln Square and the Upper West Side are Manhattan; Jersey City (Newport), '
+            'Hoboken and Clifton are New Jersey.',
+       known_for='AMC Lincoln Square, AMC Empire 25 and more'),
 ]
 DEFAULT_CITY = CITIES[0].slug
 _BY_SLUG = {c.slug: c for c in CITIES}

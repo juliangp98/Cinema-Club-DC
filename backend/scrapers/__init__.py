@@ -35,6 +35,10 @@ class TheatreConfig:
     area: str = ''               # one of its city's areas (Browse's "Where", the Theatres page)
     arthouse: bool = False       # Discover: independent and repertory houses
     big_screen: bool = False     # Discover: giant screens even without a format label (IMAX museums)
+    # A service that must work before it's shown: 'amc' — AMC's API key, which
+    # each full scrape run checks (scraper.py). Until it works the theatre stays
+    # hidden; once it does, it switches on by itself.
+    needs: str = ''
     # Where it is (for the theatre page's map). Looked up once from the
     # address with OpenStreetMap's search.
     lat: float = None
@@ -157,7 +161,7 @@ THEATRE_REGISTRY: List[TheatreConfig] = [
         website='https://www.amctheatres.com/movie-theatres/washington-d-c/amc-georgetown-14',
         color='#b5503a',
         scrape=partial(scrape_amc, 'amc-georgetown-14', 'amc-georgetown-14'),
-        enabled=False,
+        needs='amc',
     ),
     TheatreConfig(
         slug='amc-hoffman', city='dc', area='virginia',
@@ -166,7 +170,48 @@ THEATRE_REGISTRY: List[TheatreConfig] = [
         website='https://www.amctheatres.com/movie-theatres/washington-d-c/amc-hoffman-center-22',
         color='#8f3a2e',
         scrape=partial(scrape_amc, 'amc-hoffman-center-22', 'amc-hoffman-center-22'),
-        enabled=False,
+        needs='amc',
+    ),
+    # New York (and nearby New Jersey): AMC, so shown once AMC accepts the API key.
+    TheatreConfig(
+        slug='amc-lincoln-square', city='nyc', area='manhattan', needs='amc',
+        lat=40.77516, lon=-73.98182, name='AMC Lincoln Square 13', short_name='AMC LS',
+        address='1998 Broadway, New York, NY 10023',
+        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-lincoln-square-13',
+        color='#c45c7a',
+        scrape=partial(scrape_amc, 'amc-lincoln-square-13', 'amc-lincoln-square-13'),
+    ),
+    TheatreConfig(
+        slug='amc-empire', city='nyc', area='manhattan', needs='amc',
+        lat=40.75652, lon=-73.98874, name='AMC Empire 25', short_name='AMC EMPIRE',
+        address='234 W 42nd St, New York, NY 10036',
+        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-empire-25',
+        color='#b5503a',
+        scrape=partial(scrape_amc, 'amc-empire-25', 'amc-empire-25'),
+    ),
+    TheatreConfig(
+        slug='amc-34th-street', city='nyc', area='manhattan', needs='amc',
+        lat=40.75251, lon=-73.99594, name='AMC 34th Street 14', short_name='AMC 34TH',
+        address='312 W 34th St, New York, NY 10001',
+        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-34th-street-14',
+        color='#d08a3c',
+        scrape=partial(scrape_amc, 'amc-34th-street-14', 'amc-34th-street-14'),
+    ),
+    TheatreConfig(
+        slug='amc-newport', city='nyc', area='new-jersey', needs='amc',
+        lat=40.72722, lon=-74.03757, name='AMC Newport Centre 11', short_name='AMC NEWPORT',
+        address='30-300 Mall Dr W, Jersey City, NJ 07310',
+        website='https://www.amctheatres.com/movie-theatres/states/new-jersey/jersey-city',
+        color='#5a86c5',
+        scrape=partial(scrape_amc, 'amc-newport-centre-11', 'amc-newport-centre-11'),
+    ),
+    TheatreConfig(
+        slug='amc-clifton-commons', city='nyc', area='new-jersey', needs='amc',
+        lat=40.83234, lon=-74.14601, name='AMC Clifton Commons 16', short_name='AMC CLIFTON',
+        address='405 NJ-3, Clifton, NJ 07014',
+        website='https://www.amctheatres.com/movie-theatres/states/new-jersey/clifton',
+        color='#4a9c8a',
+        scrape=partial(scrape_amc, 'amc-clifton-commons-16', 'amc-clifton-commons-16'),
     ),
 ]
 

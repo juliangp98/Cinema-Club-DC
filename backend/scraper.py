@@ -21,7 +21,35 @@ from scrapers import THEATRE_REGISTRY, get_config, enabled_configs
 from scrapers.sync import sync_to_db, sync_announced, record_scrape_error
 
 
+# What a theatre's `needs` checks before a run (scrapers/__init__.py).
+def _checks():
+    from scrapers import amc
+    return {'amc': amc.key_check}
+
+
+def ready(configs):
+    """The configs whose service works, checking each service once; the rest
+    are hidden until it does (one error recorded per service — one owner DM a
+    day, not one per theatre)."""
+    from scrapers.sync import set_service_ready
+    out, checks = [c for c in configs if not c.needs], _checks()
+    for need in dict.fromkeys(c.needs for c in configs if c.needs):
+        group = [c for c in configs if c.needs == need]
+        ok, why = checks[need](group[0].scrape.args[0])
+        set_service_ready(need, ok)
+        if ok:
+            out += group
+            continue
+        print(f"  {need}: {why}")
+        try:
+            record_scrape_error(group[0], RuntimeError(why))
+        except Exception as db_err:
+            print(f"  (also failed to record error for {need}: {db_err})")
+    return [c for c in configs if c in out]
+
+
 def run(configs):
+    configs = ready(configs)
     for cfg in configs:
         try:
             movies = cfg.scrape()
@@ -96,8 +124,8 @@ if __name__ == '__main__':
 
     if args.list:
         for cfg in THEATRE_REGISTRY:
-            state = 'enabled' if cfg.enabled else 'DISABLED'
-            print(f"  {cfg.slug:16s} {cfg.name:34s} {cfg.city:10s} [{state}]")
+            state = ('enabled' if cfg.enabled else 'DISABLED') + (f', needs {cfg.needs}' if cfg.needs else '')
+            print(f"  {cfg.slug:20s} {cfg.name:34s} {cfg.city:10s} [{state}]")
         sys.exit(0)
 
     if args.emit_test_event:

@@ -153,10 +153,10 @@ def regal_api(monkeypatch):
 
 def test_regal_one_request_per_date_covers_all_three(regal_api):
     from scrapers import regal
-    outs = {code: regal.scrape_regal(code, f'regal-{code}', deep=True) for code in regal.CODES}
+    outs = {code: regal.scrape_regal(code, f'regal-{code}', deep=True) for code in regal.codes()}
     assert len(regal_api.calls) == len(regal_api.dates)          # not three times over
     assert all(p['theatres'] == '1551,0296,1862' for p in regal_api.calls)
-    assert all(outs[c] for c in regal.CODES)
+    assert all(outs[c] for c in regal.codes())
     for th in data('regal_day.json')['shows']:                     # each theatre keeps only its own showings
         own = {(f['Title'].strip(), p['CalendarShowTime'][11:16]) for f in th['Film'] for p in f['Performances']}
         got = {(m['title'], s['start_time'].strftime('%H:%M')) for m in outs[str(th['TheatreCode'])] for s in m['showtimes']}
@@ -203,7 +203,7 @@ def test_regal_first_request_failing_is_an_error_once(monkeypatch):
         calls.append(1)
         raise ConnectionError('down')
     monkeypatch.setitem(sys.modules, 'curl_cffi', types.SimpleNamespace(requests=types.SimpleNamespace(get=get)))
-    for code in regal.CODES:
+    for code in regal.codes():
         with pytest.raises(ConnectionError):
             regal.scrape_regal(code, f'regal-{code}', deep=False)
     assert len(calls) == 1                                        # not asked again for the other two

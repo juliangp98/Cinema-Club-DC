@@ -370,6 +370,7 @@ def seed_theatres():
     """Upsert theatres from the scraper registry; deactivate ones no longer registered
     (e.g. the closed E Street Cinema) without deleting their showtime history."""
     from scrapers import THEATRE_REGISTRY
+    from scrapers.sync import service_ready
 
     registry_slugs = set()
     for cfg in THEATRE_REGISTRY:
@@ -383,7 +384,7 @@ def seed_theatres():
         theatre.address = cfg.address
         theatre.website = cfg.website
         theatre.color = cfg.color
-        theatre.is_active = cfg.enabled
+        theatre.is_active = cfg.enabled and (not cfg.needs or service_ready(cfg.needs))   # AMC: once its key works
         theatre.city, theatre.area = cfg.city, cfg.area
         theatre.latitude, theatre.longitude = cfg.lat, cfg.lon
 

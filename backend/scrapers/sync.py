@@ -252,6 +252,27 @@ def _movie_for(db, Movie, MovieAlias, m, enrich_movie):
     return movie, is_new
 
 
+def service_ready(need):
+    """Is the service theatres with needs=`need` depend on working (the last full run's check)?"""
+    from app import db, BotSetting
+    row = db.session.get(BotSetting, f'ready_{need}')
+    return bool(row and row.value == '1')
+
+
+def set_service_ready(need, ok):
+    """Remember a service's check and show or hide the theatres that need it."""
+    from app import app, db, BotSetting, Theatre
+    from scrapers import THEATRE_REGISTRY
+    with app.app_context():
+        row = db.session.get(BotSetting, f'ready_{need}') or BotSetting(key=f'ready_{need}')
+        row.value = '1' if ok else '0'
+        db.session.add(row)
+        slugs = [c.slug for c in THEATRE_REGISTRY if c.needs == need and c.enabled]
+        if slugs:
+            Theatre.query.filter(Theatre.slug.in_(slugs)).update({'is_active': bool(ok)}, synchronize_session=False)
+        db.session.commit()
+
+
 def sync_announced(cfg, items):
     """Films the theatre has announced (`announced_for`: a date) whose
     showtimes aren't up yet: remember them so they can be shown and

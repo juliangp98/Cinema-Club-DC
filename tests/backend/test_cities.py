@@ -205,3 +205,49 @@ def test_nothing_reads_the_server_clock_but_places():
                 if CLOCK.search(line.split('#')[0]):
                     found.append(f'{rel}:{n}: {line.strip()}')
     assert found == []
+
+
+# ─── Theatres that wait for a service (AMC's API key) ─────────────────────────
+
+def _amc_active():
+    from app import app, Theatre
+    with app.app_context():
+        return {t.slug: t.is_active for t in Theatre.query.filter(Theatre.slug.like('amc-%'))}
+
+
+def test_amc_theatres_wait_for_the_key_then_switch_on_by_themselves(monkeypatch):
+    """New York's AMCs (and DC's) stay hidden while AMC rejects the key — one
+    error for the lot, not one per theatre — and switch on when it works."""
+    import scraper
+    from migrations import seed_theatres
+    from scrapers import amc, enabled_configs
+    from app import app, ScrapeRun
+    setup_db()
+    with app.app_context():
+        seed_theatres()
+    assert set(_amc_active().values()) == {False}                                     # never checked: hidden
+    monkeypatch.setattr(amc, 'key_check', lambda tid: (False, 'AMC hasn\'t authorized the API key yet'))
+    left = scraper.ready(enabled_configs())
+    assert not any(c.needs == 'amc' for c in left) and any(c.slug == 'suns' for c in left)
+    with app.app_context():
+        errors = ScrapeRun.query.filter_by(status='error').all()
+        assert len(errors) == 1 and 'authorized' in errors[0].error_text               # one, for the lot
+    assert set(_amc_active().values()) == {False}
+
+    monkeypatch.setattr(amc, 'key_check', lambda tid: (True, ''))
+    left = scraper.ready(enabled_configs())
+    assert {c.slug for c in left if c.needs == 'amc'} >= {'amc-lincoln-square', 'amc-empire', 'amc-34th-street',
+                                                          'amc-newport', 'amc-clifton-commons'}
+    assert set(_amc_active().values()) == {True}
+    with app.app_context():
+        seed_theatres()                                                                # a restart keeps them on
+    assert set(_amc_active().values()) == {True}
+    cities = client().get('/api/cities').json
+    assert [c['slug'] for c in cities['cities']] == ['dc', 'nyc'] and cities['multi'] is True
+    nyc = {t['slug']: t['area_label'] for t in client().get('/api/theatres').json if t['city'] == 'nyc'}
+    assert nyc['amc-newport'] == 'New Jersey' and nyc['amc-empire'] == 'Manhattan'
+
+
+def test_the_regals_come_from_the_registry():
+    from scrapers import regal
+    assert regal.codes() == ('1551', '0296', '1862')

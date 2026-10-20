@@ -27,7 +27,7 @@ in `backend/scrapers/` returns a list of films, each with its showtimes; `scrape
 | **Avalon** | Agile Ticketing feed | JSON with a ticket link per showing; in-person only. | `SalesState` |
 | **National Gallery of Art** | nga.gov | The film calendar (the date and time are in each link), then each event page for details. | Free — never |
 | **Angelika** (Mosaic, Union Market Pop-Up) | Reading Cinemas API | A token, then one request per date (1 s apart, up to 60 dates). | `soldout` |
-| **AMC** (Georgetown, Hoffman Center) — off | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`. | `isSoldOut`; `isCanceled` → cancelled |
+| **AMC** (DC: Georgetown, Hoffman Center · New York: Lincoln Square, Empire 25, 34th Street · New Jersey: Newport Centre, Clifton Commons) | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`, authorized by AMC: each full run checks it once first (`needs='amc'`); the AMCs are shown and scraped only while it works. | `isSoldOut`; `isCanceled` → cancelled |
 
 ## Being a good guest
 
