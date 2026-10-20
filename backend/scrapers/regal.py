@@ -26,8 +26,7 @@ API_URL = 'https://www.regmovies.com/api/getShowtimes'
 def codes():
     """Every enabled Regal in the registry (its theatre code) — one request covers them all."""
     from . import THEATRE_REGISTRY
-    return tuple(c.scrape.args[0] for c in THEATRE_REGISTRY
-                 if c.enabled and getattr(c.scrape, 'func', None) is scrape_regal)
+    return tuple(c.args[0] for c in THEATRE_REGISTRY if c.enabled and c.scraper == 'regal')
 MAX_DATES = 90              # safety cap on per-date requests per run
 NEAR_DAYS = 14              # checked on every run
 DEEP_EVERY = datetime.timedelta(hours=20)    # the dates past NEAR_DAYS: once a day

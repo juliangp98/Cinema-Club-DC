@@ -39,7 +39,7 @@ one you work in.
   `[words](help:topic)`; ✨ Ask reads the same file).
 - **The bot's `/help`** — `bot/embeds.py` `HELP_SECTIONS`, whenever a command changes.
 
-**Cities.** A theatre is in a city (`backend/cities.py`), and a showtime is that city's wall-clock time.
+**Cities.** A theatre is in a city (`backend/cities.json`, read by `cities.py` and the scraper registry), and a showtime is that city's wall-clock time.
 So "now" comes from `backend/places.py` — `now_in(city)`, `now_at(theatre)`, `club_now(group)`,
 `upcoming(query)` — never `datetime.now()` (a test fails on a bare one; `places.server_now()` is for
 bookkeeping like the Discord post queue). Theatre lists go through `places` too: `showtime_query(group,

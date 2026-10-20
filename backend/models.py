@@ -235,7 +235,7 @@ class Theatre(db.Model):
     color = db.Column(db.String(20), default='#e8a838')
     short_name = db.Column(db.String(20))
     is_active = db.Column(db.Boolean, default=True)
-    city = db.Column(db.String(20), default='dc')  # from the scraper registry (cities.py)
+    city = db.Column(db.String(20), default='dc')  # from cities.json, via the scraper registry
     area = db.Column(db.String(30))                # one of its city's areas
     latitude = db.Column(db.Float)                 # for the theatre page's map (R7a)
     longitude = db.Column(db.Float)

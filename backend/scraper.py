@@ -35,7 +35,7 @@ def ready(configs):
     out, checks = [c for c in configs if not c.needs], _checks()
     for need in dict.fromkeys(c.needs for c in configs if c.needs):
         group = [c for c in configs if c.needs == need]
-        ok, why = checks[need](group[0].scrape.args[0])
+        ok, why = checks[need](group[0].args[0])
         set_service_ready(need, ok)
         if ok:
             out += group
@@ -116,8 +116,8 @@ def emit_test_event(slug):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Cinema Club scraper')
     parser.add_argument('--only', help='comma-separated venue slugs to scrape')
-    parser.add_argument('--city', help="one city's venues (cities.py), e.g. --city dc")
-    parser.add_argument('--list', action='store_true', help='list registered venues')
+    parser.add_argument('--city', help="one city's venues (cities.json), e.g. --city dc")
+    parser.add_argument('--list', action='store_true', help='list the venues in cities.json (and check the file)')
     parser.add_argument('--emit-test-event', nargs='?', const='suns', metavar='SLUG',
                         help='insert a synthetic new_drop event (default slug: suns)')
     args = parser.parse_args()
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     if args.list:
         for cfg in THEATRE_REGISTRY:
             state = ('enabled' if cfg.enabled else 'DISABLED') + (f', needs {cfg.needs}' if cfg.needs else '')
-            print(f"  {cfg.slug:20s} {cfg.name:34s} {cfg.city:10s} [{state}]")
+            print(f"  {cfg.slug:20s} {cfg.name:34s} {cfg.city:5s} {cfg.area:11s} {cfg.scraper:12s} [{state}]")
         sys.exit(0)
 
     if args.emit_test_event:
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     elif args.city:
         import cities
         if not cities.get(args.city):
-            print(f"Unknown city: {args.city} (cities.py has {', '.join(c.slug for c in cities.CITIES)})")
+            print(f"Unknown city: {args.city} (cities.json has {', '.join(c.slug for c in cities.CITIES)})")
             sys.exit(1)
         configs = [cfg for cfg in enabled_configs() if cfg.city == args.city]
     else:

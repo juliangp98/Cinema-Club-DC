@@ -1,17 +1,33 @@
-"""The cities the site covers, and the areas within each.
+"""The cities the site covers, the areas within each — and, under each city,
+its theatres — all from one data file, cities.json.
 
 A city is the top level: its theatres, its time zone (a showtime's start is
 that city's wall-clock time) and how it's named. Areas are the sections
 inside a city — DC / Maryland / Virginia — that Browse's "Where" filter and
 the Theatres page use (the URL keeps its old name, `regions=`).
 
-Adding a city = one City here, then its theatres in the scraper registry
-(scrapers/__init__.py), each naming the city and one of its areas. This
-module must NOT import app (the scraper registry and the bot's tests read it).
+Adding a city, an area or a theatre of a chain we already read (AMC, Regal,
+Alamo, Angelika, …) is an edit to cities.json, not to code
+(docs/scrapers.md). The file is checked when it's read: a mistake stops the
+backend and the scraper with a message naming the entry. This module reads
+the cities; the scraper registry (scrapers/__init__.py) reads the theatres.
+It must NOT import app (the scraper registry and the bot's tests read it).
 """
+import json
+import re
 from dataclasses import dataclass
 from functools import lru_cache
-from zoneinfo import ZoneInfo
+from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+DATA_FILE = Path(__file__).with_name('cities.json')
+SLUG = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
+
+
+class PlacesFileError(ValueError):
+    """A mistake in cities.json, named so it can be found and fixed."""
+    def __init__(self, where, problem):
+        super().__init__(f'{DATA_FILE.name}: {where}: {problem}')
 
 
 @dataclass(frozen=True)
@@ -36,25 +52,83 @@ class City:
     known_for: str = '' # a few of its theatres, for page descriptions ("AFI, Suns, … and more")
 
 
-CITIES = [
-    City('dc', 'Washington, DC', 'DC', 'America/New_York', 'DC-area', 38.9072, -77.0369, areas=(
-        Area('dc', 'DC', r"\bd\.?c\.?\b|\bthe district\b"),
-        Area('maryland', 'Maryland', r"\bmaryland\b|\bmd\b|\bsilver spring\b|\bbethesda\b|\brockville\b"),
-        Area('virginia', 'Virginia', r"\bvirginia\b|\bva\b|\bnova\b|\barlington\b|\balexandria\b|\bfairfax\b"
-                                     r"|\bcrystal city\b"),
-    ), words=r"\bwashington\b",
-       hint='Downtown, Penn Quarter, Georgetown and the like are DC; Silver Spring and Bethesda are Maryland; '
-            'Arlington, Alexandria and Fairfax are Virginia.',
-       known_for='AFI, Suns, Alamo, the Smithsonian and more'),
-    City('nyc', 'New York', 'NYC', 'America/New_York', 'NYC-area', 40.7549, -73.9840, areas=(
-        Area('manhattan', 'Manhattan', r"\bmanhattan\b|\bmidtown\b|\btimes square\b|\bupper west side\b|\buws\b"
-                                       r"|\blincoln (square|center)\b|\bherald square\b|\bpenn station\b"),
-        Area('new-jersey', 'New Jersey', r"\bnew jersey\b|\bnj\b|\bjersey city\b|\bnewport\b|\bhoboken\b|\bclifton\b"),
-    ), words=r"\bnew york\b|\bnyc\b",
-       hint='Times Square, Midtown, Lincoln Square and the Upper West Side are Manhattan; Jersey City (Newport), '
-            'Hoboken and Clifton are New Jersey.',
-       known_for='AMC Lincoln Square, AMC Empire 25 and more'),
-]
+def words_pattern(phrases):
+    """Plain words and phrases ("silver spring", "d.c.") as one pattern that
+    finds any of them, whole, in a lowercased ask."""
+    phrases = sorted({str(p).strip().lower() for p in phrases or () if str(p).strip()}, key=len, reverse=True)
+    return r'(?<!\w)(?:' + '|'.join(re.escape(p) for p in phrases) + r')(?!\w)' if phrases else ''
+
+
+CITY_KEYS = {'slug', 'name', 'short', 'tz', 'phrase', 'lat', 'lon', 'areas'}
+CITY_OPTIONAL = {'words', 'hint', 'known_for', 'theatres'}
+AREA_KEYS = {'key', 'label', 'words'}
+
+
+def check_keys(where, entry, required, optional=frozenset()):
+    """An entry has what it must and nothing unknown (a misspelled key would otherwise be ignored)."""
+    if not isinstance(entry, dict):
+        raise PlacesFileError(where, 'should be an object ({ … })')
+    missing = sorted(required - entry.keys())
+    if missing:
+        raise PlacesFileError(where, f"missing {', '.join(missing)}")
+    unknown = sorted(entry.keys() - required - optional)
+    if unknown:
+        raise PlacesFileError(where, f"unknown {', '.join(unknown)} (known: {', '.join(sorted(required | optional))})")
+
+
+def check_number(where, entry, *keys):
+    for k in keys:
+        if isinstance(entry[k], bool) or not isinstance(entry[k], (int, float)):
+            raise PlacesFileError(where, f'{k} should be a number')
+
+
+def read_file(path=None):
+    """cities.json, parsed (the theatre registry reads its theatres from here too)."""
+    path = Path(path or DATA_FILE)
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        raise PlacesFileError(f'line {e.lineno}, column {e.colno}', f'not valid JSON ({e.msg})') from None
+    if not isinstance(data, dict) or not isinstance(data.get('cities'), list) or not data['cities']:
+        raise PlacesFileError('top level', 'should be {"cities": [ … ]} with at least one city')
+    return data
+
+
+def load_cities(data):
+    """The City list from parsed cities.json, checked."""
+    out, slugs, area_keys = [], set(), set()
+    for i, c in enumerate(data['cities']):
+        where = f"city {c.get('slug') or i + 1}" if isinstance(c, dict) else f'city {i + 1}'
+        check_keys(where, c, CITY_KEYS, CITY_OPTIONAL)
+        if not SLUG.match(str(c['slug'])):
+            raise PlacesFileError(where, 'slug should be lowercase letters, digits and dashes')
+        if c['slug'] in slugs:
+            raise PlacesFileError(where, 'slug used twice')
+        slugs.add(c['slug'])
+        try:
+            ZoneInfo(c['tz'])
+        except (ZoneInfoNotFoundError, ValueError):
+            raise PlacesFileError(where, f"tz {c['tz']!r} isn't a time zone (like America/Chicago)") from None
+        check_number(where, c, 'lat', 'lon')
+        if not isinstance(c['areas'], list) or not c['areas']:
+            raise PlacesFileError(where, 'needs at least one area')
+        areas = []
+        for a in c['areas']:
+            aw = f"{where}, area {a.get('key') if isinstance(a, dict) else '?'}"
+            check_keys(aw, a, AREA_KEYS)
+            if not SLUG.match(str(a['key'])):
+                raise PlacesFileError(aw, 'key should be lowercase letters, digits and dashes')
+            if a['key'] in area_keys:
+                raise PlacesFileError(aw, 'key used twice (area keys are unique across cities: they go in URLs)')
+            area_keys.add(a['key'])
+            areas.append(Area(a['key'], a['label'], words_pattern(a['words'])))
+        out.append(City(c['slug'], c['name'], c['short'], c['tz'], c['phrase'], c['lat'], c['lon'], areas=tuple(areas),
+                        words=words_pattern(c.get('words')), hint=c.get('hint', ''), known_for=c.get('known_for', '')))
+    return out
+
+
+DATA = read_file()
+CITIES = load_cities(DATA)
 DEFAULT_CITY = CITIES[0].slug
 _BY_SLUG = {c.slug: c for c in CITIES}
 

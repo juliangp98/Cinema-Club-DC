@@ -1,8 +1,8 @@
 """AMC Theatres — official developer API (developers.amctheatres.com).
 
 Needs AMC_API_KEY, and AMC has to authorize it (a new key answers
-"Unauthorized VendorKey" until then). The AMC theatres in the registry say
-needs='amc': each full scrape run asks key_check() first, and they're shown
+"Unauthorized VendorKey" until then). AMC theatres (cities.json, "scraper":
+"amc") need it: each full scrape run asks key_check() first, and they're shown
 and scraped only while it passes — they switch on by themselves.
 
 Uses Theatre/Showtime API v2. The theatre id may be the numeric theatre

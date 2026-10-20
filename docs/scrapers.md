@@ -7,13 +7,17 @@ scheduled every 6 hours, and Suns alone every 30 minutes ([deploying.md](deployi
 python scraper.py                    # every enabled theatre
 python scraper.py --only suns,afi    # some (even if switched off)
 python scraper.py --city dc          # one city's (each city can have its own schedule)
-python scraper.py --list             # the registry, with each theatre's city
+python scraper.py --list             # every theatre in cities.json, its city, area and scraper (and checks the file)
 ```
 
-Each theatre is a `TheatreConfig` in `backend/scrapers/__init__.py` (name, address, map pin, color,
-its city and area, whether it's an arthouse or a big screen, its scrape function, whether it's enabled,
-and how a schedule drop is announced). One module per chain
-in `backend/scrapers/` returns a list of films, each with its showtimes; `scrapers/sync.py` writes them.
+Cities, their areas and their theatres are data: `backend/cities.json`. Each theatre there (name,
+address, map pin, color, its area, whether it's an arthouse or a big screen, whether it's enabled, how a
+schedule drop is announced) names a **scraper** — one module per chain in `backend/scrapers/`, listed in
+`SCRAPERS` in `scrapers/__init__.py` — and that scraper's **args**: which theatre it is on the chain's
+site. The registry builds a `TheatreConfig` from each; a scraper returns a list of films, each with its
+showtimes, and `scrapers/sync.py` writes them. The file is checked whenever it's read (the backend's
+start, every scrape, `--list`): a mistake stops it with the entry and what's wrong — "city nyc, theatre
+amc-empire: area 'brooklyn' isn't one of nyc's (manhattan, new-jersey)".
 
 ## The theatres
 
@@ -27,7 +31,7 @@ in `backend/scrapers/` returns a list of films, each with its showtimes; `scrape
 | **Avalon** | Agile Ticketing feed | JSON with a ticket link per showing; in-person only. | `SalesState` |
 | **National Gallery of Art** | nga.gov | The film calendar (the date and time are in each link), then each event page for details. | Free — never |
 | **Angelika** (Mosaic, Union Market Pop-Up) | Reading Cinemas API | A token, then one request per date (1 s apart, up to 60 dates). | `soldout` |
-| **AMC** (DC: Georgetown, Hoffman Center · New York: Lincoln Square, Empire 25, 34th Street · New Jersey: Newport Centre, Clifton Commons) | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`, authorized by AMC: each full run checks it once first (`needs='amc'`); the AMCs are shown and scraped only while it works. | `isSoldOut`; `isCanceled` → cancelled |
+| **AMC** (DC: Georgetown, Hoffman Center · New York: Lincoln Square, Empire 25, 34th Street · New Jersey: Newport Centre, Clifton Commons) | AMC's developer API | One request per date for 45 days. Needs `AMC_API_KEY`, authorized by AMC: each full run checks it once first; the AMCs are shown and scraped only while it works (until then, one owner DM a day). | `isSoldOut`; `isCanceled` → cancelled |
 
 ## Being a good guest
 
@@ -60,28 +64,78 @@ in `backend/scrapers/` returns a list of films, each with its showtimes; `scrape
 
 ## Adding a theatre
 
-1. Write a scraper in `backend/scrapers/` that returns `new_movie_dict()`s with `make_showtime(...)`s.
-   Use `get_soup` / `get_json` (pooled, with retries), `PerDateFetcher` for one request per date, and end
-   with `finish_scrape(label, movies, error, missed_dates=…, skipped=…)` — it raises when nothing was read
-   and marks a run partial when pages failed.
+**Of a chain we already read** — an AMC, Regal, Alamo, Angelika or Smithsonian IMAX — it's an entry in
+`backend/cities.json`, under its city, and no code:
+
+```json
+{
+  "slug": "regal-example", "name": "Regal Example 12", "short_name": "REGAL EX",
+  "area": "manhattan", "address": "1 Example St, New York, NY 10001", "lat": 40.7500, "lon": -73.9900,
+  "website": "https://www.regmovies.com/theatres/regal-example-1234", "color": "#3a6bb5",
+  "scraper": "regal", "args": ["1234", "regal-example-1234"]
+}
+```
+
+| `scraper` | `args` | Where to find them |
+|---|---|---|
+| `amc` | `[theatre_id, theatre_slug]` — both the slug | The theatre page's address: `amctheatres.com/movie-theatres/<city>/amc-empire-25` → `"amc-empire-25"` twice |
+| `regal` | `[code, path]` | The theatre page's address: `regmovies.com/theatres/regal-majestic-1862` → `"1862"`, `"regal-majestic-1862"` |
+| `alamo` | `[market, cinema]` | `drafthouse.com/<market>/theater/<cinema>` |
+| `angelika` | `[cinema_id, site_path]` | The ID is in the site's API calls (ten digits, like `"0000000006"`); the path is `angelikafilmcenter.com/<site_path>` |
+| `smithsonian` | `[theater]` | `si.edu/theaters/<theater>` |
+| `suns`, `afi`, `avalon`, `nga` | none | One house each |
+
+- **Required:** `slug` (lowercase, dashes; never change it once live — clubs and showtimes use it),
+  `name`, `short_name` (unique site-wide; the calendar's chips), `area` (one of its city's), `address`,
+  `lat`/`lon` (the map pin: right-click the place in Google Maps → the numbers), `website`, `color`
+  (unique within its city), `scraper`.
+- **Optional:** `args`; `"arthouse": true` or `"big_screen": true` (Discover's shelves); `"enabled":
+  false` (kept, not shown or scraped — try it with `--only` first); `"announce_mode"` (`drop_only`,
+  `all` or `none`), `"drop_min_count"` and `"drop_horizon_days"` (what counts as a schedule drop);
+  `"announced": true` (Suns only: films announced before their showtimes).
+- AMC theatres wait on the API key by themselves.
+
+Then run `python scraper.py --list` (it checks the file), `python scraper.py --only <slug>` to see it
+read, add it to the theatre lists in the README and this page, and deploy. Its showtimes are its city's
+wall-clock times, as the site shows them.
+
+**Of a new chain, or a one-off house** — a scraper first:
+
+1. Write it in `backend/scrapers/`, returning `new_movie_dict()`s with `make_showtime(...)`s. Use
+   `get_soup` / `get_json` (pooled, with retries), `PerDateFetcher` for one request per date, and end
+   with `finish_scrape(label, movies, error, missed_dates=…, skipped=…)` — it raises when nothing was
+   read and marks a run partial when pages failed. Its arguments are what tells one of the chain's
+   theatres from another.
 2. Mark sold out wherever the site says so; leave `runtime_minutes=None` if the site doesn't give one.
-3. Add a `TheatreConfig` to the registry (start it `enabled=False` until it's checked) with its `city`
-   and one of that city's `area`s (`backend/cities.py`), and `arthouse=True` or `big_screen=True` if it
-   is one (Discover's shelves use them). Its color must differ from the city's other theatres and its
-   short name from every theatre's — a test checks.
-4. Its showtimes are its city's wall-clock times, as the site shows them; the scraper needn't convert
-   anything.
-5. Save a trimmed copy of the site's page or feed in `tests/fixtures/scrapers/` (a few films, no
+3. Add it to `SCRAPERS` in `backend/scrapers/__init__.py`, then its theatres to `cities.json` as above.
+4. Save a trimmed copy of the site's page or feed in `tests/fixtures/scrapers/` (a few films, no
    personal details) and test the scraper against it in `tests/backend/test_scraper_pages.py`.
-6. Add it to the theatre lists in the README and this page.
 
 ## Adding a city
 
-1. Add a `City` to `backend/cities.py`: its slug, name, short name ("CHI"), time zone
-   (`America/Chicago`), phrase ("Chicago-area"), center, its areas — each with the words someone might
-   use for it ("the loop", "evanston") — a line for the AI search on its neighborhoods, and a few of its
-   theatres for page descriptions (`known_for`).
-2. Add its theatres as above, each with `city=` and an `area=`.
+1. Add it to `backend/cities.json`:
+
+   ```json
+   {
+     "slug": "chicago", "name": "Chicago", "short": "CHI", "tz": "America/Chicago",
+     "phrase": "Chicago-area", "lat": 41.8781, "lon": -87.6298, "words": ["chicago"],
+     "hint": "The Loop and River North are Downtown; Evanston is the North Shore.",
+     "known_for": "the Music Box, Siskel and more",
+     "areas": [
+       {"key": "downtown", "label": "Downtown", "words": ["downtown", "the loop", "river north"]},
+       {"key": "north-shore", "label": "North Shore", "words": ["north shore", "evanston"]}
+     ],
+     "theatres": [ … ]
+   }
+   ```
+
+   `slug` goes in URLs and the database (never change it once live); `short` tags its theatres beside
+   other cities'; `tz` is its showtimes' clock; `phrase` reads "12 Chicago-area theatres"; `lat`/`lon`
+   is its center. `words` are what someone asking in plain English calls the city, and each area's
+   `words` what they call that area — whole words or phrases, any case. `hint` tells the AI search which
+   area a neighborhood is in; `known_for` names a few theatres for page descriptions. Area keys go in
+   URLs, so they're unique across every city.
+2. Add its theatres under `theatres`, as above.
 3. Schedule its run: `python scraper.py --city <slug>` (its own Task Scheduler entry, like DC's).
 
 Nothing else changes: the moment a second city has an active theatre, the site shows the city menu, puts

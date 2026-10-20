@@ -39,8 +39,9 @@ Around the pages:
   viewings, and show your ratings; bring in your watchlist from Letterboxd's export (its films join
   your watchlist as theatres book them).
 - **Calendar feeds** — your plans (or your club's) in Google, Apple or Outlook calendar.
-- **Cities** — every theatre is in a city (DC for now) and an area of it; a showtime is on its city's
-  clock. Adding Chicago or New York is a city entry and its scrapers: the site then shows a city menu,
+- **Cities** — every theatre is in a city (DC; New York's AMCs wait on AMC's API key) and an area of it;
+  a showtime is on its city's clock. Cities, areas and theatres are data (`backend/cities.json`): adding
+  Chicago, or another AMC or Regal, is an entry there, not code. The site then shows a city menu,
   groups theatres and clubs by city, and keeps every page, alert, digest and calendar on the right clock
   ([docs/scrapers.md](docs/scrapers.md#adding-a-city)).
 
@@ -75,7 +76,8 @@ How each is read: [docs/scrapers.md](docs/scrapers.md).
 │   ├── routes/                # The site's API by area (auth, people, clubs, schedule, plans,
 │   │   │                      #   social, polls, quizzes, alerts, help, discord)
 │   │   └── internal/          # The bot's API by area (posts, schedule, threads, people, games, admin, servers)
-│   ├── cities.py, places.py   # The cities and their areas; "which theatres" and "what time is it there"
+│   ├── cities.json            # The cities, their areas and their theatres (data: add a theatre here)
+│   ├── cities.py, places.py   # Reading it; "which theatres" and "what time is it there"
 │   ├── discover.py            # Shelves, Browse, Calendar, digest picks
 │   ├── notify.py              # Personal alerts: bell, Discord DM, email, push
 │   ├── digest.py              # The Monday digest on the site: published weekly, the Feed card
@@ -145,5 +147,5 @@ Tests: `tests/run.sh` (everything), `tests/run.sh -k discord`, `tests/run.sh fro
 - [Tests](tests/README.md) — how the suite is laid out
 
 **Start a club in your city:** the whole stack — site, bot and scrapers — runs from this repo.
-Point the scrapers at your theatres, then follow [Deploying](docs/deploying.md) and
+Put your city and theatres in `backend/cities.json`, then follow [Deploying](docs/deploying.md) and
 [The Discord bot](docs/discord-bot.md).

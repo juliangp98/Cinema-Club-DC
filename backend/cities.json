@@ -1,0 +1,329 @@
+{
+  "cities": [
+    {
+      "slug": "dc",
+      "name": "Washington, DC",
+      "short": "DC",
+      "tz": "America/New_York",
+      "phrase": "DC-area",
+      "lat": 38.9072,
+      "lon": -77.0369,
+      "words": ["washington"],
+      "hint": "Downtown, Penn Quarter, Georgetown and the like are DC; Silver Spring and Bethesda are Maryland; Arlington, Alexandria and Fairfax are Virginia.",
+      "known_for": "AFI, Suns, Alamo, the Smithsonian and more",
+      "areas": [
+        {
+          "key": "dc",
+          "label": "DC",
+          "words": ["dc", "d.c", "d.c.", "the district"]
+        },
+        {
+          "key": "maryland",
+          "label": "Maryland",
+          "words": ["maryland", "md", "silver spring", "bethesda", "rockville"]
+        },
+        {
+          "key": "virginia",
+          "label": "Virginia",
+          "words": ["virginia", "va", "nova", "arlington", "alexandria", "fairfax", "crystal city"]
+        }
+      ],
+      "theatres": [
+        {
+          "slug": "suns",
+          "name": "Suns Cinema",
+          "short_name": "SUNS",
+          "area": "dc",
+          "address": "3107 Mt Pleasant St NW, Washington, DC 20010",
+          "lat": 38.92896,
+          "lon": -77.03722,
+          "website": "https://sunscinema.com",
+          "color": "#e8a838",
+          "scraper": "suns",
+          "arthouse": true,
+          "announced": true
+        },
+        {
+          "slug": "afi",
+          "name": "AFI Silver Theatre",
+          "short_name": "AFI",
+          "area": "maryland",
+          "address": "8633 Colesville Rd, Silver Spring, MD 20910",
+          "lat": 38.99659,
+          "lon": -77.0272,
+          "website": "https://silver.afi.com",
+          "color": "#c45c3a",
+          "scraper": "afi",
+          "arthouse": true
+        },
+        {
+          "slug": "alamo-dc",
+          "name": "Alamo Drafthouse DC",
+          "short_name": "ALAMO DC",
+          "area": "dc",
+          "address": "630 Rhode Island Ave NE, Washington, DC 20002",
+          "lat": 38.92218,
+          "lon": -76.99775,
+          "website": "https://drafthouse.com/dc-metro-area/theater/dc-bryant-street",
+          "color": "#7b5ea7",
+          "scraper": "alamo",
+          "args": ["dc-metro-area", "dc-bryant-street"]
+        },
+        {
+          "slug": "alamo-crystal",
+          "name": "Alamo Drafthouse Crystal City",
+          "short_name": "ALAMO CC",
+          "area": "virginia",
+          "address": "1660 Crystal Dr, Arlington, VA 22202",
+          "lat": 38.85879,
+          "lon": -77.04966,
+          "website": "https://drafthouse.com/dc-metro-area/theater/crystal-city",
+          "color": "#9b7bc7",
+          "scraper": "alamo",
+          "args": ["dc-metro-area", "crystal-city"]
+        },
+        {
+          "slug": "regal-gallery",
+          "name": "Regal Gallery Place",
+          "short_name": "REGAL GP",
+          "area": "dc",
+          "address": "701 7th St NW, Washington, DC 20001",
+          "lat": 38.89879,
+          "lon": -77.02107,
+          "website": "https://www.regmovies.com/theatres/regal-gallery-place-4dx-1551",
+          "color": "#3a6bb5",
+          "scraper": "regal",
+          "args": ["1551", "regal-gallery-place-4dx-1551"]
+        },
+        {
+          "slug": "regal-ballston",
+          "name": "Regal Ballston Quarter",
+          "short_name": "REGAL BQ",
+          "area": "virginia",
+          "address": "671 N Glebe Rd, Arlington, VA 22203",
+          "lat": 38.87848,
+          "lon": -77.11187,
+          "website": "https://www.regmovies.com/theatres/regal-ballston-quarter-0296",
+          "color": "#5a86c5",
+          "scraper": "regal",
+          "args": ["0296", "regal-ballston-quarter-0296"]
+        },
+        {
+          "slug": "regal-majestic",
+          "name": "Regal Majestic",
+          "short_name": "REGAL MAJ",
+          "area": "maryland",
+          "address": "900 Ellsworth Dr, Silver Spring, MD 20910",
+          "lat": 38.99655,
+          "lon": -77.0254,
+          "website": "https://www.regmovies.com/theatres/regal-majestic-1862",
+          "color": "#2a4f8f",
+          "scraper": "regal",
+          "args": ["1862", "regal-majestic-1862"]
+        },
+        {
+          "slug": "smi-dc",
+          "name": "Lockheed Martin IMAX (Air & Space)",
+          "short_name": "IMAX DC",
+          "area": "dc",
+          "address": "National Air and Space Museum, 600 Independence Ave SW, Washington, DC 20560",
+          "lat": 38.88813,
+          "lon": -77.01982,
+          "website": "https://www.si.edu/theaters/lockheedmartin",
+          "color": "#4a7c6f",
+          "scraper": "smithsonian",
+          "args": ["lockheedmartin"],
+          "big_screen": true,
+          "drop_min_count": 6
+        },
+        {
+          "slug": "smi-udvar",
+          "name": "Airbus IMAX (Udvar-Hazy)",
+          "short_name": "IMAX UH",
+          "area": "virginia",
+          "address": "Steven F. Udvar-Hazy Center, 14390 Air and Space Museum Pkwy, Chantilly, VA 20151",
+          "lat": 38.91084,
+          "lon": -77.44446,
+          "website": "https://www.si.edu/theaters/airbus",
+          "color": "#6aa08f",
+          "scraper": "smithsonian",
+          "args": ["airbus"],
+          "big_screen": true,
+          "drop_min_count": 6
+        },
+        {
+          "slug": "avalon",
+          "name": "Avalon Theatre",
+          "short_name": "AVALON",
+          "area": "dc",
+          "address": "5612 Connecticut Ave NW, Washington, DC 20015",
+          "lat": 38.96528,
+          "lon": -77.07627,
+          "website": "https://www.theavalon.org",
+          "color": "#a87520",
+          "scraper": "avalon",
+          "arthouse": true
+        },
+        {
+          "slug": "nga",
+          "name": "National Gallery of Art",
+          "short_name": "NGA",
+          "area": "dc",
+          "address": "East Building Auditorium, 4th St & Constitution Ave NW, Washington, DC 20565",
+          "lat": 38.89147,
+          "lon": -77.01339,
+          "website": "https://www.nga.gov/calendar/film-programs.html",
+          "color": "#8a8f5c",
+          "scraper": "nga",
+          "arthouse": true,
+          "drop_min_count": 5
+        },
+        {
+          "slug": "angelika-mosaic",
+          "name": "Angelika Mosaic",
+          "short_name": "ANGELIKA",
+          "area": "virginia",
+          "address": "2911 District Ave, Fairfax, VA 22031",
+          "lat": 38.87188,
+          "lon": -77.22949,
+          "website": "https://angelikafilmcenter.com/mosaic",
+          "color": "#b54a7c",
+          "scraper": "angelika",
+          "args": ["0000000006", "mosaic"],
+          "arthouse": true
+        },
+        {
+          "slug": "angelika-popup",
+          "name": "Angelika Pop-Up Union Market",
+          "short_name": "ANG UM",
+          "area": "dc",
+          "address": "550 Penn St NE, Washington, DC 20002",
+          "lat": 38.9102,
+          "lon": -76.99617,
+          "website": "https://angelikafilmcenter.com/popup",
+          "color": "#d47ba3",
+          "scraper": "angelika",
+          "args": ["0000000007", "popup"],
+          "arthouse": true
+        },
+        {
+          "slug": "amc-georgetown",
+          "name": "AMC Georgetown 14",
+          "short_name": "AMC GT",
+          "area": "dc",
+          "address": "3111 K St NW, Washington, DC 20007",
+          "lat": 38.90274,
+          "lon": -77.06171,
+          "website": "https://www.amctheatres.com/movie-theatres/washington-d-c/amc-georgetown-14",
+          "color": "#b5503a",
+          "scraper": "amc",
+          "args": ["amc-georgetown-14", "amc-georgetown-14"]
+        },
+        {
+          "slug": "amc-hoffman",
+          "name": "AMC Hoffman Center 22",
+          "short_name": "AMC HC",
+          "area": "virginia",
+          "address": "206 Swamp Fox Rd, Alexandria, VA 22314",
+          "lat": 38.80237,
+          "lon": -77.07047,
+          "website": "https://www.amctheatres.com/movie-theatres/washington-d-c/amc-hoffman-center-22",
+          "color": "#8f3a2e",
+          "scraper": "amc",
+          "args": ["amc-hoffman-center-22", "amc-hoffman-center-22"]
+        }
+      ]
+    },
+    {
+      "slug": "nyc",
+      "name": "New York",
+      "short": "NYC",
+      "tz": "America/New_York",
+      "phrase": "NYC-area",
+      "lat": 40.7549,
+      "lon": -73.984,
+      "words": ["new york", "nyc"],
+      "hint": "Times Square, Midtown, Lincoln Square and the Upper West Side are Manhattan; Jersey City (Newport), Hoboken and Clifton are New Jersey.",
+      "known_for": "AMC Lincoln Square, AMC Empire 25 and more",
+      "areas": [
+        {
+          "key": "manhattan",
+          "label": "Manhattan",
+          "words": ["manhattan", "midtown", "times square", "upper west side", "uws", "lincoln square", "lincoln center", "herald square", "penn station"]
+        },
+        {
+          "key": "new-jersey",
+          "label": "New Jersey",
+          "words": ["new jersey", "nj", "jersey city", "newport", "hoboken", "clifton"]
+        }
+      ],
+      "theatres": [
+        {
+          "slug": "amc-lincoln-square",
+          "name": "AMC Lincoln Square 13",
+          "short_name": "AMC LS",
+          "area": "manhattan",
+          "address": "1998 Broadway, New York, NY 10023",
+          "lat": 40.77516,
+          "lon": -73.98182,
+          "website": "https://www.amctheatres.com/movie-theatres/new-york-city/amc-lincoln-square-13",
+          "color": "#c45c7a",
+          "scraper": "amc",
+          "args": ["amc-lincoln-square-13", "amc-lincoln-square-13"]
+        },
+        {
+          "slug": "amc-empire",
+          "name": "AMC Empire 25",
+          "short_name": "AMC EMPIRE",
+          "area": "manhattan",
+          "address": "234 W 42nd St, New York, NY 10036",
+          "lat": 40.75652,
+          "lon": -73.98874,
+          "website": "https://www.amctheatres.com/movie-theatres/new-york-city/amc-empire-25",
+          "color": "#b5503a",
+          "scraper": "amc",
+          "args": ["amc-empire-25", "amc-empire-25"]
+        },
+        {
+          "slug": "amc-34th-street",
+          "name": "AMC 34th Street 14",
+          "short_name": "AMC 34TH",
+          "area": "manhattan",
+          "address": "312 W 34th St, New York, NY 10001",
+          "lat": 40.75251,
+          "lon": -73.99594,
+          "website": "https://www.amctheatres.com/movie-theatres/new-york-city/amc-34th-street-14",
+          "color": "#d08a3c",
+          "scraper": "amc",
+          "args": ["amc-34th-street-14", "amc-34th-street-14"]
+        },
+        {
+          "slug": "amc-newport",
+          "name": "AMC Newport Centre 11",
+          "short_name": "AMC NEWPORT",
+          "area": "new-jersey",
+          "address": "30-300 Mall Dr W, Jersey City, NJ 07310",
+          "lat": 40.72722,
+          "lon": -74.03757,
+          "website": "https://www.amctheatres.com/movie-theatres/states/new-jersey/jersey-city",
+          "color": "#5a86c5",
+          "scraper": "amc",
+          "args": ["amc-newport-centre-11", "amc-newport-centre-11"]
+        },
+        {
+          "slug": "amc-clifton-commons",
+          "name": "AMC Clifton Commons 16",
+          "short_name": "AMC CLIFTON",
+          "area": "new-jersey",
+          "address": "405 NJ-3, Clifton, NJ 07014",
+          "lat": 40.83234,
+          "lon": -74.14601,
+          "website": "https://www.amctheatres.com/movie-theatres/states/new-jersey/clifton",
+          "color": "#4a9c8a",
+          "scraper": "amc",
+          "args": ["amc-clifton-commons-16", "amc-clifton-commons-16"]
+        }
+      ]
+    }
+  ]
+}

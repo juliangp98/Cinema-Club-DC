@@ -1,14 +1,22 @@
 """Theatre scraper registry.
 
 Each venue is a TheatreConfig: metadata that seeds the Theatre table plus a
-scrape() callable returning the standard movie-dict list. Adding a venue =
-one scraper module + one entry here. This module must NOT import app (the
-sync layer imports app lazily inside functions).
+scrape() callable returning the standard movie-dict list. The venues come
+from cities.json, under their city; each names one of SCRAPERS below and that
+scraper's arguments (which theatre it is on the chain's site). So a theatre
+of a chain we already read is a cities.json entry; a new chain or a one-off
+house is a scraper module + a SCRAPERS line, then its entry. This module
+must NOT import app (the sync layer imports app lazily inside functions).
 """
 
+import inspect
+import re
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable, List
+
+import cities
+from cities import PlacesFileError, check_keys, check_number
 
 from .suns import scrape_suns, scrape_suns_announced
 from .afi import scrape_afi
@@ -20,6 +28,20 @@ from .nga import scrape_nga
 from .angelika import scrape_angelika
 from .amc import scrape_amc
 
+# What a cities.json theatre's "scraper" can name; its "args" are the
+# function's, in order (docs/scrapers.md lists them per chain).
+SCRAPERS = {
+    'suns': scrape_suns, 'afi': scrape_afi, 'avalon': scrape_avalon, 'nga': scrape_nga,
+    'alamo': scrape_alamo, 'regal': scrape_regal, 'smithsonian': scrape_smithsonian,
+    'angelika': scrape_angelika, 'amc': scrape_amc,
+}
+# Scrapers that also read films announced before their showtimes ("announced": true).
+ANNOUNCED = {'suns': scrape_suns_announced}
+# Scrapers that need a key the chain must accept first (scraper.py checks it
+# each full run): their theatres stay hidden until it works.
+NEED_KEYS = {'amc'}
+ANNOUNCE_MODES = ('drop_only', 'all', 'none')
+
 
 @dataclass
 class TheatreConfig:
@@ -29,9 +51,11 @@ class TheatreConfig:
     address: str
     website: str
     color: str
-    scrape: Callable[[], list]
+    scraper: str = ''            # a SCRAPERS name
+    args: tuple = ()             # its arguments: which theatre on the chain's site
+    scrape: Callable[[], list] = None
     enabled: bool = True
-    city: str = 'dc'             # cities.py — whose clock its showtimes are on
+    city: str = 'dc'             # cities.json — whose clock its showtimes are on
     area: str = ''               # one of its city's areas (Browse's "Where", the Theatres page)
     arthouse: bool = False       # Discover: independent and repertory houses
     big_screen: bool = False     # Discover: giant screens even without a format label (IMAX museums)
@@ -39,181 +63,89 @@ class TheatreConfig:
     # each full scrape run checks (scraper.py). Until it works the theatre stays
     # hidden; once it does, it switches on by itself.
     needs: str = ''
-    # Where it is (for the theatre page's map). Looked up once from the
-    # address with OpenStreetMap's search.
+    # Where it is (for the theatre page's map).
     lat: float = None
     lon: float = None
-    # 'drop_only': announce only schedule drops; 'all': also announce small
-    # additions; 'none': never announce.
     # Films announced (with a date) before their showtimes are up (R8b).
     announced: Callable[[], list] = None
+    # 'drop_only': announce only schedule drops; 'all': also announce small
+    # additions; 'none': never announce.
     announce_mode: str = 'drop_only'
     drop_min_count: int = 10     # new future showtimes in one run = a "drop"
     drop_horizon_days: int = 7   # or calendar horizon extends by more than this
 
 
-THEATRE_REGISTRY: List[TheatreConfig] = [
-    TheatreConfig(
-        slug='suns', city='dc', area='dc', arthouse=True,
-        lat=38.92896, lon=-77.03722, name='Suns Cinema', short_name='SUNS',
-        address='3107 Mt Pleasant St NW, Washington, DC 20010',
-        website='https://sunscinema.com', color='#e8a838',
-        scrape=scrape_suns, announced=scrape_suns_announced,
-    ),
-    TheatreConfig(
-        slug='afi', city='dc', area='maryland', arthouse=True,
-        lat=38.99659, lon=-77.0272, name='AFI Silver Theatre', short_name='AFI',
-        address='8633 Colesville Rd, Silver Spring, MD 20910',
-        website='https://silver.afi.com', color='#c45c3a',
-        scrape=scrape_afi,
-    ),
-    TheatreConfig(
-        slug='alamo-dc', city='dc', area='dc',
-        lat=38.92218, lon=-76.99775, name='Alamo Drafthouse DC', short_name='ALAMO DC',
-        address='630 Rhode Island Ave NE, Washington, DC 20002',
-        website='https://drafthouse.com/dc-metro-area/theater/dc-bryant-street',
-        color='#7b5ea7',
-        scrape=partial(scrape_alamo, 'dc-metro-area', 'dc-bryant-street'),
-    ),
-    TheatreConfig(
-        slug='alamo-crystal', city='dc', area='virginia',
-        lat=38.85879, lon=-77.04966, name='Alamo Drafthouse Crystal City', short_name='ALAMO CC',
-        address='1660 Crystal Dr, Arlington, VA 22202',
-        website='https://drafthouse.com/dc-metro-area/theater/crystal-city',
-        color='#9b7bc7',
-        scrape=partial(scrape_alamo, 'dc-metro-area', 'crystal-city'),
-    ),
-    TheatreConfig(
-        slug='regal-gallery', city='dc', area='dc',
-        lat=38.89879, lon=-77.02107, name='Regal Gallery Place', short_name='REGAL GP',
-        address='701 7th St NW, Washington, DC 20001',
-        website='https://www.regmovies.com/theatres/regal-gallery-place-4dx-1551',
-        color='#3a6bb5',
-        scrape=partial(scrape_regal, '1551', 'regal-gallery-place-4dx-1551'),
-    ),
-    TheatreConfig(
-        slug='regal-ballston', city='dc', area='virginia',
-        lat=38.87848, lon=-77.11187, name='Regal Ballston Quarter', short_name='REGAL BQ',
-        address='671 N Glebe Rd, Arlington, VA 22203',
-        website='https://www.regmovies.com/theatres/regal-ballston-quarter-0296',
-        color='#5a86c5',
-        scrape=partial(scrape_regal, '0296', 'regal-ballston-quarter-0296'),
-    ),
-    TheatreConfig(
-        slug='regal-majestic', city='dc', area='maryland',
-        lat=38.99655, lon=-77.0254, name='Regal Majestic', short_name='REGAL MAJ',
-        address='900 Ellsworth Dr, Silver Spring, MD 20910',
-        website='https://www.regmovies.com/theatres/regal-majestic-1862',
-        color='#2a4f8f',
-        scrape=partial(scrape_regal, '1862', 'regal-majestic-1862'),
-    ),
-    TheatreConfig(
-        slug='smi-dc', city='dc', area='dc', big_screen=True,
-        lat=38.88813, lon=-77.01982, name='Lockheed Martin IMAX (Air & Space)', short_name='IMAX DC',
-        address='National Air and Space Museum, 600 Independence Ave SW, Washington, DC 20560',
-        website='https://www.si.edu/theaters/lockheedmartin', color='#4a7c6f',
-        scrape=partial(scrape_smithsonian, 'lockheedmartin'),
-        drop_min_count=6,
-    ),
-    TheatreConfig(
-        slug='smi-udvar', city='dc', area='virginia', big_screen=True,
-        lat=38.91084, lon=-77.44446, name='Airbus IMAX (Udvar-Hazy)', short_name='IMAX UH',
-        address='Steven F. Udvar-Hazy Center, 14390 Air and Space Museum Pkwy, Chantilly, VA 20151',
-        website='https://www.si.edu/theaters/airbus', color='#6aa08f',
-        scrape=partial(scrape_smithsonian, 'airbus'),
-        drop_min_count=6,
-    ),
-    TheatreConfig(
-        slug='avalon', city='dc', area='dc', arthouse=True,
-        lat=38.96528, lon=-77.07627, name='Avalon Theatre', short_name='AVALON',
-        address='5612 Connecticut Ave NW, Washington, DC 20015',
-        website='https://www.theavalon.org', color='#a87520',
-        scrape=scrape_avalon,
-    ),
-    TheatreConfig(
-        slug='nga', city='dc', area='dc', arthouse=True,
-        lat=38.89147, lon=-77.01339, name='National Gallery of Art', short_name='NGA',
-        address='East Building Auditorium, 4th St & Constitution Ave NW, Washington, DC 20565',
-        website='https://www.nga.gov/calendar/film-programs.html', color='#8a8f5c',
-        scrape=scrape_nga,
-        drop_min_count=5,
-    ),
-    TheatreConfig(
-        slug='angelika-mosaic', city='dc', area='virginia', arthouse=True,
-        lat=38.87188, lon=-77.22949, name='Angelika Mosaic', short_name='ANGELIKA',
-        address='2911 District Ave, Fairfax, VA 22031',
-        website='https://angelikafilmcenter.com/mosaic', color='#b54a7c',
-        scrape=partial(scrape_angelika, '0000000006', 'mosaic'),
-    ),
-    TheatreConfig(
-        slug='angelika-popup', city='dc', area='dc', arthouse=True,
-        lat=38.9102, lon=-76.99617, name='Angelika Pop-Up Union Market', short_name='ANG UM',
-        address='550 Penn St NE, Washington, DC 20002',
-        website='https://angelikafilmcenter.com/popup', color='#d47ba3',
-        scrape=partial(scrape_angelika, '0000000007', 'popup'),
-    ),
-    # AMC entries stay disabled until an official API key is approved
-    # (developers.amctheatres.com) and AMC_API_KEY is set — see scrapers/amc.py.
-    TheatreConfig(
-        slug='amc-georgetown', city='dc', area='dc',
-        lat=38.90274, lon=-77.06171, name='AMC Georgetown 14', short_name='AMC GT',
-        address='3111 K St NW, Washington, DC 20007',
-        website='https://www.amctheatres.com/movie-theatres/washington-d-c/amc-georgetown-14',
-        color='#b5503a',
-        scrape=partial(scrape_amc, 'amc-georgetown-14', 'amc-georgetown-14'),
-        needs='amc',
-    ),
-    TheatreConfig(
-        slug='amc-hoffman', city='dc', area='virginia',
-        lat=38.80237, lon=-77.07047, name='AMC Hoffman Center 22', short_name='AMC HC',
-        address='206 Swamp Fox Rd, Alexandria, VA 22314',
-        website='https://www.amctheatres.com/movie-theatres/washington-d-c/amc-hoffman-center-22',
-        color='#8f3a2e',
-        scrape=partial(scrape_amc, 'amc-hoffman-center-22', 'amc-hoffman-center-22'),
-        needs='amc',
-    ),
-    # New York (and nearby New Jersey): AMC, so shown once AMC accepts the API key.
-    TheatreConfig(
-        slug='amc-lincoln-square', city='nyc', area='manhattan', needs='amc',
-        lat=40.77516, lon=-73.98182, name='AMC Lincoln Square 13', short_name='AMC LS',
-        address='1998 Broadway, New York, NY 10023',
-        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-lincoln-square-13',
-        color='#c45c7a',
-        scrape=partial(scrape_amc, 'amc-lincoln-square-13', 'amc-lincoln-square-13'),
-    ),
-    TheatreConfig(
-        slug='amc-empire', city='nyc', area='manhattan', needs='amc',
-        lat=40.75652, lon=-73.98874, name='AMC Empire 25', short_name='AMC EMPIRE',
-        address='234 W 42nd St, New York, NY 10036',
-        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-empire-25',
-        color='#b5503a',
-        scrape=partial(scrape_amc, 'amc-empire-25', 'amc-empire-25'),
-    ),
-    TheatreConfig(
-        slug='amc-34th-street', city='nyc', area='manhattan', needs='amc',
-        lat=40.75251, lon=-73.99594, name='AMC 34th Street 14', short_name='AMC 34TH',
-        address='312 W 34th St, New York, NY 10001',
-        website='https://www.amctheatres.com/movie-theatres/new-york-city/amc-34th-street-14',
-        color='#d08a3c',
-        scrape=partial(scrape_amc, 'amc-34th-street-14', 'amc-34th-street-14'),
-    ),
-    TheatreConfig(
-        slug='amc-newport', city='nyc', area='new-jersey', needs='amc',
-        lat=40.72722, lon=-74.03757, name='AMC Newport Centre 11', short_name='AMC NEWPORT',
-        address='30-300 Mall Dr W, Jersey City, NJ 07310',
-        website='https://www.amctheatres.com/movie-theatres/states/new-jersey/jersey-city',
-        color='#5a86c5',
-        scrape=partial(scrape_amc, 'amc-newport-centre-11', 'amc-newport-centre-11'),
-    ),
-    TheatreConfig(
-        slug='amc-clifton-commons', city='nyc', area='new-jersey', needs='amc',
-        lat=40.83234, lon=-74.14601, name='AMC Clifton Commons 16', short_name='AMC CLIFTON',
-        address='405 NJ-3, Clifton, NJ 07014',
-        website='https://www.amctheatres.com/movie-theatres/states/new-jersey/clifton',
-        color='#4a9c8a',
-        scrape=partial(scrape_amc, 'amc-clifton-commons-16', 'amc-clifton-commons-16'),
-    ),
-]
+THEATRE_KEYS = {'slug', 'name', 'short_name', 'area', 'address', 'lat', 'lon', 'website', 'color', 'scraper'}
+THEATRE_OPTIONAL = {'args', 'arthouse', 'big_screen', 'enabled', 'announced', 'announce_mode',
+                    'drop_min_count', 'drop_horizon_days'}
+COLOR = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+def _arg_names(fn):
+    params = list(inspect.signature(fn).parameters.values())
+    return [p.name for p in params if p.default is p.empty], [p.name for p in params]
+
+
+def _theatre(city, t):
+    """One cities.json theatre as a TheatreConfig, checked."""
+    where = f"city {city.slug}, theatre {t.get('slug') if isinstance(t, dict) else '?'}"
+    check_keys(where, t, THEATRE_KEYS, THEATRE_OPTIONAL)
+    if not cities.SLUG.match(str(t['slug'])):
+        raise PlacesFileError(where, 'slug should be lowercase letters, digits and dashes')
+    if not any(a.key == t['area'] for a in city.areas):
+        raise PlacesFileError(where, f"area {t['area']!r} isn't one of {city.slug}'s "
+                                     f"({', '.join(a.key for a in city.areas)})")
+    if t['scraper'] not in SCRAPERS:
+        raise PlacesFileError(where, f"scraper {t['scraper']!r} isn't one we have ({', '.join(sorted(SCRAPERS))}); "
+                                     'a new chain needs a scraper written first')
+    fn, args = SCRAPERS[t['scraper']], t.get('args', [])
+    required, every = _arg_names(fn)
+    if not isinstance(args, list) or not len(required) <= len(args) <= len(every):
+        wants = f"({', '.join(required)})" if required else 'none'
+        raise PlacesFileError(where, f"args for {t['scraper']}: wants {wants}, got {args!r}")
+    check_number(where, t, 'lat', 'lon')
+    if not COLOR.match(str(t['color'])):
+        raise PlacesFileError(where, f"color {t['color']!r} should look like #3a6bb5")
+    if t.get('announced') and t['scraper'] not in ANNOUNCED:
+        raise PlacesFileError(where, f"the {t['scraper']} scraper doesn't read announced films")
+    if t.get('announce_mode', 'drop_only') not in ANNOUNCE_MODES:
+        raise PlacesFileError(where, f"announce_mode should be one of {', '.join(ANNOUNCE_MODES)}")
+    return TheatreConfig(
+        slug=t['slug'], name=t['name'], short_name=t['short_name'], address=t['address'], website=t['website'],
+        color=t['color'], scraper=t['scraper'], args=tuple(args), scrape=partial(fn, *args),
+        enabled=bool(t.get('enabled', True)), city=city.slug, area=t['area'],
+        arthouse=bool(t.get('arthouse')), big_screen=bool(t.get('big_screen')),
+        needs=t['scraper'] if t['scraper'] in NEED_KEYS else '', lat=t['lat'], lon=t['lon'],
+        announced=ANNOUNCED[t['scraper']] if t.get('announced') else None,
+        announce_mode=t.get('announce_mode', 'drop_only'),
+        drop_min_count=int(t.get('drop_min_count', 10)), drop_horizon_days=int(t.get('drop_horizon_days', 7)))
+
+
+def load_registry(data, city_list):
+    """Every city's theatres from parsed cities.json, checked: slugs and short
+    names unique site-wide, colors unique within a city."""
+    out, slugs, shorts, colors = [], set(), set(), {}
+    by_slug = {c.slug: c for c in city_list}
+    for c in data['cities']:
+        city = by_slug[c['slug']]
+        for t in c.get('theatres') or []:
+            cfg = _theatre(city, t)
+            where = f'city {city.slug}, theatre {cfg.slug}'
+            if cfg.slug in slugs:
+                raise PlacesFileError(where, 'slug used twice')
+            if cfg.short_name in shorts:
+                raise PlacesFileError(where, f'short_name {cfg.short_name!r} used twice')
+            if cfg.enabled and cfg.color.lower() in colors.setdefault(city.slug, set()):
+                raise PlacesFileError(where, f"color {cfg.color} is another {city.slug} theatre's")
+            slugs.add(cfg.slug)
+            shorts.add(cfg.short_name)
+            if cfg.enabled:
+                colors[city.slug].add(cfg.color.lower())
+            out.append(cfg)
+    return out
+
+
+THEATRE_REGISTRY: List[TheatreConfig] = load_registry(cities.DATA, cities.CITIES)
 
 
 def get_config(slug):

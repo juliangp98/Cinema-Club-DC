@@ -189,6 +189,70 @@ def test_every_theatre_knows_its_city_and_area():
     assert len(keys) == len(set(keys))                                                   # area keys unique (URLs)
 
 
+def test_a_city_and_its_theatres_are_data():
+    """A new city with a Regal and an AMC is a cities.json edit: the loader
+    builds the city (its clock, its areas' words) and the theatres' scrapers."""
+    import copy
+    import cities
+    from scrapers import load_registry, scrape_regal, scrape_amc
+    data = copy.deepcopy(cities.read_file())
+    data['cities'].append({
+        'slug': 'chicago', 'name': 'Chicago', 'short': 'CHI', 'tz': 'America/Chicago', 'phrase': 'Chicago-area',
+        'lat': 41.88, 'lon': -87.63, 'words': ['chicago', 'chi-town'],
+        'areas': [{'key': 'the-loop', 'label': 'The Loop', 'words': ['the loop', 'downtown']}],
+        'theatres': [
+            {'slug': 'regal-city-north', 'name': 'Regal City North', 'short_name': 'REGAL CN', 'area': 'the-loop',
+             'address': '2600 N Western Ave, Chicago, IL', 'lat': 41.93, 'lon': -87.69, 'website': 'https://x',
+             'color': '#3a6bb5', 'scraper': 'regal', 'args': ['1234', 'regal-city-north-1234']},
+            {'slug': 'amc-river-east', 'name': 'AMC River East 21', 'short_name': 'AMC RE', 'area': 'the-loop',
+             'address': '322 E Illinois St, Chicago, IL', 'lat': 41.89, 'lon': -87.62, 'website': 'https://y',
+             'color': '#b5503a', 'scraper': 'amc', 'args': ['amc-river-east-21', 'amc-river-east-21']}]})
+    city_list = cities.load_cities(data)
+    chi = city_list[-1]
+    assert chi.tz == 'America/Chicago' and chi.areas[0].label == 'The Loop'
+    assert re.search(chi.areas[0].words, 'anything downtown tonight?') and not re.search(chi.areas[0].words, 'loops')
+    assert re.search(chi.words, 'in chi-town') and not re.search(chi.words, 'chicagoland')
+    regal, amc = load_registry(data, city_list)[-2:]
+    assert (regal.city, regal.area, regal.args, regal.needs) == ('chicago', 'the-loop', ('1234', 'regal-city-north-1234'), '')
+    assert regal.scrape.func is scrape_regal and regal.scrape.args == ('1234', 'regal-city-north-1234')
+    assert amc.scrape.func is scrape_amc and amc.needs == 'amc'                          # waits for AMC's key
+
+
+def test_the_file_names_its_mistakes(tmp_path):
+    """A mistake in cities.json stops the backend and scraper with the entry and what's wrong."""
+    import copy
+    import cities
+    from scrapers import load_registry
+    good = cities.read_file()
+
+    def problem(edit):
+        data = copy.deepcopy(good)
+        edit(data)
+        with pytest.raises(cities.PlacesFileError) as e:
+            load_registry(data, cities.load_cities(data))
+        return str(e.value)
+
+    dc, nyc = (lambda d: d['cities'][0]), (lambda d: d['cities'][1])
+    empire = lambda d: next(t for t in nyc(d)['theatres'] if t['slug'] == 'amc-empire')
+    assert problem(lambda d: empire(d).update(area='brooklyn')) == \
+        "cities.json: city nyc, theatre amc-empire: area 'brooklyn' isn't one of nyc's (manhattan, new-jersey)"
+    assert "scraper 'fandango' isn't one we have" in problem(lambda d: empire(d).update(scraper='fandango'))
+    assert 'args for amc: wants (theatre_id, theatre_slug)' in problem(lambda d: empire(d).update(args=['amc-empire-25']))
+    assert 'unknown arthose' in problem(lambda d: empire(d).update(arthose=True))           # a misspelling isn't ignored
+    assert 'missing color' in problem(lambda d: empire(d).pop('color'))
+    assert "short_name 'AMC LS' used twice" in problem(lambda d: empire(d).update(short_name='AMC LS'))
+    assert "is another nyc theatre's" in problem(lambda d: empire(d).update(color='#C45C7A'))
+    assert "doesn't read announced films" in problem(lambda d: empire(d).update(announced=True))
+    assert "color 'red' should look like" in problem(lambda d: empire(d).update(color='red'))
+    assert "tz 'Eastern' isn't a time zone" in problem(lambda d: nyc(d).update(tz='Eastern'))
+    assert 'key used twice' in problem(lambda d: nyc(d)['areas'].append(dict(dc(d)['areas'][0])))
+    assert 'city dc: slug used twice' in problem(lambda d: nyc(d).update(slug='dc'))
+    bad = tmp_path / 'cities.json'
+    bad.write_text('{"cities": [\n  {"slug": "dc",}\n]}')
+    with pytest.raises(cities.PlacesFileError, match='line 2, column 17: not valid JSON'):
+        cities.read_file(bad)
+
+
 CLOCK = re.compile(r"\b(datetime\.)?(datetime\.now\(\)|date\.today\(\)|datetime\.today\(\))")
 
 
