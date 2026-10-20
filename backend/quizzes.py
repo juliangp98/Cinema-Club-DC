@@ -294,31 +294,58 @@ def _banned_words(f):
     return words
 
 
-def clue(text, banned):
-    """One sentence of a review that hints without giving the film away (none
-    of `banned`), 25–220 characters — or None when the review is mostly
-    names and plot."""
-    import discover
+def _sentences(text):
     import re as _re
-    sentences = [x.strip() for x in _re.split(r'(?<=[.!?])\s+|\n+', text or '') if x.strip()]
+    return [x.strip() for x in _re.split(r'(?<=[.!?])\s+|\n+', text or '') if x.strip()]
+
+
+def clues(text, banned, most=2):
+    """Up to `most` sentences of a review that hint without giving the film
+    away (none of `banned`), 25–220 characters, longest first — none when the
+    review is mostly names and plot."""
+    import discover
+    sentences = _sentences(text)
     if not sentences:
-        return None
+        return []
     ok = [x for x in sentences if not set(discover.normalize(x).split()) & banned]
     if len(ok) < len(sentences) * 0.4:                          # mostly giveaways: skip the review
-        return None
-    fits = [x for x in ok if 25 <= len(x) <= 220]
-    return max(fits, key=len) if fits else None
+        return []
+    return sorted((x for x in ok if 25 <= len(x) <= 220), key=len, reverse=True)[:most]
+
+
+def clue(text, banned):
+    """The best single clue in a review (clues()), or None."""
+    found = clues(text, banned, most=1)
+    return found[0] if found else None
 
 
 def _tmdb_reviews(tmdb_id):
+    """TMDB's reviews of a film (the first two pages), remembered for the
+    process — a round needs several films' worth."""
     import enrich
+    if tmdb_id in _review_cache:
+        return _review_cache[tmdb_id]
+    out = []
     try:
-        r = enrich._http.get(f'{enrich.TMDB_BASE}/movie/{tmdb_id}/reviews', headers=enrich._tmdb_headers(), timeout=10)
-        r.raise_for_status()
-        return [x.get('content') or '' for x in r.json().get('results', [])]
+        for page in (1, 2):
+            r = enrich._http.get(f'{enrich.TMDB_BASE}/movie/{tmdb_id}/reviews', headers=enrich._tmdb_headers(),
+                                 params={'page': page}, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            out += [x.get('content') or '' for x in data.get('results', [])]
+            if page >= (data.get('total_pages') or 1):
+                break
     except Exception as e:
         print(f'  reviews: TMDB reviews for {tmdb_id} failed: {e}')
-        return []
+        return out                                              # not remembered: try again next time
+    _review_cache[tmdb_id] = out
+    while len(_review_cache) > 300:
+        _review_cache.pop(next(iter(_review_cache)))
+    return out
+
+
+_review_cache = {}
+_too_few = set()               # films whose reviews gave fewer than a round's clues (skipped next time)
 
 
 def _club_reviews(group):
@@ -333,25 +360,66 @@ def _club_reviews(group):
     return out
 
 
-def _reviews_start(group, rng, tries=5):
+REVIEW_TRIES = 12              # films looked up on TMDB for one round, at most
+
+
+def _critic_reviewed():
+    """({movie ids Metacritic rated}, {movie ids Rotten Tomatoes rated}) — from
+    OMDb's ratings on our films, in one query."""
+    from app import db, Movie
+    meta, rt = set(), set()
+    for mid, raw in db.session.query(Movie.id, Movie.ratings_json).filter(Movie.ratings_json.isnot(None)):
+        try:
+            sources = {r.get('source') for r in json.loads(raw) if isinstance(r, dict)}
+        except (ValueError, TypeError):
+            continue
+        if 'Metacritic' in sources:
+            meta.add(mid)
+        if 'Rotten Tomatoes' in sources:
+            rt.add(mid)
+    return meta, rt
+
+
+def _review_odds(f, critics):
+    """How likely TMDB has reviews of a film, roughly: well known (TMDB
+    votes), else reviewed by critics (Metacritic, then Rotten Tomatoes, for
+    our films), else unknown."""
+    meta, rt = critics
+    return 3 if f.votes >= film_pool.KNOWN else 2 if f.movie_id in meta else 1 if f.movie_id in rt else 0
+
+
+def _reviews_start(group, rng, tries=REVIEW_TRIES):
+    """Three clues from one film's reviews: members' diaries first (the films
+    they reviewed), then TMDB's reviews — well-known films first (the most
+    reviewed), then any film we can look up."""
     subjects, everyone = _films(group)
     by_tmdb = {f.tmdb_id: f for f in everyone if f.tmdb_id}
     club = _club_reviews(group)
-    known = [by_tmdb[t] for t in club if t in by_tmdb]
-    famous = [f for f in subjects if f.tmdb_id and f.votes >= film_pool.KNOWN]
-    picks = rng.sample(known, len(known)) + rng.sample(famous, min(tries, len(famous)))
-    for f in picks[:tries + len(known)]:
+    known = rng.sample([by_tmdb[t] for t in club if t in by_tmdb], len([t for t in club if t in by_tmdb]))
+    rest = [f for f in subjects if f.tmdb_id and f.tmdb_id not in club and f.tmdb_id not in _too_few]
+    tiers, critics = {}, _critic_reviewed()
+    for f in rest:
+        tiers.setdefault(_review_odds(f, critics), []).append(f)
+    picks = known + [f for tier in sorted(tiers, reverse=True) for f in rng.sample(tiers[tier], len(tiers[tier]))]
+    looked = 0
+    for f in picks:
+        if looked >= tries and f.tmdb_id not in club:
+            break
         film_pool.ensure_details(f)
         banned = _banned_words(f)
-        clues = [(c, 'club') for c in (clue(t, banned) for t in club.get(f.tmdb_id, [])) if c]
-        if len(clues) < 3:
-            clues += [(c, 'tmdb') for c in (clue(t, banned) for t in _tmdb_reviews(f.tmdb_id)) if c]
+        found = [(c, 'club') for t in club.get(f.tmdb_id, []) for c in clues(t, banned)]
+        if len(found) < 3:
+            looked += 1
+            found += [(c, 'tmdb') for t in _tmdb_reviews(f.tmdb_id) for c in clues(t, banned)]
         seen, unique = set(), []
-        for c, src in clues:
+        for c, src in found:
             if c.lower() not in seen:
                 seen.add(c.lower())
                 unique.append({'text': c, 'from': src})
-        options = len(unique) >= 3 and _options(rng, f, everyone)
+        if len(unique) < 3:
+            _too_few.add(f.tmdb_id)
+            continue
+        options = _options(rng, f, everyone)
         if options:
             return {'clues': rng.sample(unique, 3), 'step': 1, 'film': _brief(f), 'options': options,
                     'answer': options.index(f.label)}

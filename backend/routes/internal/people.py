@@ -37,13 +37,13 @@ def internal_club():
 @app.route('/api/internal/leaderboard')
 @require_internal
 def internal_leaderboard():
-    """/leaderboard: members in the club's server, with their real place;
-    `hidden` counts the members on the site."""
+    """/leaderboard (?period= month, year or all — the default): members in
+    the club's server, with their real place; `hidden` counts the members on the site."""
     group = db.session.get(Group, request.args.get('group_id', type=int) or 0)
     if not group:
         return jsonify({'error': 'Group not found'}), 404
     shown_ids = present_user_ids(group.id)
-    board = build_leaderboard(group)
+    board = build_leaderboard(group, request.args.get('period') or 'all')
     rows = [{'user': {'name': r['user']['name']},
              **{k: r[k] for k in ('place', 'kernels', 'correct', 'attendance', 'breakdown')}}
             for r in board if r['user']['id'] in shown_ids]

@@ -7,10 +7,11 @@ import ast
 import re
 from pathlib import Path
 
-BOT = Path(__file__).resolve().parents[2] / 'bot' / 'bot.py'
+BOT = Path(__file__).resolve().parents[2] / 'bot'
+SOURCES = [BOT / 'bot.py', *sorted((BOT / 'features').glob('*.py'))]      # every command lives in a feature module
 
 # A form has to open as the very first answer, so it can't wait behind a defer:
-# /quote edit looks the quote up (one quick read) before opening its form.
+# /quote's Fix looks the quote up (one quick read) before opening its form.
 OPENS_A_FORM = {'quote_edit'}
 
 
@@ -71,13 +72,14 @@ def _late(fn, defs, depth=0):
     if depth < 2:
         for name in _helper_calls(fn, answer):
             for helper in defs.get(name, []):
-                if helper is not fn and 'interaction' in [a.arg for a in helper.args.args] and _late(helper, defs, depth + 1):
+                if helper is not fn and helper.name not in OPENS_A_FORM \
+                        and 'interaction' in [a.arg for a in helper.args.args] and _late(helper, defs, depth + 1):
                     return _late(helper, defs, depth + 1)
     return None
 
 
 def test_every_handler_answers_discord_before_asking_the_backend():
-    tree = ast.parse(BOT.read_text())
+    tree = ast.Module(body=[n for src in SOURCES for n in ast.parse(src.read_text()).body], type_ignores=[])
     defs = {}
     for fn in ast.walk(tree):
         if isinstance(fn, ast.AsyncFunctionDef):

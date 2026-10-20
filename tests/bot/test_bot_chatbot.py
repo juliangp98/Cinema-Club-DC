@@ -46,14 +46,14 @@ def test_llm_show_reads_the_shared_status(bot_ai):
     class F:
         async def send(self, content=None, **k):
             sent.append(content)
-    asyncio.run(bot.llm_show.callback(types.SimpleNamespace(response=R(), followup=F(), guild_id=900,
+    asyncio.run(bot.llm_cmd.callback(types.SimpleNamespace(response=R(), followup=F(), guild_id=900,
                                                              user=types.SimpleNamespace(display_name='Admin'))))
     assert '`qwen/qwen3-32b`' in sent[-1] and 'poll drafts' in sent[-1]
 
     class Elsewhere:                                     # another club's server: the AI isn't theirs to change
         async def send_message(self, content=None, **k):
             sent.append(content)
-    asyncio.run(bot.llm_show.callback(types.SimpleNamespace(response=Elsewhere(), followup=F(), guild_id=4321,
+    asyncio.run(bot.llm_cmd.callback(types.SimpleNamespace(response=Elsewhere(), followup=F(), guild_id=4321,
                                                              user=types.SimpleNamespace(display_name='Admin'))))
     assert sent[-1] == bot.HOME_ONLY_MSG
 

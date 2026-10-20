@@ -432,7 +432,7 @@ def digest_message(digest, tag_watchers=False):
     polls = digest.get('open_polls', [])
     if polls:
         embed.add_field(name='🗳️ Polls', inline=False,
-                        value=(' · '.join(f"**{p['title']}**" for p in polls[:3]) + ' — vote with `/poll vote`')[:1024])
+                        value=(' · '.join(f"**{p['title']}**" for p in polls[:3]) + ' — vote with `/poll`')[:1024])
 
     recap = digest.get('recap') or {}
     bits = []
@@ -557,7 +557,7 @@ def poll_results_embed(p):
              f" — **{t['kernels']} 🍿** ({t['correct']} correct)" for i, t in enumerate(top)]
     voters = p.get('voters', len(top))
     embed.description = '\n'.join(lines) + f"\n\n{voters} {'member' if voters == 1 else 'members'} voted · " \
-                                           f"see your own picks with `/poll vote`"
+                                           f"see your own picks with `/poll`"
     return embed
 
 
@@ -807,11 +807,9 @@ HELP_SECTIONS = [
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
     ('🎮 Play, polls & kernels', [
-        ('/play', 'trivia, your bingo card, the quiz games, polls to vote in, your kernels and how to earn'),
-        ('/poll list', "what's open right now"),
-        ('/poll vote', 'your private ballot'),
-        ('/poll make', 'describe a poll and the AI drafts it (organizers)'),
-        ('/leaderboard', 'the kernel standings 🍿'),
+        ('/play', 'the games hub — or `game:` straight into trivia, your bingo card, a quiz game or your kernels'),
+        ('/poll', "`action:` what's open, your private ballot, or make one — describe it and the AI drafts it (organizers)"),
+        ('/leaderboard', 'the kernel standings 🍿 — `period:` all time, this year or this month'),
     ]),
     ('👤 You and the club', [
         ('/profile', "yours, or @someone's — history (and check-ins), watchlist, compare, give kernels"),
@@ -821,7 +819,7 @@ HELP_SECTIONS = [
     ('📰 Extras', [
         ('/digest', "this week's digest (if your club has it on), or a preview just for you"),
         ('/announcements', "which theatres' new showtimes post in the channel"),
-        ('/quote', 'a random line of cinematic wisdom, or add, fix and find the quotes'),
+        ('/quote', 'a random line of cinematic wisdom — or `action:` add, fix, remove and find quotes'),
         ('/setup', "server admins: connect this server to your club, or move the bot's channel"),
     ]),
 ]

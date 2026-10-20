@@ -56,7 +56,7 @@ def bot():
 
 def make_draft(bot):
     it = Interaction(6201)
-    asyncio.run(bot.poll_make.callback(it, request='spookiest Halloween movies'))
+    asyncio.run(bot.poll_cmd.callback(it, request='spookiest Halloween movies'))
     return it.last
 
 
@@ -86,5 +86,5 @@ def test_create_now_opens_the_poll_once(bot):
 
 def test_members_are_told_its_for_organizers(bot):
     it = Interaction(6202)
-    asyncio.run(bot.poll_make.callback(it, request='comfort movies'))
+    asyncio.run(bot.poll_cmd.callback(it, request='comfort movies'))
     assert 'organizers and admins' in it.last[1]

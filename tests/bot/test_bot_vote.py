@@ -112,7 +112,8 @@ def run(coro):
 def vote(w, uid, title=None):
     """/poll vote [poll]; the ballot it opens becomes this member's message."""
     it = Interaction(uid)
-    run(w.bot.poll_vote.callback(it, **({'poll': str(w.pid[title])} if title else {})))
+    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Vote', value='vote'),
+                                **({'poll': str(w.pid[title])} if title else {})))
     if len(it.last) > 3 and it.last[3] is not None:
         w.state[uid] = it.last[3:5]
     return it
@@ -173,8 +174,8 @@ def test_vote_without_a_poll_asks_which(polls):
 
 def test_polls_lists_open_polls_with_vote_buttons(polls):
     it = Interaction(VEE)
-    run(polls.bot.poll_list.callback(it))
-    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2] and '`/poll vote`' in it.last[2]
+    run(polls.bot.poll_cmd.callback(it))                                    # no action: the open polls
+    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2] and '`/poll action:Vote`' in it.last[2]
     assert '/polls/' in it.last[2] and ' 1 categories' not in it.last[2]
     import embeds
     assert (embeds.plural(1, 'category', 'categories'), embeds.plural(3, 'category', 'categories')) == ('1 category', '3 categories')

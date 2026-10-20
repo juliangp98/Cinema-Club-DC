@@ -3,6 +3,7 @@ the channel.
 """
 
 import discord
+from discord import app_commands
 from discord.ext import tasks
 from api import ApiError
 import embeds
@@ -11,22 +12,28 @@ from .shared import (SITE_URL, api, channel_for, client, club, connected_clubs, 
 from . import polls, threads      # used at call time, so the order they load in doesn't matter
 
 
-@client.tree.command(name='leaderboard', description='Season kernel standings 🍿')
-async def leaderboard(interaction: discord.Interaction):
+LEADERBOARD_PERIODS = [app_commands.Choice(name=n, value=v) for v, n in (
+    ('all', 'All time'), ('year', 'This year'), ('month', 'This month'))]
+
+
+@client.tree.command(name='leaderboard', description='Kernel standings 🍿 — all time, this year or this month')
+@app_commands.describe(period='Which standings (default: all time)')
+@app_commands.choices(period=LEADERBOARD_PERIODS)
+async def leaderboard(interaction: discord.Interaction, period: app_commands.Choice[str] = None):
     await interaction.response.defer()
     try:
-        board = await api.get('/api/internal/leaderboard', group_id=club())
+        board = await api.get('/api/internal/leaderboard', group_id=club(), period=period.value if period else 'all')
     except ApiError:
         board = {}
     rows = board.get('rows') or []
     if not rows:
-        await interaction.followup.send('No standings yet — vote in a poll!')
+        await interaction.followup.send('No standings yet for that stretch — vote in a poll, or check in after a screening!')
         return
     lines = []
     for r in rows[:10]:                       # real places (ties share one); members on the site keep theirs
         parts = f" ({embeds.kernel_parts(r['breakdown'])})" if r.get('breakdown') else ''
         lines.append(f"{embeds.medal(r['place'], r['kernels'])} **{r['user']['name']}** — 🍿 {r['kernels']}{parts}")
-    embed = discord.Embed(title='🍿 Kernel Leaderboard', description='\n'.join(lines),
+    embed = discord.Embed(title=f"🍿 Kernel Leaderboard · {period.name if period else 'All time'}", description='\n'.join(lines),
                           colour=embeds.AMBER, url=f'{SITE_URL}/club?tab=leaderboard')
     if board.get('hidden'):
         n = board['hidden']
@@ -171,20 +178,27 @@ class QuizButton(discord.ui.DynamicItem[discord.ui.Button],
     async def callback(self, interaction: discord.Interaction):
         if self.act == 'start':
             await interaction.response.defer(ephemeral=True, thinking=True)
-            payload = {'action': 'start', 'kind': self.ref}
-        else:
-            await interaction.response.defer()
-            choice = int(self.choice) if str(self.choice).isdigit() else self.choice
-            payload = {'action': 'answer', 'round_id': int(self.ref), 'choice': choice}
+            await quiz_start_flow(interaction, self.ref)
+            return
+        await interaction.response.defer()
+        choice = int(self.choice) if str(self.choice).isdigit() else self.choice
         try:
-            r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), **payload})
+            r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), 'action': 'answer',
+                                                         'round_id': int(self.ref), 'choice': choice})
         except Exception as e:
             await reply_failure(interaction, e, 'quiz game')
             return
-        if self.act == 'start':
-            await interaction.followup.send(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r), ephemeral=True)
-        else:
-            await interaction.edit_original_response(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r))
+        await interaction.edit_original_response(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r))
+
+
+async def quiz_start_flow(interaction, kind):
+    """A new round of a quiz game, after a defer (its button, or /play game:)."""
+    try:
+        r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), 'action': 'start', 'kind': kind})
+    except Exception as e:
+        await reply_failure(interaction, e, 'quiz game')
+        return
+    await interaction.followup.send(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r), ephemeral=True)
 
 
 def quiz_round_view(r):
@@ -256,9 +270,23 @@ def play_view(p):
     return view
 
 
+# /play game: — straight into one. The quiz games are the backend's
+# quizzes.GAMES (a test keeps the two lists the same).
+QUIZ_GAMES = (('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ Who said it'), ('still', '🖼️ Guess the still'),
+              ('reviews', '📝 Guess from the reviews'), ('emoji', '🎭 Emoji plot'))
+PLAY_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
+    ('trivia', "🧠 Trivia: today's question"), ('bingo', '🎱 My bingo card'), *QUIZ_GAMES, ('kernels', '🍿 My kernels'))]
+
+
 @client.tree.command(name='play', description='Games and kernels: trivia, bingo, quiz games, polls to vote in, your kernels')
-async def play_cmd(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
+@app_commands.describe(game='Jump straight into one (default: the games hub, with polls to vote in)')
+@app_commands.choices(game=PLAY_GAMES)
+async def play_cmd(interaction: discord.Interaction, game: app_commands.Choice[str] = None):
+    await interaction.response.defer(ephemeral=True, thinking=bool(game))
+    if game:
+        flows = {'trivia': trivia_flow, 'bingo': bingo_flow, 'kernels': kernels_flow}
+        await (flows[game.value](interaction) if game.value in flows else quiz_start_flow(interaction, game.value))
+        return
     try:
         p = await api.get('/api/internal/play', **discord_identity(interaction))
     except Exception as e:

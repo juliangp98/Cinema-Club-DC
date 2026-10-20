@@ -88,3 +88,24 @@ def test_a_still_in_discord():
         return [i.label for i in items_of(b.quiz_round_view(x))]
     assert run(labels(r)) == ['A', 'B', 'C', 'D', '🔍 Zoom out']
     assert '🔍 Zoom out' not in run(labels({**r, 'step': 3}))
+
+
+def test_play_game_goes_straight_into_one(bot):
+    """/play game: — a round of that game at once (no hub, no button); a game
+    the club has off says so."""
+    from discord import app_commands
+    from app import app, db, Group
+    pick = lambda v: app_commands.Choice(name=v, value=v)
+    it = FakeInteraction(uid=9611, name='ana')
+    run(bot.play_cmd.callback(it, game=pick('higher_lower')))
+    assert it.sent[0][0] == 'defer' and 'embed' not in it.last[2]                     # off in this club: no round
+    with app.app_context():
+        slug = db.session.get(Group, 1).slug
+    client(bot.test_admin).put(f'/api/groups/{slug}', json={'quizzes': {'higher_lower': True}})
+    it = FakeInteraction(uid=9611, name='ana')
+    run(bot.play_cmd.callback(it, game=pick('higher_lower')))
+    kind, _, kw = it.last
+    assert kind == 'followup' and kw['ephemeral'] and 'come out before or after' in kw['embed'].description
+    it = FakeInteraction(uid=9611, name='ana')
+    run(bot.play_cmd.callback(it, game=pick('kernels')))
+    assert it.last[2]['embed'].title and it.last[2]['ephemeral']                        # your kernels, privately

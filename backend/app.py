@@ -1340,12 +1340,12 @@ def calc_user_kernels(user_id, group_id=None, since=None):
     return total, correct
 
 
-def build_leaderboard(group):
-    """The club's all-time standings (rows of club_stats.leaderboard): one
-    kernel total each, with where it came from; ties by correct picks, then
-    screenings attended."""
+def build_leaderboard(group, period='all'):
+    """The club's standings for a period (club_stats.PERIODS; all time by
+    default): one kernel total each, with where it came from; ties by correct
+    picks, then screenings attended."""
     import club_stats
-    return club_stats.leaderboard(group, 'all')['rows']
+    return club_stats.leaderboard(group, period if period in club_stats.PERIODS else 'all')['rows']
 
 
 # ─── Routes: Internal API (Discord bot) ───────────────────────────────────────

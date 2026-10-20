@@ -26,3 +26,22 @@ def test_every_command_is_on_the_tree():
     names = {c.name for c in shared.client.tree.get_commands()}
     assert {'showtimes', 'rsvp', 'discuss', 'profile', 'poll', 'play', 'llm', 'help', 'quote', 'setup'} <= names
     assert len(names) == 22
+
+
+def test_every_command_is_one_command_with_options():
+    """Like /showtimes: one command, its choices as options Discord shows
+    (action:, game:, period:…) — never sub-commands ("/quote add") listed apart."""
+    from discord import app_commands
+    groups = [c.name for c in shared.client.tree.get_commands() if isinstance(c, app_commands.Group)]
+    assert groups == []
+    by_name = {c.name: c for c in shared.client.tree.get_commands()}
+    for name, option in (('quote', 'action'), ('poll', 'action'), ('llm', 'action'), ('play', 'game'),
+                         ('leaderboard', 'period'), ('watch', 'action'), ('announcements', 'action')):
+        params = {p.name: p for p in by_name[name].parameters}
+        assert params[option].choices and not params[option].required, (name, option)
+
+
+def test_play_offers_every_quiz_game():
+    """/play game: lists the backend's quiz games (quizzes.GAMES), each once."""
+    import quizzes
+    assert [k for k, _ in games.QUIZ_GAMES] == list(quizzes.GAMES)

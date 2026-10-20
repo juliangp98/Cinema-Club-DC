@@ -618,7 +618,7 @@
     {
      "id": "bot",
      "q": "What can the bot do?",
-     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button — plus /poll list, /poll vote and /leaderboard. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
+     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button (or pick one with game:) — plus /poll (action: the open polls, your ballot, or make one) and /leaderboard (period: all time, this year or this month). Each command's choices are options Discord lists as you type, like /showtimes. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
     }
    ]
   },
@@ -644,7 +644,7 @@
     {
      "id": "reviews-in-games",
      "q": "Can my reviews end up in a game?",
-     "a": "Guess from the reviews may use one sentence of a review in your diary — never with your name, and never one that names the film, its year or its people. Don't want that? In [Settings → Privacy and sharing](settings-privacy), turn off “Let a line from my reviews be a quiz clue”."
+     "a": "Guess from the reviews uses lines from film reviews: first your club's own — Letterboxd diaries of members who've connected theirs — then reviews posted on TMDB (The Movie Database). Letterboxd's other reviews can't be used: it has no way for sites to read them. A line from your diary is never shown with your name, and never one that names the film, its year or its people. Don't want yours used? In [Settings → Privacy and sharing](settings-privacy), turn off “Let a line from my reviews be a quiz clue”."
     },
     {
      "id": "ratings-shown",

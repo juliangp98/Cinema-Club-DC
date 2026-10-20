@@ -12,10 +12,6 @@ from .shared import SITE_NAME, api, client, is_home_guild
 # Hidden from members without Manage Server by default; admins can grant it to
 # other roles in Server Settings → Integrations.
 
-llm_admin = app_commands.Group(
-    name='llm', description="The chatbot's AI models (server admins)",
-    default_permissions=discord.Permissions(manage_guild=True), guild_only=True)
-
 HOME_ONLY_MSG = f"The AI models are the whole site's — they're changed from the {SITE_NAME} server."
 
 
@@ -27,8 +23,8 @@ async def home_only(interaction):
     return False
 
 
-@llm_admin.command(name='show', description='Which models the chatbot uses, and what Groq offers')
 async def llm_show(interaction: discord.Interaction):
+    """Which models the chatbot uses, and what Groq offers."""
     if not await home_only(interaction):
         return
     await interaction.response.defer(ephemeral=True)
@@ -51,14 +47,8 @@ async def llm_show(interaction: discord.Interaction):
     await interaction.followup.send('\n'.join(lines), ephemeral=True)
 
 
-@llm_admin.command(name='set', description='Pin the chatbot to a model, or "auto" to let it choose')
-@app_commands.describe(slot='Which model to set',
-                       model='A model Groq serves, "auto" to clear the pin, or "none" (fallback only) to disable it')
-@app_commands.choices(slot=[
-    app_commands.Choice(name='Primary', value='primary'),
-    app_commands.Choice(name='Fallback', value='fallback'),
-])
 async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[str], model: str):
+    """Pin the chatbot to a model, or "auto" to let it choose."""
     if not await home_only(interaction):
         return
     value = model.strip()
@@ -85,7 +75,6 @@ async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[st
     await interaction.followup.send(f"✓ {slot.name} model: `{chosen or 'none'}`{note}", ephemeral=True)
 
 
-@llm_set.autocomplete('model')
 async def llm_model_autocomplete(interaction: discord.Interaction, current: str):
     try:
         options = ['auto'] + (await llm.status())['available']
@@ -97,4 +86,24 @@ async def llm_model_autocomplete(interaction: discord.Interaction, current: str)
     return [app_commands.Choice(name=o, value=o) for o in options if cur in o.lower()][:25]
 
 
-client.tree.add_command(llm_admin)
+LLM_SLOTS = [app_commands.Choice(name='Primary', value='primary'), app_commands.Choice(name='Fallback', value='fallback')]
+
+
+@client.tree.command(name='llm', description="The chatbot's AI models: see them, or pin one (server admins)")
+@app_commands.default_permissions(manage_guild=True)
+@app_commands.guild_only()
+@app_commands.describe(action='Show the models (default), or set one',
+                       slot='Set: which model', model='Set: a model Groq serves, "auto" to clear the pin, '
+                                                       'or "none" (fallback only) to turn it off')
+@app_commands.choices(action=[app_commands.Choice(name='Show the models', value='show'),
+                              app_commands.Choice(name='Set a model', value='set')], slot=LLM_SLOTS)
+@app_commands.autocomplete(model=llm_model_autocomplete)
+async def llm_cmd(interaction: discord.Interaction, action: app_commands.Choice[str] = None,
+                  slot: app_commands.Choice[str] = None, model: str = None):
+    what = action.value if action else 'set' if slot or model else 'show'
+    if what == 'set' and not (slot and model):
+        await interaction.response.send_message('To set one, fill in **slot** and **model**.', ephemeral=True)
+    elif what == 'set':
+        await llm_set(interaction, slot, model)
+    else:
+        await llm_show(interaction)

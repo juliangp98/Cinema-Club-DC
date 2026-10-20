@@ -590,8 +590,6 @@ async def on_message(message: discord.Message):
 # added one, or a server admin. Replies are private so managing the list never
 # clutters the channel, and the movie/character only ever show up here.
 
-quote_cmds = app_commands.Group(
-    name='quote', description="The bot's movie quotes: a random one, or add, fix, remove and find lines")
 
 
 def _api_error_json(err):
@@ -652,20 +650,19 @@ class QuoteModal(discord.ui.Modal):
 CLASSIC_MSG = f"That's one of the classic quotes every server shares — they're looked after in the {SITE_NAME} server."
 
 
-@quote_cmds.command(name='random', description='A random line of cinematic wisdom 🎬 (posted here)')
 async def quote_random(interaction: discord.Interaction):
+    """A random line of cinematic wisdom, posted here."""
     # No account or backend call of its own — works for anyone, linked or not.
     await interaction.response.send_message(await random_quote())
 
 
-@quote_cmds.command(name='add', description='Add a movie quote (only the line is ever shown)')
 async def quote_add(interaction: discord.Interaction):
+    """The form to add a quote (only the line is ever shown)."""
     await interaction.response.send_modal(QuoteModal(discord_identity(interaction)))
 
 
-@quote_cmds.command(name='edit', description='Fix a quote, or its movie or character')
-@app_commands.describe(quote='Search by words from the line, the movie, or the character')
 async def quote_edit(interaction: discord.Interaction, quote: str):
+    """The form to fix a quote, or its movie or character."""
     try:
         existing = await api.get(f'/api/internal/quotes/{int(quote)}', group_id=club())
     except (ValueError, ApiError):
@@ -674,9 +671,8 @@ async def quote_edit(interaction: discord.Interaction, quote: str):
     await interaction.response.send_modal(QuoteModal(discord_identity(interaction), existing))
 
 
-@quote_cmds.command(name='remove', description='Remove a quote you added (server admins: any quote)')
-@app_commands.describe(quote='Search by words from the line, the movie, or the character')
 async def quote_remove(interaction: discord.Interaction, quote: str):
+    """Remove a quote you added (server admins: any quote)."""
     await interaction.response.defer(ephemeral=True)
     perms = getattr(interaction.user, 'guild_permissions', None)
     try:
@@ -699,9 +695,8 @@ async def quote_remove(interaction: discord.Interaction, quote: str):
     await interaction.followup.send(f"Removed quote #{result['removed']}.", ephemeral=True)
 
 
-@quote_cmds.command(name='find', description='Search the quote list (only you see the results)')
-@app_commands.describe(search='Words from the line, the movie, or the character')
 async def quote_find(interaction: discord.Interaction, search: str):
+    """Search the quote list (only you see the results)."""
     await interaction.response.defer(ephemeral=True)
     try:
         rows = await api.get('/api/internal/quotes', q=search, limit=11, group_id=club())
@@ -735,9 +730,34 @@ async def quote_autocomplete(interaction: discord.Interaction, current: str):
     return choices
 
 
-quote_edit.autocomplete('quote')(quote_autocomplete)
-quote_remove.autocomplete('quote')(quote_autocomplete)
-client.tree.add_command(quote_cmds)
+QUOTE_ACTIONS = [app_commands.Choice(name=n, value=v) for v, n in (
+    ('random', 'A random line (posted here)'), ('add', 'Add a quote'), ('edit', 'Fix a quote'),
+    ('remove', 'Remove a quote'), ('find', 'Find quotes (only you see them)'))]
+
+
+@client.tree.command(name='quote', description="Movie quotes: a random line, or add, fix, remove and find them")
+@app_commands.describe(action='What to do (default: post a random line)',
+                       quote='Fix or Remove: which quote — type words from the line, the movie or the character',
+                       search='Find: words from the line, the movie or the character')
+@app_commands.choices(action=QUOTE_ACTIONS)
+@app_commands.autocomplete(quote=quote_autocomplete)
+async def quote_cmd(interaction: discord.Interaction, action: app_commands.Choice[str] = None,
+                    quote: str = None, search: str = None):
+    what = action.value if action else 'random'
+    if what in ('edit', 'remove') and not quote:
+        await interaction.response.send_message('Which quote? Fill in **quote** — type to search.', ephemeral=True)
+    elif what == 'find' and not search:
+        await interaction.response.send_message('What should I look for? Fill in **search**.', ephemeral=True)
+    elif what == 'add':
+        await quote_add(interaction)
+    elif what == 'edit':
+        await quote_edit(interaction, quote)
+    elif what == 'remove':
+        await quote_remove(interaction, quote)
+    elif what == 'find':
+        await quote_find(interaction, search)
+    else:
+        await quote_random(interaction)
 
 
 register(startup=(seed_quotes,))

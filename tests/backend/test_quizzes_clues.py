@@ -168,3 +168,39 @@ def test_an_emoji_round(club, monkeypatch):
         right = json.loads(db.session.get(QuizRound, r['id']).state_json)['answer']
     r = answer(club, r['id'], right).json
     assert r['done'] and r['last'] == {'right': True, 'paid': 1} and r['film']['title']
+
+
+def test_reviews_from_tmdb_alone_two_lines_a_review(club, monkeypatch):
+    """No club reviews needed: two good lines from each of two TMDB reviews
+    make a round; a film whose reviews give too little is passed over (and
+    remembered, so it isn't looked up again); critic-reviewed films come first."""
+    import quizzes
+    from app import app, db, LetterboxdEntry, Movie
+    with app.app_context():
+        LetterboxdEntry.query.delete()
+        Movie.query.filter_by(tmdb_id=426).one().ratings_json = json.dumps([{'source': 'Metacritic', 'value': '100/100'}])
+        db.session.commit()
+    good = ['A slow burn that rewards patience every single minute of the way. The ending lands like a punch to the chest.',
+            'Gorgeous photography from start to finish, honestly a feast. I could not look away for a second of it.']
+    asked = []
+
+    def reviews(tid):
+        asked.append(tid)
+        return [] if len(asked) == 1 else good                                      # the first film has none
+    monkeypatch.setattr(quizzes, '_tmdb_reviews', reviews)
+    monkeypatch.setattr(quizzes, '_too_few', set())
+    r = play(club, 'reviews').json
+    assert r.get('step') == 1 and len(asked) == 2, r
+    assert quizzes._too_few == {asked[0]}                                                # the dead end, remembered
+
+
+def test_the_static_rule_never_swallows_the_api():
+    """nginx: a regex location beats the /api/ prefix, so the static-files rule
+    must not match /api/ — or the backend's images (Guess the still) 404."""
+    import re
+    from pathlib import Path
+    conf = (Path(__file__).resolve().parents[2] / 'frontend' / 'nginx.conf').read_text()
+    pattern = re.search(r'location ~\*\s+(\S+)\s*\{\s*expires 30d;', conf).group(1)
+    static = re.compile(pattern, re.I)
+    assert static.search('/assets/index-abc123.js') and static.search('/pwa-192.png')
+    assert not static.search('/api/quizzes/still/12/abcdef0123456789-1.jpg')
