@@ -8,6 +8,7 @@ import ToggleChip, { RemovableChip } from "../ui/ToggleChip";
 import { Segmented, ASK_ALWAYS_NEVER, POST_MODES } from "../ui/TicketRow";
 import Avatar, { ClubBadge } from "../ui/Avatar";
 import SearchField, { SearchAction } from "../ui/SearchField";
+import Select from "../ui/Select";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow } from "../ui/Settings";
 import SectionMenu from "../ui/SectionMenu";
 import StatTiles from "../ui/StatTiles";
@@ -25,6 +26,8 @@ import "./StyleguidePage.css";
 // Nothing on it saves anything. Linked from Club → Settings.
 const BADGES = [["", "Closed"], ["go", "Going"], ["gold", "Maybe"], ["strong", "Saw it"], ["discord", "via Discord"],
                 ["solid", "3 tonight"]];
+const SAMPLE_GAMES = [{ value: "random", label: "🎲 Random" }, { value: "trivia", label: "🧠 Trivia" },
+                      { value: "who_said", label: "🗣️ Who said it" }];
 const SAMPLE_SHOW = { id: 0, start_time: "2099-11-09T21:45:00", end_time: "2099-11-10T00:02:00", purchase_link: null,
                       theatre: { slug: "afi", name: "AFI Silver Theatre" }, format_label: "35mm" };
 const SAMPLE_CITIES = [
@@ -54,6 +57,8 @@ export default function StyleguidePage() {
   const [tickets, setTickets] = useState(null);
   const [rsvp, setRsvp] = useState(null);
   const [sheet, setSheet] = useState(false);
+  const [pick, setPick] = useState("random");
+  const [role, setRole] = useState("member");
   const [picks, setPicks] = useState(["afi"]);
   if (!shell?.group) return null;
   if (shell.role !== "admin") return <Navigate to="/club" replace />;
@@ -111,6 +116,15 @@ export default function StyleguidePage() {
         <Segmented label="Stretched (sample)" options={POST_MODES} value={mode} onChange={v => setMode(v || "never")} />
       </div>
       <p className="ui-hint">As wide as its words in a row; in a sheet's column (or any parent that stretches it) the buttons share the width.</p>
+      <div className="share-sheet-body styleguide-stretch">
+        <Select label="Dropdown (sample)" value={pick} onChange={setPick} options={SAMPLE_GAMES} />
+      </div>
+      <div className="styleguide-row">
+        <Select size="sm" label="Small dropdown (sample)" value={role} onChange={setRole}
+                options={[{ value: "member", label: "Member" }, { value: "organizer", label: "Organizer" }]} />
+        <ToggleChip on>Chip beside it</ToggleChip>
+      </div>
+      <p className="ui-hint">Dropdowns (ui/Select): the field look with the chevron inside; size "sm" is chip-sized for rows and filter bars.</p>
 
       <SectionTitle>Search</SectionTitle>
       <p className="ui-hint">One search bar everywhere (ui/SearchField): Discover, Browse, the Calendar, Help, Your taste, Find a club. Enter searches; ✨ is an optional action.</p>

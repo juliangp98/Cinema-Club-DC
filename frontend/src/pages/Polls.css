@@ -117,7 +117,6 @@
 .pv-bar.right .pv-bar-you { color: var(--green); }
 .pv-bar.wrong .pv-bar-you { color: var(--soft-red); }
 .pv-winner { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; font-size: var(--fs-xs); color: var(--muted); }
-.pv-winner .group-role-select { margin-left: 0; }
 
 /* Leaderboard */
 .pv-board { display: flex; flex-direction: column; gap: 0.35rem; }

@@ -5,6 +5,7 @@ import PageHeader from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import { Segmented } from "../ui/TicketRow";
+import Select from "../ui/Select";
 import { PollDiscord } from "../ui/DiscordShare";
 import { dayDateAt } from "../dates";
 import { SCORING_LABELS, TYPE_LABELS, REVEAL_LABELS, POLL_STATUS as STATUS, untilText } from "../components/PollList";
@@ -434,15 +435,13 @@ export default function PollDetailPage({ user, apiBase }) {
                 {isAdmin && poll.status !== "scored" && mode !== "none" && (
                   <label className="pv-winner">
                     <span>Answer</span>
-                    <select className="group-role-select" value={winners[cat.id] || ""}
-                            onChange={e => {
-                              const val = e.target.value ? parseInt(e.target.value) : null;
+                    <Select size="sm" value={winners[cat.id] || ""}
+                            options={[{ value: "", label: "—" }, ...cat.options.map(opt => ({ value: opt.id, label: opt.text }))]}
+                            onChange={v => {
+                              const val = v ? parseInt(v) : null;
                               setWinners(prev => { const next = { ...prev }; if (val) next[cat.id] = val; else delete next[cat.id]; return next; });
                               saveWinnerForCategory(cat.id, val);
-                            }}>
-                      <option value="">—</option>
-                      {cat.options.map(opt => <option key={opt.id} value={opt.id}>{opt.text}</option>)}
-                    </select>
+                            }} />
                     <span className={`pv-saved ${winnerSaveStatus[cat.id] || ""}`}>
                       {winnerSaveStatus[cat.id] === "saving" ? "Saving…" : winnerSaveStatus[cat.id] === "saved" ? (live ? "Saved ✓ — members see it now" : "Saved ✓") : winnerSaveStatus[cat.id] === "error" ? "Couldn't save" : ""}
                     </span>

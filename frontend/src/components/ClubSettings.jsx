@@ -15,6 +15,7 @@ import GamePostsWaiting from "./GamePostsWaiting";
 import { QUIZ_GAMES } from "./QuizGames";
 import { ROLES } from "../roles";
 import SectionMenu from "../ui/SectionMenu";
+import Select from "../ui/Select";
 
 // A club's settings (R6b; by category in 7g, on the settings standard —
 // ui/Settings): the club itself, its members, its theatres (and which of them
@@ -196,10 +197,8 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                       )}
                     </span>
                     <span className="club-row-actions">
-                      <select className="share-input club-role-select" value={m.role || "member"} aria-label={`${m.user.name}'s role`}
-                              onChange={e => run(() => memberAction(`${m.user.id}/role`, "PUT", { role: e.target.value }), "Role updated")}>
-                        {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                      </select>
+                      <Select size="sm" label={`${m.user.name}'s role`} value={m.role || "member"} options={ROLES}
+                              onChange={role => run(() => memberAction(`${m.user.id}/role`, "PUT", { role }), "Role updated")} />
                       {m.role !== "admin" && (
                         <button className="btn btn-sm btn-ghost" onClick={() => {
                           if (window.confirm(`Remove ${m.user.name} from the club?`)) run(() => memberAction(`${m.user.id}`, "DELETE"), "Removed");

@@ -6,6 +6,7 @@ import { DoubleCard, SpotlightCard } from "./DiscoverPage";
 import { dayDate as dayLabel } from "../dates";
 import { useJson } from "../api";
 import ToggleChip from "../ui/ToggleChip";
+import Select from "../ui/Select";
 import { groupParam } from "../scope";
 import { useShell } from "../shell/AppShell";
 import { DEFAULT_CITY, cityOf, useTheatres } from "../places";
@@ -34,11 +35,8 @@ function useScope(apiBase) {
       {areas.map(([k, name]) => (
         <ToggleChip key={k} on={scope.regions === k && !scope.theatres} onClick={() => set({ regions: k })}>{name}</ToggleChip>
       ))}
-      <select className="more-scope-theatre" value={scope.theatres} aria-label="Theatre"
-              onChange={e => set({ theatres: e.target.value })}>
-        <option value="">Any theatre</option>
-        {theatres.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
-      </select>
+      <Select size="sm" label="Theatre" value={scope.theatres} onChange={theatres => set({ theatres })}
+              options={[{ value: "", label: "Any theatre" }, ...theatres.map(t => ({ value: t.slug, label: t.name }))]} />
     </div>
   );
   return { query, browseScope, label, bar };

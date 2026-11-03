@@ -30,7 +30,7 @@ one you work in.
   through `api.js` (`getJson`, `useJson`, `send`); the bot's failures go through `api_failure` /
   `reply_failure`.
 - **The UI kit first.** Build from `frontend/src/ui` (Panel, PageHeader, SectionTitle, Settings rows,
-  SearchField, Segmented, TicketRow, TheatrePicker, Sheet, StatTiles…) and the tokens in `index.css` — no
+  SearchField, Segmented, Select, TicketRow, TheatrePicker, Sheet, StatTiles…) and the tokens in `index.css` — no
   new colors, no inline static styles, and no page widths: every page is `.page`, one width
   (`--page-max`). Admins see every piece live at `/styleguide`; a new kit piece goes there too.
 - **Tests** — pytest for the backend and bot, Vitest for components.

@@ -27,8 +27,6 @@
 .club-rank { width: 1.8rem; text-align: center; font-weight: 700; color: var(--muted); flex-shrink: 0; }
 .club-score { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
 .club-score small { color: var(--muted); font-size: var(--fs-xs); }
-.club-role-select { width: auto; }
-
 .club-settings .ui-section-title { margin-top: 1.5rem; }
 .club-code { word-break: break-all; }
 

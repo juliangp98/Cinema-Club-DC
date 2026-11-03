@@ -634,11 +634,25 @@ a.share-state { color: var(--green); }
 
 .chat-readonly { font-size: var(--fs-xs); color: var(--muted); margin-top: 0.5rem; }
 
-/* Club roles (R5c) */
-.group-role-select {
-  margin-left: auto; background: var(--bg3); color: var(--cream); border: 1px solid var(--border);
-  border-radius: var(--radius-pill); padding: 0.2rem 0.6rem; font: inherit; font-size: var(--fs-xs); color-scheme: dark;
+/* ── Dropdown (ui/Select): the field look, the chevron inside the padding ─ */
+.ui-select { position: relative; display: inline-flex; max-width: 100%; }
+.ui-select select {
+  appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; cursor: pointer;
+  background: var(--bg3); color: var(--cream); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.4rem 2rem 0.4rem 0.6rem; font: inherit; font-size: var(--fs-sm); text-overflow: ellipsis; color-scheme: dark;
 }
+.ui-select select:hover { border-color: var(--border-strong); }
+.ui-select select:focus { outline: none; border-color: var(--amber); }
+.ui-select svg {
+  position: absolute; right: 0.65rem; top: 50%; width: 14px; height: 14px; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none;
+}
+.ui-select:hover svg, .ui-select:focus-within svg { color: var(--amber); }
+.ui-select.sm select {                                 /* chip-sized, for rows and filter bars */
+  min-height: 32px; border-color: var(--border-strong); border-radius: var(--radius-pill);
+  padding: 0.2rem 1.6rem 0.2rem 0.65rem; font-size: var(--fs-xs);
+}
+.ui-select.sm svg { right: 0.5rem; width: 12px; height: 12px; }
 
 .bring-plans { align-items: flex-start; }
 .bring-plans-list { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }

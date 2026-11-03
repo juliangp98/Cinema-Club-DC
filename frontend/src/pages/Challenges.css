@@ -22,7 +22,6 @@
 .ch-who .chip { display: inline-flex; align-items: center; gap: 0.35rem; }
 .ch-number { width: 6rem; }
 .ch-gauntlet { display: flex; flex-direction: column; gap: 0.4rem; }
-.ch-game-select { width: auto; max-width: 100%; }
 .ch-sheet .ui-hint { margin: 0.2rem 0 0.4rem; }
 
 /* The page */

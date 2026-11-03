@@ -6,6 +6,7 @@ import Sheet, { SheetTitle } from "../ui/Sheet";
 import ToggleChip from "../ui/ToggleChip";
 import Loading, { LoadError } from "../ui/Loading";
 import { Segmented } from "../ui/TicketRow";
+import Select from "../ui/Select";
 import { useShell } from "../shell/AppShell";
 import { untilText } from "./PollList";
 import "../pages/Challenges.css";
@@ -71,11 +72,8 @@ const RANDOM = { kind: "random", emoji: "🎲", label: "Random" };
 
 // The game picker: each of the club's games, or Random.
 function GamePick({ games, value, onChange, label }) {
-  return (
-    <select className="share-input ch-game-select" value={value} onChange={e => onChange(e.target.value)} aria-label={label}>
-      {[RANDOM, ...games].map(g => <option key={g.kind} value={g.kind}>{g.emoji} {g.label}</option>)}
-    </select>
-  );
+  return <Select label={label} value={value} onChange={onChange}
+                 options={[RANDOM, ...games].map(g => ({ value: g.kind, label: `${g.emoji} ${g.label}` }))} />;
 }
 
 // "⚔️ Challenge someone": the games (one, or a gauntlet — each picked or

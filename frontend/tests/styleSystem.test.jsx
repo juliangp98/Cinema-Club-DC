@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import Prompt from "../src/ui/Prompt";
+import Select from "../src/ui/Select";
 import StyleguidePage from "../src/pages/StyleguidePage";
 import { renderPage } from "./support";
 
@@ -50,13 +51,27 @@ test("boxes on the card surface use the card tokens", () => {
 
 test("the old one-off prompt and badge styles are gone", () => {
   const retired = ["share-prompt", "share-remember", "watch-discord-prompt", "alert-ask", "list-chip", "pv-status",
-                   "chat-via", "theatre-card-tonight", "feed-action"];
+                   "chat-via", "theatre-card-tonight", "feed-action", "group-role-select", "club-role-select",
+                   "more-scope-theatre", "ch-game-select"];
   const left = [];
   for (const path of files(SRC, /\.(css|jsx?)$/)) {
     const src = readFileSync(path, "utf8");
     for (const name of retired) if (new RegExp(`\\b${name}\\b`).test(src)) left.push(`${path}: ${name}`);
   }
   expect(left).toEqual([]);
+});
+
+test("every dropdown is the kit's Select: the chevron inside, the value out", async () => {
+  const own = files(SRC, /\.jsx$/).filter(p => !p.endsWith(join("ui", "Select.jsx")) && /<select\b/.test(readFileSync(p, "utf8")));
+  expect(own).toEqual([]);
+  const onChange = vi.fn();
+  render(<Select label="Game" value="random" onChange={onChange} size="sm"
+                 options={[{ value: "random", label: "🎲 Random" }, { value: "trivia", label: "🧠 Trivia" }]} />);
+  const box = screen.getByRole("combobox", { name: "Game" });
+  expect(box.closest(".ui-select")).toHaveClass("sm");
+  expect(box.nextSibling.tagName).toBe("svg");
+  await userEvent.selectOptions(box, "trivia");
+  expect(onChange).toHaveBeenCalledWith("trivia");
 });
 
 const group = { id: 1, name: "Cinema Club DC", slug: "ccdc", emoji: "🎬" };
