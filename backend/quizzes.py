@@ -311,14 +311,21 @@ _image_cache = {}
 
 STOP = {'with', 'from', 'that', 'this', 'there', 'their', 'into', 'about', 'than', 'then', 'they', 'have', 'what',
         'when', 'were', 'will', 'your', 'film', 'movie'}
+NAME_FILLER = {'the', 'and', 'mrs', 'von', 'van', 'der', 'del'}   # "The Dude", "Mrs. Bates": not giveaways
+
+
+def _words(text):
+    """A text's words, lowercased, without accents or punctuation ("Novak." → novak)."""
+    import re as _re
+    import discover
+    return _re.findall(r'[a-z0-9]+', discover.normalize(text or ''))
 
 
 def _banned_words(f):
     """Words a clue can't contain: the title's, the year, the people's names."""
-    import discover
-    words = {w for w in discover.normalize(f.title).split() if len(w) >= 4 and w not in STOP}
+    words = {w for w in _words(f.title) if len(w) >= 4 and w not in STOP}
     for name in [f.director or '', *f.cast[:6], *f.characters[:6]]:
-        words |= {w for w in discover.normalize(name).split() if len(w) >= 3}
+        words |= {w for w in _words(name) if len(w) >= 3 and w not in NAME_FILLER}
     if f.year:
         words.add(str(f.year))
     return words
@@ -333,11 +340,10 @@ def clues(text, banned, most=2):
     """Up to `most` sentences of a review that hint without giving the film
     away (none of `banned`), 25–220 characters, longest first — none when the
     review is mostly names and plot."""
-    import discover
     sentences = _sentences(text)
     if not sentences:
         return []
-    ok = [x for x in sentences if not set(discover.normalize(x).split()) & banned]
+    ok = [x for x in sentences if not set(_words(x)) & banned]
     if len(ok) < len(sentences) * 0.4:                          # mostly giveaways: skip the review
         return []
     return sorted((x for x in ok if 25 <= len(x) <= 220), key=len, reverse=True)[:most]

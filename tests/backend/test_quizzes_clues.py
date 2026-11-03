@@ -73,6 +73,14 @@ def test_clues_never_name_the_film_or_its_people(club):
         assert {'vertigo', 'stewart', 'scottie', 'madeleine', 'hitchcock', '1958'} <= banned
         assert quizzes.clue(REVIEWS[0], banned) == 'The score alone will follow you home.'   # not the "Stewart" one
         assert quizzes.clue(REVIEWS[3], banned) is None                                   # all plot and names: skipped
+        assert quizzes.clue('Nobody does haunted obsession better than Novak.', banned) is None   # a name before a full stop
+    # "The Dude", "Mrs. Bates": a name's filler words aren't giveaways — or no sentence with "the" could be a clue.
+    import types
+    dude = types.SimpleNamespace(title='The Big Lebowski', director='Joel Coen', cast=['Jeff Bridges'], year=1998,
+                                 characters=['The Dude', 'Mrs. Bates'])
+    banned = quizzes._banned_words(dude)
+    assert {'lebowski', 'dude', 'bates', 'bridges', '1998'} <= banned and not {'the', 'mrs'} & banned
+    assert quizzes.clue('The ending lands like a punch to the chest.', banned) == 'The ending lands like a punch to the chest.'
 
 
 def test_reviews_pay_by_how_many_it_took(club, monkeypatch):
