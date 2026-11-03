@@ -31,6 +31,10 @@ def test_names_go_through_the_caching_resolver_then_the_router():
         block = re.search(rf'^  {service}:\n(.*?)(?=^  \w|\Z)', src, re.M | re.S).group(1)
         assert re.search(rf'dns:\n\s+- {re.escape(fixed)}\n\s+- 192\.168\.0\.1', block), service
         assert '- dns' in block, f'{service} starts after the resolver'
+        assert re.search(r'networks:\n\s+- default\n\s+- lookups', block), f'{service} joins the resolver\'s network'
+    # The project's default network is left as it was: replacing it needs every
+    # container off it, and on the NAS something else stays attached.
+    assert not re.search(r'^  default:', src.split('\nnetworks:\n', 1)[1], re.M)
     conf = (ROOT / 'dns' / 'unbound.conf.in').read_text()
     for line in ('serve-expired: yes', 'forward-addr: @UPSTREAM@', 'module-config: "iterator"'):
         assert line in conf

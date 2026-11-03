@@ -29,6 +29,9 @@ services:
     dns:
       - 172.29.53.53
       - 192.168.0.1
+    networks:
+      - default
+      - lookups
     depends_on:
       - dns
     volumes:
@@ -67,6 +70,9 @@ services:
     dns:
       - 172.29.53.53
       - 192.168.0.1
+    networks:
+      - default
+      - lookups
     depends_on:
       - dns
       - backend
@@ -79,7 +85,8 @@ services:
   # 6 ("Temporary failure in name resolution": sign-in emails, TMDB, the AI).
   # This asks the router and keeps the answers; when the router fails, a name
   # it has seen is answered from the cache, even expired. It sits at a fixed
-  # address on the project's network (dns: needs an IP).
+  # address (dns: needs an IP) on its own small network, `lookups`, which the
+  # backend and bot also join; the project's default network stays as it was.
   dns:
     build:
       context: .
@@ -88,15 +95,15 @@ services:
     environment:
       - DNS_UPSTREAM=192.168.0.1
     networks:
-      default:
+      lookups:
         ipv4_address: 172.29.53.53
     restart: unless-stopped
 
 networks:
-  default:
+  lookups:                            # the resolver's own network: a fixed range, so its address can be fixed
     ipam:
       config:
-        - subnet: 172.29.53.0/24      # a fixed range, so the resolver's address can be fixed
+        - subnet: 172.29.53.0/24
 
 volumes:
   db-data:
