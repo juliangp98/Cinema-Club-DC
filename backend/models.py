@@ -1092,7 +1092,7 @@ class DiscordPost(db.Model):
     `dirty`, and deletes it when what it shows is gone."""
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
-    kind = db.Column(db.String(16), nullable=False)        # rsvp | invite | poll | poll_results | thread
+    kind = db.Column(db.String(16), nullable=False)        # rsvp | invite | poll | poll_results | poll_call | thread | …
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ref_id = db.Column(db.Integer)                          # showtime (invite, thread) or poll id
     note = db.Column(db.String(200))
@@ -1151,6 +1151,10 @@ class Poll(db.Model):
     # it's finalized; 'live' — each as it's set, and that category stops
     # taking votes (timing counts). Kernels reach totals at finalize either way.
     reveal = db.Column(db.String(8), default='final')
+    # A live poll posted in Discord, as answers come in: 'post' — the poll's
+    # own post keeps its standings up to date; 'feed' — each answer goes up as
+    # a new reply under it ("Called: …"); 'both' (the default).
+    live_discord = db.Column(db.String(6), default='both')
     closes_at = db.Column(db.DateTime, nullable=True)          # voting deadline (naive UTC); closes by itself
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     closed_at = db.Column(db.DateTime, nullable=True)
@@ -1190,6 +1194,7 @@ class Poll(db.Model):
             'closed_at': self.closed_at.isoformat() if self.closed_at else None,
             'category_count': len(self.categories),
             'reveal': self.reveal or 'final',
+            'live_discord': self.live_discord or 'both',
             # The deadline: when (UTC, for "in 2 hours") and as the club's city's wall clock (to show and edit)
             'closes_at': core.utc_iso(self.closes_at),
             'closes_at_local': places.from_utc(self.closes_at, city).isoformat(timespec='minutes') if self.closes_at else None,

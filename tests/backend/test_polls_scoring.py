@@ -253,3 +253,61 @@ def test_create_now_in_discord_follows_the_creators_setting(club):
 
 def test_the_old_oscars_template_is_gone(club):
     assert client(club['ana']).post(f"/api/groups/{club['group']}/polls/oscars", json={}).status_code in (404, 405)
+
+
+def mark_posted(pid, message_id='5550001'):
+    """The bot posted the poll's announcement in the channel."""
+    from app import app, db, DiscordPost
+    with app.app_context():
+        p = DiscordPost.query.filter_by(kind='poll', ref_id=pid).one()
+        p.status, p.message_id = 'posted', message_id
+        db.session.commit()
+
+
+def test_each_live_answer_goes_up_under_the_poll_in_discord(club):
+    """Election night: a live poll posted in Discord gets each answer as a
+    reply under it as it's set — the result, how many called it, how far
+    along it is, the top three — a correction says so. Its creator picks:
+    the poll's post updates, a reply per answer, or both (the default).
+    Questions are optional: a skipped one scores nothing."""
+    c = live_fest(club)
+    site_vote(c, c['cy'], 'bp', 'sirat', 6)                                  # Cy skips Best Director
+    discord_vote(c, c['poll'], votes=[{'category_id': c['bp'], 'option_id': c['hamnet'], 'confidence': 4}])
+    set_answer(c, 'bd', 'laxe')
+    assert posts('poll_call', c['poll']) == []                              # the poll isn't up in Discord yet
+    mark_posted(c['poll'])
+    set_answer(c, 'bp', 'sirat')
+    [call] = posts('poll_call', c['poll'])
+    assert call == {'poll_id': c['poll'], 'title': 'Fest picks', 'question': 'Best Picture', 'answer': 'SIRÂT', 'changed': False,
+                    'got': 1, 'voters': 2, 'decided': 2, 'of': 2, 'reply_to': '5550001',
+                    'top': [{'name': 'Cy', 'kernels': 6, 'correct': 1}, {'name': 'Bo', 'kernels': -4, 'correct': 0}]}
+    set_answer(c, 'bp', 'sirat')                                             # saved again: nothing new
+    set_answer(c, 'bp', 'hamnet')                                            # a correction
+    calls = posts('poll_call', c['poll'])
+    assert [(x['answer'], x['changed'], x['got']) for x in calls] == [('SIRÂT', False, 1), ('HAMNET', True, 1)]
+    [post] = posts('poll', c['poll'])
+    assert post['decided'] == 2 and post['live_top']                         # both: the poll's post keeps its standings too
+    assert client(c['ana']).put(f"/api/polls/{c['poll']}", json={'live_discord': 'feed'}).json['live_discord'] == 'feed'
+    [post] = posts('poll', c['poll'])
+    assert 'live_top' not in post                                            # the feed alone: the post stays as it was
+    assert client(c['ana']).put(f"/api/polls/{c['poll']}", json={'live_discord': 'post'}).json['live_discord'] == 'post'
+    set_answer(c, 'bd', 'zhao')
+    assert len(posts('poll_call', c['poll'])) == 2 and posts('poll', c['poll'])[0]['live_top']   # the post alone: no replies
+    client(c['ana']).post(f"/api/polls/{c['poll']}/score", json={})
+    assert poll_kernels(c['cy']) == -6                                       # Best Picture only (now HAMNET); the skip cost nothing
+
+
+def test_a_deleted_poll_takes_its_answers_down_in_discord(club):
+    from app import app, DiscordPost
+    c = live_fest(club)
+    mark_posted(c['poll'])
+    set_answer(c, 'bp', 'sirat')
+    with app.app_context():
+        call = DiscordPost.query.filter_by(kind='poll_call', ref_id=c['poll']).one()
+        call.status = 'posted'
+        from app import db
+        db.session.commit()
+    assert client(c['ana']).delete(f"/api/polls/{c['poll']}").status_code == 200
+    with app.app_context():
+        call = DiscordPost.query.filter_by(kind='poll_call', ref_id=c['poll']).one()
+        assert call.dirty and posts('poll_call', c['poll']) == [None]       # the bot deletes it

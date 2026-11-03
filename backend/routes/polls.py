@@ -6,6 +6,7 @@ import json as _json
 import places
 from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote, POLL_TYPES, REVEALS,
     SCORING_MODES, _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes,
+    LIVE_DISCORD, queue_poll_call,
     build_poll, can_share, clear_poll_results, close_due_polls, close_poll, current_user, datetime, db,
     edit_poll_categories, jsonify, notify_poll_results, parse_closes_at, poll_open, poll_posts_changed, poll_scores,
     poll_your_score, post_dict, queue_poll_post, request, require_auth, require_group_member, require_role,
@@ -123,6 +124,8 @@ def update_poll(poll_id):
         poll.title = title
     if 'description' in data:
         poll.description = (data['description'] or '')[:2000]
+    if data.get('live_discord') in LIVE_DISCORD:      # a live poll in Discord: its post updates, a reply per answer, or both
+        poll.live_discord = data['live_discord']
     # How it's scored can't change once anyone has picked: their picks were made for it.
     changes = {k: data[k] for k, allowed in (('poll_type', POLL_TYPES), ('scoring_mode', SCORING_MODES), ('reveal', REVEALS))
                if k in data and data[k] in allowed and data[k] != getattr(poll, k)}
@@ -167,8 +170,10 @@ def delete_poll(poll_id):
 
     poll_posts_changed(poll.id)            # its Discord posts come down
     clear_poll_results(poll)
-    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll.id,
+    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results', 'poll_call')), DiscordPost.ref_id == poll.id,
                              DiscordPost.status == 'pending').update({'status': 'cancelled'}, synchronize_session=False)
+    DiscordPost.query.filter(DiscordPost.kind == 'poll_call', DiscordPost.ref_id == poll.id,      # its answers come down too
+                             DiscordPost.status == 'posted').update({'dirty': True}, synchronize_session=False)
     db.session.delete(poll)
     db.session.commit()
     return jsonify({'message': 'Poll deleted'})
@@ -212,6 +217,7 @@ def set_category_winner(poll_id, cat_id):
 
     data = request.json or {}  # { option_id: int | null }
     opt_id = _as_int(data.get('option_id'))
+    before = cat.correct_option_id
     if opt_id:
         opt = db.session.get(PollOption, opt_id)
         if not opt or opt.category_id != cat_id:
@@ -221,6 +227,8 @@ def set_category_winner(poll_id, cat_id):
         cat.correct_option_id = None
 
     poll_posts_changed(poll.id)            # posted results (and a live poll's standings) follow
+    if opt_id and opt_id != before:
+        queue_poll_call(poll, cat, changed=bool(before))     # live: "Called: …" under the poll's Discord post
     if poll.status == 'scored':
         notify_poll_results(poll)          # a correction after finalizing updates everyone's result note
     db.session.commit()

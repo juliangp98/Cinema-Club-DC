@@ -577,6 +577,22 @@ def _live_standings(embed, p):
                     value='\n'.join(rows) or 'Nobody picked those yet.')
 
 
+def poll_call_embed(p):
+    """A live poll's answer as it's set, posted as a reply under the poll
+    (app.poll_call_payload): the result, who called it, how far along it is,
+    the top three now. Names only, never pings."""
+    head = '🔁 Changed' if p.get('changed') else '📣 Called'
+    embed = discord.Embed(title=f"{head}: {p['question']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
+    called = (f"{p['got']} of {p['voters']} called it" if p['voters'] else 'Nobody had picked yet')
+    embed.description = f"**{p['answer']}**\n{called}"[:4000]
+    who = lambda t: f"**{t['name']}**" if t.get('name') else '*a member on the site*'
+    rows = [f"{MEDALS[i]} {who(t)}: {t['kernels']} 🍿" for i, t in enumerate(p.get('top') or [])]
+    embed.add_field(name=f"Standings · {p['decided']} of {p['of']} called", inline=False,
+                    value='\n'.join(rows) or 'Nobody has a right pick yet.')
+    embed.set_footer(text=p['title'][:200])
+    return embed
+
+
 def poll_results_embed(p):
     embed = discord.Embed(title=f"🏆 Results: {p['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
     top = p.get('top') or []

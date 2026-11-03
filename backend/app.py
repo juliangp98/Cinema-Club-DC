@@ -850,16 +850,58 @@ def poll_payload(poll, results=False):
                'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode, 'reveal': poll.reveal or 'final',
                'categories': len(poll.categories), 'closes_at': utc_iso(poll.closes_at),
                'creator': poll.creator.name if on_discord(poll.creator, poll.group_id) else None}
-    top = lambda board: [{'name': s['user'].name if on_discord(s['user'], poll.group_id) else None,
-                          'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
+    top = lambda board: _poll_top(poll, board)
     if results:
         payload['voters'] = poll_voter_count(poll)
         payload['top'] = top(poll_scores(poll))
-    elif poll.live and poll.status != 'scored':
-        # A live poll's announcement keeps the standings as answers come in.
+    elif poll.live and poll.status != 'scored' and poll.live_discord != 'feed':
+        # A live poll's announcement keeps the standings as answers come in (unless it's the feed alone).
         payload['decided'] = sum(1 for c in poll.categories if c.correct_option_id)
         payload['live_top'] = top(poll_scores(poll, members_view=True)) if payload['decided'] else []
     return payload
+
+
+def _poll_top(poll, board):
+    """The top three for a Discord post: plain names (members not on Discord stay unnamed)."""
+    return [{'name': s['user'].name if on_discord(s['user'], poll.group_id) else None,
+             'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
+
+
+def poll_call_payload(poll, post):
+    """A live poll's answer as it was set (the post's note says which): the
+    question and answer, how many called it, how far along the poll is, the
+    top three now, and the poll's own post to reply under."""
+    import json
+    info = json.loads(post.note or '{}')
+    cat = db.session.get(PollCategory, info.get('category_id') or 0)
+    opt = db.session.get(PollOption, info.get('option_id') or 0)
+    if not cat or not opt or cat.poll_id != poll.id or opt.category_id != cat.id:
+        return None
+    first = [v for v in PollVote.query.filter_by(category_id=cat.id) if (v.rank or 1) == 1]   # ranked: their first pick
+    announcement = _live_post('poll', poll.id, poll.group_id)
+    return {'poll_id': poll.id, 'title': poll.title, 'question': cat.title, 'answer': opt.text,
+            'changed': bool(info.get('changed')), 'got': sum(1 for v in first if v.option_id == opt.id), 'voters': len(first),
+            'decided': sum(1 for c in poll.categories if c.correct_option_id), 'of': len(poll.categories),
+            'top': _poll_top(poll, poll_scores(poll, members_view=True)),
+            'reply_to': announcement.message_id if announcement and announcement.status == 'posted' else None}
+
+
+LIVE_DISCORD = ('post', 'feed', 'both')     # a live poll in Discord: its post updates, a reply per answer, or both
+
+
+def queue_poll_call(poll, cat, changed=False):
+    """A live poll's answer, posted as a reply under the poll's Discord post —
+    when the poll is up there and its creator chose the feed (or both). Posted
+    for whoever shared the poll (they chose to have it in the channel). Caller commits."""
+    import json
+    announcement = _live_post('poll', poll.id, poll.group_id)
+    if not (poll.live and (poll.live_discord or 'both') in ('feed', 'both') and announcement and announcement.status == 'posted'):
+        return None
+    post = DiscordPost(group_id=poll.group_id, kind='poll_call', user_id=announcement.user_id, ref_id=poll.id,
+                       note=json.dumps({'category_id': cat.id, 'option_id': cat.correct_option_id, 'changed': changed}),
+                       post_at=places.server_now())
+    db.session.add(post)
+    return post
 
 
 def _brief_screening(s):
@@ -905,6 +947,8 @@ def render_post(p, now=None):
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
         return None
+    if p.kind == 'poll_call':
+        return poll_call_payload(poll, p)
     if p.kind == 'poll':
         return poll_payload(poll)
     if p.kind == 'poll_results':
@@ -1220,7 +1264,8 @@ def build_poll(group_id, user, data):
                 description=(data.get('description') or '')[:2000],
                 poll_type=data.get('poll_type') if data.get('poll_type') in POLL_TYPES else 'standard',
                 scoring_mode=data.get('scoring_mode') if data.get('scoring_mode') in SCORING_MODES else 'none',
-                reveal=data.get('reveal') if data.get('reveal') in REVEALS else 'final', closes_at=closes_at)
+                reveal=data.get('reveal') if data.get('reveal') in REVEALS else 'final', closes_at=closes_at,
+                live_discord=data.get('live_discord') if data.get('live_discord') in LIVE_DISCORD else 'both')
     db.session.add(poll)
     db.session.flush()
     order = 0

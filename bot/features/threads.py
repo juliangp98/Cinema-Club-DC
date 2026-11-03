@@ -479,6 +479,8 @@ def share_content(kind, data):
         return None, embeds.poll_post_embed(data), view
     if kind == 'poll_results':
         return None, embeds.poll_results_embed(data), None
+    if kind == 'poll_call':
+        return None, embeds.poll_call_embed(data), None
     if kind == 'challenge':
         embed, view = challenges.post_content(data)
         return None, embed, view
@@ -505,8 +507,11 @@ async def handle_share(channel, item):
         return
     content, embed, view = share_content(kind, data)
     if action == 'post':
+        reply = data.get('reply_to') if isinstance(data, dict) else None      # a live poll's answer: under its poll
+        ref = (discord.MessageReference(message_id=int(reply), channel_id=channel.id, fail_if_not_exists=False)
+               if reply else None)
         msg = await channel.send(content=content, embed=embed, view=view or discord.utils.MISSING,
-                                 allowed_mentions=NO_PINGS)
+                                 allowed_mentions=NO_PINGS, reference=ref or discord.utils.MISSING)
         await done(action='posted', message_id=str(msg.id), jump_url=msg.jump_url)
         return
     try:

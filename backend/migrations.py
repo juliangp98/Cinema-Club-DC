@@ -33,7 +33,8 @@ def migrate():
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
-        # Polls: answers live or all at once, and a voting deadline
+        # Polls: answers live or all at once, and a voting deadline; each live answer posted in Discord
+        "ALTER TABLE poll ADD COLUMN live_discord VARCHAR(6) DEFAULT 'both'",
         "ALTER TABLE poll ADD COLUMN reveal VARCHAR(8) DEFAULT 'final'",
         "ALTER TABLE poll ADD COLUMN closes_at DATETIME",
         # Challenges: the club's switches

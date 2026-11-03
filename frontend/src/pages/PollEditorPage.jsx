@@ -16,6 +16,14 @@ const MODES = {
                { status: "ranked", label: "Ranked top 3" }],
 };
 const REVEALS = [{ status: "final", label: REVEAL_LABELS.final }, { status: "live", label: REVEAL_LABELS.live }];
+// A live poll in the club's Discord (app.LIVE_DISCORD): its own post keeps the standings, a reply per answer, or both.
+const LIVE_DISCORD = [{ status: "post", label: "Update the poll's post" }, { status: "feed", label: "Post each answer" },
+                      { status: "both", label: "Both" }];
+const LIVE_DISCORD_HINTS = {
+  post: "The poll's post keeps its standings up to date. Edits don't notify anyone.",
+  feed: "Each answer goes up as a new reply under the poll: the result, how many called it and the top three. A running feed that shows as new messages.",
+  both: "The poll's post keeps its standings, and each answer also goes up as a new reply under it.",
+};
 const DEADLINES = [{ status: "manual", label: "When I close it" }, { status: "at", label: "At a set time" }];
 // What a draft is based on: the club's local showings, or films in general.
 const SCOPES = [{ status: "playing", label: "Local showings" }, { status: "all", label: "All films" }];
@@ -23,7 +31,7 @@ const SCOPE_KEY = "cinemaclub_draft_scope";
 const EXAMPLES = ["Spookiest Halloween movies playing this month", "The 99th Oscar nominees", "Best repertory screening this fall"];
 const blankCategory = () => ({ title: "", options: [{ text: "" }, { text: "" }] });
 const BLANK = { title: "", description: "", poll_type: "standard", scoring_mode: "none", reveal: "final", closes: "",
-                categories: [blankCategory()] };
+                live_discord: "both", categories: [blankCategory()] };
 
 // <input type="datetime-local"> value an hour or so from now (the default deadline).
 function soon() {
@@ -85,6 +93,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
       setPoll(p);
       setForm({ title: p.title, description: p.description || "", poll_type: p.poll_type, scoring_mode: p.scoring_mode,
                 reveal: p.reveal || "final", closes: p.status === "open" ? (p.closes_at_local || "") : "",
+                live_discord: p.live_discord || "both",
                 categories: p.categories.map(c => ({ id: c.id, title: c.title, picked: c.vote_count > 0,
                                                      options: c.options.map(o => ({ id: o.id, text: o.text, extra: o.extra })) })) });
     }).catch(() => setError("That poll couldn't be opened."));
@@ -125,7 +134,8 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
                    options: c.options.filter(o => o.text.trim()).map(o => ({ ...(o.id ? { id: o.id } : {}), text: o.text.trim(), extra: o.extra })) }))
       .filter(c => c.title && c.options.length >= 2);
     const body = {
-      title: form.title, description: form.description, categories, ...(showDeadline ? { closes_at: form.closes || null } : {}),
+      title: form.title, description: form.description, categories, live_discord: form.live_discord,
+      ...(showDeadline ? { closes_at: form.closes || null } : {}),
       ...(scoringSet ? {} : { poll_type: form.poll_type, scoring_mode: form.scoring_mode, reveal: scored ? form.reveal : "final" }),
     };
     try {
@@ -233,6 +243,15 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
               {" "}{SCORING_LABELS[form.scoring_mode]}.{scored ? ` ${REVEAL_HINTS[form.reveal]}` : ""}
             </p>
           </>
+        )}
+
+        {scored && form.reveal === "live" && (
+          <div className="pv-live-discord">
+            <span className="pv-label">In Discord, as answers come in</span>
+            <Segmented label="In Discord, as answers come in" options={LIVE_DISCORD} value={form.live_discord}
+                       onChange={v => v && set({ live_discord: v })} />
+            <p className="ui-hint">{LIVE_DISCORD_HINTS[form.live_discord]} Only if the poll is posted in the club's channel.</p>
+          </div>
         )}
 
         {showDeadline && <div className="pv-deadline">

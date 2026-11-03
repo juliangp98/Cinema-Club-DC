@@ -19,9 +19,10 @@ class NotFoundResp:
 
 
 class Msg:
-    def __init__(self, ch, content, embed, view):
+    def __init__(self, ch, content, embed, view, reference=None):
         self.id, self.channel = next(_ids), ch
         self.content, self.embed, self.view, self.deleted = content, embed, view, False
+        self.reference = reference
         self.jump_url = f'https://discord.com/channels/900/{ch.id}/{self.id}'
 
 
@@ -51,8 +52,9 @@ class Channel:
     def __init__(self):
         self.msgs, self.log = {}, []
 
-    async def send(self, content=None, embed=None, view=None, allowed_mentions=None):
-        m = Msg(self, content, embed, view if view is not discord.utils.MISSING else None)
+    async def send(self, content=None, embed=None, view=None, allowed_mentions=None, reference=None):
+        m = Msg(self, content, embed, view if view is not discord.utils.MISSING else None,
+                reference if reference is not discord.utils.MISSING else None)
         self.msgs[m.id] = m
         self.log.append(('send', m.id, allowed_mentions))
         return m
@@ -182,6 +184,28 @@ def test_a_polls_posts_from_announcement_to_results(world):
     a.delete(f"/api/polls/{p['id']}")
     world.tick()
     assert m.deleted and res.deleted
+
+
+def test_a_live_polls_answers_reply_under_it_as_theyre_set(world):
+    """Election night in the channel: each answer to a live poll goes up as a
+    reply under the poll's post (no pings), as it's set."""
+    a = client(world.ana)
+    p = a.post('/api/groups/1/polls', json={
+        'title': 'Election night', 'announce': 'now', 'poll_type': 'prediction', 'scoring_mode': 'single', 'reveal': 'live',
+        'categories': [{'title': 'Senate: PA', 'options': [{'text': 'Red'}, {'text': 'Blue'}]},
+                       {'title': 'House', 'options': [{'text': 'Red'}, {'text': 'Blue'}]}]}).json
+    world.tick()
+    poll_msg = world.ch.last()
+    pa = p['categories'][0]
+    client(world.bo).post(f"/api/polls/{p['id']}/vote", json={'votes': [{'category_id': pa['id'], 'option_id': pa['options'][1]['id']}]})
+    a.put(f"/api/polls/{p['id']}/categories/{pa['id']}/winner", json={'option_id': pa['options'][1]['id']})
+    world.tick()
+    call = world.ch.last()
+    assert call is not poll_msg and call.reference.message_id == poll_msg.id and not call.reference.fail_if_not_exists
+    assert call.embed.title == '📣 Called: Senate: PA' and call.embed.description == '**Blue**\n1 of 1 called it'
+    assert call.embed.fields[0].name == 'Standings · 1 of 2 called' and '**Bo**: 1 🍿' in call.embed.fields[0].value
+    assert world.ch.log[-1][2] == discord.AllowedMentions.none() or not world.ch.log[-1][2].replied_user
+    assert 'Live standings · 1 of 2 decided' in poll_msg.embed.fields[0].name                 # the poll's own post follows too
 
 
 def test_starting_a_thread(world):
