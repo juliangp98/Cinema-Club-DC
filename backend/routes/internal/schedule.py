@@ -162,8 +162,11 @@ def internal_theatres():
     mine = places.club_slugs(group)
     theatres = places.theatres_in()
     ordered = [t for t in theatres if t.slug in mine] + [t for t in theatres if t.slug not in mine]
+    city = places.club_city(group)
     return jsonify({'theatres': [{**t.to_dict(), 'yours': t.slug in mine} for t in ordered],
-                    'multi': places.multi_city(), 'city': places.club_city(group)})
+                    'multi': places.multi_city(), 'city': city,
+                    # the city's areas too, so a `where:` box needs this one lookup (Discord gives it 3 s)
+                    'areas': [{'value': f'region:{k}', 'label': v} for k, v in cities.area_keys(city).items()]})
 
 
 @app.route('/api/internal/announced')

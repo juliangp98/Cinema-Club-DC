@@ -141,3 +141,23 @@ def test_a_failed_dm_club_lookup_isnt_remembered(monkeypatch):
         raise aiohttp.ClientConnectorError(None, OSError('down'))
     monkeypatch.setattr(servers.api, 'get', down)
     assert run(servers.dm_clubs(4242)) == [] and 4242 not in servers._dm_clubs
+
+
+def test_where_answers_from_one_lookup(monkeypatch):
+    """/surprise and /find's `where:` box: the city's areas come with the
+    theatre list — one backend call, inside Discord's 3 seconds."""
+    from helpers import patch_bot_api, setup_db
+    setup_db()
+    bot = patch_bot_api()
+    from features import schedule
+    asked = []
+    real = bot.api.get
+
+    async def get(path, **params):
+        asked.append(path)
+        return await real(path, **params)
+    monkeypatch.setattr(bot.api, 'get', get)
+    choices = run(schedule.where_ac(None, ''))
+    assert asked == ['/api/internal/theatres']
+    assert choices[0].name.startswith('Anywhere in ') and choices[0].value.startswith('region:')
+    assert any(c.value.startswith('theatre:') for c in choices)

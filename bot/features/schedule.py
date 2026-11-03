@@ -9,7 +9,7 @@ from discord import app_commands
 from api import ApiError
 import embeds
 from .shared import (GONE_MSG, SITE_NAME, SITE_URL, api, city_choices, client, club, club_city, club_now, club_of, date_choices, discord_identity,
-                     dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_window, where_args,
+                     dynamic_date_ac, dynamic_end_ac, dynamic_theatre_ac, fetch_range, fetch_theatres, fetch_window, where_args,
                      parse_iso_date, register, reply_failure, resolve_window, rsvp_date_autocomplete,
                      rsvp_end_autocomplete, rsvp_showtime_autocomplete, rsvp_theatre_autocomplete, tell,
                      theatre_choices, theatre_match)
@@ -372,9 +372,11 @@ async def type_ac(interaction, current):
 
 
 async def where_ac(interaction, current):
+    """The club's city's areas, then theatres — from one lookup (the theatre
+    list carries the areas), so it answers inside Discord's 3 seconds."""
     cur = (current or '').strip().lower()
     try:
-        regions = (await fetch_find_options())['regions']
+        regions = (await fetch_theatres()).get('areas') or []
     except Exception:
         regions = []
     out = [app_commands.Choice(name=f"Anywhere in {r['label']}", value=r['value'])
