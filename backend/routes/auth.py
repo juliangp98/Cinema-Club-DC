@@ -126,7 +126,7 @@ def _client_ip():
 
 def _issue_signin_link(email, purpose, name=None):
     """Create a one-time token and email its link. Returns an error response
-    when rate-limited, otherwise None."""
+    when rate-limited or the email couldn't be sent, otherwise None."""
     now = _utcnow_naive()
     since = now - SIGNIN_RATE_WINDOW
     ip = _client_ip()
@@ -143,7 +143,9 @@ def _issue_signin_link(email, purpose, name=None):
     # Old rows only matter for rate limiting; keep the table small.
     LoginToken.query.filter(LoginToken.created_at < now - timedelta(days=1)).delete()
     db.session.commit()
-    core.email_signin_link(email, f"{FRONTEND_URL}/auth/verify?token={token}", purpose)
+    if not core.email_signin_link(email, f"{FRONTEND_URL}/auth/verify?token={token}", purpose):
+        other = ' or sign in with Discord' if _discord_oauth_enabled() else ''
+        return jsonify({'error': f"We couldn't send the email just now. Try again in a few minutes{other}."}), 503
     return None
 
 # ─── Routes: Auth ─────────────────────────────────────────────────────────────

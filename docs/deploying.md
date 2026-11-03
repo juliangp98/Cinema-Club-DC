@@ -75,6 +75,12 @@ How the scrapers pace themselves: [scrapers.md](scrapers.md).
   day; re-run it daily until it reports nothing left (it resumes where it stopped).
 - **Push alerts** — `sudo docker exec cinemaclub-backend python vapid_keys.py`, paste the two lines into
   `.env.production`, set `VAPID_SUBJECT`, and rebuild.
+- **Someone can't sign in** — `sudo docker exec cinemaclub-backend python account_check.py person@example.com`
+  shows their account (active? Discord linked? recent sign-in requests). Add `--send` to send a real
+  sign-in email and see whether Gmail took it, `--link` to print a one-time link to pass on yourself, or
+  run it with just `--smtp` to test the mail login. If the site says it couldn't send the email, the
+  backend log has Gmail's reason (`sudo docker logs cinemaclub-backend 2>&1 | grep "Email failed"`);
+  a changed or revoked app password is the usual one.
 - **Search engines** — in Google Search Console add a Domain property for your domain, verify it with the
   TXT record in your DNS, and submit `https://your-domain/sitemap.xml`. Private pages are `noindex` and
   `robots.txt` keeps crawlers out of them.

@@ -13,6 +13,7 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid
 from functools import wraps
 from dotenv import load_dotenv
 import sys as _sys
@@ -92,10 +93,22 @@ DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 
 # ─── Email Helper ─────────────────────────────────────────────────────────────
 
+def email_text(html_body):
+    """An email's plain-text copy: links written out, tags gone. Mail
+    providers trust a message more when it has one."""
+    import html
+    text = re.sub(r'<a [^>]*href="([^"]+)"[^>]*>(.*?)</a>', lambda m: f"{m.group(2)}: {m.group(1)}", html_body, flags=re.S)
+    text = re.sub(r'<br\s*/?>|</p>|</h\d>|</li>', '\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    return '\n'.join(line.strip() for line in html.unescape(text).splitlines() if line.strip())
+
+
 def send_email(to, subject, html_body):
-    """Send an email via Gmail SMTP. Falls back to console if SMTP not configured."""
+    """Send an email via Gmail SMTP (HTML, with a plain-text copy). Without
+    SMTP settings it's printed to the console instead. Returns False if the
+    mail server refused it (the reason goes to the log), True otherwise."""
     if not to:
-        return  # Discord-only accounts have no email address
+        return False  # Discord-only accounts have no email address
     subject = ' '.join(str(subject).split())        # one line: a name can't add headers
     if not SMTP_EMAIL or not SMTP_PASSWORD:
         print("\n📧 EMAIL (console fallback — set SMTP_EMAIL & SMTP_PASSWORD to send for real)")
@@ -106,21 +119,26 @@ def send_email(to, subject, html_body):
         for link in re.findall(r'href="([^"]+)"', html_body):
             print(f"   Link: {link}")
         print(flush=True)  # don't let stdout buffering hide the link
-        return
+        return True
 
     try:
         msg = MIMEMultipart('alternative')
         msg['From'] = f"{SITE_NAME} <{SMTP_EMAIL}>"
         msg['To'] = to
         msg['Subject'] = subject
-        msg.attach(MIMEText(html_body, 'html'))
+        msg['Date'] = formatdate()
+        msg['Message-ID'] = make_msgid(domain=SMTP_EMAIL.rpartition('@')[2] or None)
+        msg.attach(MIMEText(email_text(html_body), 'plain'))
+        msg.attach(MIMEText(html_body, 'html'))          # the last part is the one mail apps show
 
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20) as server:
             server.login(SMTP_EMAIL, SMTP_PASSWORD)
             server.sendmail(SMTP_EMAIL, to, msg.as_string())
-        print(f"📧 Email sent to {to}: {subject}")
+        print(f"📧 Email sent to {to}: {subject}", flush=True)
+        return True
     except Exception as e:
-        print(f"⚠️  Email failed to {to}: {e}")
+        print(f"⚠️  Email failed to {to}: {e}", flush=True)
+        return False
 
 
 def email_page(body):
@@ -137,6 +155,7 @@ def email_button(href, label):
 
 
 def email_signin_link(to_email, link_url, purpose):
+    """The sign-in (or confirm-your-account) email. False if it couldn't be sent."""
     if purpose == 'signup':
         subject, intro, button = (f'Confirm your {SITE_NAME} account',
                                   'Confirm your email to finish creating your account.',
@@ -144,10 +163,10 @@ def email_signin_link(to_email, link_url, purpose):
     else:
         subject, intro, button = (f'Your {SITE_NAME} sign-in link',
                                   'Use this link to sign in.', 'Sign In')
-    send_email(to_email, subject, email_page(
+    return send_email(to_email, subject, email_page(
         f"""<p>{intro} It works once and expires in 15 minutes.</p>{email_button(link_url, button)}
-        <p style="color:#888;font-size:13px;">If you didn't ask for this, you can ignore this email —
-        nobody can sign in without this link.</p>"""))
+        <p style="color:#888;font-size:13px;">If you didn't ask for this, you can ignore this email.
+        Nobody can sign in without this link.</p>"""))
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
     ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, Challenge, ChallengeBet, ChallengePlayer, ClubDigest,

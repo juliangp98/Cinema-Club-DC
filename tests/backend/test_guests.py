@@ -133,7 +133,7 @@ def emails(monkeypatch):
     """Sign-in emails captured instead of sent: returns the token of the last one."""
     import app as A
     sent = {}
-    monkeypatch.setattr(A, 'email_signin_link', lambda email, link, purpose: sent.update(email=email, link=link))
+    monkeypatch.setattr(A, 'email_signin_link', lambda email, link, purpose: sent.update(email=email, link=link) or True)
     return lambda: parse_qs(urlparse(sent['link']).query)['token'][0]
 
 

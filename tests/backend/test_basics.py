@@ -38,7 +38,7 @@ def mailbox(monkeypatch):
     """Sign-in emails, caught instead of sent: [(email, link, purpose)]."""
     import app as A
     sent = []
-    monkeypatch.setattr(A, 'email_signin_link', lambda email, link, purpose: sent.append((email, link, purpose)))
+    monkeypatch.setattr(A, 'email_signin_link', lambda email, link, purpose: sent.append((email, link, purpose)) or True)
     return sent
 
 
