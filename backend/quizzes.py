@@ -39,6 +39,7 @@ BY_STEP = ('still', 'reviews')      # the games that pay by how much you needed 
 STILL_ZOOM = {1: 4, 2: 2, 3: 1}     # how close the still is at each step
 DAILY_CAP = 5                       # kernels a day from each game
 SPREAD = 30                         # higher or lower: the next film is within this many years
+RECENT_ROUNDS = 30                  # a new round skips the films (and quotes) of your last this-many of that game
 
 
 def today(group=None):
@@ -89,6 +90,28 @@ def kernels_for(user_ids, group_id=None, since=None):
     return {uid: int(n or 0) for uid, n in q.group_by(QuizRound.user_id)}
 
 
+def _fresh(items, avoid, key=lambda f: f.key):
+    """The items you haven't had lately — or all of them, once you've had every one."""
+    fresh = [x for x in items if key(x) not in avoid]
+    return fresh or list(items)
+
+
+def recent(user_id, group_id, kind):
+    """The films (and who-said-it quotes) of your last RECENT_ROUNDS rounds of `kind`."""
+    from app import QuizRound
+    out = set()
+    for (raw,) in (QuizRound.query.with_entities(QuizRound.state_json)
+                   .filter_by(group_id=group_id, user_id=user_id, kind=kind)
+                   .order_by(QuizRound.id.desc()).limit(RECENT_ROUNDS)):
+        state = json.loads(raw or '{}')
+        for f in [state.get('film'), *(state.get('chain') or [])[:1]]:
+            if isinstance(f, dict) and f.get('key'):
+                out.add(f['key'])
+        if state.get('quote'):
+            out.add(state['quote'])
+    return out
+
+
 def _films(group):
     source = group.trivia_source if group.trivia_source in film_pool.SOURCES else 'both'
     subjects, everyone = film_pool.films(source)
@@ -109,11 +132,11 @@ def _next_film(rng, films, current, seen):
     return rng.choice(near) if near else None
 
 
-def _hl_start(group, rng):
+def _hl_start(group, rng, avoid=frozenset()):
     films = [f for f in _films(group)[0] if f.year]
     if len(films) < 2:
         return None
-    first = rng.choice(films)
+    first = rng.choice(_fresh(films, avoid))
     nxt = _next_film(rng, films, {'year': first.year}, {first.key})
     return nxt and {'chain': [_brief(first), _brief(nxt)]}
 
@@ -147,10 +170,11 @@ def _same_person(a, b):
     return bool(wa & wb) or a.lower() == b.lower()
 
 
-def _ws_start(group, rng):
+def _ws_start(group, rng, avoid=frozenset()):
     import discover
     from app import Quote
-    quotes = [q for q in Quote.query.filter(Quote.deleted_at.is_(None)) if q.movie and q.character]
+    quotes = _fresh([q for q in Quote.query.filter(Quote.deleted_at.is_(None)) if q.movie and q.character],
+                    avoid, key=lambda q: q.text)
     if not quotes:
         return None
     _, everyone = _films(group)
@@ -213,10 +237,10 @@ def _options(rng, f, everyone):
     return options
 
 
-def _still_start(group, rng, tries=4):
+def _still_start(group, rng, avoid=frozenset(), tries=4):
     import secrets
     subjects, everyone = _films(group)
-    films = [f for f in subjects if f.tmdb_id]
+    films = _fresh([f for f in subjects if f.tmdb_id], avoid)
     for f in rng.sample(films, min(tries, len(films))):
         stills = _backdrops(f.tmdb_id)
         options = stills and _options(rng, f, everyone)
@@ -388,15 +412,17 @@ def _review_odds(f, critics):
     return 3 if f.votes >= film_pool.KNOWN else 2 if f.movie_id in meta else 1 if f.movie_id in rt else 0
 
 
-def _reviews_start(group, rng, tries=REVIEW_TRIES):
+def _reviews_start(group, rng, avoid=frozenset(), tries=REVIEW_TRIES):
     """Three clues from one film's reviews: members' diaries first (the films
-    they reviewed), then TMDB's reviews — well-known films first (the most
-    reviewed), then any film we can look up."""
+    they reviewed and you haven't had lately), then TMDB's reviews — well-known
+    films first (the most reviewed), then any film we can look up."""
     subjects, everyone = _films(group)
     by_tmdb = {f.tmdb_id: f for f in everyone if f.tmdb_id}
     club = _club_reviews(group)
-    known = rng.sample([by_tmdb[t] for t in club if t in by_tmdb], len([t for t in club if t in by_tmdb]))
+    reviewed = [by_tmdb[t] for t in club if t in by_tmdb and by_tmdb[t].key not in avoid]
+    known = rng.sample(reviewed, len(reviewed))
     rest = [f for f in subjects if f.tmdb_id and f.tmdb_id not in club and f.tmdb_id not in _too_few]
+    rest = _fresh(rest, avoid)
     tiers, critics = {}, _critic_reviewed()
     for f in rest:
         tiers.setdefault(_review_odds(f, critics), []).append(f)
@@ -476,9 +502,9 @@ def emoji_for(f):
     return emojis
 
 
-def _emoji_start(group, rng, tries=4):
+def _emoji_start(group, rng, avoid=frozenset(), tries=4):
     subjects, everyone = _films(group)
-    films = [f for f in subjects if f.overview or (f.pool and not f.movie_id and not f.pool.details_at)]
+    films = _fresh([f for f in subjects if f.overview or (f.pool and not f.movie_id and not f.pool.details_at)], avoid)
     famous = [f for f in films if f.votes >= film_pool.KNOWN] or films         # a story people may know
     for f in rng.sample(famous, min(tries, len(famous))):
         film_pool.ensure_details(f)
@@ -542,7 +568,9 @@ def start(group, user, kind, source='site', rng=None):
     r = QuizRound.query.filter_by(group_id=group.id, user_id=user.id, kind=kind, status='open').first()
     if r:
         return r, None
-    state = RULES[kind][0](group, rng or random.Random())
+    rng = rng or random.Random()
+    avoid = recent(user.id, group.id, kind)
+    state = RULES[kind][0](group, rng, avoid=avoid) or (avoid and RULES[kind][0](group, rng))   # a repeat beats nothing
     if not state:
         return None, "There's nothing to play with yet — try again later."
     r = QuizRound(group_id=group.id, user_id=user.id, kind=kind, day=today(group), state_json=json.dumps(state), source=source)

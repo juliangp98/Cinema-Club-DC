@@ -172,6 +172,31 @@ def rules(group_id=None):
                       for k, v in quizzes.switches(group).items() if v] if group else []}
 
 
+def left_today(user, group):
+    """What's still to earn today in the club's daily games — the question of
+    the day, anytime trivia and each quiz game that's on: {total, parts:
+    [{key, label, left, to}]} (only the ones with something left). Check-ins,
+    polls and bingo aren't daily, so they're not counted."""
+    import quizzes
+    import trivia
+    from app import TriviaAnswer
+    parts = []
+    if group.trivia_enabled:
+        q = trivia.question_for(group)
+        if q and not TriviaAnswer.query.filter_by(question_id=q.id, user_id=user.id).first():
+            parts.append({'key': 'trivia', 'label': 'Trivia of the day', 'left': trivia.worth('daily', q.difficulty),
+                          'to': '/play#trivia'})
+    if group.trivia_anytime:
+        parts.append({'key': 'anytime', 'label': 'Anytime trivia', 'to': '/play#trivia',
+                      'left': max(0, trivia.ANYTIME_DAILY_CAP - trivia._anytime_today(user.id, group.id))})
+    for kind, on in quizzes.switches(group).items():
+        if on:
+            parts.append({'key': kind, 'label': quizzes.GAMES[kind][1], 'to': '/play#games',
+                          'left': max(0, quizzes.DAILY_CAP - quizzes.earned_today(user.id, group.id, kind))})
+    parts = [p for p in parts if p['left'] > 0]
+    return {'total': sum(p['left'] for p in parts), 'parts': parts}
+
+
 def breakdown(user_id, group_id=None):
     return breakdowns([user_id], group_id)[user_id]
 

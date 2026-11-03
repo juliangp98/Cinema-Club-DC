@@ -18,6 +18,8 @@ const LINES = {
             ["Fasten your seatbelts. It's going to be a bumpy night.", "All About Eve"]],
   general: [["The stuff that dreams are made of.", "The Maltese Falcon"], ["Here's looking at you, kid.", "Casablanca"],
             ["Wait a minute, wait a minute, you ain't heard nothin' yet!", "The Jazz Singer"]],
+  games: [["Shall we play a game?", "WarGames"], ["May the odds be ever in your favor.", "The Hunger Games"],
+          ["You've got to ask yourself one question: 'Do I feel lucky?'", "Dirty Harry"]],
 };
 
 function Reel({ size = 44 }) {
@@ -33,7 +35,8 @@ function Reel({ size = 44 }) {
   );
 }
 
-export default function Loading({ context = "general", label = "Loading" }) {
+// `compact`: inside a card (a game starting) rather than filling a page.
+export default function Loading({ context = "general", label = "Loading", compact = false }) {
   const lines = LINES[context] || LINES.general;
   const [i, setI] = useState(() => Math.floor(Math.random() * lines.length));
   useEffect(() => {
@@ -42,8 +45,8 @@ export default function Loading({ context = "general", label = "Loading" }) {
   }, [lines]);
   const [line, film] = lines[i % lines.length];
   return (
-    <div className="loading-reel" role="status" aria-live="polite">
-      <Reel />
+    <div className={`loading-reel${compact ? " compact" : ""}`} role="status" aria-live="polite">
+      <Reel size={compact ? 32 : 44} />
       <p className="loading-quote" aria-hidden="true">“{line}” <cite>— {film}</cite></p>
       <span className="sr-only">{label}…</span>
     </div>

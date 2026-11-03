@@ -714,6 +714,8 @@ a.share-state { color: var(--green); }
   display: flex; flex-direction: column; align-items: center; gap: 0.6rem; text-align: center;
   padding: 2.5rem 1rem; color: var(--amber);
 }
+.loading-reel.compact { padding: 1rem 0.5rem; gap: 0.4rem; }
+.loading-reel.compact .loading-quote { font-size: var(--fs-sm); }
 .loading-reel-svg { animation: reel-spin 1.6s linear infinite; }
 .loading-reel.error .loading-reel-svg { animation: none; opacity: 0.6; }
 @keyframes reel-spin { to { transform: rotate(360deg); } }

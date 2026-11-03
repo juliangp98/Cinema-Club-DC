@@ -388,8 +388,10 @@ def my_kernels():
             return err
     viewer = current_user()
     k = kernels.breakdown(viewer.id, group_id)
+    group = db.session.get(Group, group_id) if group_id else None
     return jsonify({**k, 'allowance': kernels.allowance(viewer.id),
-                    'rules': kernels.rules(group_id)})
+                    'rules': kernels.rules(group_id),
+                    'today': kernels.left_today(viewer, group) if group else None})
 
 
 @app.route('/api/club/week')

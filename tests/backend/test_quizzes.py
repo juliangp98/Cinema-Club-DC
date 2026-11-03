@@ -131,3 +131,20 @@ def test_from_discord(club):
     r = client().post('/api/internal/quizzes', json={**ident, 'action': 'answer', 'round_id': r['id'],
                                                      'choice': r['options'].index('Rick Blaine')}, headers=H).json
     assert r['done'] and r['earned'] == 1
+
+
+def test_still_on_the_table_today(club):
+    """Play's count of what's left to earn today: each game that's on, less
+    what you've earned from it — on /api/kernels and the games summary."""
+    def today():
+        k = client(club['bo']).get(f"/api/kernels?group_id={club['G']}").json['today']
+        assert client(club['bo']).get(f"/api/play?group_id={club['G']}").json['kernels']['today'] == k
+        return k
+    assert today() == {'total': 0, 'parts': []}                                        # nothing on
+    turn_on(club, higher_lower=True, who_said=True)
+    assert today()['total'] == 10 and [p['key'] for p in today()['parts']] == ['higher_lower', 'who_said']
+    rid = start(club, 'higher_lower').json['id']
+    answer(club, rid, truth(rid))                                                       # +1
+    left = today()
+    assert left['total'] == 9 and left['parts'][0] == {'key': 'higher_lower', 'label': 'Higher or lower', 'left': 4,
+                                                        'to': '/play#games'}

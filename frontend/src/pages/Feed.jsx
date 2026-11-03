@@ -8,7 +8,7 @@ import Poster from "../ui/Poster";
 import TheatreLink from "../ui/TheatreLink";
 import PersonLink, { personPath } from "../ui/PersonLink";
 import { ago, dayDateTime, hasStarted } from "../dates";
-import { getJson, send, rsvp, attend } from "../api";
+import { changed, getJson, send, rsvp, attend } from "../api";
 import { stars } from "../ui/stars";
 import { NOTE_TAGS } from "../ui/ScreeningNotes";
 
@@ -550,6 +550,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
       return e.data?.error || "Couldn't do that — try again in a bit.";
     }
     setAllowance(d.allowance);
+    changed("kernels");                     // the kernel widgets and boards catch up
     setCards(prev => prev.map(c => (c.showtime?.id !== showtimeId ? c : {
       ...c, kernels: { ...c.kernels, people: c.kernels.people.map(p => (p.user.id === userId ? { ...p, mine: d.mine, net: d.net } : p)) },
     })));

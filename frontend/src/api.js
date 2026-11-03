@@ -64,9 +64,17 @@ export async function getJson(url, { timeout = 25000, retries = 1, signal, cache
   }
 }
 
+// Live updates: an action that changes what other widgets show says so —
+// changed("kernels") after a game pays, a check-in, kernels given — and every
+// widget loaded with useJson(url, { refreshOn: "kernels" }) reloads, keeping
+// what it shows until the new numbers arrive. They also reload when you come
+// back to the tab (kernels earned in Discord, or by someone else).
+const topic = name => `cinemaclub:${name}`;
+export const changed = name => window.dispatchEvent(new Event(topic(name)));
+
 // { data, error, loading, reload } for a URL (null = don't load). Shows the
 // remembered copy straight away, then the fresh one.
-export function useJson(url, { keep = false } = {}) {
+export function useJson(url, { keep = false, refreshOn = null } = {}) {
   const [data, setData] = useState(() => (url ? cachedJson(url) ?? null : null));
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(!!url);
@@ -88,6 +96,17 @@ export function useJson(url, { keep = false } = {}) {
   }, [url, tick, keep]);
 
   const reload = useCallback(() => setTick(t => t + 1), []);
+
+  useEffect(() => {
+    if (!url || !refreshOn) return undefined;
+    const onVisible = () => { if (!document.hidden) reload(); };
+    window.addEventListener(topic(refreshOn), reload);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener(topic(refreshOn), reload);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [url, refreshOn, reload]);
   return { data, error, loading, reload };
 }
 
@@ -112,10 +131,12 @@ export async function send(url, method = "POST", body) {
 }
 
 // The actions many pages share.
+// Both can move kernels (a check-in, being first going), so kernel widgets refresh.
+const thenKernels = p => p.then(d => { changed("kernels"); return d; });
 export const rsvp = (apiBase, showtimeId, status, groupId) =>
-  send(`${apiBase}/api/rsvp`, "POST", { showtime_id: showtimeId, status, group_id: groupId });
+  thenKernels(send(`${apiBase}/api/rsvp`, "POST", { showtime_id: showtimeId, status, group_id: groupId }));
 export const attend = (apiBase, showtimeId, status) =>
-  send(`${apiBase}/api/attendance`, "POST", { showtime_id: showtimeId, status });
+  thenKernels(send(`${apiBase}/api/attendance`, "POST", { showtime_id: showtimeId, status }));
 export const toggleWatch = (apiBase, movieId) => send(`${apiBase}/api/watchlist`, "POST", { movie_id: movieId });
 export const hideFilm = (apiBase, movieId) =>                       // "Not for me" (R13): out of For you
   send(`${apiBase}/api/me/taste/items`, "POST", { kind: "hide", movie_id: movieId });

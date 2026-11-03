@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getJson, send } from "../api";
+import { changed, getJson, send } from "../api";
 import PageHeader from "../ui/PageHeader";
 import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
@@ -249,13 +249,13 @@ export default function PollDetailPage({ user, apiBase }) {
     const note = missing > 0 ? ` ${missing} ${missing === 1 ? "category has" : "categories have"} no answer and won't count.` : "";
     if (!window.confirm(`Finalize the results? Kernels go to members' totals and everyone who voted gets their result in the bell.${note}`)) return;
     setScoring(true);
-    await manage(async () => { await send(`${apiBase}/api/polls/${pollId}/score`, "POST", {}); setTab("results"); });
+    await manage(async () => { await send(`${apiBase}/api/polls/${pollId}/score`, "POST", {}); setTab("results"); changed("kernels"); });
     setScoring(false);
   }
 
   const handleEditAnswers = () => {
     if (!window.confirm("Edit the answers? Results are hidden again and the kernels come off members' totals until you finalize again.")) return;
-    manage(() => send(`${apiBase}/api/polls/${pollId}`, "PUT", { status: "closed" }));
+    manage(() => send(`${apiBase}/api/polls/${pollId}`, "PUT", { status: "closed" }).then(d => { changed("kernels"); return d; }));
   };
   const handleReopenVoting = () => {
     if (!window.confirm("Reopen voting? Members can change their picks.")) return;

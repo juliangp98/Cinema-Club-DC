@@ -31,6 +31,7 @@ export function GamesRail({ summary }) {
       )}
       <Panel as={Link} to="/play#kernels" tone="tile" title="Your kernels" kicker>
         <span className="rail-big">🍿 {kernels.kernels}</span>
+        {kernels.today?.total > 0 && <span className="ui-hint rail-today">🎯 {kernels.today.total} still to earn today</span>}
         <span className="ui-hint">{kernels.allowance.give_left} to give · {kernels.allowance.take_left} to take this week</span>
       </Panel>
       <Link to="/play" className="btn btn-sm rail-play">Go to Play →</Link>
@@ -54,6 +55,7 @@ export function GamesStrip({ summary, className = "" }) {
         <Link to="/play#polls" className={`chip${toVote ? " gold" : ""}`}>🗳️ {toVote ? `${toVote} to vote` : "Polls"}</Link>
       )}
       <Link to="/play#kernels" className="chip">🍿 {kernels.kernels}</Link>
+      {kernels.today?.total > 0 && <Link to="/play#games" className="chip gold">🎯 {kernels.today.total} left today</Link>}
       <Link to="/play" className="chip">Play →</Link>
     </nav>
   );

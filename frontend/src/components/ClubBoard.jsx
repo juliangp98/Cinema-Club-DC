@@ -46,7 +46,7 @@ function Stats({ s }) {
 
 export default function ClubBoard({ group, apiBase, viewerId }) {
   const [period, setPeriod] = useState("month");
-  const { data, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard?period=${period}`, { keep: true });
+  const { data, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard?period=${period}`, { keep: true, refreshOn: "kernels" });
   const rows = data?.rows || [];
   const most = Math.max(1, ...rows.map(r => r.kernels));
   const quiet = rows.every(r => !r.kernels && !r.attendance);

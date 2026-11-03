@@ -204,3 +204,22 @@ def test_the_static_rule_never_swallows_the_api():
     static = re.compile(pattern, re.I)
     assert static.search('/assets/index-abc123.js') and static.search('/pwa-192.png')
     assert not static.search('/api/quizzes/still/12/abcdef0123456789-1.jpg')
+
+
+def test_play_again_brings_a_different_film(club, monkeypatch):
+    """The club's reviewed film (VERTIGO) comes first — once. Play again and
+    it's another film each time; only when every film's been had lately does one repeat."""
+    import quizzes
+    good = ['A slow burn that rewards patience every single minute of the way. The ending lands like a punch to the chest.',
+            'Gorgeous photography from start to finish, honestly a feast. I could not look away for a second of it.']
+    monkeypatch.setattr(quizzes, '_tmdb_reviews', lambda tid: good)
+    monkeypatch.setattr(quizzes, '_too_few', set())
+    seen = []
+    for _ in range(6):
+        r = play(club, 'reviews').json
+        r = answer(club, r['id'], 0).json                                            # any answer ends the round
+        seen.append(r['film']['title'])
+    assert seen[0].upper() == 'VERTIGO' and len(set(seen)) == 6                       # six rounds, six films
+    films = [type('F', (), {'key': k})() for k in 'ab']
+    assert [f.key for f in quizzes._fresh(films, {'a'})] == ['b']
+    assert [f.key for f in quizzes._fresh(films, {'a', 'b'})] == ['a', 'b']          # had them all: a repeat beats nothing

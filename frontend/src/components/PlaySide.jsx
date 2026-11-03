@@ -47,6 +47,27 @@ export function YourKernels({ k, month, viewerId }) {
   );
 }
 
+// What's still to earn today in the daily games (kernels.left_today): the
+// question of the day, anytime trivia, each quiz game — gone once you've
+// earned it all. Hidden in clubs with no daily games.
+export function LeftToday({ k }) {
+  const t = k?.today;
+  const daily = k?.rules && (k.rules.trivia || k.rules.trivia_anytime || k.rules.games?.length);
+  if (!t || !daily) return null;
+  return (
+    <Panel as="div" tone="tile" title="Still on the table today" kicker className="play-today">
+      {t.total ? (
+        <>
+          <span className="rail-big">🎯 {t.total}</span>
+          <ul className="play-today-parts">
+            {t.parts.map(p => <li key={p.key}><a href={p.to.replace("/play", "")}>{p.label}</a><strong>+{p.left}</strong></li>)}
+          </ul>
+        </>
+      ) : <p className="ui-hint">✓ You've earned every game kernel there is today — back tomorrow for more.</p>}
+    </Panel>
+  );
+}
+
 function BoardRow({ row, place, viewerId, value }) {
   return (
     <li className={row.user.id === viewerId ? "me" : ""}>
@@ -94,6 +115,7 @@ export function KernelStrip({ k, month, viewerId }) {
   return (
     <nav className="games-strip play-strip" aria-label="Your kernels">
       <a href="#kernels" className="chip gold">🍿 {k.kernels}</a>
+      {k.today?.total > 0 && <a href="#games" className="chip gold">🎯 {k.today.total} left today</a>}
       {i >= 0 && <Link to="/club?tab=leaderboard" className="chip">#{month[i].place} this month</Link>}
       <span className="chip">{k.allowance.give_left} to give</span>
     </nav>

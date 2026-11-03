@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import Panel from "../ui/Panel";
 import Poster from "../ui/Poster";
-import { send, useJson } from "../api";
+import Loading, { LoadError } from "../ui/Loading";
+import { changed, send, useJson } from "../api";
 
 // The quiz games (R15, quizzes.py): each its own switch in Club settings.
 // QUIZ_GAMES mirrors quizzes.GAMES for the settings switches; Play shows the
@@ -140,13 +141,16 @@ const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, rev
 
 function Game({ g, apiBase, groupId }) {
   const [r, setR] = useState(g.round);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);           // "start" (a new round coming) or "answer"
   const [error, setError] = useState(null);
   async function call(path, body) {
-    setBusy(true);
+    setBusy(path);
     setError(null);
-    try { setR(await send(`${apiBase}/api/quizzes/${path}`, "POST", { group_id: groupId, ...body })); }
-    catch (e) { setError(e.data?.error || "Couldn't do that — try again."); }
+    try {
+      const next = await send(`${apiBase}/api/quizzes/${path}`, "POST", { group_id: groupId, ...body });
+      setR(next);
+      if (next.last?.paid) changed("kernels");      // your total, the month's board and the movers catch up
+    } catch (e) { setError(e.data?.error || "Couldn't do that — try again."); }
     finally { setBusy(false); }
   }
   const Round = ROUNDS[g.kind];
@@ -154,20 +158,23 @@ function Game({ g, apiBase, groupId }) {
     <Panel tone="gold" className="quiz-game" title={`${g.emoji} ${g.label}`}
            hint={`${g.by_step ? "3 / 2 / 1 🍿" : `+${g.each} 🍿 a right call`} · ${r ? r.left_today : g.cap - g.earned_today} left today${g.best && !g.by_step ? ` · best ${g.best}` : ""}`}
            actions={(!r || r.done) && (
-             <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => call("start", { kind: g.kind })}>
+             <button type="button" className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => call("start", { kind: g.kind })}>
                {r ? "🔁 Play again" : "▶ Play"}
              </button>
            )}>
-      {!r && <p className="ui-hint">{g.blurb}</p>}
-      {r && <Round r={r} busy={busy} apiBase={apiBase} onAnswer={choice => call("answer", { round_id: r.id, choice })} />}
+      {busy === "start" ? <Loading context="games" label="Setting up a round" compact />
+        : <>
+          {!r && <p className="ui-hint">{g.blurb}</p>}
+          {r && <Round r={r} busy={!!busy} apiBase={apiBase} onAnswer={choice => call("answer", { round_id: r.id, choice })} />}
+        </>}
       {error && <p className="trivia-error" role="status">{error}</p>}
     </Panel>
   );
 }
 
 export default function QuizGames({ apiBase, groupId, canRun }) {
-  const { data } = useJson(groupId ? `${apiBase}/api/quizzes?group_id=${groupId}` : null);
-  if (!data) return null;
+  const { data, error, reload } = useJson(groupId ? `${apiBase}/api/quizzes?group_id=${groupId}` : null);
+  if (!data) return error ? <LoadError what="the games" onRetry={reload} /> : <Loading context="games" compact />;
   if (!data.games.length) {
     return canRun ? (
       <p className="ui-note">🎮 No quiz games are on yet. <Link to="/club?tab=settings#settings-games">Turn them on in Club settings</Link></p>

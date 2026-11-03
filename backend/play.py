@@ -31,7 +31,7 @@ def summary(group, user):
 
     k = kernels.breakdown(user.id, group.id)
     out['kernels'] = {'kernels': k['kernels'], **{part: k[part] for part in kernels.PARTS},
-                      'allowance': kernels.allowance(user.id)}
+                      'allowance': kernels.allowance(user.id), 'today': kernels.left_today(user, group)}
     out['todo'] = (int(bool(out['trivia'] and out['trivia']['to_answer']))
                    + sum(1 for p in polls if not p['you_voted']))
     return out

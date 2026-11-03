@@ -73,7 +73,7 @@ export function RecordsTab({ apiBase, group, viewerId }) {
   const on = gamesOn(group);
   const cols = COLUMNS.filter(c => c.on(on));
   const [sortKey, setSortKey] = useState(cols[0]?.key);
-  const { data, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard?period=${period}`, { keep: true });
+  const { data, error } = useJson(`${apiBase}/api/groups/${group.id}/leaderboard?period=${period}`, { keep: true, refreshOn: "kernels" });
   const rows = data?.rows || [];
   const sorted = useMemo(() => {
     const col = cols.find(c => c.key === sortKey) || cols[0];
@@ -158,7 +158,7 @@ export function MemberBingo({ apiBase, groupId, userId, name }) {
 // A member's page → Games: their bingo and their all-time records.
 export function MemberGames({ apiBase, group, userId, name }) {
   const on = gamesOn(group);
-  const { data } = useJson(group ? `${apiBase}/api/groups/${group.id}/leaderboard?period=all` : null);
+  const { data } = useJson(group ? `${apiBase}/api/groups/${group.id}/leaderboard?period=all` : null, { refreshOn: "kernels" });
   const row = data?.rows.find(r => r.user.id === userId);
   if (!group || !row) return null;                        // not (yet) in your club: nothing to show
   return (

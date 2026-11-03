@@ -66,7 +66,7 @@ export const PAGE_TOURS = {
     { target: "#trivia", title: "Trivia", body: "The question of the day — one try, 1 to 3 kernels by how hard it is — and anytime questions if your club allows them." },
     { target: "#bingo", title: "Repertory bingo", body: "This month's card fills in by itself from your check-ins — and under it, everyone's. Tap one to see their squares." },
     { target: "#polls", title: "Polls", body: "Vote in the open ones; past ones show their results and who called it." },
-    { target: "#games", title: "More games", body: "Higher or lower, Who said it, Guess the still and more — the ones your club has on." },
+    { target: "#games", title: "More games", body: "Higher or lower, Who said it, Guess the still and more — the ones your club has on. Beside them: your kernels as you earn them, and what's still on the table today." },
     { target: '[data-tab="records"]', title: "Records", body: "Your game records, everyone's (sort by any game), and the club's — this month, this year or all time." },
   ] },
   club: { title: "the Club page", help: "club", steps: [

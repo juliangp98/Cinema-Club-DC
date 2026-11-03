@@ -17,7 +17,7 @@ const FILTERS = [[null, "All"], ["screenings", "Screenings"], ["watchlists", "Wa
 export default function FeedPage({ user, apiBase, groupId }) {
   const [params, setParams] = useSearchParams();
   const type = FILTERS.some(([k]) => k === params.get("type")) ? params.get("type") : null;
-  const { data: summary } = useJson(groupId ? `${apiBase}/api/play?group_id=${groupId}` : null);
+  const { data: summary } = useJson(groupId ? `${apiBase}/api/play?group_id=${groupId}` : null, { refreshOn: "kernels" });
 
   if (!groupId) {
     return (

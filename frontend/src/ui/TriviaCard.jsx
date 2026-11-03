@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { runsClub } from "../roles";
-import { useJson, send } from "../api";
+import { changed, useJson, send } from "../api";
 import Panel from "./Panel";
+import Loading from "./Loading";
 
 // Club trivia (R10d), only once a club organizer or admin turns it on (they see
 // where to do that; everyone else sees nothing): the question of the day, and — if the
@@ -16,7 +17,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   const { data, reload } = useJson(`${apiBase}/api/trivia/today?group_id=${groupId}`);
   const [shown, setShown] = useState(null);          // a question answered or asked for since loading
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);            // "another" (a question coming) or "answer"
   if (!data) return null;
   if (!data.enabled) {
     return runsClub(role) ? (
@@ -29,10 +30,12 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   if (!q && !data.anytime) return null;
 
   async function post(path, body) {
-    setBusy(true);
+    setBusy(path);
     setError(null);
     try {
-      setShown(await send(`${apiBase}/api/trivia/${path}`, "POST", { group_id: groupId, ...body }));
+      const next = await send(`${apiBase}/api/trivia/${path}`, "POST", { group_id: groupId, ...body });
+      setShown(next);
+      if (next.mine?.correct) changed("kernels");    // your total and the boards catch up
     } catch (e) {
       setError(e.data?.error || "Couldn't do that — try again.");
       reload();
@@ -40,7 +43,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
     setBusy(false);
   }
   const another = data.anytime && canPlay && (
-    <button type="button" className="btn btn-sm" disabled={busy} onClick={() => post("another", {})}>
+    <button type="button" className="btn btn-sm" disabled={!!busy} onClick={() => post("another", {})}>
       🎲 {q ? "Another question" : "Play a question"}
     </button>
   );
@@ -49,7 +52,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
     return (
       <Panel tone="gold" className="trivia-card" aria-label="Movie trivia" title="🎲 Movie trivia"
              hint="A question whenever you like · +1 🍿 for a right one (up to 5 a day)">
-        {another}
+        {busy === "another" ? <Loading context="games" label="Finding a question" compact /> : another}
         {error && <p className="trivia-error" role="status">{error}</p>}
       </Panel>
     );
@@ -69,7 +72,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
         {q.options.map((o, i) => {
           const state = !answered ? "" : i === q.answer ? " right" : i === q.mine.choice ? " wrong" : "";
           return (
-            <button key={o} type="button" className={`trivia-option${state}`} disabled={answered || busy || !canPlay}
+            <button key={o} type="button" className={`trivia-option${state}`} disabled={answered || !!busy || !canPlay}
                     aria-pressed={answered && i === q.mine.choice} onClick={() => post("answer", { question_id: q.id, choice: i })}>
               <span className="trivia-letter">{LETTERS[i]}</span> {o}
             </button>
@@ -83,7 +86,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
           {q.movie?.id && <> <Link to={`/films/${q.movie.id}`}>About the film →</Link></>}
         </p>
       )}
-      {answered && another}
+      {answered && (busy === "another" ? <Loading context="games" label="Finding a question" compact /> : another)}
       {!canPlay && !answered && <p className="ui-hint">Read-only members can't answer.</p>}
       {error && <p className="trivia-error" role="status">{error}</p>}
       {y && !q.anytime && (

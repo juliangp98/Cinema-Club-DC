@@ -99,7 +99,7 @@ export default function ClubPage({ user, apiBase }) {
 // The overview: what's on and what happened (main column) beside the club's
 // people, numbers and games (side column; on phones the games come first).
 function Overview({ group, apiBase, user, shell, openShowtime, setTab }) {
-  const { data: play } = useJson(`${apiBase}/api/play?group_id=${group.id}`);
+  const { data: play } = useJson(`${apiBase}/api/play?group_id=${group.id}`, { refreshOn: "kernels" });
   const { data: stats } = useJson(`${apiBase}/api/groups/${group.id}/stats`);
   const { data: members } = useJson(`${apiBase}/api/groups/${group.slug}/members`);
   return (

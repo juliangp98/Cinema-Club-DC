@@ -73,3 +73,18 @@ test("guess from the reviews: another review costs a kernel, the source is said 
   expect(calls.at(-1).body).toEqual({ group_id: 1, round_id: 9, choice: 0 });
   expect(await screen.findByRole("status")).toHaveTextContent("✅ Right! +2 🍿");
 });
+
+test("play again shows the loading reel while the next round is found", async () => {
+  let release;
+  mockApi({
+    "GET /api/quizzes": { games: [{ ...game, round: round({ done: true, last: { right: false, paid: 0 } }) }] },
+    "POST /api/quizzes/start": () => new Promise(r => { release = () => r(round({ id: 5 })); }),
+  });
+  renderPage(<QuizGames apiBase="" groupId={1} canRun={false} />);
+  await userEvent.click(await screen.findByRole("button", { name: "🔁 Play again" }));
+  expect(await screen.findByText("Setting up a round…")).toBeInTheDocument();             // the site's loading reel
+  expect(screen.getByRole("button", { name: "🔁 Play again" })).toBeDisabled();
+  release();
+  expect(await screen.findByRole("group", { name: /Did Alien come out before or after 1958/ })).toBeInTheDocument();
+  expect(screen.queryByText("Setting up a round…")).not.toBeInTheDocument();
+});

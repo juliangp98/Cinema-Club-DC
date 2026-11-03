@@ -4,7 +4,7 @@ import TriviaCard from "../ui/TriviaCard";
 import BingoCard from "../ui/BingoCard";
 import PollList from "../components/PollList";
 import QuizGames from "../components/QuizGames";
-import { GamesRunPanel, KernelStrip, Movers, MonthBoard, YourKernels } from "../components/PlaySide";
+import { GamesRunPanel, KernelStrip, LeftToday, Movers, MonthBoard, YourKernels } from "../components/PlaySide";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
 import { runsClub } from "../roles";
@@ -22,9 +22,11 @@ export default function PlayPage({ user, apiBase, groupId }) {
   const { role, group } = useShell() || {};
   const canRun = runsClub(role);
   const board = period => (groupId ? `${apiBase}/api/groups/${groupId}/leaderboard?period=${period}` : null);
-  const { data: k } = useJson(groupId ? `${apiBase}/api/kernels?group_id=${groupId}` : null);
-  const month = useJson(board("month")).data?.rows;
-  const week = useJson(board("week")).data?.rows;
+  // Your numbers and the boards follow what you earn as you play (api.changed("kernels")).
+  const live = { refreshOn: "kernels" };
+  const { data: k } = useJson(groupId ? `${apiBase}/api/kernels?group_id=${groupId}` : null, live);
+  const month = useJson(board("month"), live).data?.rows;
+  const week = useJson(board("week"), live).data?.rows;
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "records" ? "records" : "games";
   const setTab = key => setParams(key === "games" ? {} : { tab: key }, { replace: true });
@@ -66,6 +68,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
         </div>
         <aside className="play-side ui-split-side sticky" aria-label="Kernels and standings">
           <YourKernels k={k} month={month} viewerId={user.id} />
+          <LeftToday k={k} />
           <MonthBoard month={month} viewerId={user.id} />
           <Movers week={week} viewerId={user.id} />
           {canRun && <GamesRunPanel apiBase={apiBase} slug={group?.slug} />}

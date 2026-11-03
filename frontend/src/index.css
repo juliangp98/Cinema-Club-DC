@@ -1143,6 +1143,12 @@ button.feed-title:hover { color: var(--amber); }
 .play-earn summary { cursor: pointer; font-size: var(--fs-sm); color: var(--amber); }
 .play-earn ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 0.3rem; }
 .play-board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.play-today-parts { list-style: none; margin: 0.25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: var(--fs-sm); }
+.play-today-parts li { display: flex; justify-content: space-between; gap: 0.5rem; }
+.play-today-parts a { color: var(--cream); }
+.play-today-parts a:hover { color: var(--amber); }
+.play-today-parts strong { color: var(--amber); }
+.rail-today { color: var(--amber); }
 .play-board li { display: flex; align-items: center; gap: 0.6rem; font-size: var(--fs-sm); }
 .play-board li.me .play-board-name { color: var(--amber); }
 .play-board-name { flex: 1; }
