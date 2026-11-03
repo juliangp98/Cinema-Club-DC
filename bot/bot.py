@@ -22,6 +22,8 @@ buttons and loops. This file starts it, and gathers their names in one place
 
 import os
 
+import net_retry
+net_retry.install()          # a name lookup that fails for a moment (it happens on the NAS) is tried again
 from features import shared                       # first: it loads the env the others read
 from features import chat, alerts, schedule, threads, profile, polls, admin, games, challenges, tournaments, club, servers  # noqa: F401 — they register themselves
 from features.shared import *                  # noqa: F401,F403

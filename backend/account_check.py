@@ -13,6 +13,9 @@ sign-in link yourself.
                                                 to Gmail's SMTP server, send nothing
   account_check.py --smtp --repeat 20          …20 times, a second apart: how often
                                                 name lookups or the network fail
+  account_check.py --dns --repeat 30           where lookups fail: the usual way (IPv4,
+                                                and IPv4 + IPv6), and straight to the
+                                                caching resolver and the router
 
 Usage:
     # Local
@@ -22,8 +25,12 @@ Usage:
 """
 
 import argparse
+import re
 import secrets
 import smtplib
+import socket
+import struct
+import time
 from datetime import timedelta
 
 from app import (FRONTEND_URL, SMTP_EMAIL, SMTP_PASSWORD, GroupMembership, LoginToken, User, _utcnow_naive, app, db,
@@ -53,6 +60,73 @@ def smtp_check():
         print(f"✗ {'Gmail refused the login' if kind == 'password' else 'Gmail could not be reached'} for {SMTP_EMAIL}: {e}")
         print(f'  {ADVICE[kind]}')
         return False
+
+
+# ─── Where do name lookups fail? ──────────────────────────────────────────────
+
+def _ask(server, name, qtype, timeout=2.0):
+    """One DNS question sent straight to `server` (no Docker, no cache in
+    between): 'ok', 'no answer', 'SERVFAIL', 'timeout'…"""
+    qid = secrets.randbelow(65536)
+    packet = (struct.pack('>HHHHHH', qid, 0x0100, 1, 0, 0, 0)
+              + b''.join(bytes([len(p)]) + p.encode() for p in name.split('.')) + b'\0' + struct.pack('>HH', qtype, 1))
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(timeout)
+    try:
+        s.sendto(packet, (server, 53))
+        while True:
+            data, _ = s.recvfrom(4096)
+            if data[:2] == packet[:2]:
+                break
+    except socket.timeout:
+        return 'timeout'
+    except OSError as e:
+        return f'error: {e}'
+    finally:
+        s.close()
+    rcode, answers = data[3] & 0x0F, struct.unpack('>H', data[6:8])[0]
+    return {0: 'ok' if answers else 'no answer', 2: 'SERVFAIL', 3: 'no such name', 5: 'refused'}.get(rcode, f'rcode {rcode}')
+
+
+def _usual(name, family):
+    """A lookup the way the app makes one (through Docker's forwarder), without the retry."""
+    import net_retry
+    try:
+        net_retry._original(name, 465, family, socket.SOCK_STREAM)
+        return 'ok'
+    except socket.gaierror as e:
+        return e.strerror or str(e)
+
+
+def _servers():
+    """The DNS servers Docker forwards to (the caching resolver, then the router)."""
+    try:
+        for line in open('/etc/resolv.conf'):
+            if 'ExtServers' in line:
+                return re.findall(r'\d+\.\d+\.\d+\.\d+', line)
+    except OSError:
+        pass
+    return ['172.29.53.53', '192.168.0.1']
+
+
+def dns_check(rounds, name='smtp.gmail.com'):
+    servers = _servers()
+    checks = [('the usual way, IPv4 only', lambda: _usual(name, socket.AF_INET)),
+              ('the usual way, IPv4 and IPv6', lambda: _usual(name, socket.AF_UNSPEC))]
+    for ip in servers:
+        checks += [(f'{ip} directly, IPv4', lambda ip=ip: _ask(ip, name, 1)),
+                   (f'{ip} directly, IPv6', lambda ip=ip: _ask(ip, name, 28))]
+    tally = {label: {} for label, _ in checks}
+    print(f'Looking up {name} {rounds} times, a second apart (servers: {", ".join(servers)})…')
+    for n in range(rounds):
+        if n:
+            time.sleep(1)
+        for label, check in checks:
+            got = check()
+            tally[label][got] = tally[label].get(got, 0) + 1
+    for label, counts in tally.items():
+        print(f"  {label:<34} " + ' · '.join(f'{v} {k}' for k, v in sorted(counts.items(), key=lambda kv: -kv[1])))
+    return tally
 
 
 def find(email):
@@ -106,8 +180,12 @@ def main():
     ap.add_argument('--send', action='store_true', help='send them a real sign-in email')
     ap.add_argument('--link', action='store_true', help='print a one-time sign-in link to pass on')
     ap.add_argument('--smtp', action='store_true', help='only test the mail settings')
-    ap.add_argument('--repeat', type=int, default=1, help='with --smtp: try this many times, a second apart')
+    ap.add_argument('--dns', action='store_true', help='find where name lookups fail')
+    ap.add_argument('--repeat', type=int, default=1, help='with --smtp or --dns: try this many times, a second apart')
     args = ap.parse_args()
+    if args.dns:
+        dns_check(max(1, args.repeat))
+        return
     if args.smtp or not args.email:
         import time
         results = []

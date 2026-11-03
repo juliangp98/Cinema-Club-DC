@@ -85,9 +85,12 @@ How the scrapers pace themselves: [scrapers.md](scrapers.md).
   resolution": sign-in emails, TMDB and OMDb, the AI). So the backend and bot look names up through the
   club's own caching resolver, the `dns` service (Dockerfile.dns, `dns/unbound.conf.in`): it asks the
   router and keeps the answers, and when the router fails, a name it has seen before is answered from the
-  cache. If the resolver is ever down, the containers ask the router directly. Sign-in emails are also
-  tried three times (over about 4 seconds). `account_check.py --smtp --repeat 50` shows how often a
-  lookup still fails; `sudo docker logs cinemaclub-dns` shows the resolver's own log.
+  cache. If the resolver is ever down, the containers ask the router directly. Lookups still failed
+  about as often with it in place, so the failures happen before the resolver: every lookup the backend
+  and bot make is tried again a few times over about 3 seconds (`net_retry.py`), and sign-in emails are
+  also tried three times. `account_check.py --smtp --repeat 50` shows how often sending still fails;
+  `account_check.py --dns --repeat 30` shows where lookups fail (the usual way, IPv4 only and with IPv6,
+  and straight to the resolver and the router); `sudo docker logs cinemaclub-dns` is the resolver's log.
   The resolver sits at a fixed address (172.29.53.53) on its own small network, `lookups`
   (172.29.53.0/24), which the backend and bot also join; the project's default network isn't touched,
   so a normal `up -d --build` deploys it. If Docker says that range overlaps another network on the NAS,

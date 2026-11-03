@@ -17,6 +17,8 @@ from email.utils import formatdate, make_msgid
 from functools import wraps
 from dotenv import load_dotenv
 import sys as _sys
+import net_retry
+net_retry.install()          # a name lookup that fails for a moment (it happens on the NAS) is tried again
 
 import places
 
