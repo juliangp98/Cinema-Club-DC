@@ -81,21 +81,25 @@ How the scrapers pace themselves: [scrapers.md](scrapers.md).
   run it with just `--smtp` to test the mail login; it says whether Gmail refused the password or
   couldn't be reached (DNS, below). If the site says it couldn't send the email, the backend log has the
   reason (`sudo docker logs cinemaclub-backend 2>&1 | grep "Email failed"`).
-- **DNS** — the router on the NAS fails about 1 name lookup in 6 ("Temporary failure in name
-  resolution": sign-in emails, TMDB and OMDb, the AI). So the backend and bot look names up through the
-  club's own caching resolver, the `dns` service (Dockerfile.dns, `dns/unbound.conf.in`): it asks the
-  router and keeps the answers, and when the router fails, a name it has seen before is answered from the
-  cache. If the resolver is ever down, the containers ask the router directly. Lookups still failed
-  about as often with it in place, so the failures happen before the resolver: every lookup the backend
-  and bot make is tried again a few times over about 3 seconds (`net_retry.py`), and sign-in emails are
-  also tried three times. `account_check.py --smtp --repeat 50` shows how often sending still fails;
-  `account_check.py --dns --repeat 30` shows where lookups fail (the usual way, IPv4 only and with IPv6,
-  and straight to the resolver and the router); `sudo docker logs cinemaclub-dns` is the resolver's log.
-  The resolver sits at a fixed address (172.29.53.53) on its own small network, `lookups`
-  (172.29.53.0/24), which the backend and bot also join; the project's default network isn't touched,
-  so a normal `up -d --build` deploys it. If Docker says that range overlaps another network on the NAS,
-  pick another `/24` and change it in `docker-compose.yml` (the subnet, the resolver's `ipv4_address`
-  and both `dns:` lists).
+- **DNS** — on the NAS, Docker's own DNS forwarder inside the containers (127.0.0.11) fails about 1
+  lookup in 5 ("Temporary failure in name resolution"), while the router answers every time
+  (`account_check.py --dns`). So:
+  - The backend (emails, TMDB, OMDb, the AI, the scrapers) skips the forwarder: `dns/resolv.backend.conf`
+    is mounted as its `/etc/resolv.conf` and asks the router, then the club's caching resolver. It only
+    looks up outside names, so it doesn't need Docker's names for the other containers.
+  - The caching resolver is the `dns` service (Dockerfile.dns, `dns/unbound.conf.in`): it asks the router
+    and keeps the answers, answering from its cache when the router doesn't. It sits at a fixed address
+    (172.29.53.53) on its own small network, `lookups` (172.29.53.0/24), which the backend and bot join;
+    the project's default network isn't touched (the Cloudflare tunnel stays attached to it).
+  - The bot needs Docker's names (`backend`), so it keeps the forwarder (the resolver, then the router).
+  - Every lookup the backend and bot make is also tried again a few times over about 3 seconds
+    (`net_retry.py`), and sign-in emails are tried three times.
+
+  `account_check.py --dns --repeat 30` shows where lookups fail ("the usual way" is how the app looks
+  names up); `account_check.py --smtp --repeat 50` counts raw failures sending email (no retries);
+  `sudo docker logs cinemaclub-dns` is the resolver's log. If Docker says 172.29.53.0/24 overlaps
+  another network, pick another `/24` and change it in `docker-compose.yml` (the subnet, the resolver's
+  `ipv4_address` and the bot's `dns:` list) and in `dns/resolv.backend.conf`.
 - **Search engines** — in Google Search Console add a Domain property for your domain, verify it with the
   TXT record in your DNS, and submit `https://your-domain/sitemap.xml`. Private pages are `noindex` and
   `robots.txt` keeps crawlers out of them.

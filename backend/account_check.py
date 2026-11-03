@@ -99,14 +99,17 @@ def _usual(name, family):
 
 
 def _servers():
-    """The DNS servers Docker forwards to (the caching resolver, then the router)."""
+    """The DNS servers lookups go to: the ones Docker's forwarder passes them
+    on to, or (the backend skips that forwarder) the ones listed outright."""
     try:
-        for line in open('/etc/resolv.conf'):
-            if 'ExtServers' in line:
-                return re.findall(r'\d+\.\d+\.\d+\.\d+', line)
+        lines = open('/etc/resolv.conf').read().splitlines()
     except OSError:
-        pass
-    return ['172.29.53.53', '192.168.0.1']
+        return ['192.168.0.1', '172.29.53.53']
+    for line in lines:
+        if 'ExtServers' in line:
+            return re.findall(r'\d+\.\d+\.\d+\.\d+', line)
+    listed = [ln.split()[1] for ln in lines if ln.startswith('nameserver') and len(ln.split()) > 1]
+    return [ip for ip in listed if not ip.startswith('127.')] or ['192.168.0.1', '172.29.53.53']
 
 
 def dns_check(rounds, name='smtp.gmail.com'):

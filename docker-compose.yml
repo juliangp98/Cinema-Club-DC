@@ -24,11 +24,10 @@ services:
       dockerfile: Dockerfile.backend
     container_name: cinemaclub-backend
     env_file: .env.production
-    # Names are looked up through the club's caching resolver (the `dns`
-    # service), then the router if it's ever down. See the note on `dns`.
-    dns:
-      - 172.29.53.53
-      - 192.168.0.1
+    # Names: straight to the router, then the caching resolver, skipping
+    # Docker's own forwarder (it failed 1 lookup in 5 on the NAS). The backend
+    # only looks up outside names, so it doesn't need Docker's. See
+    # dns/resolv.backend.conf and the note on `dns`.
     networks:
       - default
       - lookups
@@ -36,6 +35,7 @@ services:
       - dns
     volumes:
       - db-data:/app/instance
+      - ./dns/resolv.backend.conf:/etc/resolv.conf:ro
     restart: unless-stopped
 
   frontend:

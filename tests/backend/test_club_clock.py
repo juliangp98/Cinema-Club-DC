@@ -20,20 +20,26 @@ def test_the_compose_file_doesnt_override_it():
 
 
 def test_names_go_through_the_caching_resolver_then_the_router():
-    """The router fails about 1 lookup in 6 on the NAS: the backend and bot ask
-    the caching resolver (the `dns` service, at a fixed address inside the
-    project's network) first, and the router only if it's down."""
+    """Docker's own DNS forwarder failed about 1 lookup in 5 on the NAS; the
+    router answered every time. The backend (outside names only) skips the
+    forwarder: its own resolv.conf asks the router, then the caching resolver
+    (the `dns` service, at a fixed address on its own network). The bot needs
+    Docker's names (`backend`), so it keeps the forwarder: the resolver, then
+    the router."""
     src = (ROOT / 'docker-compose.yml').read_text()
     subnet = re.search(r'subnet: (\d+\.\d+\.\d+)\.0/24', src).group(1)
     fixed = re.search(r'ipv4_address: (\S+)', src).group(1)
     assert fixed.startswith(subnet + '.')
-    for service in ('backend', 'bot'):
-        block = re.search(rf'^  {service}:\n(.*?)(?=^  \w|\Z)', src, re.M | re.S).group(1)
-        assert re.search(rf'dns:\n\s+- {re.escape(fixed)}\n\s+- 192\.168\.0\.1', block), service
-        assert '- dns' in block, f'{service} starts after the resolver'
-        assert re.search(r'networks:\n\s+- default\n\s+- lookups', block), f'{service} joins the resolver\'s network'
+    block = lambda name: re.search(rf'^  {name}:\n(.*?)(?=^  \w|\Z)', src, re.M | re.S).group(1)
+    backend, bot = block('backend'), block('bot')
+    assert './dns/resolv.backend.conf:/etc/resolv.conf:ro' in backend and 'dns:\n' not in backend
+    resolv = (ROOT / 'dns' / 'resolv.backend.conf').read_text()
+    assert re.findall(r'^nameserver (\S+)', resolv, re.M) == ['192.168.0.1', fixed]
+    assert re.search(rf'dns:\n\s+- {re.escape(fixed)}\n\s+- 192\.168\.0\.1', bot)
+    for b in (backend, bot):
+        assert '- dns' in b and re.search(r'networks:\n\s+- default\n\s+- lookups', b)
     # The project's default network is left as it was: replacing it needs every
-    # container off it, and on the NAS something else stays attached.
+    # container off it, and on the NAS the Cloudflare tunnel stays attached.
     assert not re.search(r'^  default:', src.split('\nnetworks:\n', 1)[1], re.M)
     conf = (ROOT / 'dns' / 'unbound.conf.in').read_text()
     for line in ('serve-expired: yes', 'forward-addr: @UPSTREAM@', 'module-config: "iterator"'):
