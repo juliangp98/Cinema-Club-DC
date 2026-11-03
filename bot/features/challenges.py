@@ -1,7 +1,9 @@
 """Challenges in Discord: /play versus: (make one), /play challenges: (yours,
-or the club's open ones), and the buttons on a challenge — accept, join an
-open seat, play (a private ballot, 30 seconds a question), back a player,
-rematch. The rules live in the backend (challenges.py), the same as the site's.
+the club's open ones, or who you should challenge — with a roast), and the
+buttons on a challenge — accept, join an open seat, play (a private ballot,
+30 seconds a question), back a player, rematch. The rules live in the backend
+(challenges.py, scout.py), the same as the site's. Tournaments:
+features/tournaments.py (each match is a challenge, played here).
 """
 
 import discord
@@ -19,7 +21,8 @@ DEADLINES = [app_commands.Choice(name=n, value=v) for v, n in (('hour', 'In an h
                                                                ('days', 'In 3 days'))]
 REVEALS = [app_commands.Choice(name='Sealed until everyone has played', value='sealed'),
            app_commands.Choice(name='Live: as each player finishes', value='live')]
-LISTS = [app_commands.Choice(name='Mine', value='mine'), app_commands.Choice(name="The club's open ones", value='open')]
+LISTS = [app_commands.Choice(name='Mine', value='mine'), app_commands.Choice(name="The club's open ones", value='open'),
+         app_commands.Choice(name='🔍 Who should I challenge?', value='scout')]
 AMOUNTS = (1, 2, 3, 5, 10)
 
 
@@ -317,7 +320,11 @@ async def versus_flow(interaction, kind, opponents, stake=None, seats=None, ques
 
 
 async def list_flow(interaction, which):
-    """Your challenges, or the club's open ones, to open with a tap."""
+    """Your challenges and tournaments, the club's open ones, or who you should challenge."""
+    from . import tournaments
+    if which == 'scout':
+        await scout_flow(interaction)
+        return
     try:
         got = await api.get('/api/internal/challenges', **discord_identity(interaction))
     except Exception as e:
@@ -330,19 +337,107 @@ async def list_flow(interaction, which):
     rows = [c for c in got['challenges'] if (c['you']['status'] if which == 'mine' else c['status'] == 'open')]
     if which == 'open':
         rows = [c for c in rows if c['status'] == 'open']
-    if not rows:
-        await interaction.followup.send("Nothing here right now — start one with `/play versus:`." if which == 'mine'
-                                        else "No open challenges in the club right now.", ephemeral=True)
+    cups = [t for t in got.get('tournaments') or [] if (t['you']['status'] if which == 'mine' else t['status'] in ('open', 'running'))]
+    if not rows and not cups:
+        await interaction.followup.send("Nothing here right now — start one with `/play versus:` or `/play tournament:`."
+                                        if which == 'mine' else "No open challenges in the club right now.", ephemeral=True)
         return
     lines, view = [], discord.ui.View(timeout=None)
+    for t in cups[:5]:
+        state = {'open': 'taking entries', 'running': 'under way', 'done': 'decided', 'cancelled': 'called off'}[t['status']]
+        lines.append(f"🏆 **{t['format_label']}** · {t['games_line']} · {len([p for p in t['players'] if p['status'] == 'accepted'])} in · {state}")
     for c in rows[:10]:
         who = ', '.join(p['user']['name'] for p in c['players'] if p['status'] not in ('declined', 'expired'))
         state = {'open': 'open', 'done': 'decided', 'cancelled': 'called off'}[c['status']]
-        lines.append(f"{c['emoji']} **{c['label']}** · {who} · {c['stake']} 🍿 · {state}")
-    for c in rows[:5]:
+        what = f"🏆 {c['tournament']['match']}" if c.get('tournament') else f"{c['emoji']} **{c['label']}**"
+        lines.append(f"{what} · {who} · {c['stake']} 🍿 · {state}")
+    for t in cups[:2]:
+        view.add_item(tournaments.TournamentButton('view', t['id'], label=f"🏆 {t['format_label']}"[:80]))
+    for c in rows[:5 - min(2, len(cups))]:
         view.add_item(ChallengeButton('view', c['id'], label=f"{c['emoji']} {c['label']}"[:80]))
     lines.append(f"\nYou have **{got['available']} 🍿** to put in.")
     await interaction.followup.send('\n'.join(lines), view=view, ephemeral=True)
+
+
+# ─── Who should I challenge? (scout.py) ───────────────────────────────────────
+
+async def scout_flow(interaction):
+    """The club's challenge stats, yours, and the three best people to challenge
+    — each with 🔥 Roast and ⚔️ Challenge (their suggested game and stake)."""
+    try:
+        got = await api.get('/api/internal/challenges/scout', **discord_identity(interaction))
+    except ApiError as e:
+        await tell(interaction, _error(e, api_failure(e, "Couldn't scout the club ({status}).")))
+        return
+    except Exception as e:
+        await reply_failure(interaction, e, '/play challenges')
+        return
+    view = discord.ui.View(timeout=None)
+    for n, p in enumerate(got['picks'][:3]):
+        name = p['user']['name']
+        if p['suggest']['kind']:
+            view.add_item(ScoutButton('challenge', p['user']['id'], p['suggest']['kind'], p['suggest']['stake'],
+                                      label=f"⚔️ {name}: {p['suggest']['label']}", row=n))
+        if p['roastable']:
+            view.add_item(ScoutButton('roast', p['user']['id'], label=f'🔥 Roast {name}', row=n))
+    await interaction.followup.send(embed=embeds.scout_embed(got), view=view, ephemeral=True)
+
+
+class ScoutButton(discord.ui.DynamicItem[discord.ui.Button],
+                  template=r'scout:(?P<act>roast|again|challenge):(?P<uid>[0-9]+)(?::(?P<kind>[a-z_]+):(?P<stake>[0-9]+))?'):
+    """🔥 a roast of their movie habits (again for another) · ⚔️ challenge them to the suggested game."""
+    def __init__(self, act, uid, kind=None, stake=0, label='🔥 Roast', row=None):
+        cid = f'scout:{act}:{uid}' + (f':{kind}:{stake}' if kind else '')
+        super().__init__(discord.ui.Button(label=label[:80], custom_id=cid, row=row,
+                                           style=discord.ButtonStyle.primary if act == 'challenge' else discord.ButtonStyle.secondary))
+        self.act, self.uid, self.kind, self.stake = act, int(uid), kind, int(stake or 0)
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['act'], match['uid'], match['kind'], match['stake'] or 0, label=getattr(item, 'label', None) or match['act'])
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        if self.act == 'challenge':
+            body = {**discord_identity(interaction), 'action': 'create', 'kind': self.kind, 'opponents': [{'user_id': self.uid}],
+                    'stake': self.stake, 'questions': 5, 'deadline': 'tonight', 'reveal': 'sealed', 'visibility': 'club'}
+            try:
+                c = await api.post('/api/internal/challenges', body)
+            except ApiError as e:
+                await tell(interaction, _error(e, api_failure(e, "Couldn't start that ({status}).")))
+                return
+            except Exception as e:
+                await reply_failure(interaction, e, 'challenge')
+                return
+            await interaction.followup.send(embed=embeds.challenge_embed(c, "⚔️ Challenge sent. Tap ▶ Play when you're ready."),
+                                            view=challenge_view(c), ephemeral=True)
+            return
+        try:
+            r = await api.post(f'/api/internal/challenges/scout/{self.uid}/roast',
+                               {**discord_identity(interaction), 'again': self.act == 'again'})
+        except ApiError as e:
+            await tell(interaction, _error(e, api_failure(e, "Couldn't roast them ({status}).")))
+            return
+        except Exception as e:
+            await reply_failure(interaction, e, 'roast')
+            return
+        view = discord.ui.View(timeout=None)
+        if r.get('more'):
+            view.add_item(ScoutButton('again', self.uid, label='🔥 Another one'))
+        await interaction.followup.send(f"🔥 {r['roast']}", view=view, ephemeral=True)
+
+
+async def send_match(user, discord_user_id, cid):
+    """DM a tournament match that's ready (members who chose Discord for challenge invites), with ▶ Play."""
+    try:
+        c = await api.get(f'/api/internal/challenges/{cid}', discord_user_id=str(discord_user_id))
+    except Exception as e:
+        print(f'tournament match {cid}: {e}')
+        return
+    if c['you']['can_play']:
+        t = c.get('tournament') or {}
+        await user.send(embed=embeds.challenge_embed(c, f"🏆 Your {t.get('match', 'match')} is ready — 30 seconds a question."),
+                        view=challenge_view(c))
 
 
 async def send_invite(user, discord_user_id, cid):
@@ -361,4 +456,4 @@ def post_content(data):
     return embeds.challenge_post_embed(data), post_view(data)
 
 
-register(items=(ChallengeButton, ChallengeAnswer, ChallengeBackSelect, ChallengeBet, ChallengeGamesSelect))
+register(items=(ChallengeButton, ChallengeAnswer, ChallengeBackSelect, ChallengeBet, ChallengeGamesSelect, ScoutButton))

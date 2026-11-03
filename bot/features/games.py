@@ -9,7 +9,7 @@ from api import ApiError
 import embeds
 from .shared import (SITE_URL, api, channel_for, client, club, connected_clubs, discord_identity, register,
                      reply_failure, use_club)
-from . import challenges, polls, threads      # used at call time, so the order they load in doesn't matter
+from . import challenges, polls, threads, tournaments      # used at call time, so the order they load in doesn't matter
 
 
 LEADERBOARD_PERIODS = [app_commands.Choice(name=n, value=v) for v, n in (
@@ -267,7 +267,9 @@ def play_view(p):
     for poll in [x for x in p.get('polls', []) if not x['you_voted']][:3]:
         view.add_item(polls.VoteButton('open', poll['id'], label=f"🗳️ Vote: {poll['title']}", row=2))
     ch = p.get('challenges') or {}
-    for c in (ch.get('invites', []) + ch.get('your_turn', []))[:4]:
+    for t in (ch.get('tournaments') or [])[:2]:
+        view.add_item(tournaments.TournamentButton('view', t['id'], label=f"🏆 {t['title']}", row=3))
+    for c in (ch.get('invites', []) + ch.get('your_turn', []))[:4 - min(2, len(ch.get('tournaments') or []))]:
         view.add_item(challenges.ChallengeButton('view', c['id'], label=f"⚔️ {c['game']}", row=3))
     view.add_item(discord.ui.Button(label='Play on the site', url=f'{SITE_URL}/play', row=2))
     return view
@@ -280,33 +282,46 @@ QUIZ_GAMES = (('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ 
 PLAY_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
     ('trivia', "🧠 Trivia: today's question"), ('bingo', '🎱 My bingo card'), *QUIZ_GAMES, ('kernels', '🍿 My kernels'))]
 V = challenges                     # /play versus: and challenges: (features/challenges.py)
+T = tournaments                    # /play tournament: (features/tournaments.py)
 
 
-@client.tree.command(name='play', description='Games and kernels: play solo, challenge members, polls to vote in, your kernels')
+@client.tree.command(name='play', description='Games and kernels: play solo, challenge members, tournaments, your kernels')
 @app_commands.describe(
     solo='Play on your own: trivia, your bingo card, a quiz game — or see your kernels',
-    versus='Challenge members to a game (then pick opponent, stake…)',
-    opponent='Versus: who you challenge', opponent2='Versus: another player', opponent3='Versus: another player',
-    stake='Versus: kernels each player puts in the pot (0 = for bragging rights)',
-    seats='Versus: open seats anyone in the club can take',
-    questions='Versus: questions in each game, 1–10 (Higher or lower is one run)',
+    versus='Challenge members to a game (then pick opponent, stake…) — with tournament:, the game every match plays',
+    tournament='A tournament for 3 or more: double elimination or round robin + a final',
+    opponent='Versus or tournament: who you invite', opponent2='Another player', opponent3='Another player',
+    stake='Kernels each player puts in the pot (0 = for bragging rights)',
+    seats='Open seats anyone in the club can take',
+    questions='Questions in each game, 1–10 (Higher or lower is one run)',
     games='Gauntlet: how many games, 2–6 (random — or pick them after)',
-    deadline='Versus: when it closes (default: tonight)',
-    scores='Versus: show scores as each player finishes, or only once everyone has',
-    club_visible='Versus: the club can see it and back players (default: yes)',
-    post='Versus: post it in the channel (default: your sharing setting)',
-    challenges="Your challenges, or the club's open ones",
+    deadline='When it closes — a tournament: when entries close (default: tonight)',
+    match_time='Tournament: how long each match stays open (default: a day)',
+    payout='Tournament: winner takes all, or 60 / 30 / 10',
+    scores='Show scores as each player finishes, or only once everyone has',
+    club_visible='The club can see it and back players (default: yes)',
+    post='Post it in the channel (default: your sharing setting)',
+    challenges="Your challenges, the club's open ones, or who you should challenge",
 )
 @app_commands.rename(club_visible='club')
-@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, deadline=V.DEADLINES, scores=V.REVEALS, challenges=V.LISTS)
+@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, tournament=T.TOURNAMENT_FORMATS, deadline=V.DEADLINES,
+                      match_time=T.TOURNAMENT_MATCH_TIMES, payout=T.TOURNAMENT_PAYOUTS, scores=V.REVEALS, challenges=V.LISTS)
 async def play_cmd(interaction: discord.Interaction, solo: app_commands.Choice[str] = None,
-                   versus: app_commands.Choice[str] = None, opponent: discord.Member = None, opponent2: discord.Member = None,
+                   versus: app_commands.Choice[str] = None, tournament: app_commands.Choice[str] = None,
+                   opponent: discord.Member = None, opponent2: discord.Member = None,
                    opponent3: discord.Member = None, stake: app_commands.Range[int, 0, 50] = None,
-                   seats: app_commands.Range[int, 0, 6] = None, questions: app_commands.Range[int, 1, 10] = None,
+                   seats: app_commands.Range[int, 0, 8] = None, questions: app_commands.Range[int, 1, 10] = None,
                    games: app_commands.Range[int, 2, 6] = None,
-                   deadline: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
+                   deadline: app_commands.Choice[str] = None, match_time: app_commands.Choice[str] = None,
+                   payout: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
                    club_visible: bool = None, post: bool = None, challenges: app_commands.Choice[str] = None):
-    await interaction.response.defer(ephemeral=True, thinking=bool(solo or versus or challenges))
+    await interaction.response.defer(ephemeral=True, thinking=bool(solo or versus or tournament or challenges))
+    if tournament:
+        await T.tournament_flow(interaction, tournament.value, versus.value if versus else None, [opponent, opponent2, opponent3],
+                                stake, seats, questions, games, deadline.value if deadline else None,
+                                match_time.value if match_time else None, payout.value if payout else None,
+                                scores.value if scores else None, club_visible, post)
+        return
     if versus:
         await V.versus_flow(interaction, versus.value, [opponent, opponent2, opponent3], stake, seats, questions,
                             deadline.value if deadline else None, scores.value if scores else None, club_visible, post,

@@ -1,4 +1,5 @@
 import { ChallengeCard } from "../components/Challenges";
+import { TournamentCard } from "../components/Tournaments";
 import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
@@ -293,6 +294,21 @@ function ChallengeFeedCard({ card, onOpen }) {
     <article className="feed-card">
       <CardHead at={card.at}>{head}</CardHead>
       <div className="feed-card-body"><ChallengeCard c={c} onOpen={onOpen} /></div>
+    </article>
+  );
+}
+
+// A club-visible tournament (entries → under way → decided, updated in place).
+function TournamentFeedCard({ card, onOpen }) {
+  const t = card.tournament;
+  const champ = t.players.find(p => p.place === 1);
+  const head = t.status === "done" ? `🏆 ${champ?.user.name || "Someone"} won the tournament`
+    : t.status === "running" ? `⚔️ The ${t.format_label.toLowerCase()} tournament is under way`
+    : `🏆 ${t.created_by.name} started a tournament`;
+  return (
+    <article className="feed-card">
+      <CardHead at={card.at}>{head}</CardHead>
+      <div className="feed-card-body"><TournamentCard t={t} onOpen={onOpen} /></div>
     </article>
   );
 }
@@ -595,6 +611,8 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         return <PollCard key={card.key} {...common} onOpenPoll={() => navigate(`/polls/${card.poll.id}`)} />;
       case "challenge":
         return <ChallengeFeedCard key={card.key} card={card} onOpen={() => navigate(`/challenges/${card.challenge.id}`)} />;
+      case "tournament":
+        return <TournamentFeedCard key={card.key} card={card} onOpen={() => navigate(`/tournaments/${card.tournament.id}`)} />;
       case "joined":
         return <JoinedCard key={card.key} {...common} />;
       case "recap":

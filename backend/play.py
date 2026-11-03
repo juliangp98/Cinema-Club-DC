@@ -32,15 +32,23 @@ def summary(group, user):
     out['challenges'] = None
     if group.challenges_enabled:                      # invites waiting for you, and challenges where it's your turn
         import challenges
+        import tournaments
         mine = [c for c in challenges.visible(group.id, user.id) if c.status == 'open' and challenges.player(c, user.id)]
-        brief = lambda c: {'id': c.id, 'game': ' '.join(challenges.label(c.kind)), 'by': c.creator.name if c.creator else None}
+
+        def brief(c):                                 # a tournament's match: "🏆 Winners' round 1"
+            t = challenges._tournament_of(c)
+            return {'id': c.id, 'game': f"🏆 {t['match']}" if t else ' '.join(challenges.label(c.kind)),
+                    'by': c.creator.name if c.creator else None}
         out['challenges'] = {'invites': [brief(c) for c in mine if challenges.player(c, user.id).status == 'invited'],
-                             'your_turn': [brief(c) for c in mine if challenges.player(c, user.id).status == 'accepted']}
+                             'your_turn': [brief(c) for c in mine if challenges.player(c, user.id).status == 'accepted'],
+                             'tournaments': [{'id': t.id, 'title': tournaments.title(t), 'by': t.creator.name if t.creator else None}
+                                             for t in tournaments.visible(group.id, user.id) if t.status == 'open'
+                                             and (p := tournaments.player(t, user.id)) and p.status == 'invited']}
 
     k = kernels.breakdown(user.id, group.id)
     out['kernels'] = {'kernels': k['kernels'], **{part: k[part] for part in kernels.PARTS},
                       'allowance': kernels.allowance(user.id), 'today': kernels.left_today(user, group)}
     out['todo'] = (int(bool(out['trivia'] and out['trivia']['to_answer']))
                    + sum(1 for p in polls if not p['you_voted'])
-                   + (len(out['challenges']['invites']) + len(out['challenges']['your_turn']) if out['challenges'] else 0))
+                   + (sum(len(out['challenges'][k]) for k in ('invites', 'your_turn', 'tournaments')) if out['challenges'] else 0))
     return out

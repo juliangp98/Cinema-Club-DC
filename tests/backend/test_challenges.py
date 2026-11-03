@@ -5,46 +5,7 @@ and who hears about it, on the site and in Discord."""
 import json
 from datetime import datetime, timedelta
 
-import pytest
-
-from helpers import H, client, setup_db
-
-FILMS = [('ALPHA', 1950), ('BRAVO', 1962), ('CHARLIE', 1971), ('DELTA', 1984), ('ECHO', 1990), ('FOXTROT', 1999),
-         ('GOLF', 2004), ('HOTEL', 2011), ('INDIA', 2018), ('JULIET', 1977)]
-
-
-@pytest.fixture
-def club():
-    """Versus Club (our films; Who said it and Higher or lower on, challenges
-    on): Ana (organizer), Bo, Cy and Di (members, Bo on Discord), Eve in
-    another club. Everyone in Versus Club has 20 kernels to play with."""
-    from app import app, db, Group, GroupMembership, KernelGift, Movie, Quote, Showtime, User
-    setup_db()
-    with app.app_context():
-        g = Group(name='Versus Club', slug='versus-club', is_public=False, trivia_source='local', challenges_enabled=True,
-                  quizzes_json=json.dumps({'who_said': True, 'higher_lower': True, 'still': True}))
-        other = Group(name='Elsewhere', slug='elsewhere-v', is_public=False)
-        us = {n: User(name=n, email=f'{n.lower()}@versus.test', is_active=True) for n in ('Ana', 'Bo', 'Cy', 'Di', 'Eve', 'Gift')}
-        us['Bo'].discord_user_id = '9911'
-        db.session.add_all([g, other, *us.values()])
-        db.session.flush()
-        for n, u in us.items():
-            db.session.add(GroupMembership(user_id=u.id, group_id=(other if n == 'Eve' else g).id, status='active',
-                                           role='organizer' if n == 'Ana' else 'member'))
-        for i, (t, y) in enumerate(FILMS):
-            db.session.add(Movie(title=t, release_year=str(y), tmdb_id=960000 + i, genres='drama'))
-        cast = [{'name': n, 'character': c} for n, c in (('Humphrey Bogart', 'Rick Blaine'), ('Ingrid Bergman', 'Ilsa Lund'),
-                                                        ('Paul Henreid', 'Victor Laszlo'), ('Claude Rains', 'Captain Renault'),
-                                                        ('Conrad Veidt', 'Major Strasser'))]
-        db.session.add(Movie(title='CASABLANCA', release_year='1942', tmdb_id=969999, genres='drama,romance',
-                             cast_json=json.dumps(cast)))
-        db.session.add(Quote(text='Here’s looking at you, kid.', movie='Casablanca', character='Rick'))
-        show = Showtime.query.first()
-        for n in ('Ana', 'Bo', 'Cy', 'Di'):
-            db.session.add(KernelGift(giver_id=us['Gift'].id, recipient_id=us[n].id, group_id=g.id, showtime_id=show.id,
-                                      week=datetime(2026, 1, 5).date(), amount=20))
-        db.session.commit()
-        return {'G': g.id, 'slug': g.slug, **{n: u.id for n, u in us.items()}}
+from helpers import client
 
 
 def make(c, who='Ana', **body):
@@ -123,7 +84,7 @@ def test_everyone_gets_the_same_set_and_the_top_score_takes_the_pot(club):
     assert k['challenges'] == 6 and k['kernels'] == 26
     row = next(r for r in client(club['Ana']).get(f"/api/groups/{club['G']}/leaderboard").json['rows']
                if r['user']['id'] == club['Ana'])
-    assert row['breakdown']['challenges'] == 6 and row['stats']['challenges'] == {'played': 1, 'won': 1, 'lost': 0, 'streak': 1}
+    assert row['breakdown']['challenges'] == 6 and row['stats']['challenges'] == {'played': 1, 'won': 1, 'lost': 0, 'streak': 1, 'titles': 0}
 
 
 def test_a_tie_splits_the_pot_and_a_no_show_forfeits(club):
@@ -283,7 +244,7 @@ def test_records_and_rivals(club):
         play(club, 'Ana', cid, [winner == 'Ana'] * 3)
         play(club, 'Bo', cid, [winner == 'Bo'] * 3)
     r = client(club['Bo']).get(f"/api/challenges/rivals?group_id={club['G']}&user_id={club['Ana']}").json
-    assert r['record'] == {'played': 3, 'won': 2, 'lost': 1, 'streak': 0}
+    assert r['record'] == {'played': 3, 'won': 2, 'lost': 1, 'streak': 0, 'titles': 0}
     assert r['rivals'][0]['user']['name'] == 'Bo' and (r['rivals'][0]['won'], r['rivals'][0]['lost']) == (2, 1)
     assert (r['versus_you']['won'], r['versus_you']['lost']) == (2, 1)                            # Ana against Bo, as Bo sees it
 
@@ -437,3 +398,19 @@ def test_the_games_can_be_picked_again_until_someone_plays(club, monkeypatch):
     assert act(club, 'Bo', cid, 'games', rounds=[{'kind': 'higher_lower'}]).status_code == 400    # not Bo's to change
     client(club['Ana']).get(f'/api/challenges/{cid}/play')
     assert act(club, 'Ana', cid, 'games', rounds=[{'kind': 'higher_lower'}]).status_code == 400   # someone's started
+
+
+def test_who_played_beats_who_didnt(club):
+    """Bo got the first one right, then never came back; Ana played them all
+    and got none: Ana played, so Ana takes the pot."""
+    import challenges
+    from app import app
+    cid = make(club, opponents=[club['Bo']], questions=3, stake=2).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    play(club, 'Bo', cid, [True])
+    play(club, 'Ana', cid, [False] * 3)
+    with app.app_context():
+        challenges.settle_due(datetime.utcnow() + timedelta(days=4))
+    done = client(club['Ana']).get(f'/api/challenges/{cid}').json
+    nets = {p['user']['name']: (p['status'], p['net'], p['winner']) for p in done['players']}
+    assert nets == {'Ana': ('finished', 2, True), 'Bo': ('forfeit', -2, False)}

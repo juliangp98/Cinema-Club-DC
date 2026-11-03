@@ -8,9 +8,9 @@ from discord.ext import tasks
 from discord.ui import DynamicItem
 
 import bot  # noqa: F401 — loads every feature
-from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, club, servers
+from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, tournaments, club, servers
 
-FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, club, servers)
+FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, tournaments, club, servers)
 
 
 def test_every_button_and_loop_is_registered():

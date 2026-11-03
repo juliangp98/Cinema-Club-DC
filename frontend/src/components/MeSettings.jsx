@@ -37,7 +37,7 @@ const SHARE_KINDS = [
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
   ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
   ["games", "My game wins", "Whether a bingo win posted in your club's Discord names you (if the club posts wins).", ALWAYS_NEVER],
-  ["challenge", "Challenges I start or play", "Whether a challenge you start is posted in the channel (you can still choose each time), and — Never — whether others' posts name you."],
+  ["challenge", "Challenges and tournaments I start or play", "Whether a challenge or tournament you start is posted in the channel (you can still choose each time), and — Never — whether others' posts name you."],
 ];
 // Why sharing isn't on offer: only members who've linked Discord and are in
 // the club's server ever appear there.
@@ -284,6 +284,7 @@ export default function MeSettings({ user, apiBase }) {
     onUpdate({ ...user, letterboxd_username: d.username, letterboxd_connected: d.connected });
   }
   const setPublic = v => save(async () => setTaste(await send(`${apiBase}/api/me/taste`, "PUT", { public: v })));
+  const setRoastable = v => save(async () => onUpdate((await send(`${apiBase}/api/auth/profile`, "PUT", { roastable: v })).user));
   const noLb = !lb?.connected;
 
   return (
@@ -331,6 +332,8 @@ export default function MeSettings({ user, apiBase }) {
                          onChange={v => lbCall("PUT", { clues: v })} />
             </>
           )}
+          <SwitchRow label="Fair game for challenge scouting" checked={user.roastable !== false} onChange={setRoastable}
+                     hint="When members look for someone to challenge, they can see your movie habits next to theirs — only what your clubs already see — and get a playful roast of them. Off: only your challenge numbers show." />
           <div id="profile-sharing">
             <SettingsGroup title="Sharing to Discord">
               <SharingRows user={user} apiBase={apiBase} onUpdate={onUpdate} save={save} />

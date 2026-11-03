@@ -12,6 +12,7 @@ const ClubPage = lazyPage(() => import("./pages/ClubPage"));
 const PollDetailPage = lazyPage(() => import("./pages/PollDetailPage"));
 const PollEditorPage = lazyPage(() => import("./pages/PollEditorPage"));
 const ChallengePage = lazyPage(() => import("./pages/ChallengePage"));
+const TournamentPage = lazyPage(() => import("./pages/TournamentPage"));
 const VerifySignin = lazyPage(() => import("./pages/VerifySignin"));
 const MePage = lazyPage(() => import("./pages/MePage"));
 const FilmPage = lazyPage(() => import("./pages/FilmPage"));
@@ -220,6 +221,8 @@ export default function App() {
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/challenges/:challengeId" element={
             <RequireSignIn user={user}><ChallengePage apiBase={API_BASE} /></RequireSignIn>} />
+          <Route path="/tournaments/:tournamentId" element={
+            <RequireSignIn user={user}><TournamentPage apiBase={API_BASE} user={user} /></RequireSignIn>} />
           <Route path="/polls/:pollId/edit" element={
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/polls/:pollId" element={

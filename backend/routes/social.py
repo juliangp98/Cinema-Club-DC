@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import taste
 import places
-from app import (Attendance, CINEMA_EMOJIS, Challenge, ClubDigest, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
+from app import (Attendance, CINEMA_EMOJIS, Challenge, ClubDigest, Tournament, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
@@ -74,10 +74,17 @@ def feed_events(group_id, since):
             if at and at >= since:
                 ev.append((kind, f'p{p.id}', at, p.created_by, None))
     for ch in Challenge.query.filter(Challenge.group_id == group_id, Challenge.visibility == 'club',
-                                     Challenge.status != 'cancelled', Challenge.created_at >= since):
+                                     Challenge.status != 'cancelled', Challenge.created_at >= since,
+                                     Challenge.tournament_id.is_(None)):       # a tournament's matches: on its card
         for kind, at in (('challenge_opened', ch.created_at), ('challenge_decided', ch.decided_at)):
             if at:
                 ev.append((kind, f'c{ch.id}', at, ch.created_by, None))
+    for t in Tournament.query.filter(Tournament.group_id == group_id, Tournament.visibility == 'club',
+                                     Tournament.status != 'cancelled', Tournament.created_at >= since):
+        for kind, at in (('tournament_opened', t.created_at), ('tournament_started', t.started_at),
+                         ('tournament_decided', t.decided_at)):
+            if at:
+                ev.append((kind, f't{t.id}', at, t.created_by, None))
     return ev, members
 
 
@@ -89,7 +96,7 @@ FEED_TYPES = {                 # ?type= on the feed page
     'recaps': lambda c: c['key'][0] == 'r',
     'digests': lambda c: c['key'][0] == 'd',
     'joins': lambda c: c['key'][0] == 'j',
-    'games': lambda c: c['key'][0] in 'bc',
+    'games': lambda c: c['key'][0] in 'bct',
 }
 
 
@@ -292,6 +299,14 @@ def _feed_challenge(viewer, challenge_id):
     return {'type': 'challenge', 'challenge': challenges.as_dict(ch, viewer.id)}
 
 
+def _feed_tournament(viewer, tournament_id):
+    import tournaments
+    t = db.session.get(Tournament, tournament_id)
+    if not t or not tournaments.can_see(t, viewer.id):
+        return None
+    return {'type': 'tournament', 'tournament': tournaments.as_dict(t, viewer.id)}
+
+
 def hydrate_feed(viewer, group_id, skeletons, member_ids):
     uids = {e[3] for c in skeletons for e in c['events']} | \
         {e[4]['to'] for c in skeletons for e in c['events'] if e[0] == 'kernels'}
@@ -307,6 +322,8 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
             card = _feed_poll(viewer, int(ref))
         elif kind == 'c':
             card = _feed_challenge(viewer, int(ref))
+        elif kind == 't':
+            card = _feed_tournament(viewer, int(ref))
         elif kind == 'r':
             card = _feed_recap(group_id, ref, c['events'], users)
         elif kind == 'b':

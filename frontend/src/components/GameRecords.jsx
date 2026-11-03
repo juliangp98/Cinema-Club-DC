@@ -40,7 +40,8 @@ export function recordItems(row, on) {
     on.hl && { label: "Higher or lower", value: q?.best_streak || 0, sub: "best streak" },
     on.quizzes && { label: "Quiz games", value: q?.right || 0, sub: `right · ${plural(q?.rounds || 0, "round")}` },
     on.challenges && { label: "Challenges", value: `${row.stats.challenges?.won || 0}–${row.stats.challenges?.lost || 0}`,
-                       sub: row.stats.challenges?.streak > 1 ? `won · lost · ${row.stats.challenges.streak} in a row` : "won · lost" },
+                       sub: [row.stats.challenges?.streak > 1 ? `won · lost · ${row.stats.challenges.streak} in a row` : "won · lost",
+                             row.stats.challenges?.titles ? `🏆 ${plural(row.stats.challenges.titles, "title")}` : null].filter(Boolean).join(" · ") },
     { label: "Polls", value: row.correct, sub: "right picks" },
   ];
 }

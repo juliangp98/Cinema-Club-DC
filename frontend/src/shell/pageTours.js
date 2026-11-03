@@ -6,7 +6,8 @@
 // Which tour the page at `pathname` has (the ? in the top bar), or null.
 const ROUTES = [[/^\/$/, "discover"], [/^\/calendar$/, "calendar"], [/^\/browse$/, "browse"], [/^\/theatres\/[^/]+$/, "theatre"],
                 [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/club$/, "club"],
-                [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/challenges\/[^/]+$/, "challenge"], [/^\/me$/, "me"]];
+                [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/challenges\/[^/]+$/, "challenge"], [/^\/tournaments\/[^/]+$/, "tournament"],
+                [/^\/me$/, "me"]];
 export const tourFor = pathname => ROUTES.find(([re]) => re.test(pathname))?.[1] || null;
 
 export const PAGE_TOURS = {
@@ -63,10 +64,10 @@ export const PAGE_TOURS = {
     { target: ".games-rail, .feed-strip", title: "Waiting for you", body: "Today's trivia, polls to vote in, and your kernels." },
   ] },
   play: { title: "Play", help: "games", steps: [
+    { target: "#challenges", title: "Challenges", body: "Play members for a pot of kernels — one game, a gauntlet, or a whole tournament. Up top: your record and the club's best, then who you should challenge and why — with their habits next to yours, and a roast 🔥." },
     { target: "#trivia", title: "Trivia", body: "The question of the day — one try, 1 to 3 kernels by how hard it is — and anytime questions if your club allows them." },
     { target: "#bingo", title: "Repertory bingo", body: "This month's card fills in by itself from your check-ins — and under it, everyone's. Tap one to see their squares." },
-    { target: "#polls", title: "Polls", body: "Vote in the open ones; past ones show their results and who called it." },
-    { target: "#games", title: "More games", body: "Higher or lower, Who said it, Guess the still and more — the ones your club has on — and, below, challenges: play members for a pot of kernels. Beside them: your kernels as you earn them, and what's still on the table today." },
+    { target: "#games", title: "Polls and more games", body: "Above, every poll: vote in the open ones; past ones show their results. Here, Higher or lower, Who said it, Guess the still and more — the ones your club has on. Beside them: your kernels as you earn them, and what's still on the table today." },
     { target: '[data-tab="records"]', title: "Records", body: "Your game records, everyone's (sort by any game), and the club's — this month, this year or all time." },
   ] },
   club: { title: "the Club page", help: "club", steps: [
@@ -89,6 +90,12 @@ export const PAGE_TOURS = {
     { target: ".ch-actions", title: "Your move", body: "Accept, take a seat, or play — 30 seconds a question, the same questions as everyone else." },
     { target: ".ch-players", title: "Who's in", body: "Everyone's status, and the scores — as each finishes, or only at the end, as the challenge says." },
     { target: ".ch-backing", title: "Back a player", body: "Not playing? Put kernels on who'll win, until the first player finishes." },
+  ] },
+  tournament: { title: "a tournament", help: "tournaments", steps: [
+    { target: ".ch-actions", title: "Your move", body: "Join, take a seat — or, once it's under way, play your match: a 1-v-1 challenge, 30 seconds a question." },
+    { target: ".ch-players", title: "Who's in", body: "Seeds, who's still alive, and — at the end — the medals and the prizes." },
+    { target: ".ch-backing", title: "Back a winner", body: "Not playing? Put kernels on who'll win it all, until the first match is decided." },
+    { target: ".tour-bracket", title: "The bracket", body: "Every match: winners' and losers' brackets and the grand final — or the round robin's standings and its final. Tap a match to watch or play it." },
   ] },
   me: { title: "the Me page", help: "lists", steps: [
     { target: ".me-card", title: "You", body: "Your picture, name and a line about you, as your clubs see them." },

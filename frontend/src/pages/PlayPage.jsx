@@ -11,8 +11,9 @@ import { useShell } from "../shell/AppShell";
 import { runsClub } from "../roles";
 import Tabs from "../ui/Tabs";
 import { ClubBingo, RecordsTab } from "../components/GameRecords";
-// Play (R10; laid out in R15): the club's games — trivia, bingo (with
-// everyone's card, 7g), every poll, the quiz games and challenges — in the main column, beside your kernels,
+// Play (R10; laid out in R15): the club's games — challenges first (stats,
+// who to challenge, tournaments), then trivia, bingo (with everyone's card,
+// 7g), every poll and the quiz games — in the main column, beside your kernels,
 // this month's standings and this week's movers (and, for organizers and
 // admins, the games they run). Its Records tab (7g, ?tab=records): yours,
 // everyone's and the club's. The feed's rail and strip (and /play in
@@ -48,6 +49,10 @@ export default function PlayPage({ user, apiBase, groupId }) {
       <div className="play-layout ui-split">
         <div className="play-main">
           {tab === "records" ? (group && <RecordsTab apiBase={apiBase} group={group} viewerId={user.id} />) : <>
+          <section id="challenges" className="play-section play-challenges">
+            <SectionTitle>⚔️ Challenges</SectionTitle>
+            <ChallengesSection apiBase={apiBase} groupId={groupId} viewerId={user.id} canRun={canRun} />
+          </section>
           <section id="trivia" className="play-section">
             <SectionTitle>Trivia</SectionTitle>
             <TriviaCard apiBase={apiBase} groupId={groupId} role={role} offNote />
@@ -64,10 +69,6 @@ export default function PlayPage({ user, apiBase, groupId }) {
           <section id="games" className="play-section">
             <SectionTitle>More games</SectionTitle>
             <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />
-          </section>
-          <section id="challenges" className="play-section">
-            <SectionTitle>Challenges</SectionTitle>
-            <ChallengesSection apiBase={apiBase} groupId={groupId} viewerId={user.id} canRun={canRun} />
           </section>
           </>}
         </div>

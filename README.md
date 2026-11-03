@@ -19,7 +19,7 @@ keep watchlists, check in after screenings, and earn 🍿 kernels.
 | **Calendar** | Every showtime as an agenda, a week or a month, with the same filters. Announced films show on the day a theatre expects them. |
 | **Film** and **Theatre** pages | A film's details, ratings, trailer and every showing; a theatre's map, what's on this week, and members' notes. |
 | **Feed** | The club's activity: who's going where, check-ins (with Letterboxd ratings if shared), discussion, polls, weekly recaps, and the Monday digest of the week ahead (a club setting). |
-| **Play** | The games hub: daily and anytime **trivia**, **repertory bingo** (a monthly card filled by screenings — and Letterboxd diary entries, if the club allows), **quiz games** (Higher or lower, Who said it, Guess the still, Guess from the reviews, Emoji plot), **polls and predictions** (kernel stakes, answers revealed live or all at once, voting deadlines), **challenges** (members against each other — one game or a gauntlet — for a pot of kernels, others backing a player), and **Records** for you, everyone and the club. |
+| **Play** | The games hub: daily and anytime **trivia**, **repertory bingo** (a monthly card filled by screenings — and Letterboxd diary entries, if the club allows), **quiz games** (Higher or lower, Who said it, Guess the still, Guess from the reviews, Emoji plot), **polls and predictions** (kernel stakes, answers revealed live or all at once, voting deadlines), **challenges** (members against each other — one game or a gauntlet — for a pot of kernels, others backing a player, with stats and a "who should you challenge?" scout that roasts their movie habits), **tournaments** (double elimination or round robin + a final, with prizes), and **Records** for you, everyone and the club. |
 | **Club** | Members, the leaderboard, the club's theatres and settings (organizers and admins). |
 | **Me** | Your plans, history, watchlist, check-ins and **Settings** — by category: profile, Your taste, notifications, connections (Discord, Letterboxd, calendar feeds), privacy. |
 | **People** pages | A member's profile, taste match, history and game records (within your clubs). |
@@ -142,7 +142,7 @@ Tests: `tests/run.sh` (everything), `tests/run.sh -k discord`, `tests/run.sh fro
 - [Configuration](docs/configuration.md) — every setting, what it's for and where to get it
 - [Deploying](docs/deploying.md) — Docker on a NAS, a domain through Cloudflare, scheduled scrapes, updates and backups
 - [The Discord bot](docs/discord-bot.md) — what it does, its commands, and setting it up for your own server
-- [Challenges](docs/challenges.md) — members against each other: the rules, who sees what, the code
+- [Challenges and tournaments](docs/challenges.md) — members against each other, brackets, scouting and roasts: the rules, who sees what, the code
 - [Scrapers](docs/scrapers.md) — each theatre, how it's read, sold-out handling, adding a theatre
 - [Contributing](docs/contributing.md) — the dev setup, tests, the UI kit and house rules
 - [Tests](tests/README.md) — how the suite is laid out

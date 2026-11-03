@@ -40,6 +40,9 @@ def migrate():
         "ALTER TABLE 'group' ADD COLUMN challenges_enabled BOOLEAN DEFAULT 0",
         "ALTER TABLE 'group' ADD COLUMN challenge_max_stake INTEGER DEFAULT 10",
         "ALTER TABLE 'group' ADD COLUMN challenge_backing BOOLEAN DEFAULT 1",
+        # Tournaments: a challenge can be one of a tournament's matches; scouting can roast you (or not)
+        "ALTER TABLE user ADD COLUMN roastable BOOLEAN DEFAULT 1",
+        "ALTER TABLE challenge ADD COLUMN tournament_id INTEGER",
         # R15: trivia difficulty and sources (film_pool.py)
         "ALTER TABLE trivia_question ADD COLUMN difficulty VARCHAR(8)",
         "ALTER TABLE trivia_question ADD COLUMN tmdb_id INTEGER",

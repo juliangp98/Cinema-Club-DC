@@ -160,3 +160,40 @@ def challenge_rivals():
     uid = request.args.get('user_id', type=int) or viewer.id
     return jsonify({'record': challenges.records([uid], group_id)[uid], 'rivals': challenges.rivals(group_id, uid),
                     'versus_you': challenges.head_to_head(group_id, uid, viewer.id) if uid != viewer.id else None})
+
+
+@app.route('/api/challenges/scout')
+@require_auth
+def challenge_scout():
+    """?group_id= — the club's challenge stats and yours, and who you should
+    challenge (best first), with why, a game and a stake (scout.py)."""
+    import scout
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    group, user = db.session.get(Group, group_id), current_user()
+    if not group.challenges_enabled:
+        return jsonify({'error': 'Challenges are off in this club.'}), 400
+    return jsonify({'stats': scout.stats(group, user.id), 'picks': scout.picks(group, user)})
+
+
+@app.route('/api/challenges/scout/<int:user_id>/roast', methods=['POST'])
+@require_auth
+def challenge_roast(user_id):
+    """{group_id, again} — a roast of a member's movie habits (scout.roast);
+    `again` for another (a few a day)."""
+    import scout
+    from app import User
+    data = request.json or {}
+    group_id = _as_int(data.get('group_id'))
+    err = require_group_member(group_id)
+    if err:
+        return err
+    other = db.session.get(User, user_id)
+    if not other or not _active_membership(other, group_id):
+        return jsonify({'error': 'Not in this club'}), 404
+    got = scout.roast(current_user(), other, db.session.get(Group, group_id), bool(data.get('again')))
+    if not got:
+        return jsonify({'error': f"{other.name} has roasts turned off."}), 400
+    return jsonify(got)

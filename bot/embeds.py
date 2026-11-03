@@ -839,7 +839,9 @@ HELP_SECTIONS = [
     ]),
     ('🎮 Play, polls & kernels', [
         ('/play', 'the games hub — `solo:` straight into trivia, your bingo card, a quiz game or your kernels; '
-                  '`versus:` challenge members (`opponent`, `stake`, `seats`…); `challenges:` yours or the club\'s open ones'),
+                  '`versus:` challenge members (`opponent`, `stake`, `seats`…); `tournament:` a bracket for 3 or more '
+                  '(double elimination or round robin — `versus:` picks the game, `payout`, `match_time`); '
+                  '`challenges:` yours, the club\'s open ones, or who you should challenge (with a roast 🔥)'),
         ('/poll', "`action:` what's open, your private ballot, or make one — describe it and the AI drafts it (organizers)"),
         ('/leaderboard', 'the kernel standings 🍿 — `period:` all time, this year or this month'),
     ]),
@@ -1161,8 +1163,12 @@ def challenge_embed(c, note=None):
             lines.append(f"You backed **{backed}** with {b['mine']['amount']} 🍿{got}")
     if note:
         lines += ['', note]
-    embed = discord.Embed(title=f"{status} {c['emoji']} {c['label']}{'' if c.get('gauntlet') else ' challenge'}"[:256], colour=AMBER,
-                          description='\n'.join(lines)[:4000], url=f"{SITE_URL}/challenges/{c['id']}")
+    t = c.get('tournament')
+    if t:                                                  # a tournament's match
+        lines.insert(0, f"{t['title']} · **{t['match']}** — one winner goes on")
+    title = (f"{status} {t['match']}: {c['emoji']} {c['label']}" if t else
+             f"{status} {c['emoji']} {c['label']}{'' if c.get('gauntlet') else ' challenge'}")
+    embed = discord.Embed(title=title[:256], colour=AMBER, description='\n'.join(lines)[:4000], url=f"{SITE_URL}/challenges/{c['id']}")
     embed.set_footer(text='Only you see this · the site has the full results' if c['status'] == 'done' else 'Only you see this')
     return embed
 
@@ -1194,6 +1200,121 @@ def challenge_post_embed(p):
         lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''} — tap Join")
     return discord.Embed(title=head.get(p['status'], head['open'])[:256], colour=AMBER, description='\n'.join(lines)[:4000],
                          url=f"{SITE_URL}/challenges/{p['challenge_id']}")
+
+
+TOURNAMENT_STATUS = {'open': '🏆 Taking entries', 'running': '⚔️ Under way', 'done': '🏆 Decided', 'cancelled': '✖️ Called off'}
+PLACES = {1: '🥇', 2: '🥈', 3: '🥉'}
+
+
+def _match_line(m, name=lambda side: side['user']['name'] if side and side.get('user') else ('bye' if side else '?')):
+    a, b = m['a'], m['b']
+    win = m.get('winner_id')
+    mark = lambda side: f"**{name(side)}**" if side and side.get('user') and side['user']['id'] == win else name(side)
+    score = lambda side: (f" {m['scores'][str(side['user']['id'])]}" if side and side.get('user')
+                          and str(side['user']['id']) in m.get('scores', {}) else '')
+    state = {'open': '▶', 'done': '✓', 'waiting': '…', 'bye': '↷'}[m['status']]
+    return f"{state} {m['label']}: {mark(a)}{score(a)} vs {mark(b)}{score(b)}"
+
+
+def tournament_embed(t, note=None):
+    """A tournament as one member sees it (tournaments.as_dict): entrants,
+    the pot and prizes, the matches so far, your match."""
+    people = [p for p in t['players'] if p['status'] not in ('declined', 'expired')]
+    lines = [f"Started by **{t['created_by']['name']}** · {t['games_line']} · each match: {t['match_time_label'].lower()}",
+             (f"**{t['stake']} 🍿** entry · pot **{t['pot']} 🍿** · {t['payout_label']}" if t['stake'] else 'For bragging rights (no kernels)')]
+    if t['status'] == 'open':
+        lines.append(closes_line(t['closes_at']).replace('Voting closes', 'Entries close'))
+        lines.append(f"Needs {t['min_players']}–{t['max_players']} players"
+                     + (f" · 🪑 {t['seats_left']} open seat{'s' if t['seats_left'] != 1 else ''}" if t['seats_left'] else ''))
+    elif t['status'] == 'cancelled':
+        lines.append('Called off — nothing changed hands.')
+    rows = []
+    for p in sorted(people, key=lambda p: (p['place'] or 9, p['seed'] or 99)):
+        seed = f"#{p['seed']} " if p['seed'] else ''
+        medal = PLACES.get(p['place'], '')
+        net = f" ({_signed(p['net'])} 🍿)" if p.get('net') is not None and t['stake'] else ''
+        state = '' if t['status'] != 'open' else f" · {STATUS_WORDS.get(p['status'], p['status'])}"
+        out = ' · out' if t['status'] == 'running' and not p['alive'] else ''
+        rows.append(f"{medal}{seed}{p['user']['name']}{state}{out}{net}")
+    lines += ['', '**Players**', *rows]
+    played = [m for sec in ('winners', 'losers', 'league', 'final') for m in t['bracket'][sec] if m['status'] in ('open', 'done')]
+    if played:
+        shown = [m for m in played if m['status'] == 'open'] + [m for m in played if m['status'] == 'done'][-6:]
+        lines += ['', '**Matches**', *[_match_line(m) for m in shown[:10]]]
+    if t.get('standings'):
+        lines += ['', '**Standings**', *[f"{n}. {r['user']['name']} — {r['won']}–{r['lost']} ({r['score']} 🍿 scored)"
+                                         for n, r in enumerate(t['standings'], 1) if r.get('user')]]
+    b = t['backing']
+    if b['allowed'] and (b['count'] or b['open']):
+        lines += ['', f"🍿 **Backing:** {b['total']} 🍿 from {b['count']}" + (' · open until the first match is decided' if b['open'] else '')]
+    if t['you'].get('match'):
+        lines += ['', '▶ **Your match is ready** — 30 seconds a question.']
+    if note:
+        lines += ['', note]
+    embed = discord.Embed(title=f"{TOURNAMENT_STATUS.get(t['status'], '🏆')}: {t['format_label']}"[:256], colour=AMBER,
+                          description='\n'.join(lines)[:4000], url=f"{SITE_URL}/tournaments/{t['id']}")
+    embed.set_footer(text='Only you see this · the bracket is on the site')
+    return embed
+
+
+def tournament_post_embed(p):
+    """A tournament's post in the club's channel (tournaments.post_payload):
+    names only — never pings; members who said Never stay unnamed."""
+    who = lambda n: f"**{n}**" if n else '*a member*'
+    head = {'open': f"🏆 {p['title']}: join in", 'running': f"⚔️ {p['title']}: under way",
+            'done': f"🏆 {p['title']}: the results", 'cancelled': f"✖️ {p['title']}: called off"}
+    lines = [f"Started by {who(p.get('by'))} · {p['game']} · "
+             + (f"{p['stake']} 🍿 entry, pot {p['pot']} 🍿 · {p['payout']}" if p['stake'] else 'for bragging rights')]
+    if p['status'] == 'open':
+        lines.append(closes_line(p['closes_at']).replace('Voting closes', 'Entries close'))
+        lines.append('In: ' + ', '.join(who(x['name']) for x in p['players'] if x['status'] == 'accepted'))
+        if p['seats_left']:
+            lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''} — tap Join")
+    if p['status'] == 'done':
+        lines += ['', *[f"{PLACES[n]} {who(name)}" for n, name in enumerate(p['places'], 1) if name or n == 1]]
+    ms = p.get('matches') or []
+    if ms and p['status'] != 'open':
+        def line(m):                                       # the winner in bold
+            a, b = (f"**{n or 'a member'}**" if m['winner'] == side else n or 'a member' for side, n in (('a', m['a']), ('b', m['b'])))
+            return f"{'▶' if m['status'] == 'open' else '✓' if m['status'] == 'done' else '…'} {m['label']}: {a} vs {b}"
+        recent = [m for m in ms if m['status'] == 'open'] + [m for m in ms if m['status'] == 'done'][-5:]
+        lines += ['', *[line(m) for m in recent[:8]]]
+    if p['backing']['count'] or p['backing']['open']:
+        lines.append(f"\n🍿 {p['backing']['total']} 🍿 backing from {p['backing']['count']}"
+                     + (' · back a player until the first match is decided' if p['backing']['open'] else ''))
+    return discord.Embed(title=head.get(p['status'], head['open'])[:256], colour=AMBER, description='\n'.join(lines)[:4000],
+                         url=f"{SITE_URL}/tournaments/{p['tournament_id']}")
+
+
+def scout_embed(got):
+    """/play challenges: who — your record, the club's best, and the three best
+    people to challenge, each with why (scout.py)."""
+    s, lines = got['stats'], []
+    you = s.get('you')
+    if you and you['played']:
+        bits = [f"**{you['won']}–{you['lost']}** ({you['win_rate']}%)"]
+        if you.get('nemesis'):
+            bits.append(f"nemesis: {you['nemesis']['user']['name']} ({you['nemesis']['lost']} losses)")
+        if you.get('best_game'):
+            bits.append(f"best at {you['best_game']['label']}")
+        lines.append('🪞 You: ' + ' · '.join(bits))
+    for row in s['club'][:4]:
+        who = f" {row['user']['name']}" + (f" vs {row['other']['name']}" if row.get('other') else '') if row.get('user') else ''
+        lines.append(f"{row['icon']} {row['label']}:{who} — {row['value']}")
+    if not got['picks']:
+        lines.append('\nNobody else in the club can play yet.')
+    for p in got['picks'][:3]:
+        k = p['kernels']
+        lines += ['', f"{p['tag']['emoji']} **{p['user']['name']}** — {p['tag']['label']}",
+                  f"🍿 {k['them']} to your {k['you']} · {p['record']['won']}–{p['record']['lost']} in challenges"
+                  + (f" · you're {p['versus']['won']}–{p['versus']['lost']} against them" if p['versus']['played'] else ''),
+                  *[f"• {w}" for w in p['why'][:2]]]
+        if p['suggest']['kind']:
+            lines.append(f"Try: {p['suggest']['emoji']} {p['suggest']['label']}" + (f" for {p['suggest']['stake']} 🍿" if p['suggest']['stake'] else ''))
+    embed = discord.Embed(title='🔍 Who should you challenge?', colour=AMBER, description='\n'.join(lines)[:4000],
+                          url=f"{SITE_URL}/play#challenges")
+    embed.set_footer(text='Only you see this · 🔥 for a roast of their movie habits')
+    return embed
 
 
 def challenge_question_embed(q):
@@ -1254,8 +1375,9 @@ def play_embed(p):
         lines.append('🎮 Quiz games: ' + ' · '.join(f"{g['emoji']} {g['label']}" for g in games)
                      + f" — {left} 🍿 left to earn today")
     ch = p.get('challenges')
-    if ch and (ch['invites'] or ch['your_turn']):
+    if ch and (ch['invites'] or ch['your_turn'] or ch.get('tournaments')):
         bits = [f"**{c['by']}** challenged you ({c['game']})" for c in ch['invites'][:3]]
+        bits += [f"**{t['by']}** invited you to a tournament" for t in (ch.get('tournaments') or [])[:2]]
         bits += [f"your turn in {c['game']}" for c in ch['your_turn'][:3]]
         lines.append('⚔️ ' + ' · '.join(bits))
     elif ch is not None:

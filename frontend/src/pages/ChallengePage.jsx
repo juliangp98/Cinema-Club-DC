@@ -6,14 +6,12 @@ import Panel from "../ui/Panel";
 import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import Loading, { LoadError } from "../ui/Loading";
-import { Segmented } from "../ui/TicketRow";
 import { dayDateAt } from "../dates";
 import { ROUNDS } from "../components/QuizGames";
 import { untilText } from "../components/PollList";
-import { CHALLENGE_STATUS, STATUS_ICONS, STATUS_WORDS, lengthLine, signed, stakesLine } from "../components/Challenges";
+import { Backing, CHALLENGE_STATUS, STATUS_ICONS, STATUS_WORDS, lengthLine, netClass, signed, stakesLine } from "../components/Challenges";
 import "./Challenges.css";
 
-const BETS = [1, 2, 3, 5, 10];
 const secondsLeft = iso => Math.max(0, Math.ceil((new Date(iso) - Date.now()) / 1000));
 
 // The 30 seconds a challenge question gets. When it runs out, the page asks
@@ -91,8 +89,6 @@ export default function ChallengePage({ apiBase }) {
   const [last, setLast] = useState(null);            // your final answer, once you've played
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [backing, setBacking] = useState(null);
-  const [amount, setAmount] = useState(2);
 
   const load = () => getJson(base, { cache: false }).then(d => { setC(d); setLoadError(null); }).catch(setLoadError);
   useEffect(() => { setC(null); setQ(null); setLast(null); load(); }, [challengeId]);
@@ -141,18 +137,20 @@ export default function ChallengePage({ apiBase }) {
   const y = c.you;
   const title = c.gauntlet ? "🧩 Gauntlet" : `${c.emoji} ${c.label}`;
   const backable = c.players.filter(p => ["accepted", "invited"].includes(p.status));
-  const bets = BETS.filter(n => n <= Math.min(c.backing.max, c.available ?? 0));
+  const tour = c.tournament;
   return (
     <div className="page challenge-page">
-      <PageHeader title={title} back={{ to: "/play#challenges", label: "Play" }} tour="challenge"
+      <PageHeader title={tour ? `${tour.match}: ${title}` : title} tour="challenge"
+                  back={tour ? { to: `/tournaments/${tour.id}`, label: "The bracket" } : { to: "/play#challenges", label: "Play" }}
                   meta={[{ label: CHALLENGE_STATUS[c.status], gold: c.status === "open" }, { label: lengthLine(c) },
-                         { label: stakesLine(c) }, { label: c.reveal === "live" ? "Scores live" : "Scores sealed" },
+                         { label: tour ? tour.title : stakesLine(c) }, { label: c.reveal === "live" ? "Scores live" : "Scores sealed" },
                          { label: c.visibility === "club" ? "The club sees it" : "Just the players" }]} />
+      {tour && <p className="pv-desc">A match in the <Link to={`/tournaments/${tour.id}`}>{tour.title.replace("🏆 ", "")}</Link> tournament — one winner goes on; a tie goes to the faster player, then the higher seed.</p>}
       {c.gauntlet && <p className="pv-desc">{c.rounds.map(r => `${r.emoji} ${r.label}`).join(" → ")} · most games won takes it</p>}
       {c.status === "open" && (
         <p className="pv-closes">⏰ Closes {dayDateAt(c.closes_at)} — {untilText(c.closes_at)} · started by {c.created_by.name}</p>
       )}
-      <p className="ui-hint ch-kernels-note">The kernels you score decide the winner; the pot{c.backing.allowed ? " and backing" : ""} is what changes hands.</p>
+      <p className="ui-hint ch-kernels-note">The kernels you score decide the winner{tour ? "." : `; the pot${c.backing.allowed ? " and backing" : ""} is what changes hands.`}</p>
 
       {q ? (
         <Ballot apiBase={apiBase} q={q} busy={busy} onAnswer={answer} onTimeUp={play} />
@@ -193,7 +191,7 @@ export default function ChallengePage({ apiBase }) {
               {p.score != null && <strong className="ch-player-score">
                 {p.winner && "🏆 "}{c.gauntlet && p.rounds_won != null ? `${p.rounds_won} game${p.rounds_won === 1 ? "" : "s"} · ` : ""}{p.score} 🍿 scored
               </strong>}
-              {p.net != null && c.stake > 0 && <span className={`ch-net ${p.net > 0 ? "up" : p.net < 0 ? "down" : ""}`}>{signed(p.net)} 🍿</span>}
+              {p.net != null && c.stake > 0 && <span className={netClass(p.net)}>{signed(p.net)} 🍿</span>}
               {p.backers > 0 && <span className="ui-hint">{p.backers} backing</span>}
             </li>
           ))}
@@ -201,24 +199,11 @@ export default function ChallengePage({ apiBase }) {
         {c.seats_left > 0 && c.status === "open" && <p className="ui-hint">🪑 {c.seats_left} open seat{c.seats_left === 1 ? "" : "s"} — anyone in the club can take one.</p>}
       </Panel>
 
-      {c.backing.allowed && (
+      {c.backing.allowed && !tour && (
         <Panel as="div" className="ch-backing" title="🍿 Backing" kicker
                hint={`${c.backing.total} 🍿 from ${c.backing.count} member${c.backing.count === 1 ? "" : "s"}${c.backing.open ? " · open until the first player finishes" : " · closed"}`}>
-          {c.backing.mine && (
-            <p>You backed <strong>{c.players.find(p => p.user.id === c.backing.mine.backing_id)?.user.name}</strong> with {c.backing.mine.amount} 🍿
-              {c.backing.mine.net != null && <> · <span className={`ch-net ${c.backing.mine.net > 0 ? "up" : c.backing.mine.net < 0 ? "down" : ""}`}>{signed(c.backing.mine.net)} 🍿</span></>}</p>
-          )}
-          {y.can_back && (
-            bets.length ? <>
-              <Segmented label="Who wins?" options={backable.map(p => ({ status: String(p.user.id), label: p.user.name }))}
-                         value={backing} onChange={setBacking} />
-              <Segmented label="How much" options={bets.map(n => ({ status: String(n), label: `${n} 🍿` }))}
-                         value={String(Math.min(amount, bets[bets.length - 1]))} onChange={v => v && setAmount(Number(v))} />
-              <button className="btn btn-sm btn-primary" disabled={busy || !backing}
-                      onClick={() => act("back", { user_id: Number(backing), amount: Math.min(amount, bets[bets.length - 1]) })}>Back them</button>
-              <p className="ui-hint">If they win, everyone who backed them splits the backing pot by what they put in. If nobody backed the winner, it all comes back.</p>
-            </> : <p className="ui-hint">You don't have kernels free to back anyone right now.</p>
-          )}
+          <Backing backing={c.backing} players={backable} available={c.available} busy={busy}
+                   onBack={y.can_back ? (who, amount) => act("back", { user_id: who, amount }) : null} />
         </Panel>
       )}
 

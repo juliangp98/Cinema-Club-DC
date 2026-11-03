@@ -65,6 +65,9 @@ class User(db.Model):
     # R13: show your taste (favorite genres, films, people…) on your profile to
     # people in your clubs. Off by default; recommendations use it either way.
     taste_public = db.Column(db.Boolean, default=False)
+    # Challenge scouting (scout.py): members may see your movie habits next to
+    # theirs, and get a roast of them. On by default; off: only the numbers.
+    roastable = db.Column(db.Boolean, default=True)
     # R8: where your alerts reach you and which ones you get (see notify.py);
     # JSON of only what you changed — the rest follows your account's defaults.
     notify_prefs = db.Column(db.Text)
@@ -93,11 +96,13 @@ class User(db.Model):
             'tour_seen': self.tour_seen_at is not None,
             'tours_seen': self.tours_seen(),
             'taste_public': bool(self.taste_public),
+            'roastable': self.roastable is not False,
         }
 
     # What other members see: no email (unless they're an admin of a club you
     # share), and none of your private settings.
-    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen', 'tours_seen', 'taste_public')
+    PRIVATE = ('email', 'share_prefs', 'discord_avatar_url', 'avatar_kind', 'tour_seen', 'tours_seen', 'taste_public',
+               'roastable')
 
     def tours_seen(self):
         try:
@@ -787,6 +792,7 @@ class Challenge(db.Model):
     status = db.Column(db.String(10), nullable=False, default='open')    # open | done | cancelled
     state_json = db.Column(db.Text, nullable=False, default='{}')
     rematch_of = db.Column(db.Integer)
+    tournament_id = db.Column(db.Integer, index=True)                   # a tournament's match (tournaments.py)
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     decided_at = db.Column(db.DateTime)
     creator = db.relationship('User', lazy=True)
@@ -825,6 +831,84 @@ class ChallengeBet(db.Model):
     user = db.relationship('User', lazy=True, foreign_keys=[user_id])
     backing = db.relationship('User', lazy=True, foreign_keys=[backing_id])
     __table_args__ = (db.UniqueConstraint('challenge_id', 'user_id'),)
+
+
+class Tournament(db.Model):
+    """A bracket of 1-v-1 challenges (tournaments.py): double elimination, or
+    a round robin and a final. Each match is a Challenge with tournament_id."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    format = db.Column(db.String(12), nullable=False, default='double')  # double | round_robin
+    rounds_json = db.Column(db.Text, nullable=False, default='[]')       # each match's games: [{kind | 'random', questions}]
+    stake = db.Column(db.Integer, nullable=False, default=0)             # each entrant's, into the prize pot
+    payout = db.Column(db.String(6), nullable=False, default='all')      # all | top3 (60 / 30 / 10)
+    seats = db.Column(db.Integer, nullable=False, default=0)             # open to anyone in the club
+    seeding = db.Column(db.String(8), nullable=False, default='random')  # random | record
+    match_time = db.Column(db.String(8), nullable=False, default='day')  # each match's deadline once it opens
+    visibility = db.Column(db.String(8), nullable=False, default='club')     # players | club
+    reveal = db.Column(db.String(8), nullable=False, default='sealed')   # each match's scores: sealed | live
+    closes_at = db.Column(db.DateTime, nullable=False)                   # entries close (then it starts)
+    status = db.Column(db.String(10), nullable=False, default='open')    # open | running | done | cancelled
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    started_at = db.Column(db.DateTime)
+    decided_at = db.Column(db.DateTime)
+    creator = db.relationship('User', lazy=True)
+    players = db.relationship('TournamentPlayer', backref='tournament', lazy=True, cascade='all, delete-orphan',
+                              order_by='TournamentPlayer.id')
+    matches = db.relationship('TournamentMatch', backref='tournament', lazy=True, cascade='all, delete-orphan',
+                              order_by='TournamentMatch.id')
+    bets = db.relationship('TournamentBet', backref='tournament', lazy=True, cascade='all, delete-orphan',
+                           order_by='TournamentBet.id')
+
+
+class TournamentPlayer(db.Model):
+    """An entrant: invited (or took an open seat), then their seed and how they finished."""
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournament.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    status = db.Column(db.String(10), nullable=False, default='invited')  # invited | accepted | declined | expired
+    seat = db.Column(db.Boolean, default=False)
+    seed = db.Column(db.Integer)
+    place = db.Column(db.Integer)                                        # 1–3, once decided
+    net = db.Column(db.Integer)
+    user = db.relationship('User', lazy=True)
+    __table_args__ = (db.UniqueConstraint('tournament_id', 'user_id'),)
+
+
+class TournamentMatch(db.Model):
+    """One match in the bracket. Each side comes from a seed, another match's
+    winner or loser, or the round robin's standings; once both are known it's
+    played as a challenge. A side of 0 is nobody (a bye: the other goes through)."""
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournament.id'), nullable=False, index=True)
+    key = db.Column(db.String(12), nullable=False)                       # W1-0, L2-1, GF · R1-0, F
+    section = db.Column(db.String(8), nullable=False)                    # winners | losers | final | league
+    round = db.Column(db.Integer, nullable=False)
+    slot = db.Column(db.Integer, nullable=False)
+    a_from = db.Column(db.String(20), nullable=False)                    # seed:3 · winner:W1-0 · loser:W1-1 · place:1
+    b_from = db.Column(db.String(20), nullable=False)
+    a_id = db.Column(db.Integer)                                         # None: not known yet · 0: nobody
+    b_id = db.Column(db.Integer)
+    challenge_id = db.Column(db.Integer)                                 # 0 while it's being made
+    winner_id = db.Column(db.Integer)
+    loser_id = db.Column(db.Integer)
+    decided_at = db.Column(db.DateTime)
+    __table_args__ = (db.UniqueConstraint('tournament_id', 'key'),)
+
+
+class TournamentBet(db.Model):
+    """A member backing an entrant to win it all: the backing pot goes to whoever backed the champion."""
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournament.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    backing_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    net = db.Column(db.Integer)
+    user = db.relationship('User', lazy=True, foreign_keys=[user_id])
+    backing = db.relationship('User', lazy=True, foreign_keys=[backing_id])
+    __table_args__ = (db.UniqueConstraint('tournament_id', 'user_id'),)
 
 
 class PoolFilm(db.Model):

@@ -13,6 +13,7 @@ export function GamesRail({ summary }) {
   const ch = summary.challenges;
   const todo = [
     ...(ch?.invites || []).map(c => <Link key={`ci${c.id}`} to={`/challenges/${c.id}`}>⚔️ {c.by} challenged you: {c.game}</Link>),
+    ...(ch?.tournaments || []).map(t => <Link key={`tt${t.id}`} to={`/tournaments/${t.id}`}>🏆 {t.by} invited you to a tournament</Link>),
     ...(ch?.your_turn || []).map(c => <Link key={`ct${c.id}`} to={`/challenges/${c.id}`}>⚔️ Your turn: {c.game}</Link>),
     trivia?.to_answer && <Link key="t" to="/play#trivia">🧠 Today's trivia question</Link>,
     trivia?.waiting && <Link key="w" to="/play#trivia">🎲 Your anytime question</Link>,
@@ -46,7 +47,8 @@ export function GamesStrip({ summary, className = "" }) {
   if (!summary) return null;
   const { trivia, bingo, polls, kernels } = summary;
   const toVote = polls.filter(p => !p.you_voted).length;
-  const waiting = (summary.challenges?.invites.length || 0) + (summary.challenges?.your_turn.length || 0);
+  const ch = summary.challenges;
+  const waiting = (ch?.invites.length || 0) + (ch?.your_turn.length || 0) + (ch?.tournaments?.length || 0);
   return (
     <nav className={`games-strip ${className}`} aria-label="Games">
       {trivia && (

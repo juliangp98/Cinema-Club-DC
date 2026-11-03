@@ -156,7 +156,8 @@ from models import (  # noqa: E402 — the tables (models.py), re-exported
     KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias, Notification, Poll,
     PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
     Reaction, SavedSearch, SavedSearchHit, ScrapeEvent, ScrapeRun, ScreeningNote, SharedRsvp, Showtime,
-    ShowtimeThread, TasteItem, Theatre, TriviaAnswer, TriviaQuestion, User, Watchlist)
+    ShowtimeThread, TasteItem, Theatre, Tournament, TournamentBet, TournamentMatch, TournamentPlayer, TriviaAnswer,
+    TriviaQuestion, User, Watchlist)
 
 
 
@@ -394,6 +395,8 @@ def _update_profile_fields(user, data):
     import taste
     if 'bio' in data:
         user.bio = (data['bio'] or '').strip()[:500]
+    if 'roastable' in data:                               # challenge scouting may roast your movie habits
+        user.roastable = bool(data['roastable'])
     if 'genres' in data:
         taste.set_genres(user, data['genres'])
     if 'letterboxd_username' in data:
@@ -871,6 +874,10 @@ def render_post(p, now=None):
         import challenges
         ch = db.session.get(Challenge, p.ref_id or 0)
         return challenges.post_payload(ch) if ch and ch.status != 'cancelled' else None
+    if p.kind == 'tournament':
+        import tournaments
+        t = db.session.get(Tournament, p.ref_id or 0)
+        return tournaments.post_payload(t) if t and t.status != 'cancelled' else None
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
         return None
@@ -1464,10 +1471,12 @@ _poll_sweep = {'at': 0.0}
 
 
 def close_due_polls(force=False):
-    """Polls past their deadline close, and challenges past theirs are
-    decided (their Discord posts follow). Every API request may run it, so it
-    checks at most every POLL_SWEEP_EVERY s."""
+    """Polls past their deadline close, challenges past theirs are decided,
+    and tournaments whose entries have closed start (their Discord posts
+    follow). Every API request may run it, so it checks at most every
+    POLL_SWEEP_EVERY s."""
     import challenges
+    import tournaments
     if not force and time.time() - _poll_sweep['at'] < POLL_SWEEP_EVERY:
         return
     _poll_sweep['at'] = time.time()
@@ -1478,6 +1487,7 @@ def close_due_polls(force=False):
     if due:
         db.session.commit()
     challenges.settle_due()
+    tournaments.start_due()
 
 
 @app.before_request
@@ -1487,7 +1497,7 @@ def _close_due_polls():
             close_due_polls()
         except Exception as e:            # never in the way of the request itself
             db.session.rollback()
-            print(f'deadline check (polls, challenges) failed: {e}')
+            print(f'deadline check (polls, challenges, tournaments) failed: {e}')
 
 
 def notify_poll_results(poll):
@@ -1816,7 +1826,7 @@ from migrations import migrate, prepare_db, seed_theatres  # noqa: E402,F401 —
 # ─── Routes ───────────────────────────────────────────────────────────────────
 # Each area registers its routes on `app` when imported (routes/*.py).
 from routes import (alerts, auth, challenges, clubs, discord, help, internal, people, plans, polls,  # noqa: E402,F401
-                    quizzes, schedule, social)
+                    quizzes, schedule, social, tournaments)
 
 
 

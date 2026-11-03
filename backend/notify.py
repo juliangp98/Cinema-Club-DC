@@ -28,9 +28,9 @@ TYPES = {
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
     'poll_result': ('Polls: your results', 'When a poll you voted in is finalized: your kernels and your place. In the bell only.'),
-    'challenge_invite': ('Challenges: someone challenges you', 'An invite to play, with what’s on the line. It waits in the bell until you answer.'),
-    'challenge_result': ('Challenges: results and backing', 'How a challenge you played or backed came out, and when someone backs you. In the bell only.'),
-    'challenge_open': ('Challenges: new ones to watch and back', 'When members start a challenge the club can see. In the bell only.'),
+    'challenge_invite': ('Challenges: someone challenges you', 'An invite to a challenge or tournament, with what’s on the line — and when your tournament match is ready. It waits in the bell until you answer or play.'),
+    'challenge_result': ('Challenges: results and backing', 'How a challenge or tournament you played or backed came out, and when someone backs you. In the bell only.'),
+    'challenge_open': ('Challenges: new ones to watch and back', 'When members start a challenge or tournament the club can see. In the bell only.'),
     'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
     # Running a club (R15): an email per join request (admins always get one)
     'join_requests': ('Someone asks to join your club', 'Club organizers: an email when someone asks to join, to approve or deny it. (Admins always get one.)'),
@@ -468,7 +468,8 @@ def describe(n):
 
 
 GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review', 'poll_result',
-              'challenge_invite', 'challenge_result', 'challenge_backed', 'challenge_open')
+              'challenge_invite', 'challenge_result', 'challenge_backed', 'challenge_open',
+              'tournament_invite', 'tournament_open', 'tournament_match', 'tournament_backed', 'tournament_result')
 
 
 def _describe_game(kind, p):
@@ -484,6 +485,8 @@ def _describe_game(kind, p):
                 'detail': ' · '.join(p.get('squares') or []), 'link': '/play#bingo'}
     if kind.startswith('challenge_'):
         return _describe_challenge(kind, p)
+    if kind.startswith('tournament_'):
+        return _describe_tournament(kind, p)
     if kind == 'poll_result':
         place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else None
         right = f"{p.get('correct', 0)} of {p['total']} right" if p.get('total') else 'No picks in the scored categories'
@@ -511,7 +514,8 @@ def bundle_title(ns):
 # The bell's picture for alerts that aren't about one film.
 ICONS = {'digest': '🍿', 'trivia_daily': '🧠', 'trivia_result': '🧠', 'bingo_card': '🎱', 'bingo_win': '🎱',
          'game_review': '👀', 'poll_result': '🏆', 'challenge_invite': '⚔️', 'challenge_result': '⚔️',
-         'challenge_backed': '🍿', 'challenge_open': '⚔️'}
+         'challenge_backed': '🍿', 'challenge_open': '⚔️', 'tournament_invite': '🏆', 'tournament_open': '🏆',
+         'tournament_match': '⚔️', 'tournament_backed': '🍿', 'tournament_result': '🏆'}
 
 
 def _describe_challenge(kind, p):
@@ -538,6 +542,32 @@ def _describe_challenge(kind, p):
             'link': link}
 
 
+def _describe_tournament(kind, p):
+    link = f"/tournaments/{p.get('tournament_id')}"
+    entry = f"{p.get('stake')} 🍿 entry" if p.get('stake') else 'for bragging rights'
+    what = f"{p.get('format', 'Tournament')} · {p.get('game', '')}"
+    if kind == 'tournament_invite':
+        return {'headline': f"{p.get('by') or 'A member'} invites you to a tournament", 'detail': f'{what} · {entry} · join or decline',
+                'link': link}
+    if kind == 'tournament_open':
+        return {'headline': f"New tournament: {p.get('format', '')}", 'detail': f"Started by {p.get('by') or 'a member'} · {p.get('game', '')} · {entry} · join or back a player",
+                'link': link}
+    if kind == 'tournament_match':
+        return {'headline': f"Your match vs {p.get('opponent') or 'your opponent'} is ready", 'detail': f"{p.get('match', '')} · {p.get('format', '')} · play it before it closes",
+                'link': f"/challenges/{p.get('challenge_id')}"}
+    if kind == 'tournament_backed':
+        return {'headline': f"{p.get('backer') or 'A member'} backed you to win it all", 'detail': f"{p.get('amount', 0)} 🍿 on you · {p.get('format', '')}",
+                'link': link}
+    net = f"{p.get('net', 0):+d} 🍿".replace('-', '−')
+    won = p.get('winner') or 'Nobody'
+    if p.get('backed') is not None:
+        how = net if p.get('net') else f"nobody backed {won}, so your {p.get('amount', 0)} 🍿 came back"
+        return {'headline': f"{won} won the tournament", 'detail': f"You backed {p['backed']} · {how}", 'link': link}
+    place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else f"out of {p.get('of', 0)}"
+    head = 'You won the tournament!' if p.get('place') == 1 else f"{won} won the tournament"
+    return {'headline': head, 'detail': ' · '.join(b for b in (net if p.get('stake') else None, place) if b), 'link': link}
+
+
 def _ordinal(n):
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
@@ -549,6 +579,9 @@ def needs_answer(n):
     if n.kind == 'challenge_invite':
         import challenges
         return challenges.needs_answer(n.user_id, p)
+    if n.kind in ('tournament_invite', 'tournament_match'):
+        import tournaments
+        return tournaments.needs_answer(n.kind, n.user_id, p)
     if n.kind == 'game_review':
         from app import db, GamePost
         post = db.session.get(GamePost, p.get('post_id') or 0)
@@ -686,5 +719,8 @@ def pending_dms(now=None):
              # admins' game posts waiting for an OK (R14): the bot DMs these with Post / Skip buttons
              'reviews': [json.loads(n.payload_json or '{}').get('post_id') for n in ns if n.kind == 'game_review'],
              # challenge invites: the bot DMs the challenge with Accept / Decline
-             'challenges': [json.loads(n.payload_json or '{}').get('challenge_id') for n in ns if n.kind == 'challenge_invite']}
+             'challenges': [json.loads(n.payload_json or '{}').get('challenge_id') for n in ns if n.kind == 'challenge_invite'],
+             # tournaments: invites (Join / Decline) and matches ready to play (▶ Play)
+             'tournaments': [json.loads(n.payload_json or '{}').get('tournament_id') for n in ns if n.kind == 'tournament_invite'],
+             'matches': [json.loads(n.payload_json or '{}').get('challenge_id') for n in ns if n.kind == 'tournament_match']}
             for uid, ns in by_user.items()]

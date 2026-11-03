@@ -57,7 +57,7 @@ def patch_bot_api():
 
 
 BOT_MODULES = ('bot', 'features.shared', 'features.chat', 'features.alerts', 'features.schedule', 'features.threads',
-               'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.challenges', 'features.club',
+               'features.profile', 'features.polls', 'features.admin', 'features.games', 'features.challenges', 'features.tournaments', 'features.club',
                'features.servers')
 
 

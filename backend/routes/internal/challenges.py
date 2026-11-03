@@ -19,14 +19,16 @@ def _who(data):
 @app.route('/api/internal/challenges')
 @require_internal
 def internal_challenges():
-    """The club's challenge settings and games, and the challenges you can see."""
+    """The club's challenge settings and games, and the challenges and tournaments you can see."""
+    import tournaments
     user, group, err = _who(request.args)
     if err:
         return err
     close_due_polls(force=True)
     return jsonify({'enabled': bool(group.challenges_enabled), 'games': challenges.games(group),
                     'max_stake': group.challenge_max_stake or 10, 'available': challenges.available(user.id, group.id),
-                    'challenges': [challenges.as_dict(c, user.id) for c in challenges.visible(group.id, user.id)]})
+                    'challenges': [challenges.as_dict(c, user.id) for c in challenges.visible(group.id, user.id)],
+                    'tournaments': [tournaments.as_dict(t, user.id) for t in tournaments.visible(group.id, user.id)]})
 
 
 @app.route('/api/internal/challenges/<int:challenge_id>')
@@ -48,7 +50,8 @@ def internal_challenge(challenge_id):
 def internal_challenge_action():
     """{action: create | respond | join | back | cancel | end | games | rematch | play | answer, …} —
     create takes `opponents` as [{discord_user_id, discord_name}] (members of the
-    server: their account is made like any first command's)."""
+    server: their account is made like any first command's) or [{user_id}]
+    (a scouting pick)."""
     data = request.json or {}
     action = data.get('action')
     if action == 'create':
@@ -57,6 +60,9 @@ def internal_challenge_action():
             return err
         opponents = []
         for o in data.get('opponents') or []:
+            if o.get('user_id'):
+                opponents.append(_as_int(o['user_id']))
+                continue
             u, err = resolve_discord_user({**o, 'create': '1', 'group_id': group.id})
             if err:
                 return jsonify({'error': "Couldn't find one of those members."}), 400
@@ -109,3 +115,34 @@ def internal_challenge_action():
         return jsonify({'error': err}), 400
     db.session.refresh(ch)
     return jsonify(challenges.as_dict(ch, user.id))
+
+
+@app.route('/api/internal/challenges/scout')
+@require_internal
+def internal_scout():
+    """/play challenges: who — the stats and who to challenge (scout.py)."""
+    import scout
+    user, group, err = _who(request.args)
+    if err:
+        return err
+    if not group.challenges_enabled:
+        return jsonify({'error': 'Challenges are off in this club.'}), 400
+    return jsonify({'stats': scout.stats(group, user.id), 'picks': scout.picks(group, user)})
+
+
+@app.route('/api/internal/challenges/scout/<int:user_id>/roast', methods=['POST'])
+@require_internal
+def internal_roast(user_id):
+    import scout
+    from app import User
+    data = request.json or {}
+    user, group, err = _who(data)
+    if err:
+        return err
+    other = db.session.get(User, user_id)
+    if not other or not _active_membership(other, group.id):
+        return jsonify({'error': 'not_found'}), 404
+    got = scout.roast(user, other, group, bool(data.get('again')))
+    if not got:
+        return jsonify({'error': f"{other.name} has roasts turned off."}), 400
+    return jsonify(got)

@@ -30,8 +30,12 @@ with kernels on the line — and members who aren't playing can back one.
     `net` once decided. Stakes and bets on open challenges are "on the line"
     — you can only put in what you have.
 
-Rivalries: each member's challenge record (won, lost, streak) and
-head-to-head against another member, from decided challenges.
+Rivalries: each member's challenge record (won, lost, streak, tournaments
+won) and head-to-head against another member, from decided challenges.
+
+Tournaments (tournaments.py) play each match as a challenge with
+tournament_id: both players in from the start, no stake or backing of its
+own, one winner (ties go to the faster player, then the higher seed).
 """
 import json
 import random
@@ -365,18 +369,19 @@ def betting_open(ch):
     from app import db, Group
     group = db.session.get(Group, ch.group_id)
     return (ch.status == 'open' and ch.visibility == 'club' and group.challenge_backing is not False
-            and not any(p.status == 'finished' for p in ch.players))
+            and not ch.tournament_id and not any(p.status == 'finished' for p in ch.players))
 
 
 def on_the_line(user_id, group_id):
-    """Kernels held in open challenges: stakes you're in for, bets you've made."""
+    """Kernels held in open challenges and tournaments: stakes you're in for, bets you've made."""
+    import tournaments
     from app import db, Challenge, ChallengeBet, ChallengePlayer
     stakes = (db.session.query(db.func.coalesce(db.func.sum(Challenge.stake), 0)).join(ChallengePlayer)
               .filter(Challenge.group_id == group_id, Challenge.status == 'open', ChallengePlayer.user_id == user_id,
                       ChallengePlayer.status.in_(('accepted', 'finished'))).scalar())
     bets = (db.session.query(db.func.coalesce(db.func.sum(ChallengeBet.amount), 0)).join(Challenge)
             .filter(Challenge.group_id == group_id, Challenge.status == 'open', ChallengeBet.user_id == user_id).scalar())
-    return int(stakes or 0) + int(bets or 0)
+    return int(stakes or 0) + int(bets or 0) + tournaments.on_the_line(user_id, group_id)
 
 
 def available(user_id, group_id):
@@ -503,11 +508,39 @@ def create(group, user, data, now=None, rematch_of=None):
     return ch, None
 
 
+def open_match(group, t, user_ids, spec, closes_at, now=None):
+    """A tournament's match: both players in already, no stake of its own (the
+    entry is the tournament's), its games drawn now — random ones fresh for
+    each match. Returns (challenge, error)."""
+    from app import db, Challenge, ChallengePlayer
+    tries = 4 if any(s.get('kind') == 'random' for s in spec) else 1      # a random game with nothing to ask: draw again
+    for _ in range(tries):
+        plan, err = plan_rounds(group, {'rounds': spec})
+        if err:
+            return None, err
+        state, err = _fresh_state(group, plan)
+        if err:
+            continue
+        ch = Challenge(group_id=group.id, created_by=t.created_by, kind=plan[0]['kind'] if len(plan) == 1 else 'gauntlet',
+                       questions=plan[0]['questions'] or 0, stake=0, seats=0, state_json=json.dumps(state),
+                       visibility=t.visibility, reveal=t.reveal, closes_at=closes_at, tournament_id=t.id)
+        db.session.add(ch)
+        db.session.flush()
+        for uid in user_ids:
+            db.session.add(ChallengePlayer(challenge_id=ch.id, user_id=uid, status='accepted'))
+        db.session.commit()
+        if question(ch, 0, 0) is not None:
+            return ch, None
+        db.session.delete(ch)
+        db.session.commit()
+    return None, "There's nothing to play that with yet."
+
+
 def set_games(ch, user, data):
     """The creator picks the games again (Discord's gauntlet picker) — only
     before anyone has seen a question."""
     from app import db, Group
-    if ch.created_by != user.id or ch.status != 'open':
+    if ch.created_by != user.id or ch.status != 'open' or ch.tournament_id:
         return 'Only whoever started it can change the games.'
     if any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players):
         return 'Someone has started playing, so the games stay as they are.'
@@ -600,7 +633,7 @@ def back(ch, user, backing_id, amount):
 def cancel(ch, user):
     """The creator calls it off before anyone has answered a question."""
     from app import db
-    if ch.created_by != user.id or ch.status != 'open':
+    if ch.created_by != user.id or ch.status != 'open' or ch.tournament_id:
         return 'Only whoever started it can call it off.'
     if any(_progress(p).get('answers') or _progress(p).get('shown_at') for p in ch.players):
         return 'Someone has started playing, so it runs to the end.'
@@ -614,7 +647,7 @@ def cancel(ch, user):
 def end_now(ch, user, now=None):
     """The creator settles it once everyone in has played (no waiting for
     unanswered invites or open seats)."""
-    if ch.created_by != user.id or ch.status != 'open':
+    if ch.created_by != user.id or ch.status != 'open' or ch.tournament_id:
         return 'Only whoever started it can end it.'
     if any(p.status == 'accepted' for p in ch.players):
         return 'Not everyone in has played yet.'
@@ -626,7 +659,7 @@ def rematch(ch, user, double=False, now=None):
     """The same challenge again — same game, same players (invited again),
     the same stake or double it (up to the club's limit)."""
     from app import db, Group
-    if ch.status != 'done' or not player(ch, user.id):
+    if ch.status != 'done' or not player(ch, user.id) or ch.tournament_id:
         return None, 'Only players can ask for a rematch once it’s decided.'
     group = db.session.get(Group, ch.group_id)
     stake = min(ch.stake * 2 if double else ch.stake, group.challenge_max_stake or 10)
@@ -681,9 +714,15 @@ def settle(ch, now=None):
     state['standing'] = {str(p.user_id): {'rounds_won': won_rounds[p.user_id], 'score': p.score, 'ms': p.took_ms}
                          for p in players}
     rank = lambda p: _rank(ch, state, p.user_id)
-    best = max(rank(p) for p in players)
-    winners = sorted((p for p in players if rank(p) == best and p.status == 'finished'),
-                     key=lambda p: p.finished_at or now) or sorted(players, key=lambda p: p.id)
+    played = [p for p in players if p.status == 'finished']    # someone who played beats someone who didn't
+    if played:
+        best = max(rank(p) for p in played)
+        winners = sorted((p for p in played if rank(p) == best), key=lambda p: p.finished_at or now)
+    else:                                                     # nobody played: everyone's stake comes back
+        winners = sorted(players, key=lambda p: p.id)
+    if ch.tournament_id:                                      # a tournament match has one winner
+        import tournaments
+        winners = [tournaments.match_winner(ch, players, rank)]
     pot = ch.stake * len(players)
     share, extra = divmod(pot, len(winners))
     for p in players:
@@ -708,7 +747,11 @@ def settle(ch, now=None):
     db.session.commit()
     clear_invite(ch)
     posts_changed(ch)
-    notify_results(ch)
+    if ch.tournament_id:                                      # the bracket moves on (and tells the players)
+        import tournaments
+        tournaments.match_decided(ch, now)
+    else:
+        notify_results(ch)
 
 
 def _rank(ch, state, uid):
@@ -728,9 +771,10 @@ def settle_due(now=None):
 # ─── Kernels and records ──────────────────────────────────────────────────────
 
 def kernels_for(user_ids, group_id=None, since=None):
-    """{uid: net kernels from decided challenges} (decided since `since`)."""
+    """{uid: net kernels from decided challenges and tournaments} (decided since `since`)."""
+    import tournaments
     from app import db, Challenge, ChallengeBet, ChallengePlayer
-    out = {}
+    out = tournaments.kernels_for(user_ids, group_id, since)
     for model in (ChallengePlayer, ChallengeBet):
         q = (db.session.query(model.user_id, db.func.sum(model.net)).join(Challenge, Challenge.id == model.challenge_id)
              .filter(model.user_id.in_(list(user_ids)), model.net.isnot(None), Challenge.status == 'done'))
@@ -754,9 +798,13 @@ def _decided(group_id, user_ids=None, since=None):
 
 
 def records(user_ids, group_id, since=None):
-    """{uid: {played, won, lost, streak}} — a shared win counts as a win;
-    `streak`: wins in a row, most recent first."""
-    out = {uid: {'played': 0, 'won': 0, 'lost': 0, 'streak': 0, '_open': True} for uid in user_ids}
+    """{uid: {played, won, lost, streak, titles}} — a shared win counts as a
+    win (tournament matches count too); `streak`: wins in a row, most recent
+    first; `titles`: tournaments won."""
+    import tournaments
+    won_it = tournaments.titles(user_ids, group_id, since)
+    out = {uid: {'played': 0, 'won': 0, 'lost': 0, 'streak': 0, 'titles': won_it.get(uid, 0), '_open': True}
+           for uid in user_ids}
     for ch in _decided(group_id, user_ids, since):
         winners = set(_state(ch).get('winners', []))
         for p in in_game(ch):
@@ -872,13 +920,15 @@ def as_dict(ch, viewer_id):
                    'can_join': bool(not me and ch.status == 'open' and seats_left(ch) and not mine),
                    'can_play': bool(me and me.status == 'accepted' and ch.status == 'open'),
                    'can_back': bool(not me and not mine and betting_open(ch)),
-                   'can_cancel': ch.created_by == viewer_id and ch.status == 'open'
+                   'can_cancel': ch.created_by == viewer_id and ch.status == 'open' and not ch.tournament_id
                                  and not any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players),
-                   'can_set_games': ch.created_by == viewer_id and ch.status == 'open'
+                   'can_set_games': ch.created_by == viewer_id and ch.status == 'open' and not ch.tournament_id
                                     and not any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players),
-                   'can_end': ch.created_by == viewer_id and ch.status == 'open'
+                   'can_end': ch.created_by == viewer_id and ch.status == 'open' and not ch.tournament_id
                               and not any(p.status == 'accepted' for p in ch.players),
-                   'can_rematch': bool(me and ch.status == 'done' and me.status in ('finished', 'forfeit'))}}
+                   'can_rematch': bool(me and ch.status == 'done' and me.status in ('finished', 'forfeit')
+                                       and not ch.tournament_id)}}
+    out['tournament'] = _tournament_of(ch)
     newer = db.session.execute(db.text('SELECT id FROM challenge WHERE rematch_of = :id ORDER BY id DESC LIMIT 1'),
                                {'id': ch.id}).scalar()
     out['rematch'] = newer
@@ -900,15 +950,29 @@ def as_dict(ch, viewer_id):
     return out
 
 
+def _tournament_of(ch):
+    """For a tournament's match: {id, title, match} ("Winners' round 1")."""
+    if not ch.tournament_id:
+        return None
+    import tournaments
+    from app import db, Tournament
+    t = db.session.get(Tournament, ch.tournament_id)
+    m = next((x for x in t.matches if x.challenge_id == ch.id), None) if t else None
+    return {'id': t.id, 'title': tournaments.title(t), 'match': tournaments.match_label(t, m) if m else None} if t else None
+
+
 def visible(group_id, viewer_id, now=None):
     """The challenges a member sees on Play: open ones they're in or that the
-    club can see, and ones decided in the last RECENT_DAYS days."""
+    club can see, and ones decided in the last RECENT_DAYS days. A
+    tournament's matches show on its bracket — here, only to their players
+    while they're open."""
     from app import Challenge
     now = now or _now()
     rows = (Challenge.query.filter(Challenge.group_id == group_id)
             .filter((Challenge.status == 'open') | (Challenge.decided_at >= now - timedelta(days=RECENT_DAYS)))
             .order_by(Challenge.created_at.desc()).all())
-    return [c for c in rows if can_see(c, viewer_id) and (c.status != 'cancelled' or player(c, viewer_id))][:40]
+    return [c for c in rows if can_see(c, viewer_id) and (c.status != 'cancelled' or player(c, viewer_id))
+            and (not c.tournament_id or (c.status == 'open' and player(c, viewer_id)))][:40]
 
 
 # ─── Telling people ───────────────────────────────────────────────────────────
@@ -993,9 +1057,10 @@ def needs_answer(user_id, payload):
 # ─── Discord ──────────────────────────────────────────────────────────────────
 
 def posts_changed(ch):
-    """Its post in the club's Discord (if any) follows."""
+    """Its post in the club's Discord (if any) follows — a match's, its tournament's."""
     from app import db, DiscordPost
-    DiscordPost.query.filter(DiscordPost.kind == 'challenge', DiscordPost.ref_id == ch.id,
+    kind, ref = ('tournament', ch.tournament_id) if ch.tournament_id else ('challenge', ch.id)
+    DiscordPost.query.filter(DiscordPost.kind == kind, DiscordPost.ref_id == ref,
                              DiscordPost.status == 'posted').update({'dirty': True}, synchronize_session=False)
     db.session.commit()
 
