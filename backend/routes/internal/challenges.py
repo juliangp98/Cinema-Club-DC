@@ -46,7 +46,7 @@ def internal_challenge(challenge_id):
 @app.route('/api/internal/challenges', methods=['POST'])
 @require_internal
 def internal_challenge_action():
-    """{action: create | respond | join | back | cancel | end | rematch | play | answer, …} —
+    """{action: create | respond | join | back | cancel | end | games | rematch | play | answer, …} —
     create takes `opponents` as [{discord_user_id, discord_name}] (members of the
     server: their account is made like any first command's)."""
     data = request.json or {}
@@ -103,7 +103,8 @@ def internal_challenge_action():
            'join': lambda: challenges.join(ch, user),
            'back': lambda: challenges.back(ch, user, _as_int(data.get('user_id')), data.get('amount')),
            'cancel': lambda: challenges.cancel(ch, user),
-           'end': lambda: challenges.end_now(ch, user)}.get(action, lambda: 'Unknown action')()
+           'end': lambda: challenges.end_now(ch, user),
+           'games': lambda: challenges.set_games(ch, user, data)}.get(action, lambda: 'Unknown action')()
     if err:
         return jsonify({'error': err}), 400
     db.session.refresh(ch)

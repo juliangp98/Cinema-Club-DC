@@ -57,15 +57,15 @@ def act(c, who, cid, action, **body):
     return client(c[who]).post(f'/api/challenges/{cid}/{action}', json=body)
 
 
-def truth(cid, i):
+def truth(cid, r, i):
+    """The right answer to question `i` of game `r`."""
     from app import app, db, Challenge
     with app.app_context():
-        ch = db.session.get(Challenge, cid)
-        state = json.loads(ch.state_json)
-        if ch.kind == 'higher_lower':
-            chain = state['chain']
+        state = json.loads(db.session.get(Challenge, cid).state_json)
+        if state['rounds'][r]['kind'] == 'higher_lower':
+            chain = state['chains'][str(r)]
             return 'before' if chain[i + 1]['year'] < chain[i]['year'] else 'after'
-        return state['questions'][i]['answer']
+        return state['sets'][str(r)][i]['answer']
 
 
 def play(c, who, cid, rights):
@@ -76,7 +76,7 @@ def play(c, who, cid, rights):
         if not q:
             break
         shown.append(q)
-        good = truth(cid, q['q'])
+        good = truth(cid, q['round'], q['q'])
         choice = good if right else ((good + 1) % len(q['options']) if isinstance(good, int)
                                      else ('after' if good == 'before' else 'before'))
         r = client(c[who]).post(f'/api/challenges/{cid}/play', json={'choice': choice})
@@ -117,7 +117,8 @@ def test_everyone_gets_the_same_set_and_the_top_score_takes_the_pot(club):
     by = {p['user']['name']: p for p in done['players']}
     assert (by['Ana']['score'], by['Bo']['score'], by['Cy']['score']) == (3, 2, 0)
     assert (by['Ana']['net'], by['Bo']['net'], by['Cy']['net']) == (6, -3, -3) and by['Ana']['winner']
-    assert len(done['results']) == 3 and done['results'][1]['answers'][str(club['Bo'])]['right'] is False
+    asked = done['results'][0]['questions']
+    assert len(done['results']) == 1 and len(asked) == 3 and asked[1]['answers'][str(club['Bo'])]['right'] is False
     k = kernels(club, 'Ana')
     assert k['challenges'] == 6 and k['kernels'] == 26
     row = next(r for r in client(club['Ana']).get(f"/api/groups/{club['G']}/leaderboard").json['rows']
@@ -161,8 +162,10 @@ def test_thirty_seconds_a_question(club):
         prog['shown_at'] = (datetime.utcnow() - timedelta(seconds=60)).isoformat()
         p.progress_json = json.dumps(prog)
         db.session.commit()
-    r = client(club['Ana']).post(f'/api/challenges/{cid}/play', json={'choice': truth(cid, 0)}).json
-    assert r['answered']['q'] == 1 and r['answered']['last'] is None or r['question']['q'] >= 1     # the first ran out
+    q = client(club['Ana']).get(f'/api/challenges/{cid}/play').json['question']
+    assert q['q'] == 1                                                                            # the first ran out: on to the next
+    r = client(club['Ana']).post(f'/api/challenges/{cid}/play', json={'choice': truth(cid, 0, 1)}).json
+    assert r['answered']['q'] == 1 and r['answered']['last']['right']
     with app.app_context():
         answers = json.loads(ChallengePlayer.query.filter_by(challenge_id=cid, user_id=club['Ana']).one().progress_json)['answers']
     assert answers[0]['timeout'] and answers[0]['points'] == 0
@@ -377,6 +380,7 @@ def test_a_challenge_still_is_each_players_own(club, monkeypatch):
     cid = make(club, kind='still', opponents=[club['Bo']]).json['id']
     act(club, 'Bo', cid, 'respond', accept=True)
     a = client(club['Ana']).get(f'/api/challenges/{cid}/play').json['question']
+    assert '/api/challenges/still/' in a['image'] and '/0/0/' in a['image']                        # game 0, question 0
     b = client(club['Bo']).get(f'/api/challenges/{cid}/play').json['question']
     assert a['image'] != b['image'] and a['options'] == b['options']
     assert client().get(a['image']).data == b'jpeg-1'
@@ -391,3 +395,45 @@ def test_the_feed_shows_club_challenges(club):
     cards = client(club['Di']).get(f"/api/feed?group_id={club['G']}&type=games").json['cards']
     mine = [c for c in cards if c['type'] == 'challenge']
     assert len(mine) == 1 and mine[0]['challenge']['id'] == cid and mine[0]['challenge']['status'] == 'open'
+
+
+def test_a_gauntlet_is_won_on_games_then_points(club):
+    """Several games: each game's top scorer wins it; most games won takes it
+    — here one each, so total points decide."""
+    r = make(club, opponents=[club['Bo']], rounds=[{'kind': 'who_said', 'questions': 2}, {'kind': 'higher_lower'}])
+    assert r.status_code == 201, r.json
+    c = r.json
+    assert c['gauntlet'] and [x['kind'] for x in c['rounds']] == ['who_said', 'higher_lower']
+    assert c['games_line'] == '🧩 Gauntlet: Who said it, Higher or lower'
+    act(club, 'Bo', c['id'], 'respond', accept=True)
+    play(club, 'Ana', c['id'], [True, True, False])                 # Who said it 2, then a higher-or-lower miss
+    play(club, 'Bo', c['id'], [False, False, True, False])          # Who said it 0, then a run of 1
+    done = client(club['Ana']).get(f"/api/challenges/{c['id']}").json
+    by = {p['user']['name']: p for p in done['players']}
+    assert (by['Ana']['rounds_won'], by['Bo']['rounds_won']) == (1, 1)
+    assert by['Ana']['winner'] and by['Ana']['round_scores'] == [2, 0] and by['Bo']['round_scores'] == [0, 1]
+    assert [res['winners'] for res in done['results']] == [[club['Ana']], [club['Bo']]]
+    assert len(done['results'][1]['questions']) == 2                # Bo's run: one right, then the miss
+
+
+def test_games_can_be_random_and_any_length(club, monkeypatch):
+    import quizzes
+    monkeypatch.setattr(quizzes, '_backdrops', lambda tid: ['/still.jpg'])
+    c = make(club, kind='gauntlet', games=3, questions=12).json
+    kinds = [x['kind'] for x in c['rounds']]
+    assert sorted(kinds) == ['higher_lower', 'still', 'who_said']    # random: each of the club's games once
+    assert {x['questions'] for x in c['rounds'] if x['kind'] != 'higher_lower'} == {10}       # 1–10 a game
+    one = make(club, kind='random', questions=8).json
+    assert len(one['rounds']) == 1 and one['rounds'][0]['kind'] in ('who_said', 'higher_lower', 'still')
+    assert make(club, rounds=[{'kind': 'emoji'}]).json['error'] == "Pick from the club's games."   # not on here
+
+
+def test_the_games_can_be_picked_again_until_someone_plays(club, monkeypatch):
+    import quizzes
+    monkeypatch.setattr(quizzes, '_backdrops', lambda tid: ['/still.jpg'])          # if Guess the still comes up
+    cid = make(club, kind='gauntlet', games=2).json['id']
+    r = act(club, 'Ana', cid, 'games', rounds=[{'kind': 'who_said', 'questions': 4}])
+    assert r.status_code == 200 and [x['kind'] for x in r.json['rounds']] == ['who_said'] and not r.json['gauntlet']
+    assert act(club, 'Bo', cid, 'games', rounds=[{'kind': 'higher_lower'}]).status_code == 400    # not Bo's to change
+    client(club['Ana']).get(f'/api/challenges/{cid}/play')
+    assert act(club, 'Ana', cid, 'games', rounds=[{'kind': 'higher_lower'}]).status_code == 400   # someone's started

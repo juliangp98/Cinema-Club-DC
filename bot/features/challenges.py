@@ -11,10 +11,10 @@ import embeds
 from api import ApiError
 from .shared import SITE_URL, api, api_failure, discord_identity, register, reply_failure, tell
 
+GAMES = (('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ Who said it'), ('still', '🖼️ Guess the still'),
+         ('reviews', '📝 Guess from the reviews'), ('emoji', '🎭 Emoji plot'), ('trivia', '🧠 Trivia'))
 VERSUS_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
-    ('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ Who said it'), ('still', '🖼️ Guess the still'),
-    ('reviews', '📝 Guess from the reviews'), ('emoji', '🎭 Emoji plot'), ('trivia', '🧠 Trivia'))]
-LENGTHS = [app_commands.Choice(name='3 questions', value=3), app_commands.Choice(name='5 questions', value=5)]
+    ('random', '🎲 A random game'), ('gauntlet', '🧩 Gauntlet: several games'), *GAMES)]
 DEADLINES = [app_commands.Choice(name=n, value=v) for v, n in (('hour', 'In an hour'), ('tonight', 'Tonight'),
                                                                ('days', 'In 3 days'))]
 REVEALS = [app_commands.Choice(name='Sealed until everyone has played', value='sealed'),
@@ -54,6 +54,10 @@ def challenge_view(c):
         view.add_item(ChallengeButton('end', cid, label='End it now'))
     if you['can_cancel']:
         view.add_item(ChallengeButton('cancel', cid, label='Call it off'))
+    if you.get('can_set_games') and c.get('gauntlet') and c.get('game_choices'):
+        each = next((r['questions'] for r in c['rounds'] if r['questions']), 5)
+        view.add_item(ChallengeGamesSelect(cid, each, [discord.SelectOption(label=f"{g['emoji']} {g['label']}"[:100], value=g['kind'])
+                                                       for g in c['game_choices']]))
     view.add_item(discord.ui.Button(label='On the site', url=f"{SITE_URL}/challenges/{cid}"))
     return view
 
@@ -160,7 +164,8 @@ class ChallengeButton(discord.ui.DynamicItem[discord.ui.Button],
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
-        return cls(match['act'], match['cid'], label=item.label, style=item.style)
+        return cls(match['act'], match['cid'], label=getattr(item, 'label', None) or match['act'],
+                   style=getattr(item, 'style', None) or discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -193,7 +198,8 @@ class ChallengeAnswer(discord.ui.DynamicItem[discord.ui.Button],
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
-        return cls(match['cid'], match['q'], match['choice'], label=item.label, style=item.style)
+        return cls(match['cid'], match['q'], match['choice'], label=getattr(item, 'label', None) or match['choice'],
+                   style=getattr(item, 'style', None) or discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -220,7 +226,7 @@ class ChallengeBackSelect(discord.ui.DynamicItem[discord.ui.Select], template=r'
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
-        return cls(match['cid'], item.options)
+        return cls(match['cid'], getattr(item, 'options', None))
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -247,6 +253,26 @@ class ChallengeBet(discord.ui.DynamicItem[discord.ui.Button], template=r'chbet:(
                   amount=self.amount)
 
 
+class ChallengeGamesSelect(discord.ui.DynamicItem[discord.ui.Select], template=r'chgames:(?P<cid>[0-9]+):(?P<each>[0-9]+)'):
+    """A gauntlet's creator picks its games instead of random ones (until anyone plays)."""
+    def __init__(self, cid, each, options=None):
+        options = options or [discord.SelectOption(label='—', value='random')]
+        super().__init__(discord.ui.Select(custom_id=f'chgames:{cid}:{each}', placeholder='🧩 Pick the games instead (in this order)',
+                                           min_values=min(2, len(options)), max_values=min(6, len(options)),
+                                           options=options, row=4))
+        self.cid, self.each = int(cid), int(each)
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match['cid'], match['each'], getattr(item, 'options', None))
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        kinds = (interaction.data or {}).get('values') or []
+        await act(interaction, self.cid, 'games', '🧩 Games set.',
+                  rounds=[{'kind': k, 'questions': self.each} for k in kinds])
+
+
 async def back_flow(interaction, cid):
     try:
         c = await api.get(f'/api/internal/challenges/{cid}', **discord_identity(interaction))
@@ -267,12 +293,14 @@ async def back_flow(interaction, cid):
 # ─── /play versus: and challenges: ────────────────────────────────────────────
 
 async def versus_flow(interaction, kind, opponents, stake=None, seats=None, questions=None, deadline=None,
-                      reveal=None, club_visible=None, post=None):
-    """Make a challenge (after /play's defer)."""
+                      reveal=None, club_visible=None, post=None, games=None):
+    """Make a challenge (after /play's defer): one game, a random one, or a
+    gauntlet of `games` random ones (the creator can pick them instead, after)."""
     people = [{'discord_user_id': str(m.id), 'discord_name': getattr(m, 'display_name', None) or m.name}
               for m in opponents if m is not None and not getattr(m, 'bot', False) and m.id != interaction.user.id]
     body = {**discord_identity(interaction), 'action': 'create', 'kind': kind, 'opponents': people,
             'stake': stake if stake is not None else 0, 'seats': seats or 0, 'questions': questions or 5,
+            'games': games or 3,
             'deadline': deadline or 'tonight', 'reveal': reveal or 'sealed',
             'visibility': 'players' if club_visible is False else 'club',
             'announce': None if post is None else ('now' if post else 'none')}
@@ -333,4 +361,4 @@ def post_content(data):
     return embeds.challenge_post_embed(data), post_view(data)
 
 
-register(items=(ChallengeButton, ChallengeAnswer, ChallengeBackSelect, ChallengeBet))
+register(items=(ChallengeButton, ChallengeAnswer, ChallengeBackSelect, ChallengeBet, ChallengeGamesSelect))

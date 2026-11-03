@@ -1,10 +1,11 @@
 """Challenges: club members play the same set of a game against each other,
 with kernels on the line — and members who aren't playing can back one.
 
-  * A challenge is a game the club has on (a quiz game, or trivia), 3 or 5
-    questions (higher or lower: one run, the longest streak wins), a stake
-    each player puts in the pot (0: for bragging rights), named opponents
-    and/or open seats anyone in the club can take, and a deadline.
+  * A challenge is a set of games the club has on (quiz games, trivia): one
+    game for a versus, several for a gauntlet — each picked or random, each
+    1–10 questions (higher or lower: one run; a miss ends that game). Plus a
+    stake each player puts in the pot (0: for bragging rights), named
+    opponents and/or open seats anyone in the club can take, and a deadline.
   * Everyone gets the identical set: each question is made the first time a
     player reaches it (quizzes.RULES / trivia.make_question) and kept, so the
     others get the same one. 30 seconds a question (QUESTION_SECONDS); running
@@ -15,8 +16,10 @@ with kernels on the line — and members who aren't playing can back one.
   * Decided when every player has played (and nobody's left to answer an
     invite or take a seat), when the creator ends it after everyone in has
     played, or at the deadline: anyone who accepted and didn't play scores 0.
-    The top score takes the pot (a tie splits it; an odd kernel goes to the
-    first to finish). Fewer than two players in: cancelled, nothing changes.
+    One game: the top score takes the pot (a tie splits it; an odd kernel
+    goes to the first to finish). A gauntlet: each game's top scorer wins
+    that game; most games won takes it, then total points, then the least
+    time. Fewer than two players in: cancelled, nothing changes.
   * Backing (club-visible challenges, if the club allows it): back one player
     with 1–MAX_BET kernels until the first player finishes. Whoever backed
     the winner splits the backing pot by what they put in; if nobody did,
@@ -40,11 +43,13 @@ GRACE_SECONDS = 3            # the network's share of the 30 seconds
 MAX_PLAYERS = 8
 MAX_SEATS = 6
 MAX_BET = 10
-LENGTHS = (3, 5)
+QUESTIONS = (1, 10)          # how many questions a game can have (higher or lower: one run)
+MAX_ROUNDS = 6               # games in a gauntlet
 HL_CHAIN = 30                # higher or lower: films lined up for a run
 RECENT_DAYS = 14             # decided challenges listed this long
 DEADLINES = {'hour': 'In an hour', 'tonight': 'Tonight', 'days': 'In 3 days'}
 TRIVIA = ('🧠', 'Trivia', 'Movie trivia questions: easy, medium and hard.')
+GAUNTLET = ('🧩', 'Gauntlet')
 
 
 # ─── Games ────────────────────────────────────────────────────────────────────
@@ -61,6 +66,8 @@ def games(group):
 
 def label(kind):
     import quizzes
+    if kind == 'gauntlet':
+        return GAUNTLET
     return TRIVIA[:2] if kind == 'trivia' else quizzes.GAMES[kind][:2]
 
 
@@ -88,7 +95,12 @@ def _deadline(group, key, now=None):
     return max(midnight, now + timedelta(hours=1))
 
 
-# ─── Questions: the same for everyone ─────────────────────────────────────────
+# ─── Rounds and their questions: the same for everyone ────────────────────────
+
+def rounds(ch):
+    """[{kind, questions}] — the games in order (one: a versus; more: a gauntlet)."""
+    return _state(ch).get('rounds') or [{'kind': ch.kind, 'questions': ch.questions}]
+
 
 def _hl_chain(group, rng):
     import quizzes
@@ -112,110 +124,137 @@ def _key(kind, q):
     return (q.get('film') or {}).get('key') or q.get('quote')
 
 
-def _make(ch, group, i):
-    """Question `i` of a challenge, made fresh (not yet saved)."""
+def _made(state, r):
+    return state.get('sets', {}).get(str(r), [])
+
+
+def _make(ch, group, r, i):
+    """Question `i` of round `r`, made fresh (not yet saved) — nothing the
+    challenge has already asked in that game."""
     import quizzes
     import trivia
+    kind = rounds(ch)[r]['kind']
     state = _state(ch)
-    used = {_key(ch.kind, q) for q in state.get('questions', [])} - {None}
-    rng = random.Random(f'{ch.id}:{i}:{secrets.token_hex(4)}')
-    if ch.kind == 'trivia':
+    used = {_key(kind, q) for rr, rd in enumerate(rounds(ch)) if rd['kind'] == kind for q in _made(state, rr)} - {None}
+    rng = random.Random(f'{ch.id}:{r}:{i}:{secrets.token_hex(4)}')
+    if kind == 'trivia':
         return trivia.make_question(group, places.today_in(places.club_city(group)), rng=rng, recent=used)
-    return quizzes.RULES[ch.kind][0](group, rng, avoid=used) or quizzes.RULES[ch.kind][0](group, rng)
+    return quizzes.RULES[kind][0](group, rng, avoid=used) or quizzes.RULES[kind][0](group, rng)
 
 
-def question(ch, i):
-    """Question `i`: the one already made, or made now and kept — if two
-    players get there at once, the first one saved is everyone's."""
+def question(ch, r, i):
+    """Question `i` of round `r`: the one already made, or made now and kept —
+    if two players get there at once, the first one saved is everyone's."""
     from app import db, Group
-    if ch.kind == 'higher_lower':
+    if rounds(ch)[r]['kind'] == 'higher_lower':
         return {'i': i}
     state = _state(ch)
-    have = state.get('questions', [])
+    have = _made(state, r)
     if i < len(have):
         return have[i]
-    made = _make(ch, db.session.get(Group, ch.group_id), i)
+    made = _make(ch, db.session.get(Group, ch.group_id), r, i)
     if not made:
         return None
-    old = ch.state_json
-    new = json.dumps({**state, 'questions': [*have, made]})
+    new = json.dumps({**state, 'sets': {**state.get('sets', {}), str(r): [*have, made]}})
     done = db.session.execute(db.text('UPDATE challenge SET state_json = :new WHERE id = :id AND state_json = :old'),
-                              {'new': new, 'old': old, 'id': ch.id}).rowcount
+                              {'new': new, 'old': ch.state_json, 'id': ch.id}).rowcount
     db.session.commit()
     db.session.refresh(ch)
-    return question(ch, i) if not done else _state(ch)['questions'][i]
+    return question(ch, r, i) if not done else _made(_state(ch), r)[i]
 
 
 # ─── What a player sees ───────────────────────────────────────────────────────
 
-def _points(ch, q, step):
+def _points(kind, q, step):
     import quizzes
     import trivia
-    if ch.kind == 'trivia':
+    if kind == 'trivia':
         return trivia.worth('daily', q.get('difficulty'))
-    return quizzes.STEP_PAY[step] if ch.kind in quizzes.BY_STEP else 1
+    return quizzes.STEP_PAY[step] if kind in quizzes.BY_STEP else 1
 
 
-def _length(ch):
-    return len(_state(ch).get('chain', [])) - 1 if ch.kind == 'higher_lower' else ch.questions
+def _round_len(ch, r):
+    rd = rounds(ch)[r]
+    if rd['kind'] == 'higher_lower':
+        return len(_state(ch).get('chains', {}).get(str(r), [])) - 1
+    return rd['questions']
 
 
-def _view(ch, p, i, q, step, answered, last):
-    """Question `i` shaped like a solo round (quizzes.as_dict), so the site's
-    and the bot's round displays show it as they are."""
+def round_points(p):
+    """{round: points} from a player's answers."""
+    out = {}
+    for a in _progress(p).get('answers', []):
+        out[a.get('r', 0)] = out.get(a.get('r', 0), 0) + a['points']
+    return out
+
+
+def _view(ch, p, r, i, q, step, answered, last):
+    """Question `i` of round `r`, shaped like a solo round (quizzes.as_dict), so
+    the site's and the bot's round displays show it as they are."""
     import quizzes
-    emoji, name = label(ch.kind)
-    out = {'id': ch.id, 'challenge': True, 'kind': ch.kind, 'emoji': emoji, 'label': name, 'done': answered,
-           'q': i, 'of': _length(ch), 'score': p.score, 'last': last, 'each': 1,
-           'by_step': ch.kind in quizzes.BY_STEP, 'left_today': None}
-    if ch.kind == 'higher_lower':
-        chain = _state(ch)['chain']
+    kind = rounds(ch)[r]['kind']
+    emoji, name = label(kind)
+    out = {'id': ch.id, 'challenge': True, 'kind': kind, 'emoji': emoji, 'label': name, 'done': answered,
+           'round': r, 'rounds': len(rounds(ch)), 'q': i, 'of': _round_len(ch, r), 'score': p.score,
+           'round_score': round_points(p).get(r, 0), 'last': last, 'each': 1,
+           'by_step': kind in quizzes.BY_STEP, 'left_today': None}
+    if kind == 'higher_lower':
+        chain = _state(ch)['chains'][str(r)]
         nxt = chain[i + 1]
         return {**out, 'current': chain[i], 'next': {**nxt, 'year': nxt['year'] if answered else None},
                 'history': chain[:i]}
-    if ch.kind == 'trivia':
-        out.update(prompt=q['prompt'], options=q['options'], difficulty=q.get('difficulty'),
-                   worth=_points(ch, q, 1))
+    if kind == 'trivia':
+        out.update(prompt=q['prompt'], options=q['options'], difficulty=q.get('difficulty'), worth=_points(kind, q, 1))
         if answered:
             out['answer'] = q['answer']
         return out
-    view = quizzes.RULES[ch.kind][2]
+    view = quizzes.RULES[kind][2]
     shown = {**q, 'step': step}
-    out.update(view(shown, answered, None) if ch.kind in quizzes.BY_STEP else view(shown, answered))
-    if ch.kind == 'still':
-        token = _progress(p).get('tokens', {}).get(str(i), '')
-        out['image'] = f"/api/challenges/still/{p.id}/{i}/{token}-{out['step']}.jpg"
+    out.update(view(shown, answered, None) if kind in quizzes.BY_STEP else view(shown, answered))
+    if kind == 'still':
+        token = _progress(p).get('tokens', {}).get(f'{r}:{i}', '')
+        out['image'] = f"/api/challenges/still/{p.id}/{r}/{i}/{token}-{out['step']}.jpg"
     return out
+
+
+def _next_round(p, prog):
+    from app import db
+    prog.update(r=prog.get('r', 0) + 1, i=0, step=1, shown_at=None)
+    p.progress_json = json.dumps(prog)
+    db.session.commit()
 
 
 def current(ch, p, now=None):
     """The player's question now (starting its 30 seconds the first time it's
     shown), or None once they've finished. Questions whose time ran out while
-    they were away count as misses."""
+    they were away count as misses; a game with nothing left to ask moves on."""
     from app import db
     now = now or _now()
     while p.status == 'accepted':
         prog = _progress(p)
-        i = prog.get('i', 0)
-        if i >= _length(ch):
+        r, i = prog.get('r', 0), prog.get('i', 0)
+        if r >= len(rounds(ch)):
             _finish(ch, p, now)
             break
-        q = question(ch, i)
-        if q is None:                                          # nothing left to ask about: the run ends here
-            _finish(ch, p, now)
-            break
+        if i >= _round_len(ch, r):
+            _next_round(p, prog)
+            continue
+        q = question(ch, r, i)
+        if q is None:                                          # nothing left to ask in this game: on to the next
+            _next_round(p, prog)
+            continue
         if not prog.get('shown_at'):
             prog['shown_at'] = now.isoformat()
             prog.setdefault('step', 1)
-            if ch.kind == 'still':
-                prog.setdefault('tokens', {})[str(i)] = secrets.token_hex(8)
+            if rounds(ch)[r]['kind'] == 'still':
+                prog.setdefault('tokens', {})[f'{r}:{i}'] = secrets.token_hex(8)
             p.progress_json = json.dumps(prog)
             db.session.commit()
         if _expired(prog, now):
             _record(ch, p, prog, q, None, now, timeout=True)
             continue
         last = (prog.get('answers') or [None])[-1]
-        view = _view(ch, p, i, q, prog.get('step', 1), False, last)
+        view = _view(ch, p, r, i, q, prog.get('step', 1), False, last)
         view['ends_at'] = (datetime.fromisoformat(prog['shown_at']) + timedelta(seconds=QUESTION_SECONDS)).isoformat() + 'Z'
         return view
     return None
@@ -227,27 +266,29 @@ def _expired(prog, now):
 
 
 def _record(ch, p, prog, q, choice, now, timeout=False):
-    """An answer (or the clock running out) to the player's current question."""
+    """An answer (or the clock running out) to the player's current question.
+    A higher-or-lower miss, or a game's last question, moves on to the next game."""
     from app import db
-    i, step = prog.get('i', 0), prog.get('step', 1)
-    if ch.kind == 'higher_lower':
-        chain = _state(ch)['chain']
+    r, i, step = prog.get('r', 0), prog.get('i', 0), prog.get('step', 1)
+    kind = rounds(ch)[r]['kind']
+    if kind == 'higher_lower':
+        chain = _state(ch)['chains'][str(r)]
         right = not timeout and (choice == 'before') == (chain[i + 1]['year'] < chain[i]['year'])
     else:
         right = not timeout and choice == q['answer']
-    points = _points(ch, q, step) if right else 0
+    points = _points(kind, q, step) if right else 0
     shown = datetime.fromisoformat(prog['shown_at']) if prog.get('shown_at') else now
     ms = min(int((now - shown).total_seconds() * 1000), (QUESTION_SECONDS + GRACE_SECONDS) * 1000)
-    answer = {'q': i, 'choice': choice, 'right': right, 'points': points, 'ms': ms, 'step': step, 'timeout': timeout,
-              'paid': points}
+    answer = {'r': r, 'q': i, 'choice': choice, 'right': right, 'points': points, 'ms': ms, 'step': step,
+              'timeout': timeout, 'paid': points}
     prog.setdefault('answers', []).append(answer)
     p.score += points
     p.took_ms += ms
     prog.update(i=i + 1, step=1, shown_at=None)
+    if (kind == 'higher_lower' and not right) or prog['i'] >= _round_len(ch, r):
+        prog.update(r=r + 1, i=0)
     p.progress_json = json.dumps(prog)
-    if ch.kind == 'higher_lower' and not right:               # a miss ends the run
-        _finish(ch, p, now)
-    elif prog['i'] >= _length(ch):
+    if prog.get('r', 0) >= len(rounds(ch)):
         _finish(ch, p, now)
     db.session.commit()
     return answer
@@ -257,24 +298,24 @@ def answer(ch, p, choice, now=None):
     """Answer the current question ('more': see more of a still or the
     reviews). Returns (view of the answered question, error)."""
     import quizzes
+    from app import db
     now = now or _now()
     if ch.status != 'open' or p.status != 'accepted':
         return None, "You're not playing this challenge right now."
-    view = current(ch, p, now)                               # catches a question that ran out
-    if view is None:
-        return None, 'You\'ve played all your questions.'
+    if current(ch, p, now) is None:                          # also catches a question that ran out
+        return None, "You've played all your questions."
     prog = _progress(p)
-    i = prog.get('i', 0)
-    q = question(ch, i)
+    r, i = prog.get('r', 0), prog.get('i', 0)
+    kind = rounds(ch)[r]['kind']
+    q = question(ch, r, i)
     if choice == 'more':
-        if ch.kind not in quizzes.BY_STEP or prog.get('step', 1) >= 3:
+        if kind not in quizzes.BY_STEP or prog.get('step', 1) >= 3:
             return None, "That's everything there is to see."
         prog['step'] = prog.get('step', 1) + 1
         p.progress_json = json.dumps(prog)
-        from app import db
         db.session.commit()
         return current(ch, p, now), None
-    if ch.kind == 'higher_lower':
+    if kind == 'higher_lower':
         if choice not in ('before', 'after'):
             return None, 'Before or after?'
     elif not isinstance(choice, int) or not 0 <= choice < len(q['options']):
@@ -282,7 +323,7 @@ def answer(ch, p, choice, now=None):
     step = prog.get('step', 1)
     late = _expired(prog, now)
     got = _record(ch, p, prog, q, None if late else choice, now, timeout=late)
-    shown = _view(ch, p, i, q, step, True, got)
+    shown = _view(ch, p, r, i, q, step, True, got)
     shown['over'] = p.status != 'accepted'
     maybe_settle(ch, now)
     return shown, None
@@ -357,10 +398,56 @@ def _int(v, default=0):
         return default
 
 
+def _clamp(v, lo, hi, default):
+    return max(lo, min(hi, _int(v, default)))
+
+
+def plan_rounds(group, data, rng=None):
+    """The games for a challenge, from {rounds: [{kind, questions}]} (each
+    kind a game or 'random'), or {kind: game | 'random' | 'gauntlet', games,
+    questions}. Random games come from the club's, none twice until each has
+    had a turn. Returns (rounds, error)."""
+    rng = rng or random.Random()
+    choices = [g['kind'] for g in games(group)]
+    if not choices:
+        return None, "The club doesn't have any games on yet."
+    spec = data.get('rounds')
+    if not isinstance(spec, list) or not spec:
+        kind = data.get('kind')
+        n = _clamp(data.get('games'), 2, MAX_ROUNDS, 3) if kind == 'gauntlet' else 1
+        spec = [{'kind': 'random' if kind == 'gauntlet' else kind, 'questions': data.get('questions')}] * n
+    if len(spec) > MAX_ROUNDS:
+        return None, f'At most {MAX_ROUNDS} games.'
+    out, pool = [], []
+    for item in spec:
+        kind = item.get('kind') if isinstance(item, dict) else None
+        if kind == 'random':
+            if not pool:
+                pool = rng.sample(choices, len(choices))
+            kind = pool.pop()
+        elif kind not in choices:
+            return None, "Pick from the club's games."
+        q = _clamp(item.get('questions', data.get('questions')), QUESTIONS[0], QUESTIONS[1], 5)
+        out.append({'kind': kind, 'questions': None if kind == 'higher_lower' else q})
+    return out, None
+
+
+def _fresh_state(group, plan):
+    """A challenge's starting state for its games (each higher-or-lower run lined up)."""
+    chains = {}
+    for r, rd in enumerate(plan):
+        if rd['kind'] == 'higher_lower':
+            chain = _hl_chain(group, random.Random())
+            if not chain:
+                return None, "There aren't enough films for Higher or lower yet."
+            chains[str(r)] = chain
+    return {'rounds': plan, 'chains': chains}, None
+
+
 def create(group, user, data, now=None, rematch_of=None):
-    """A new challenge from {kind, opponents: [user ids], seats, stake,
-    questions, deadline, visibility, reveal}. The creator is in from the
-    start. Returns (challenge, error)."""
+    """A new challenge: its games (plan_rounds), opponents (user ids), seats,
+    stake, deadline, visibility and reveal. The creator is in from the start.
+    Returns (challenge, error)."""
     from app import db, Challenge, ChallengePlayer, User, _active_membership, require_role
     now = now or _now()
     if not group.challenges_enabled:
@@ -368,9 +455,9 @@ def create(group, user, data, now=None, rematch_of=None):
     _, err = require_role(user, group.id, 'member')
     if err:
         return None, 'Only club members can start a challenge.'
-    kind = data.get('kind')
-    if kind not in {g['kind'] for g in games(group)}:
-        return None, "Pick one of the club's games."
+    plan, err = plan_rounds(group, data)
+    if err:
+        return None, err
     opponents = []
     for uid in dict.fromkeys(_int(x) for x in data.get('opponents') or []):
         u = db.session.get(User, uid) if uid else None
@@ -389,25 +476,22 @@ def create(group, user, data, now=None, rematch_of=None):
     err = _afford(user.id, group.id, stake)
     if err:
         return None, err
-    questions = _int(data.get('questions'), 5)
-    ch = Challenge(group_id=group.id, created_by=user.id, kind=kind,
-                   questions=questions if questions in LENGTHS else 5, stake=stake, seats=seats,
+    state, err = _fresh_state(group, plan)
+    if err:
+        return None, err
+    ch = Challenge(group_id=group.id, created_by=user.id, kind=plan[0]['kind'] if len(plan) == 1 else 'gauntlet',
+                   questions=plan[0]['questions'] or 0, stake=stake, seats=seats, state_json=json.dumps(state),
                    visibility='club' if data.get('visibility') == 'club' else 'players',
                    reveal='live' if data.get('reveal') == 'live' else 'sealed',
                    closes_at=_deadline(group, data.get('deadline') if data.get('deadline') in DEADLINES else 'tonight', now),
                    rematch_of=rematch_of)
-    if kind == 'higher_lower':
-        chain = _hl_chain(group, random.Random())
-        if not chain:
-            return None, "There aren't enough films to play that yet."
-        ch.state_json = json.dumps({'chain': chain})
     db.session.add(ch)
     db.session.flush()
     db.session.add(ChallengePlayer(challenge_id=ch.id, user_id=user.id, status='accepted'))
     for u in opponents:
         db.session.add(ChallengePlayer(challenge_id=ch.id, user_id=u.id, status='invited'))
     db.session.commit()
-    if kind != 'higher_lower' and question(ch, 0) is None:     # nothing to ask about: don't leave it hanging
+    if question(ch, 0, 0) is None:                              # nothing to ask about: don't leave it hanging
         db.session.delete(ch)
         db.session.commit()
         return None, "There's nothing to play that with yet — try another game."
@@ -415,6 +499,31 @@ def create(group, user, data, now=None, rematch_of=None):
     if ch.visibility == 'club':
         notify_open(ch)
     return ch, None
+
+
+def set_games(ch, user, data):
+    """The creator picks the games again (Discord's gauntlet picker) — only
+    before anyone has seen a question."""
+    from app import db, Group
+    if ch.created_by != user.id or ch.status != 'open':
+        return 'Only whoever started it can change the games.'
+    if any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players):
+        return 'Someone has started playing, so the games stay as they are.'
+    group = db.session.get(Group, ch.group_id)
+    plan, err = plan_rounds(group, data)
+    if err:
+        return err
+    state, err = _fresh_state(group, plan)
+    if err:
+        return err
+    ch.state_json = json.dumps(state)
+    ch.kind = plan[0]['kind'] if len(plan) == 1 else 'gauntlet'
+    ch.questions = plan[0]['questions'] or 0
+    db.session.commit()
+    if question(ch, 0, 0) is None:
+        return "There's nothing to play that with yet — try another game."
+    posts_changed(ch)
+    return None
 
 
 def respond(ch, user, accept, now=None):
@@ -520,9 +629,9 @@ def rematch(ch, user, double=False, now=None):
     group = db.session.get(Group, ch.group_id)
     stake = min(ch.stake * 2 if double else ch.stake, group.challenge_max_stake or 10)
     others = [p.user_id for p in in_game(ch) if p.user_id != user.id]
-    return create(group, user, {'kind': ch.kind, 'opponents': others, 'seats': 0, 'stake': stake,
-                                'questions': ch.questions, 'deadline': 'tonight', 'visibility': ch.visibility,
-                                'reveal': ch.reveal}, now, rematch_of=ch.id)
+    return create(group, user, {'rounds': rounds(ch), 'opponents': others, 'seats': 0, 'stake': stake,
+                                'deadline': 'tonight', 'visibility': ch.visibility, 'reveal': ch.reveal},
+                  now, rematch_of=ch.id)
 
 
 # ─── Deciding ─────────────────────────────────────────────────────────────────
@@ -557,8 +666,21 @@ def settle(ch, now=None):
         posts_changed(ch)
         notify_results(ch)
         return
-    top = max(p.score for p in players)
-    winners = sorted((p for p in players if p.score == top and p.status == 'finished'),
+    # Each game's top scorer wins it (a tie shares it). One game: the top
+    # score wins (a tie splits the pot); a gauntlet: most games won, then
+    # total points, then the least time.
+    pts = {p.user_id: round_points(p) for p in players}
+    round_winners = []
+    for r in range(len(rounds(ch))):
+        top = max(pts[p.user_id].get(r, 0) for p in players)
+        round_winners.append(sorted(p.user_id for p in players if top > 0 and pts[p.user_id].get(r, 0) == top))
+    won_rounds = {p.user_id: sum(p.user_id in w for w in round_winners) for p in players}
+    state['round_winners'] = round_winners
+    state['standing'] = {str(p.user_id): {'rounds_won': won_rounds[p.user_id], 'score': p.score, 'ms': p.took_ms}
+                         for p in players}
+    rank = lambda p: _rank(ch, state, p.user_id)
+    best = max(rank(p) for p in players)
+    winners = sorted((p for p in players if rank(p) == best and p.status == 'finished'),
                      key=lambda p: p.finished_at or now) or sorted(players, key=lambda p: p.id)
     pot = ch.stake * len(players)
     share, extra = divmod(pot, len(winners))
@@ -585,6 +707,12 @@ def settle(ch, now=None):
     clear_invite(ch)
     posts_changed(ch)
     notify_results(ch)
+
+
+def _rank(ch, state, uid):
+    """What decides between players: points (one game) or games won, points, time (a gauntlet)."""
+    s = state.get('standing', {}).get(str(uid), {'rounds_won': 0, 'score': 0, 'ms': 0})
+    return (s['score'],) if len(rounds(ch)) == 1 else (s['rounds_won'], s['score'], -s['ms'])
 
 
 def settle_due(now=None):
@@ -648,14 +776,16 @@ def records(user_ids, group_id, since=None):
 
 def head_to_head(group_id, a, b):
     """{won, lost, tied, played} for `a` against `b`: the challenges they both
-    played, by who scored more."""
+    played, by who came out ahead (as the challenge was decided)."""
     out = {'won': 0, 'lost': 0, 'tied': 0, 'played': 0}
     for ch in _decided(group_id, [a]):
         pa, pb = player(ch, a), player(ch, b)
         if not pa or not pb or pa.status not in ('finished', 'forfeit') or pb.status not in ('finished', 'forfeit'):
             continue
+        state = _state(ch)
+        ra, rb = _rank(ch, state, a), _rank(ch, state, b)
         out['played'] += 1
-        out['won' if pa.score > pb.score else 'lost' if pa.score < pb.score else 'tied'] += 1
+        out['won' if ra > rb else 'lost' if ra < rb else 'tied'] += 1
     return out
 
 
@@ -681,12 +811,21 @@ def _show_scores(ch, p, viewer_id):
     return ch.status == 'done' or (p.status == 'finished' and (ch.reveal == 'live' or p.user_id == viewer_id))
 
 
-def _summary(ch, q, i):
+def games_line(ch):
+    """'🗣️ Who said it' — or '🧩 Gauntlet: Who said it, Trivia, Emoji plot'."""
+    rs = rounds(ch)
+    if len(rs) == 1:
+        return ' '.join(label(rs[0]['kind']))
+    return f"{' '.join(GAUNTLET)}: " + ', '.join(label(rd['kind'])[1] for rd in rs)
+
+
+def _summary(ch, r, q, i):
     """One question in a line, for the results ("Casablanca (1942)")."""
-    if ch.kind == 'higher_lower':
-        f = _state(ch)['chain'][i + 1]
+    kind = rounds(ch)[r]['kind']
+    if kind == 'higher_lower':
+        f = _state(ch)['chains'][str(r)][i + 1]
         return f"{f['title']} ({f['year']})"
-    if ch.kind == 'trivia':
+    if kind == 'trivia':
         return f"{q['prompt']} — {q['options'][q['answer']]}"
     f = q.get('film') or {}
     year = f" ({f['year']})" if f.get('year') else ''
@@ -702,13 +841,20 @@ def as_dict(ch, viewer_id):
     state = _state(ch)
     winners = set(state.get('winners', []))
     mine = next((b for b in ch.bets if b.user_id == viewer_id), None)
+    rs = rounds(ch)
+    standing = state.get('standing', {})
     players = [{'user': p.user.public_dict(), 'status': p.status, 'seat': bool(p.seat),
                 'score': p.score if _show_scores(ch, p, viewer_id) else None,
+                'round_scores': [round_points(p).get(r, 0) for r in range(len(rs))] if _show_scores(ch, p, viewer_id) else None,
+                'rounds_won': standing.get(str(p.user_id), {}).get('rounds_won') if ch.status == 'done' else None,
                 'took_ms': p.took_ms if _show_scores(ch, p, viewer_id) else None,
                 'net': p.net if ch.status == 'done' else None, 'winner': p.user_id in winners,
                 'backers': sum(1 for b in ch.bets if b.backing_id == p.user_id)} for p in ch.players]
     out = {'id': ch.id, 'group_id': ch.group_id, 'kind': ch.kind, 'emoji': emoji, 'label': name,
-           'questions': _length(ch) if ch.kind != 'higher_lower' else None, 'stake': ch.stake,
+           'games_line': games_line(ch), 'gauntlet': len(rs) > 1,
+           'rounds': [{'kind': rd['kind'], 'emoji': label(rd['kind'])[0], 'label': label(rd['kind'])[1],
+                       'questions': rd['questions']} for rd in rs],
+           'questions': rs[0]['questions'] if len(rs) == 1 else None, 'stake': ch.stake,
            'pot': ch.stake * len(in_game(ch)), 'seats': ch.seats, 'seats_left': seats_left(ch),
            'visibility': ch.visibility, 'reveal': ch.reveal, 'status': ch.status,
            'closes_at': ch.closes_at.isoformat() + 'Z', 'created_at': ch.created_at.isoformat() + 'Z',
@@ -726,20 +872,29 @@ def as_dict(ch, viewer_id):
                    'can_back': bool(not me and not mine and betting_open(ch)),
                    'can_cancel': ch.created_by == viewer_id and ch.status == 'open'
                                  and not any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players),
+                   'can_set_games': ch.created_by == viewer_id and ch.status == 'open'
+                                    and not any(_progress(p).get('shown_at') or _progress(p).get('answers') for p in ch.players),
                    'can_end': ch.created_by == viewer_id and ch.status == 'open'
                               and not any(p.status == 'accepted' for p in ch.players),
                    'can_rematch': bool(me and ch.status == 'done' and me.status in ('finished', 'forfeit'))}}
     newer = db.session.execute(db.text('SELECT id FROM challenge WHERE rematch_of = :id ORDER BY id DESC LIMIT 1'),
                                {'id': ch.id}).scalar()
     out['rematch'] = newer
+    out['game_choices'] = games(group) if out['you']['can_set_games'] else None
     if ch.status == 'done':
-        qs = state.get('questions', [])
-        answers = {p.user_id: {a['q']: a for a in _progress(p).get('answers', [])} for p in in_game(ch)}
-        n = max([len(v) for v in answers.values()] + [0])
-        out['results'] = [{'q': i, 'summary': _summary(ch, qs[i] if i < len(qs) else {}, i),
-                           'answers': {str(uid): {k: a[k] for k in ('right', 'points', 'ms', 'timeout')}
-                                       for uid, by in answers.items() if (a := by.get(i))}}
-                          for i in range(n) if ch.kind == 'higher_lower' or i < len(qs)]
+        answers = {p.user_id: {(a.get('r', 0), a['q']): a for a in _progress(p).get('answers', [])} for p in in_game(ch)}
+        round_winners = state.get('round_winners', [])
+        out['results'] = []
+        for r, rd in enumerate(rs):
+            qs = _made(state, r)
+            asked = sorted({q for by in answers.values() for (rr, q) in by if rr == r})
+            out['results'].append({
+                'round': r, 'kind': rd['kind'], 'emoji': label(rd['kind'])[0], 'label': label(rd['kind'])[1],
+                'winners': round_winners[r] if r < len(round_winners) else [],
+                'questions': [{'q': i, 'summary': _summary(ch, r, qs[i] if i < len(qs) else {}, i),
+                               'answers': {str(uid): {k: a[k] for k in ('right', 'points', 'ms', 'timeout')}
+                                           for uid, by in answers.items() if (a := by.get((r, i)))}}
+                              for i in asked if rd['kind'] == 'higher_lower' or i < len(qs)]})
     return out
 
 
@@ -764,8 +919,9 @@ def _notify(user, kind, type_, payload, channels=None):
 
 
 def _about(ch):
-    emoji, name = label(ch.kind)
-    return {'challenge_id': ch.id, 'group_id': ch.group_id, 'game': f'{emoji} {name}', 'stake': ch.stake,
+    n = len(rounds(ch))
+    game = ' '.join(label(ch.kind)) + (f' ({n} games)' if n > 1 else '')
+    return {'challenge_id': ch.id, 'group_id': ch.group_id, 'game': game, 'stake': ch.stake,
             'by': ch.creator.name if ch.creator else None}
 
 
@@ -850,20 +1006,22 @@ def _named(u, group_id):
 
 def post_payload(ch):
     """What the challenge's post in the club's Discord shows right now (names only — never pings)."""
-    emoji, name = label(ch.kind)
     state = _state(ch)
     winners = set(state.get('winners', []))
     from app import on_discord
     # Whoever posted it chose to: their name shows (others' follow their own setting).
     by = ch.creator.name if ch.creator and on_discord(ch.creator, ch.group_id) else None
-    return {'challenge_id': ch.id, 'game': f'{emoji} {name}', 'kind': ch.kind, 'status': ch.status, 'stake': ch.stake,
+    rs = rounds(ch)
+    standing = state.get('standing', {})
+    return {'challenge_id': ch.id, 'game': games_line(ch), 'kind': ch.kind, 'status': ch.status, 'stake': ch.stake,
             'pot': ch.stake * len(in_game(ch)), 'seats_left': seats_left(ch), 'reveal': ch.reveal,
-            'questions': _length(ch) if ch.kind != 'higher_lower' else None,
+            'questions': rs[0]['questions'] if len(rs) == 1 else None, 'games': len(rs),
             'closes_at': ch.closes_at.isoformat() + '+00:00', 'by': by,
             'backing': {'open': betting_open(ch), 'total': sum(b.amount for b in ch.bets), 'count': len(ch.bets)},
             'players': [{'name': by if p.user_id == ch.created_by else _named(p.user, ch.group_id), 'status': p.status,
                          'score': p.score if (ch.status == 'done' or (ch.reveal == 'live' and p.status == 'finished')) else None,
-                         'winner': p.user_id in winners, 'net': p.net if ch.status == 'done' else None}
+                         'winner': p.user_id in winners, 'net': p.net if ch.status == 'done' else None,
+                         'rounds_won': standing.get(str(p.user_id), {}).get('rounds_won') if len(rs) > 1 else None}
                         for p in ch.players if p.status not in ('declined', 'expired')]}
 
 

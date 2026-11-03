@@ -289,7 +289,8 @@ V = challenges                     # /play versus: and challenges: (features/cha
     opponent='Versus: who you challenge', opponent2='Versus: another player', opponent3='Versus: another player',
     stake='Versus: kernels each player puts in the pot (0 = for bragging rights)',
     seats='Versus: open seats anyone in the club can take',
-    questions='Versus: how many questions (Higher or lower is one run)',
+    questions='Versus: questions in each game, 1–10 (Higher or lower is one run)',
+    games='Gauntlet: how many games, 2–6 (random — or pick them after)',
     deadline='Versus: when it closes (default: tonight)',
     scores='Versus: show scores as each player finishes, or only once everyone has',
     club_visible='Versus: the club can see it and back players (default: yes)',
@@ -297,19 +298,19 @@ V = challenges                     # /play versus: and challenges: (features/cha
     challenges="Your challenges, or the club's open ones",
 )
 @app_commands.rename(club_visible='club')
-@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, questions=V.LENGTHS, deadline=V.DEADLINES,
-                      scores=V.REVEALS, challenges=V.LISTS)
+@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, deadline=V.DEADLINES, scores=V.REVEALS, challenges=V.LISTS)
 async def play_cmd(interaction: discord.Interaction, solo: app_commands.Choice[str] = None,
                    versus: app_commands.Choice[str] = None, opponent: discord.Member = None, opponent2: discord.Member = None,
                    opponent3: discord.Member = None, stake: app_commands.Range[int, 0, 50] = None,
-                   seats: app_commands.Range[int, 0, 6] = None, questions: app_commands.Choice[int] = None,
+                   seats: app_commands.Range[int, 0, 6] = None, questions: app_commands.Range[int, 1, 10] = None,
+                   games: app_commands.Range[int, 2, 6] = None,
                    deadline: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
                    club_visible: bool = None, post: bool = None, challenges: app_commands.Choice[str] = None):
     await interaction.response.defer(ephemeral=True, thinking=bool(solo or versus or challenges))
     if versus:
-        await V.versus_flow(interaction, versus.value, [opponent, opponent2, opponent3], stake, seats,
-                            questions.value if questions else None, deadline.value if deadline else None,
-                            scores.value if scores else None, club_visible, post)
+        await V.versus_flow(interaction, versus.value, [opponent, opponent2, opponent3], stake, seats, questions,
+                            deadline.value if deadline else None, scores.value if scores else None, club_visible, post,
+                            games)
         return
     if challenges:
         await V.list_flow(interaction, challenges.value)

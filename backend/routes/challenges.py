@@ -37,7 +37,7 @@ def list_challenges():
     return jsonify({'enabled': bool(group.challenges_enabled), 'games': challenges.games(group),
                     'max_stake': group.challenge_max_stake or 10, 'backing': group.challenge_backing is not False,
                     'max_bet': challenges.MAX_BET, 'max_players': challenges.MAX_PLAYERS, 'max_seats': challenges.MAX_SEATS,
-                    'lengths': challenges.LENGTHS, 'deadlines': challenges.DEADLINES,
+                    'questions': challenges.QUESTIONS, 'max_rounds': challenges.MAX_ROUNDS, 'deadlines': challenges.DEADLINES,
                     'available': challenges.available(user.id, group_id),
                     'on_the_line': challenges.on_the_line(user.id, group_id),
                     'challenges': [challenges.as_dict(c, user.id) for c in challenges.visible(group_id, user.id)]})
@@ -70,7 +70,8 @@ def get_challenge(challenge_id):
 @require_auth
 def challenge_action(challenge_id, action):
     """respond {accept} · join · back {user_id, amount} · cancel · end ·
-    rematch {double} — each returns the challenge as you now see it."""
+    games {rounds} (the creator, before anyone plays) · rematch {double} —
+    each returns the challenge as you now see it."""
     ch, user, err = _mine(challenge_id)
     if err:
         return err
@@ -85,6 +86,8 @@ def challenge_action(challenge_id, action):
         return _done(ch, user, challenges.cancel(ch, user))
     if action == 'end':
         return _done(ch, user, challenges.end_now(ch, user))
+    if action == 'games':
+        return _done(ch, user, challenges.set_games(ch, user, data))
     if action == 'rematch':
         new, err = challenges.rematch(ch, user, bool(data.get('double')))
         if err:
@@ -118,8 +121,8 @@ def play_challenge(challenge_id):
     return jsonify({'answered': shown, 'question': nxt, 'challenge': challenges.as_dict(ch, user.id)})
 
 
-@app.route('/api/challenges/still/<int:player_id>/<int:i>/<token_step>.jpg')
-def challenge_still(player_id, i, token_step):
+@app.route('/api/challenges/still/<int:player_id>/<int:r>/<int:i>/<token_step>.jpg')
+def challenge_still(player_id, r, i, token_step):
     """A challenge's still for one player at a step (quizzes.crop_still): their
     own token is the key — Discord fetches these too, without a session."""
     import json
@@ -127,15 +130,17 @@ def challenge_still(player_id, i, token_step):
     from flask import Response
     p = db.session.get(ChallengePlayer, player_id)
     ch = p.challenge if p else None
-    if not ch or ch.kind != 'still':
+    rs = challenges.rounds(ch) if ch else []
+    if not ch or r >= len(rs) or rs[r]['kind'] != 'still':
         return jsonify({'error': 'Not found'}), 404
     prog = json.loads(p.progress_json or '{}')
     token, _, step = token_step.rpartition('-')
-    answered = i < prog.get('i', 0) or ch.status == 'done'
-    if (not token or token != prog.get('tokens', {}).get(str(i)) or step not in ('1', '2', '3')
-            or (not answered and (i != prog.get('i', 0) or int(step) > prog.get('step', 1)))):
+    here = (prog.get('r', 0), prog.get('i', 0))
+    answered = (r, i) < here or ch.status == 'done'
+    if (not token or token != prog.get('tokens', {}).get(f'{r}:{i}') or step not in ('1', '2', '3')
+            or (not answered and ((r, i) != here or int(step) > prog.get('step', 1)))):
         return jsonify({'error': 'Not found'}), 404
-    qs = json.loads(ch.state_json or '{}').get('questions', [])
+    qs = json.loads(ch.state_json or '{}').get('sets', {}).get(str(r), [])
     if i >= len(qs):
         return jsonify({'error': 'Not found'}), 404
     data = quizzes.crop_still(qs[i], int(step))

@@ -46,4 +46,4 @@ def test_play_offers_every_quiz_game():
     and versus: the same, plus trivia."""
     import quizzes
     assert [k for k, _ in games.QUIZ_GAMES] == list(quizzes.GAMES)
-    assert [c.value for c in challenges.VERSUS_GAMES] == [*quizzes.GAMES, 'trivia']
+    assert [c.value for c in challenges.VERSUS_GAMES] == ['random', 'gauntlet', *quizzes.GAMES, 'trivia']

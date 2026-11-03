@@ -1129,7 +1129,11 @@ def challenge_embed(c, note=None):
     """A challenge as one member sees it (challenges.as_dict): who's in, what's
     on the line, the deadline — the scores when they're out — and the results."""
     status = {'open': '⚔️', 'done': '🏆', 'cancelled': '✖️'}.get(c['status'], '⚔️')
-    length = f"{c['questions']} questions" if c.get('questions') else 'one run — longest streak wins'
+    if c.get('gauntlet'):
+        length = (f"{len(c['rounds'])} games: " + ', '.join(f"{r['emoji']} {r['label']}" for r in c['rounds'])
+                  + ' — most games won takes it')
+    else:
+        length = f"{c['questions']} questions" if c.get('questions') else 'one run — longest streak wins'
     lines = [f"Started by **{c['created_by']['name']}** · {length}", _stakes(c)]
     if c['status'] == 'open':
         lines.append(closes_line(c['closes_at']).replace('Voting closes', 'Closes'))
@@ -1141,6 +1145,8 @@ def challenge_embed(c, note=None):
     rows = []
     for p in c['players']:
         score = f" — **{p['score']}**" if p.get('score') is not None else ''
+        if c.get('gauntlet') and p.get('rounds_won') is not None:
+            score = f" — **{p['rounds_won']} game{'s' if p['rounds_won'] != 1 else ''}** ({p['score']} points)"
         net = f" ({_signed(p['net'])} 🍿)" if p.get('net') is not None and c['stake'] else ''
         crown = '🏆 ' if p.get('winner') else ''
         rows.append(f"{STATUS_ICONS.get(p['status'], '')} {crown}{p['user']['name']} · {STATUS_WORDS.get(p['status'], p['status'])}{score}{net}")
@@ -1155,7 +1161,7 @@ def challenge_embed(c, note=None):
             lines.append(f"You backed **{backed}** with {b['mine']['amount']} 🍿{got}")
     if note:
         lines += ['', note]
-    embed = discord.Embed(title=f"{status} {c['emoji']} {c['label']} challenge"[:256], colour=AMBER,
+    embed = discord.Embed(title=f"{status} {c['emoji']} {c['label']}{'' if c.get('gauntlet') else ' challenge'}"[:256], colour=AMBER,
                           description='\n'.join(lines)[:4000], url=f"{SITE_URL}/challenges/{c['id']}")
     embed.set_footer(text='Only you see this · the site has the full results' if c['status'] == 'done' else 'Only you see this')
     return embed
@@ -1165,7 +1171,8 @@ def challenge_post_embed(p):
     """A challenge's post in the club's channel (challenges.post_payload):
     names only — never pings; members who said Never stay unnamed."""
     who = lambda x: f"**{x['name']}**" if x.get('name') else '*a member*'
-    length = f"{p['questions']} questions" if p.get('questions') else 'one run'
+    length = (f"{p['games']} games" if p.get('games', 1) > 1 else
+              f"{p['questions']} questions" if p.get('questions') else 'one run')
     head = {'open': f"⚔️ {p['game']} challenge", 'done': f"🏆 {p['game']}: results", 'cancelled': f"✖️ {p['game']}: called off"}
     lines = [f"Started by {who({'name': p.get('by')})} · {length} · "
              + (f"{p['stake']} 🍿 each, pot {p['pot']} 🍿" if p['stake'] else 'for bragging rights')]
@@ -1174,6 +1181,8 @@ def challenge_post_embed(p):
     rows = []
     for x in sorted(p['players'], key=lambda x: -(x['score'] if x.get('score') is not None else -1)):
         score = f" — **{x['score']}**" if x.get('score') is not None else ''
+        if x.get('rounds_won') is not None and p['status'] == 'done':
+            score = f" — **{x['rounds_won']} game{'s' if x['rounds_won'] != 1 else ''}**"
         net = f" ({_signed(x['net'])} 🍿)" if x.get('net') is not None and p['stake'] else ''
         rows.append(f"{STATUS_ICONS.get(x['status'], '')} {'🏆 ' if x.get('winner') else ''}{who(x)} · "
                     f"{STATUS_WORDS.get(x['status'], x['status'])}{score}{net}")
@@ -1194,7 +1203,8 @@ def challenge_question_embed(q):
         ts = int(datetime.fromisoformat(q['ends_at'].replace('Z', '+00:00')).timestamp())
         embed.description = f"{embed.description}\n\n⏱️ Time's up <t:{ts}:R>"[:4000]
     worth = f"worth {q['worth']} 🍿 now · " if q.get('worth') and not q['done'] else ''
-    embed.set_footer(text=f"Question {q['q'] + 1}{' of ' + str(q['of']) if q['kind'] != 'higher_lower' else ''} · "
+    game = f"Game {q['round'] + 1} of {q['rounds']}: {q['label']} · " if q.get('rounds', 1) > 1 else ''
+    embed.set_footer(text=f"{game}Question {q['q'] + 1}{' of ' + str(q['of']) if q['kind'] != 'higher_lower' else ''} · "
                           f"{worth}score {q['score']} · only you see this")
     return embed
 
