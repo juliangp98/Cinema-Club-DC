@@ -24,6 +24,7 @@ function earnList(r) {
     r.trivia_anytime && `Anytime trivia: ${byLevel(r.trivia_anytime.each)} each, up to ${r.trivia_anytime.per_day} a day`,
     ...(r.games || []).map(g => `${g.label}: ${g.by_step ? "3, 2 or 1 by how much you needed to see" : `+${g.each} a right call`}, up to ${g.per_day} a day`),
     r.bingo && `Repertory bingo: +${r.bingo.line} for a line, +${r.bingo.full} for the full card`,
+    r.challenges && `Challenges: win the pot (up to ${r.challenges.max_stake} 🍿 a player), or back the winner`,
     `Members can give you kernels for what you do (up to ${r.give} a week each), or take a few back`,
   ].filter(Boolean);
 }

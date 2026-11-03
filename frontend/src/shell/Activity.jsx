@@ -27,6 +27,7 @@ function fromOthers(card, user) {
     case "watchlist":
     case "joined": return card.users.some(u => u.id !== user.id);
     case "poll": return card.poll.creator !== user.name;
+    case "challenge": return card.challenge.created_by.id !== user.id || card.challenge.status === "done";
     default: return true;
   }
 }

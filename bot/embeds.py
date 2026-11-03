@@ -1146,7 +1146,7 @@ def challenge_embed(c, note=None):
     for p in c['players']:
         score = f" — **{p['score']}**" if p.get('score') is not None else ''
         if c.get('gauntlet') and p.get('rounds_won') is not None:
-            score = f" — **{p['rounds_won']} game{'s' if p['rounds_won'] != 1 else ''}** ({p['score']} points)"
+            score = f" — **{p['rounds_won']} game{'s' if p['rounds_won'] != 1 else ''}** ({p['score']} 🍿 scored)"
         net = f" ({_signed(p['net'])} 🍿)" if p.get('net') is not None and c['stake'] else ''
         crown = '🏆 ' if p.get('winner') else ''
         rows.append(f"{STATUS_ICONS.get(p['status'], '')} {crown}{p['user']['name']} · {STATUS_WORDS.get(p['status'], p['status'])}{score}{net}")

@@ -534,7 +534,7 @@ def _describe_challenge(kind, p):
         how = net if p.get('net') else f"nobody backed {won}, so your {p.get('amount', 0)} 🍿 came back"
         return {'headline': f"{p.get('game', '')}: {won} won", 'detail': f"You backed {p['backed']} · {how}", 'link': link}
     place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else None
-    return {'headline': f"{p.get('game', '')}: {won} won", 'detail': ' · '.join(b for b in (net, f"{p.get('score', 0)} points", place) if b),
+    return {'headline': f"{p.get('game', '')}: {won} won", 'detail': ' · '.join(b for b in (net, f"{p.get('score', 0)} 🍿 scored", place) if b),
             'link': link}
 
 

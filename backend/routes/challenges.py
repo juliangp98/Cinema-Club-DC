@@ -20,7 +20,7 @@ def _done(ch, user, err=None, status=200):
     if err:
         return jsonify({'error': err}), 400
     db.session.refresh(ch)
-    return jsonify(challenges.as_dict(ch, user.id)), status
+    return jsonify({**challenges.as_dict(ch, user.id), 'available': challenges.available(user.id, ch.group_id)}), status
 
 
 @app.route('/api/challenges')

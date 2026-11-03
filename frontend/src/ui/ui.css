@@ -455,8 +455,11 @@ a.ui-page-meta-more:hover { text-decoration: underline; }
 .profile-editor { padding: 1.5rem 1.25rem 2rem; }
 
 /* ── Segmented control (RSVP, Went / Didn't go) ────────────────────────── */
+/* As wide as its words in a row; stretched (a sheet's column, a stacked
+   setting), the buttons share the width instead of bunching at the left. */
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); overflow: hidden; }
 .seg-btn {
+  flex: 1 1 auto; text-align: center;
   min-height: 34px; padding: 0.35rem 0.85rem;
   font: 500 var(--fs-sm) / 1 var(--font-body); color: var(--muted);
   border-right: 1px solid var(--border); transition: background 0.15s, color 0.15s;

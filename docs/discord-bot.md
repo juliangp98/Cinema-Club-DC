@@ -42,7 +42,7 @@ joins it to a site account later.
 |---|---|
 | **Find something to see** | `/showtimes` what's playing (days, a date, a theatre, tickets; `going:True` for who's going; `city:` another city's) · `/movie` a film's details and showtimes · `/foryou` picks from Your taste · `/find` a kind of film (🔔 Alert me saves the search) · `/surprise` one random pick · `/theatre` where it is, what's on, members' notes |
 | **Make plans** | `/rsvp` Going / Maybe / Can't go · `/discuss` open a screening's thread · `/watch` add to, remove from or show a watchlist · `/notifications` your alerts and where they go |
-| **Play, polls & kernels** | `/play` the games hub, or `game:` straight into trivia, your bingo card, a quiz game or your kernels · `/poll` with `action:` the open polls, your private ballot, or make one (describe it and the AI drafts it; organizers) · `/leaderboard` with `period:` all time, this year or this month |
+| **Play, polls & kernels** | `/play` the games hub; `solo:` straight into trivia, your bingo card, a quiz game or your kernels; `versus:` challenge members — one game, 🎲 a random one or a 🧩 gauntlet (`games:`), with `opponent`…`opponent3`, `questions` (1–10), `stake`, `seats`, `deadline`, `scores`, `club`, `post`; `challenges:` yours or the club's open ones ([challenges.md](challenges.md)) · `/poll` with `action:` the open polls, your private ballot, or make one (describe it and the AI drafts it; organizers) · `/leaderboard` with `period:` all time, this year or this month |
 | **You and the club** | `/profile` yours or @someone's (history, watchlist, compare, give kernels) · `/club` the club at a glance · `/link` connect an existing site account |
 | **Extras** | `/digest` this week's digest (if the club has it on), or a private preview · `/announcements` which theatres post drops · `/quote` a random line, or `action:` add, fix, remove and find quotes |
 | **Server admins** | `/setup` connect this server to your club (with a code from Club settings), or move the bot's channel · `/llm` (`action:` show or set) the AI models — the whole site's, so only in the home server (Manage Server by default; grant them to other roles in Server Settings → Integrations) |
@@ -136,6 +136,7 @@ bot/
 │   ├── profile.py   # /profile and giving kernels
 │   ├── polls.py     # /poll
 │   ├── games.py     # trivia, bingo, quiz games, /play, /leaderboard, game posts
+│   ├── challenges.py # /play versus: and challenges:, a challenge's buttons and channel post, invite DMs
 │   ├── club.py      # /club, /help, who's in the server
 │   └── admin.py     # /llm
 ├── api.py           # the backend's internal API client (autocompletes answer from its cache; one retry; slow calls logged)
@@ -154,7 +155,7 @@ the club: being in one server never names you in another club's. In the bot, a c
 `channel_for(group_id)`.
 
 **Adding a command:** put it in the feature it belongs to. One command per thing, with its choices
-as options (`action:`, `game:`, `period:` — like `/showtimes`), never sub-commands (`/quote add`):
+as options (`action:`, `solo:`, `versus:`, `period:` — like `/showtimes`), never sub-commands (`/quote add`):
 Discord lists sub-commands apart, and a test fails on one. Buttons that must keep working after a restart
 are `DynamicItem`s; list them (and any `tasks.loop`) in that module's `register(...)` call — a test fails
 if one is missed. Add the command to `embeds.HELP_SECTIONS` (its test checks every command is listed) and,

@@ -132,7 +132,7 @@ describe("a page's tour", () => {
       expect(t.steps.length + 1).toBeGreaterThanOrEqual(3);
       expect(t.steps.length + 1).toBeLessThanOrEqual(6);
     }
-    expect(Object.keys(PAGE_TOURS).sort()).toEqual(["browse", "calendar", "club", "discover", "feed", "film", "me", "play", "poll", "theatre"]);
+    expect(Object.keys(PAGE_TOURS).sort()).toEqual(["browse", "calendar", "challenge", "club", "discover", "feed", "film", "me", "play", "poll", "theatre"]);
   });
 });
 

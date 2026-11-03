@@ -399,7 +399,7 @@ def test_the_feed_shows_club_challenges(club):
 
 def test_a_gauntlet_is_won_on_games_then_points(club):
     """Several games: each game's top scorer wins it; most games won takes it
-    — here one each, so total points decide."""
+    — here one each, so kernels scored decide."""
     r = make(club, opponents=[club['Bo']], rounds=[{'kind': 'who_said', 'questions': 2}, {'kind': 'higher_lower'}])
     assert r.status_code == 201, r.json
     c = r.json

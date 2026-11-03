@@ -289,6 +289,20 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
               ))}
             </Panel>
 
+            <Panel as="div" className="game-setting" title="⚔️ Challenges"
+                   aside={<Switch label="Challenges" checked={!!group.challenges?.enabled} onChange={set("challenges_enabled")} />}>
+              <p className="ui-hint">Members challenge each other in the club's games — one game or a gauntlet, the same questions for
+                everyone, kernels from each player into a pot for the winner. Uses the games that are on.</p>
+              {group.challenges?.enabled && (<>
+                <SettingRow stack label="Most a player can stake" hint="Each challenge's stake is the same for every player, from 0 up to this.">
+                  <Segmented label="Most a player can stake" options={[0, 5, 10, 25, 50].map(n => ({ status: String(n), label: n ? `${n} 🍿` : "None" }))}
+                             value={String(group.challenges?.max_stake ?? 10)} onChange={v => v != null && run(() => update({ challenge_max_stake: Number(v) }))} />
+                </SettingRow>
+                <SwitchRow label="Members can back a player" checked={group.challenges?.backing !== false} onChange={set("challenge_backing")}
+                           hint="In challenges the club can see: 1–10 kernels on who'll win, until the first player finishes." />
+              </>)}
+            </Panel>
+
             <Panel as="div" className="game-setting" title="📝 Screening notes"
                    aside={<Switch label="Screening notes" checked={!!group.notes?.enabled} onChange={set("notes_enabled")} />}>
               <p className="ui-hint">Members who checked in can tag the night: gorgeous print, sound trouble, packed house, great Q&amp;A…

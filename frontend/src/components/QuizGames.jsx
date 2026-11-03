@@ -34,12 +34,14 @@ function Film({ f, hideYear }) {
   );
 }
 
+// How the last call went. In a challenge the kernels scored decide the
+// winner (the pot is what changes hands), so they're the same 🍿.
 function Result({ r }) {
   if (!r.last) return null;
   return (
     <p className="quiz-result" role="status">
-      {r.last.right ? `✅ Right!${r.last.paid ? ` +${r.last.paid} 🍿` : ""}` : "❌ Not quite."}
-      {r.done && r.kind === "higher_lower" && ` Streak: ${r.score}.`}
+      {r.last.timeout ? "⏱️ Time ran out on that one." : r.last.right ? `✅ Right!${r.last.paid ? ` +${r.last.paid} 🍿` : ""}` : "❌ Not quite."}
+      {r.done && !r.challenge && r.kind === "higher_lower" && ` Streak: ${r.score}.`}
     </p>
   );
 }
@@ -59,7 +61,7 @@ function HigherLower({ r, busy, onAnswer }) {
           <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAnswer("after")}>After {r.current.year} ➡️</button>
         </div>
       )}
-      {!r.done && <p className="ui-hint">Streak: {r.score}</p>}
+      {!r.done && <p className="ui-hint">Streak: {r.challenge ? r.round_score : r.score}</p>}
     </>
   );
 }
@@ -137,7 +139,20 @@ function EmojiPlot({ r, busy, onAnswer }) {
   );
 }
 
-const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews, emoji: EmojiPlot };
+// A trivia question in a challenge (solo trivia has its own card, TriviaCard).
+function Trivia({ r, busy, onAnswer }) {
+  return (
+    <>
+      <p className="trivia-q">{r.prompt}{r.difficulty && <span className="ui-badge">{r.difficulty}</span>}</p>
+      <Choices r={r} busy={busy} onAnswer={onAnswer} />
+      <Result r={r} />
+    </>
+  );
+}
+
+// Each game's round display — the quiz games here and challenges (ChallengePage) show the same.
+export const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews, emoji: EmojiPlot,
+                        trivia: Trivia };
 
 function Game({ g, apiBase, groupId }) {
   const [r, setR] = useState(g.round);

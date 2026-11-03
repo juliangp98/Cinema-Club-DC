@@ -170,6 +170,7 @@ def rules(group_id=None):
             'trivia_anytime': {'each': trivia.ANYTIME_KERNEL_TABLE, 'per_day': trivia.ANYTIME_DAILY_CAP}
             if group and group.trivia_anytime else None,
             'bingo': {'line': bingo.LINE_KERNELS, 'full': bingo.FULL_KERNELS} if group and group.bingo_enabled else None,
+            'challenges': {'max_stake': group.challenge_max_stake or 10} if group and group.challenges_enabled else None,
             'games': [{'label': quizzes.GAMES[k][1], 'each': quizzes.GAMES[k][3], 'per_day': quizzes.DAILY_CAP,
                        'by_step': k in quizzes.BY_STEP}
                       for k, v in quizzes.switches(group).items() if v] if group else []}

@@ -6,6 +6,7 @@ export const KERNEL_PARTS = [
   { key: "trivia", label: "trivia" },
   { key: "bingo", label: "bingo" },
   { key: "games", label: "games" },
+  { key: "challenges", label: "challenges" },
   { key: "members", label: "from members" },
 ];
 
@@ -13,7 +14,7 @@ export const KERNEL_PARTS = [
 const MEDALS = ["🥇", "🥈", "🥉"];
 export const medal = (place, kernels) => (kernels > 0 && MEDALS[place - 1]) || place;
 
-// "polls 2 · going out 10 · from members 1" — trivia, bingo and games only when there are some.
+// "polls 2 · going out 10 · from members 1" — trivia, bingo, games and challenges only when there are some.
 export const kernelParts = breakdown => KERNEL_PARTS
-  .filter(({ key }) => !["trivia", "bingo", "games"].includes(key) || breakdown[key])
+  .filter(({ key }) => !["trivia", "bingo", "games", "challenges"].includes(key) || breakdown[key])
   .map(({ key, label }) => `${label} ${breakdown[key]}`).join(" · ");

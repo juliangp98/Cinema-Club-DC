@@ -23,6 +23,7 @@ export function gamesOn(group) {
     bingo: !!group?.bingo?.enabled,
     hl: !!q.higher_lower,
     quizzes: Object.values(q).some(Boolean),
+    challenges: !!group?.challenges?.enabled,
   };
 }
 
@@ -38,6 +39,8 @@ export function recordItems(row, on) {
     on.bingo && { label: "Bingo", value: plural(b.lines, "line"), sub: plural(b.cards, "full card") },
     on.hl && { label: "Higher or lower", value: q?.best_streak || 0, sub: "best streak" },
     on.quizzes && { label: "Quiz games", value: q?.right || 0, sub: `right · ${plural(q?.rounds || 0, "round")}` },
+    on.challenges && { label: "Challenges", value: `${row.stats.challenges?.won || 0}–${row.stats.challenges?.lost || 0}`,
+                       sub: row.stats.challenges?.streak > 1 ? `won · lost · ${row.stats.challenges.streak} in a row` : "won · lost" },
     { label: "Polls", value: row.correct, sub: "right picks" },
   ];
 }
@@ -63,6 +66,9 @@ const COLUMNS = [
     show: r => `${r.stats.bingo.lines} · ${r.stats.bingo.cards} full` },
   { key: "hl", label: "H or L", on: o => o.hl, sort: r => r.stats.quizzes?.best_streak || 0, show: r => r.stats.quizzes?.best_streak || 0 },
   { key: "quiz", label: "Quiz right", on: o => o.quizzes, sort: r => r.stats.quizzes?.right || 0, show: r => r.stats.quizzes?.right || 0 },
+  { key: "challenges", label: "Challenges", on: o => o.challenges,
+    sort: r => (r.stats.challenges?.won || 0) * 100 - (r.stats.challenges?.lost || 0),
+    show: r => `${r.stats.challenges?.won || 0}–${r.stats.challenges?.lost || 0}` },
   { key: "polls", label: "Polls", on: () => true, sort: r => r.correct, show: r => r.correct },
 ];
 
@@ -166,8 +172,26 @@ export function MemberGames({ apiBase, group, userId, name }) {
       <h2 className="ui-settings-group-title" id="member-games-title">Games</h2>
       {on.bingo && <MemberBingo apiBase={apiBase} groupId={group.id} userId={userId} name={name} />}
       {row && <StatTiles label={`${name}'s records`} items={recordItems(row, on)} />}
+      {on.challenges && <Rivals apiBase={apiBase} groupId={group.id} userId={userId} name={name} />}
       <p className="ui-hint"><Link to="/play?tab=records">Everyone's records on Play →</Link></p>
     </section>
+  );
+}
+
+// Rivalries: a member's challenge record against you, and the members they've played most.
+function Rivals({ apiBase, groupId, userId, name }) {
+  const { data } = useJson(`${apiBase}/api/challenges/rivals?group_id=${groupId}&user_id=${userId}`, { refreshOn: "kernels" });
+  if (!data || (!data.rivals.length && !data.versus_you?.played)) return null;
+  const vs = data.versus_you;
+  return (
+    <Panel as="div" tone="tile" className="ch-rivals" title="⚔️ Rivalries" kicker>
+      {vs?.played > 0 && <p className="ch-versus-you">Against you: <strong>{name} {vs.won}–{vs.lost}</strong>{vs.tied ? ` (${plural(vs.tied, "tie")})` : ""}</p>}
+      <ul className="rail-list">
+        {data.rivals.map(r => (
+          <li key={r.user.id}><PersonLink user={r.user} /> · {r.won}–{r.lost}{r.tied ? `–${r.tied}` : ""} in {plural(r.played, "challenge")}</li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 

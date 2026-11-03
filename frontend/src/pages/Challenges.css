@@ -1,0 +1,60 @@
+/* ── Challenges: Play's section, the card, the new-challenge sheet and the page ── */
+.ch-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.ch-head .ui-hint { margin: 0; }
+
+/* The card (Play, the Feed) — built like a poll's */
+.ch-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 0.9rem;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--card-radius); }
+.ch-card.status-open { border-left: 3px solid var(--amber); }
+.ch-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; text-align: left;
+  background: none; border: none; padding: 0; color: var(--cream); cursor: pointer; font: inherit; }
+.ch-card-title { font-weight: 600; font-size: var(--fs-md); }
+.ch-card-main:hover .ch-card-title { color: var(--amber); }
+.ch-card-meta { font-size: var(--fs-xs); color: var(--muted); }
+.ch-people { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ch-person { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--fs-xs); color: var(--cream);
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.5rem 0.1rem 0.15rem; }
+.ch-person.winner { border-color: var(--amber); }
+.ch-person strong { color: var(--amber); }
+
+/* The new-challenge sheet */
+.ch-who { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ch-who .chip { display: inline-flex; align-items: center; gap: 0.35rem; }
+.ch-number { width: 6rem; }
+.ch-gauntlet { display: flex; flex-direction: column; gap: 0.4rem; }
+.ch-game-select { width: auto; max-width: 100%; }
+.ch-sheet .ui-hint { margin: 0.2rem 0 0.4rem; }
+
+/* The page */
+.ch-kernels-note { margin: -0.5rem 0 1rem; }
+.ch-actions { margin-bottom: 1rem; }
+.ch-ballot { margin-bottom: 1rem; }
+.ch-clock { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; color: var(--cream); }
+.ch-clock-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden; }
+.ch-clock-bar span { display: block; height: 100%; background: var(--amber); transition: width 0.25s linear; }
+.ch-clock.low .ch-clock-bar span { background: var(--soft-red); }
+.ch-clock.low strong { color: var(--soft-red); }
+.ch-players, .ch-backing { margin-bottom: 1rem; }
+.ch-player-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.ch-player-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.65rem; padding: 0.4rem 0.6rem;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); }
+.ch-player-list li.winner { border-color: var(--amber); }
+.ch-player-name { font-weight: 500; }
+.ch-player-status { font-size: var(--fs-xs); color: var(--muted); }
+.ch-player-score { margin-left: auto; color: var(--amber); }
+.ch-net { font-weight: 700; }
+.ch-net.up { color: var(--green); }
+.ch-net.down { color: var(--soft-red); }
+.ch-backing .seg { margin: 0.25rem 0 0.5rem; flex-wrap: wrap; }
+.ch-results { margin-bottom: 1rem; }
+.ch-table-wrap { overflow-x: auto; }
+.ch-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.ch-table th, .ch-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); text-align: left; }
+.ch-table thead th { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.ch-table tbody th { font-weight: 400; color: var(--cream); }
+.ch-table td.right { color: var(--green); }
+.ch-table td.wrong { color: var(--soft-red); }
+@media (max-width: 767px) {
+  .ch-card { flex-direction: column; align-items: stretch; }
+  .ch-player-score { margin-left: 0; }
+}

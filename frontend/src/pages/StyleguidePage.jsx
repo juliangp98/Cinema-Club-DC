@@ -107,6 +107,10 @@ export default function StyleguidePage() {
         <Segmented label="Ask / Always / Never" options={ASK_ALWAYS_NEVER} value={seg} onChange={v => setSeg(v || "ask")} />
         <Segmented label="Club posts" options={POST_MODES} value={mode} onChange={v => setMode(v || "never")} />
       </div>
+      <div className="share-sheet-body styleguide-stretch">
+        <Segmented label="Stretched (sample)" options={POST_MODES} value={mode} onChange={v => setMode(v || "never")} />
+      </div>
+      <p className="ui-hint">As wide as its words in a row; in a sheet's column (or any parent that stretches it) the buttons share the width.</p>
 
       <SectionTitle>Search</SectionTitle>
       <p className="ui-hint">One search bar everywhere (ui/SearchField): Discover, Browse, the Calendar, Help, Your taste, Find a club. Enter searches; ✨ is an optional action.</p>

@@ -1,3 +1,4 @@
+import { ChallengeCard } from "../components/Challenges";
 import { Fragment, useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ShowtimeDrawer from "../components/ShowtimeDrawer";
@@ -279,6 +280,19 @@ function PollCard({ card, onOpenPoll }) {
           {open ? (card.you_voted ? "Change your picks" : "Vote") : p.status === "scored" ? "See results" : "See poll"}
         </button>
       </div>
+    </article>
+  );
+}
+
+// A club-visible challenge (opened → decided, updated in place like a poll).
+function ChallengeFeedCard({ card, onOpen }) {
+  const c = card.challenge;
+  const head = c.status === "done" ? `🏆 ${c.players.filter(p => p.winner).map(p => p.user.name).join(" and ")} won a challenge`
+    : `⚔️ ${c.created_by.name} started a challenge`;
+  return (
+    <article className="feed-card">
+      <CardHead at={card.at}>{head}</CardHead>
+      <div className="feed-card-body"><ChallengeCard c={c} onOpen={onOpen} /></div>
     </article>
   );
 }
@@ -579,6 +593,8 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
         return <WatchlistCard key={card.key} {...common} onOpenShowtime={openShowtime} />;
       case "poll":
         return <PollCard key={card.key} {...common} onOpenPoll={() => navigate(`/polls/${card.poll.id}`)} />;
+      case "challenge":
+        return <ChallengeFeedCard key={card.key} card={card} onOpen={() => navigate(`/challenges/${card.challenge.id}`)} />;
       case "joined":
         return <JoinedCard key={card.key} {...common} />;
       case "recap":

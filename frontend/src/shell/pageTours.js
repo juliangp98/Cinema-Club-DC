@@ -6,7 +6,7 @@
 // Which tour the page at `pathname` has (the ? in the top bar), or null.
 const ROUTES = [[/^\/$/, "discover"], [/^\/calendar$/, "calendar"], [/^\/browse$/, "browse"], [/^\/theatres\/[^/]+$/, "theatre"],
                 [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/club$/, "club"],
-                [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/me$/, "me"]];
+                [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/challenges\/[^/]+$/, "challenge"], [/^\/me$/, "me"]];
 export const tourFor = pathname => ROUTES.find(([re]) => re.test(pathname))?.[1] || null;
 
 export const PAGE_TOURS = {
@@ -66,7 +66,7 @@ export const PAGE_TOURS = {
     { target: "#trivia", title: "Trivia", body: "The question of the day — one try, 1 to 3 kernels by how hard it is — and anytime questions if your club allows them." },
     { target: "#bingo", title: "Repertory bingo", body: "This month's card fills in by itself from your check-ins — and under it, everyone's. Tap one to see their squares." },
     { target: "#polls", title: "Polls", body: "Vote in the open ones; past ones show their results and who called it." },
-    { target: "#games", title: "More games", body: "Higher or lower, Who said it, Guess the still and more — the ones your club has on. Beside them: your kernels as you earn them, and what's still on the table today." },
+    { target: "#games", title: "More games", body: "Higher or lower, Who said it, Guess the still and more — the ones your club has on — and, below, challenges: play members for a pot of kernels. Beside them: your kernels as you earn them, and what's still on the table today." },
     { target: '[data-tab="records"]', title: "Records", body: "Your game records, everyone's (sort by any game), and the club's — this month, this year or all time." },
   ] },
   club: { title: "the Club page", help: "club", steps: [
@@ -84,6 +84,11 @@ export const PAGE_TOURS = {
     { target: ".pv-progress", title: "Your progress", body: "Picks save as you go — finish any time before voting closes. In a live poll, a category locks once its answer is in." },
     { target: ".pv-jump", title: "Categories", body: "Jump to any category; the filled dots are ones you've picked." },
     { target: ".pv-manage", title: "Running the poll", body: "Organizers close voting, set the answers, finalize them (kernels to everyone's totals) and edit the poll here." },
+  ] },
+  challenge: { title: "a challenge", help: "challenges", steps: [
+    { target: ".ch-actions", title: "Your move", body: "Accept, take a seat, or play — 30 seconds a question, the same questions as everyone else." },
+    { target: ".ch-players", title: "Who's in", body: "Everyone's status, and the scores — as each finishes, or only at the end, as the challenge says." },
+    { target: ".ch-backing", title: "Back a player", body: "Not playing? Put kernels on who'll win, until the first player finishes." },
   ] },
   me: { title: "the Me page", help: "lists", steps: [
     { target: ".me-card", title: "You", body: "Your picture, name and a line about you, as your clubs see them." },

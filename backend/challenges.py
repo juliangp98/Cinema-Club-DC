@@ -9,8 +9,10 @@ with kernels on the line — and members who aren't playing can back one.
   * Everyone gets the identical set: each question is made the first time a
     player reaches it (quizzes.RULES / trivia.make_question) and kept, so the
     others get the same one. 30 seconds a question (QUESTION_SECONDS); running
-    out counts as a miss. Scored like the solo game: 1 a right call, 3/2/1 by
-    how much of a still or the reviews you needed, trivia by difficulty.
+    out counts as a miss. Scored in kernels like the solo game: 1 a right
+    call, 3/2/1 by how much of a still or the reviews you needed, trivia by
+    difficulty. They decide the winner; the pot (and backing) is what changes
+    hands — scoring alone doesn't add to anyone's total.
   * Scores show as each player finishes (`reveal` live) or only once everyone
     has (sealed) — the creator's choice, like a poll's answers.
   * Decided when every player has played (and nobody's left to answer an
@@ -18,7 +20,7 @@ with kernels on the line — and members who aren't playing can back one.
     played, or at the deadline: anyone who accepted and didn't play scores 0.
     One game: the top score takes the pot (a tie splits it; an odd kernel
     goes to the first to finish). A gauntlet: each game's top scorer wins
-    that game; most games won takes it, then total points, then the least
+    that game; most games won takes it, then kernels scored, then the least
     time. Fewer than two players in: cancelled, nothing changes.
   * Backing (club-visible challenges, if the club allows it): back one player
     with 1–MAX_BET kernels until the first player finishes. Whoever backed
@@ -181,7 +183,7 @@ def _round_len(ch, r):
 
 
 def round_points(p):
-    """{round: points} from a player's answers."""
+    """{round: kernels scored} from a player's answers."""
     out = {}
     for a in _progress(p).get('answers', []):
         out[a.get('r', 0)] = out.get(a.get('r', 0), 0) + a['points']
@@ -668,7 +670,7 @@ def settle(ch, now=None):
         return
     # Each game's top scorer wins it (a tie shares it). One game: the top
     # score wins (a tie splits the pot); a gauntlet: most games won, then
-    # total points, then the least time.
+    # kernels scored, then the least time.
     pts = {p.user_id: round_points(p) for p in players}
     round_winners = []
     for r in range(len(rounds(ch))):
@@ -710,7 +712,7 @@ def settle(ch, now=None):
 
 
 def _rank(ch, state, uid):
-    """What decides between players: points (one game) or games won, points, time (a gauntlet)."""
+    """What decides between players: kernels scored (one game) or games won, kernels scored, time (a gauntlet)."""
     s = state.get('standing', {}).get(str(uid), {'rounds_won': 0, 'score': 0, 'ms': 0})
     return (s['score'],) if len(rounds(ch)) == 1 else (s['rounds_won'], s['score'], -s['ms'])
 

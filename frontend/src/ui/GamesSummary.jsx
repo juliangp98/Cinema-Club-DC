@@ -10,7 +10,10 @@ export function GamesRail({ summary }) {
   if (!summary) return null;
   const { trivia, bingo, polls, kernels } = summary;
   const toVote = polls.filter(p => !p.you_voted);
+  const ch = summary.challenges;
   const todo = [
+    ...(ch?.invites || []).map(c => <Link key={`ci${c.id}`} to={`/challenges/${c.id}`}>⚔️ {c.by} challenged you: {c.game}</Link>),
+    ...(ch?.your_turn || []).map(c => <Link key={`ct${c.id}`} to={`/challenges/${c.id}`}>⚔️ Your turn: {c.game}</Link>),
     trivia?.to_answer && <Link key="t" to="/play#trivia">🧠 Today's trivia question</Link>,
     trivia?.waiting && <Link key="w" to="/play#trivia">🎲 Your anytime question</Link>,
     ...toVote.slice(0, 3).map(p => <Link key={p.id} to={`/polls/${p.id}`}>🗳️ Vote: {p.title}</Link>),
@@ -43,6 +46,7 @@ export function GamesStrip({ summary, className = "" }) {
   if (!summary) return null;
   const { trivia, bingo, polls, kernels } = summary;
   const toVote = polls.filter(p => !p.you_voted).length;
+  const waiting = (summary.challenges?.invites.length || 0) + (summary.challenges?.your_turn.length || 0);
   return (
     <nav className={`games-strip ${className}`} aria-label="Games">
       {trivia && (
@@ -54,6 +58,7 @@ export function GamesStrip({ summary, className = "" }) {
       {polls.length > 0 && (
         <Link to="/play#polls" className={`chip${toVote ? " gold" : ""}`}>🗳️ {toVote ? `${toVote} to vote` : "Polls"}</Link>
       )}
+      {waiting > 0 && <Link to="/play#challenges" className="chip gold">⚔️ {waiting} waiting</Link>}
       <Link to="/play#kernels" className="chip">🍿 {kernels.kernels}</Link>
       {kernels.today?.total > 0 && <Link to="/play#games" className="chip gold">🎯 {kernels.today.total} left today</Link>}
       <Link to="/play" className="chip">Play →</Link>

@@ -37,6 +37,7 @@ const SHARE_KINDS = [
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
   ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
   ["games", "My game wins", "Whether a bingo win posted in your club's Discord names you (if the club posts wins).", ALWAYS_NEVER],
+  ["challenge", "Challenges I start or play", "Whether a challenge you start is posted in the channel (you can still choose each time), and — Never — whether others' posts name you."],
 ];
 // Why sharing isn't on offer: only members who've linked Discord and are in
 // the club's server ever appear there.
