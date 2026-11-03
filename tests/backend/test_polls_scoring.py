@@ -311,3 +311,65 @@ def test_a_deleted_poll_takes_its_answers_down_in_discord(club):
     with app.app_context():
         call = DiscordPost.query.filter_by(kind='poll_call', ref_id=c['poll']).one()
         assert call.dirty and posts('poll_call', c['poll']) == [None]       # the bot deletes it
+
+
+def internal(c, path, did='9901', method='get', **body):
+    from test_polls_voting import who
+    if method == 'get':
+        return client().get(f"/api/internal/polls/{c['poll']}/{path}", query_string=who(c, did), headers=H)
+    return client().post(f"/api/internal/polls/{c['poll']}/{path}", json={**who(c, did), **body}, headers=H)
+
+
+def test_running_a_poll_from_discord(club):
+    """Discord does what the site does for whoever runs a poll: each
+    question's answers with how many picked each, setting one (a live
+    poll's feed follows), closing and reopening voting, finalizing."""
+    c = live_fest(club)
+    mark_posted(c['poll'])
+    site_vote(c, c['cy'], 'bp', 'sirat', 6)
+    a = internal(c, 'answers').json
+    assert [(o['text'], o['picks']) for o in a['categories'][0]['options']] == [('SIRÂT', 1), ('HAMNET', 0), ('SINNERS', 0)]
+    assert a['decided'] == 0 and a['poll']['live'] and a['can_share']
+    assert internal(c, 'answers', did='9902').status_code == 403                    # Bo doesn't run it
+    a = internal(c, 'answers', method='post', category_id=c['bp'], option_id=c['sirat']).json
+    assert a['decided'] == 1 and a['categories'][0]['answer'] == c['sirat']
+    assert [x['answer'] for x in posts('poll_call', c['poll'])] == ['SIRÂT']        # the feed follows, as from the site
+    assert ballot(c, c['poll'], '9904').json['categories'][0]['correct_option_id'] == c['sirat']
+    assert internal(c, 'answers', method='post', category_id=c['bp'], option_id=c['laxe']).status_code == 400   # not this question's
+    assert internal(c, 'run', method='post', action='close').json['poll']['status'] == 'closed'
+    assert internal(c, 'run', method='post', action='reopen').json['poll']['status'] == 'open'
+    done = internal(c, 'run', method='post', action='finalize', post_results=True).json
+    assert done['poll']['status'] == 'scored' and done['results_posted'] and poll_kernels(c['cy']) == 6
+
+
+def test_whoever_made_a_poll_runs_it(club):
+    """The poll's maker runs it even without the organizer role (say they
+    were an organizer when they made it): on the site and in Discord. Other
+    members don't."""
+    from app import app, db, GroupMembership
+    c = live_fest(club)
+    with app.app_context():
+        GroupMembership.query.filter_by(user_id=c['ana'], group_id=c['group']).one().role = 'member'
+        db.session.commit()
+    assert client(c['ana']).get(f"/api/polls/{c['poll']}").json['you_run'] is True
+    assert set_answer(c, 'bp', 'hamnet').status_code == 200
+    assert internal(c, 'answers').status_code == 200
+    assert client(c['cy']).get(f"/api/polls/{c['poll']}").json['you_run'] is False
+    r = client(c['cy']).put(f"/api/polls/{c['poll']}/categories/{c['bp']}/winner", json={'option_id': c['sirat']})
+    assert r.status_code == 403 and 'whoever made the poll' in r.json['error']
+
+
+def test_making_a_live_poll_from_discord(club, monkeypatch):
+    """/poll make's own choices win over the AI's: scored as predictions,
+    answers live, and in Discord each answer as a reply."""
+    import poll_ai
+    drafted = {'title': 'Senate night', 'description': '', 'poll_type': 'standard', 'scoring_mode': 'none', 'notes': '',
+               'categories': [{'title': 'PA', 'options': [{'text': 'Red'}, {'text': 'Blue'}]}]}
+    monkeypatch.setattr(poll_ai, 'draft', lambda *a, **k: drafted)
+    from test_polls_voting import who
+    r = client().post('/api/internal/polls/draft', headers=H, json={**who(club, '9901'), 'prompt': "tonight's Senate races",
+                                                                     'scoring_mode': 'single', 'reveal': 'live', 'live_discord': 'feed'})
+    assert r.status_code == 201, r.json
+    assert (r.json['scoring_mode'], r.json['poll_type'], r.json['reveal'], r.json['live_discord']) == ('single', 'prediction', 'live', 'feed')
+    made = client().post(f"/api/internal/poll-drafts/{r.json['id']}/create", headers=H, json=who(club, '9901')).json
+    assert (made['reveal'], made['live_discord'], made['scoring_mode']) == ('live', 'feed', 'single')

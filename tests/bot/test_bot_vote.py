@@ -339,3 +339,45 @@ def test_a_live_polls_answers_show_and_lock_in_the_ballot(polls):
     assert embed.fields[0].name == 'Your score' and '0 of 1 right' in embed.fields[0].value
     nxt = find(polls, view, 'nav', arg=2)
     assert int(re.fullmatch(polls.bot.VOTE_ID, nxt.custom_id)['idx']) == 1                           # on to an open one
+
+
+def fire(w, uid, cls, custom_id, values=None, label=None):
+    """A run-a-poll button or select, rebuilt from its id (as after a restart)."""
+    it = Interaction(uid, values)
+
+    async def go():
+        m = re.fullmatch(cls.__discord_ui_compiled_template__, custom_id)
+        comp = await cls.from_custom_id(None, types.SimpleNamespace(label=label, style=None, options=None), m)
+        await comp.callback(it)
+    run(go())
+    return it
+
+
+def test_whoever_runs_a_poll_marks_its_answers_here(polls):
+    """Vee made the polls, so Vee runs them from Discord: the answers with how
+    many picked each, setting one (on to the next question without one),
+    finalizing. Wes only votes; his ballot has no 🛠️ button."""
+    from app import app, PollOption
+    w, pid = polls, polls.pid['Quick picks']
+    vote(w, VEE, 'Quick picks')
+    assert any((i.custom_id or '').startswith('pollrun:open:') for i in items(w.state[VEE][1]))
+    vote(w, WES, 'Quick picks')
+    assert not any((i.custom_id or '').startswith('pollrun:') for i in items(w.state[WES][1]))
+
+    it = Interaction(VEE)
+    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Answers', value='answers'), poll=str(pid)))
+    _, _, _, embed, v = it.last
+    assert embed.title == '🛠️ Quick picks' and embed.footer.text == 'Question 1 of 3 · 0 answered · Voting is open'
+    ids = [i.custom_id for i in items(v) if i.custom_id]
+    assert f'pollans:{pid}:0' in ids and f'pollrun:close:{pid}:0' in ids and not any(i.startswith('pollrun:finalize') for i in ids)
+    with app.app_context():
+        sirat = PollOption.query.filter_by(text='SIRÂT').one().id
+    it = fire(w, VEE, w.bot.AnswerSelect, f'pollans:{pid}:0', [str(sirat)])
+    _, _, _, embed, v = it.last
+    assert '✓ Set. Members see it when you finalize.' in embed.description and embed.footer.text.startswith('Question 2 of 3 · 1 answered')
+    it = fire(w, VEE, w.bot.RunButton, f'pollrun:finalize:{pid}:1', label='🏁 Finalize')
+    assert "Finalized: kernels are in everyone's totals." in it.last[3].description and 'Finalized' in it.last[3].footer.text
+
+    it = Interaction(WES)
+    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Answers', value='answers'), poll=str(pid)))
+    assert 'whoever made the poll' in it.last[2]

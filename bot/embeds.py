@@ -577,6 +577,25 @@ def _live_standings(embed, p):
                     value='\n'.join(rows) or 'Nobody picked those yet.')
 
 
+POLL_STATUS = {'open': 'Voting is open', 'closed': 'Voting is closed', 'scored': 'Finalized'}
+
+
+def poll_answers_embed(a, idx, note=None):
+    """Marking a poll's answers (whoever runs it): one question, its answers
+    with how many picked each, the one set so far."""
+    poll, cats = a['poll'], a['categories']
+    cat = cats[idx]
+    rows = [f"{'✅' if cat['answer'] == o['id'] else '▫️'} {o['text']} · {plural(o['picks'], 'pick', 'picks')}" for o in cat['options'][:24]]
+    if len(cat['options']) > 24:
+        rows.append(f"…and {len(cat['options']) - 24} more (set those on the site)")
+    when = ('Members see each answer as you set it, and the question locks.' if poll['live']
+            else 'Members see the answers when you finalize.' if poll['scoring_mode'] != 'none' else 'A plain vote: no right answers.')
+    embed = discord.Embed(title=f"🛠️ {poll['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{poll['id']}",
+                          description='\n'.join([f"**{cat['title']}**", *rows, '', when, *([note] if note else [])])[:4000])
+    embed.set_footer(text=f"Question {idx + 1} of {len(cats)} · {a['decided']} answered · {POLL_STATUS.get(poll['status'], '')}")
+    return embed
+
+
 def poll_call_embed(p):
     """A live poll's answer as it's set, posted as a reply under the poll
     (app.poll_call_payload): the result, who called it, how far along it is,
@@ -858,7 +877,9 @@ HELP_SECTIONS = [
                   '`versus:` challenge members (`opponent`, `stake`, `seats`…); `tournament:` a bracket for 3 or more '
                   '(double elimination or round robin — `versus:` picks the game, `payout`, `match_time`); '
                   '`challenges:` yours, the club\'s open ones, or who you should challenge (with a roast 🔥)'),
-        ('/poll', "`action:` what's open, your private ballot, or make one — describe it and the AI drafts it (organizers)"),
+        ('/poll', "`action:` what's open, your private ballot, make one (describe it and the AI drafts it; `scoring`, "
+                  "`answers` all at once or live, `in_discord`), or mark the answers, close and finalize "
+                  "(organizers, or whoever made the poll)"),
         ('/leaderboard', 'the kernel standings 🍿 — `period:` all time, this year or this month'),
     ]),
     ('👤 You and the club', [

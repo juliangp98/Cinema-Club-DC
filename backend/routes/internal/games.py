@@ -3,6 +3,7 @@ poll drafts, quotes.
 """
 import json as _json
 from app import (Group, HOME_GROUP_ID, Poll, PollCategory, PollDraft, PollVote, Quote, RANKED_PICKS, GamePost, discord_group,
+    LIVE_DISCORD, REVEALS, SCORING_MODES, can_share, finalize_poll, runs_poll, set_poll_answer, set_poll_status,
     role_at_least, _active_membership, _as_int, _draft_poll, _utcnow_naive, announce_new_poll, app, apply_votes,
     _live_post, build_poll, close_due_polls, db, jsonify, poll_open, poll_your_score, request, require_role, share_prefs, timedelta,
     utc_iso, vote_kernels)
@@ -22,6 +23,17 @@ def internal_draft_poll():
     if err:
         return err
     body, status = _draft_poll(user, db.session.get(Group, group_id), data.get('prompt'), data.get('scope') or 'playing')
+    # /poll make's own choices — how it's scored, answers all at once or live,
+    # and a live poll in Discord — over the AI's.
+    picked = {k: data[k] for k, allowed in (('scoring_mode', SCORING_MODES), ('reveal', REVEALS), ('live_discord', LIVE_DISCORD))
+              if data.get(k) in allowed}
+    if status < 300 and picked:
+        d = db.session.get(PollDraft, body['id'])
+        if picked.get('scoring_mode') in ('single', 'confidence'):
+            picked['poll_type'] = 'prediction'
+        d.data_json = _json.dumps({**_json.loads(d.data_json), **picked})
+        db.session.commit()
+        body.update(picked)
     return jsonify(body), status
 
 
@@ -50,6 +62,74 @@ def internal_create_from_draft(draft_id):
     # Announced like the site's form does by default: unless their "Polls I create" setting says Never.
     announce_new_poll(poll, user, {'announce': 'none' if share_prefs(user)['poll'] == 'never' else 'now'})
     return jsonify({**poll.to_dict(include_categories=True), 'announced': _live_post('poll', poll.id, poll.group_id) is not None}), 201
+
+
+def poll_answers(user, poll):
+    """What whoever runs a poll sees in Discord to mark its answers: each
+    question's answers with how many picked each (first picks, if ranked),
+    the answer set so far, and where the poll stands."""
+    poll_open(poll)
+    cats = []
+    for c in poll.categories:
+        first = [v for v in c.votes if (v.rank or 1) == 1]
+        cats.append({'id': c.id, 'title': c.title, 'answer': c.correct_option_id,
+                     'options': [{'id': o.id, 'text': o.text, 'picks': sum(1 for v in first if v.option_id == o.id)}
+                                 for o in c.options]})
+    return {'poll': {'id': poll.id, 'title': poll.title, 'status': poll.status, 'scoring_mode': poll.scoring_mode,
+                     'reveal': poll.reveal or 'final', 'live': poll.live, 'live_discord': poll.live_discord or 'both',
+                     'closes_at': utc_iso(poll.closes_at)},
+            'categories': cats, 'decided': sum(1 for c in cats if c['answer']), 'can_share': can_share(user, poll.group_id)}
+
+
+def _poll_runner(poll_id, data):
+    """(user, poll, error) for whoever runs a poll (organizers, admins, its maker)."""
+    user, poll, err = _internal_poll_voter(poll_id, data)
+    if err:
+        return None, None, err
+    if not runs_poll(user, poll):
+        return None, None, (jsonify({'error': "Only the club's organizers and admins, or whoever made the poll, can do that."}), 403)
+    return user, poll, None
+
+
+@app.route('/api/internal/polls/<int:poll_id>/answers', methods=['GET', 'POST'])
+@require_internal
+def internal_poll_answers(poll_id):
+    """Discord's "Mark answers": GET the questions and answers; POST
+    {category_id, option_id} sets one (option_id null clears it)."""
+    data = (request.json or {}) if request.method == 'POST' else request.args
+    user, poll, err = _poll_runner(poll_id, data)
+    if err:
+        return err
+    if request.method == 'POST':
+        cat = next((c for c in poll.categories if c.id == _as_int(data.get('category_id'))), None)
+        if not cat:
+            return jsonify({'error': 'That question is gone.'}), 404
+        err = set_poll_answer(poll, cat, _as_int(data.get('option_id')))
+        if err:
+            return jsonify({'error': err}), 400
+    return jsonify(poll_answers(user, poll))
+
+
+@app.route('/api/internal/polls/<int:poll_id>/run', methods=['POST'])
+@require_internal
+def internal_poll_run(poll_id):
+    """{action: close | reopen | finalize, post_results?} — the rest of
+    running a poll from Discord. Returns the answers view."""
+    data = request.json or {}
+    user, poll, err = _poll_runner(poll_id, data)
+    if err:
+        return err
+    action = data.get('action')
+    if action in ('close', 'reopen'):
+        set_poll_status(poll, 'closed' if action == 'close' else 'open')
+        db.session.commit()
+    elif action == 'finalize':
+        err = finalize_poll(poll, user, None, data.get('post_results'))
+        if err:
+            return jsonify({'error': err}), 400
+    else:
+        return jsonify({'error': 'Unknown action'}), 400
+    return jsonify({**poll_answers(user, poll), 'results_posted': _live_post('poll_results', poll.id, poll.group_id) is not None})
 
 
 def poll_ballot(user, poll):
@@ -83,7 +163,8 @@ def poll_ballot(user, poll):
         cats.append(d)
     out = {'poll': {'id': poll.id, 'title': poll.title, 'status': poll.status,
                     'scoring_mode': poll.scoring_mode, 'poll_type': poll.poll_type, 'reveal': poll.reveal or 'final',
-                    'closes_at': utc_iso(poll.closes_at), 'ranked_picks': RANKED_PICKS},
+                    'closes_at': utc_iso(poll.closes_at), 'ranked_picks': RANKED_PICKS,
+                    'you_run': runs_poll(user, poll)},
            'categories': cats, 'answered': sum(1 for c in cats if c['picks']),
            'decided': sum(1 for c in cats if c['correct_option_id'])}
     if poll.scoring_mode != 'none' and out['decided']:

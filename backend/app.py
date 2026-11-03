@@ -886,6 +886,75 @@ def poll_call_payload(poll, post):
             'reply_to': announcement.message_id if announcement and announcement.status == 'posted' else None}
 
 
+def runs_poll(user, poll, membership=None):
+    """Who runs a poll: marks its answers, closes and reopens it, finalizes
+    and edits it. The club's organizers and admins, and whoever made it."""
+    m = membership if membership is not None else (_active_membership(user, poll.group_id) if user else None)
+    return bool(m) and (role_at_least(m, 'organizer') or poll.created_by == user.id)
+
+
+def set_poll_answer(poll, cat, opt_id):
+    """Set (or clear, with None) a question's answer: posted results and a
+    live poll's standings follow, a live poll's feed gets a reply, a
+    correction after finalizing updates everyone's result. Returns an error or None."""
+    if opt_id:
+        if opt_id not in {o.id for o in cat.options}:
+            return 'Pick one of its answers.'
+    before = cat.correct_option_id
+    cat.correct_option_id = opt_id or None
+    poll_posts_changed(poll.id)
+    if opt_id and opt_id != before:
+        queue_poll_call(poll, cat, changed=bool(before))
+    if poll.status == 'scored':
+        notify_poll_results(poll)
+    db.session.commit()
+    return None
+
+
+def finalize_poll(poll, user, winners=None, post_results=None):
+    """Finalize (score) a poll: any answers given in `winners` ({category id:
+    option id}) are set first; kernels reach everyone's totals and results go
+    to the bell — and to Discord when asked, or right away for "always"
+    sharers the first time. Returns an error or None."""
+    cats = {c.id: c for c in poll.categories}
+    for cat_id, opt_id in (winners or {}).items():
+        cat = cats.get(_as_int(cat_id))
+        if cat and _as_int(opt_id) in {o.id for o in cat.options}:
+            cat.correct_option_id = _as_int(opt_id)
+    if not any(c.correct_option_id for c in poll.categories):
+        return 'Mark at least one answer first.'
+    first_scoring = poll.status != 'scored'
+    poll.status = 'scored'
+    poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
+    poll.scored_at = datetime.now(timezone.utc)
+    poll_posts_changed(poll.id)
+    notify_poll_results(poll)
+    db.session.commit()
+    if can_share(user, poll.group_id) and (post_results is True or (
+            first_scoring and post_results is None and share_prefs(user)['poll'] == 'always')):
+        queue_poll_post(poll, user, 'poll_results', places.server_now())
+    return None
+
+
+def set_poll_status(poll, status, keep_deadline=False):
+    """Close voting, or open it again (from finalized too: its results come
+    off until it's finalized again). Reopened past its deadline, it stays
+    open until closed, unless `keep_deadline` (a new one is coming). Caller commits."""
+    if status not in ('open', 'closed') or status == poll.status:
+        return
+    if poll.status == 'scored':
+        clear_poll_results(poll)
+    if status == 'closed':
+        if poll.status == 'open':
+            close_poll(poll)
+        poll.status = 'closed'
+    else:
+        poll.status = 'open'
+        if poll.closes_at and not keep_deadline and poll.closes_at <= datetime.now(timezone.utc).replace(tzinfo=None):
+            poll.closes_at = None
+    poll_posts_changed(poll.id)
+
+
 LIVE_DISCORD = ('post', 'feed', 'both')     # a live poll in Discord: its post updates, a reply per answer, or both
 
 

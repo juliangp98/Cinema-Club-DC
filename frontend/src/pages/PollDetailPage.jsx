@@ -78,7 +78,7 @@ export default function PollDetailPage({ user, apiBase }) {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("vote"); // 'vote' | 'results' | 'leaderboard'
   const [leaderboard, setLeaderboard] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);       // can run this poll: organizer or admin (R5c)
+  const [isAdmin, setIsAdmin] = useState(false);       // runs this poll: an organizer or admin, or whoever made it
   const [readOnly, setReadOnly] = useState(false);     // read-only members see polls but don't vote
 
   // Vote state: { [categoryId]: { option_id, confidence } | { ranked: [optionId] } }
@@ -110,11 +110,11 @@ export default function PollDetailPage({ user, apiBase }) {
     try {
       const data = await getJson(`${apiBase}/api/polls/${pollId}`, { cache: false });
       setPoll(data);
+      setIsAdmin(!!data.you_run);
 
       const groups = await getJson(`${apiBase}/api/groups`).catch(() => null);
       if (groups) {
         const g = groups.find(g => g.id === data.group_id);
-        setIsAdmin(["admin", "organizer"].includes(g?.role));
         setReadOnly(g?.role === "viewer");
       }
 
