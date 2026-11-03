@@ -29,9 +29,18 @@ def summary(group, user):
 
     polls = out['polls'] = open_polls(group.id, user.id, 5)
 
+    out['challenges'] = None
+    if group.challenges_enabled:                      # invites waiting for you, and challenges where it's your turn
+        import challenges
+        mine = [c for c in challenges.visible(group.id, user.id) if c.status == 'open' and challenges.player(c, user.id)]
+        brief = lambda c: {'id': c.id, 'game': ' '.join(challenges.label(c.kind)), 'by': c.creator.name if c.creator else None}
+        out['challenges'] = {'invites': [brief(c) for c in mine if challenges.player(c, user.id).status == 'invited'],
+                             'your_turn': [brief(c) for c in mine if challenges.player(c, user.id).status == 'accepted']}
+
     k = kernels.breakdown(user.id, group.id)
     out['kernels'] = {'kernels': k['kernels'], **{part: k[part] for part in kernels.PARTS},
                       'allowance': kernels.allowance(user.id), 'today': kernels.left_today(user, group)}
     out['todo'] = (int(bool(out['trivia'] and out['trivia']['to_answer']))
-                   + sum(1 for p in polls if not p['you_voted']))
+                   + sum(1 for p in polls if not p['you_voted'])
+                   + (len(out['challenges']['invites']) + len(out['challenges']['your_turn']) if out['challenges'] else 0))
     return out

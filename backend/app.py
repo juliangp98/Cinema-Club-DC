@@ -150,7 +150,8 @@ def email_signin_link(to_email, link_url, purpose):
         nobody can sign in without this link.</p>"""))
 
 from models import (  # noqa: E402 — the tables (models.py), re-exported
-    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, ClubDigest, DiscordDeletion, DiscordPost,
+    ActivityEvent, Announcement, Attendance, BingoCard, BotSetting, Challenge, ChallengeBet, ChallengePlayer, ClubDigest,
+    DiscordDeletion, DiscordPost,
     DiscordServer, DiscordServerMember, DiscordSetupCode, EmojiPlot, GamePost, Group, GroupMembership,
     KernelGift, LetterboxdEntry, LetterboxdWatch, LoginToken, Message, Movie, MovieAlias, Notification, Poll,
     PollCategory, PollDraft, PollOption, PollVote, PoolFilm, PushSubscription, QuizRound, Quote, RSVP,
@@ -644,7 +645,7 @@ def apply_rsvp(user, showtime_id, status, group_id):
 # The home club: the bot's first server (DEFAULT_GROUP_ID, shared with the
 # bot). It counts as connected even before the bot reports its server's id.
 HOME_GROUP_ID = int(os.environ.get('DEFAULT_GROUP_ID', '1') or 1)
-SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist', 'games')
+SHARE_KINDS = ('rsvp', 'poll', 'comment', 'watchlist', 'games', 'challenge')
 SHARE_CHOICES = ('ask', 'always', 'never')
 # Kinds where Ask makes no sense (it happens on its own) — and what they start as.
 SHARE_ONLY = {'games': ('always', 'never')}        # R14: a game win posted in #movies naming you
@@ -866,6 +867,10 @@ def render_post(p, now=None):
             card[who] = [{'name': x['name']} for x in card[who]]      # names only: no pings
         return {'by': p.user.name if on_discord(p.user, p.group_id) else None, 'note': p.note, 'card': card,
                 'started': s.start_time <= (now or places.now_at(s.theatre))}
+    if p.kind == 'challenge':
+        import challenges
+        ch = db.session.get(Challenge, p.ref_id or 0)
+        return challenges.post_payload(ch) if ch and ch.status != 'cancelled' else None
     poll = db.session.get(Poll, p.ref_id or 0)
     if not poll:
         return None
@@ -1459,8 +1464,10 @@ _poll_sweep = {'at': 0.0}
 
 
 def close_due_polls(force=False):
-    """Polls past their deadline close (their Discord posts follow). Every
-    API request may run it, so it checks at most every POLL_SWEEP_EVERY s."""
+    """Polls past their deadline close, and challenges past theirs are
+    decided (their Discord posts follow). Every API request may run it, so it
+    checks at most every POLL_SWEEP_EVERY s."""
+    import challenges
     if not force and time.time() - _poll_sweep['at'] < POLL_SWEEP_EVERY:
         return
     _poll_sweep['at'] = time.time()
@@ -1470,6 +1477,7 @@ def close_due_polls(force=False):
         close_poll(poll, poll.closes_at)
     if due:
         db.session.commit()
+    challenges.settle_due()
 
 
 @app.before_request
@@ -1479,7 +1487,7 @@ def _close_due_polls():
             close_due_polls()
         except Exception as e:            # never in the way of the request itself
             db.session.rollback()
-            print(f'poll deadline check failed: {e}')
+            print(f'deadline check (polls, challenges) failed: {e}')
 
 
 def notify_poll_results(poll):
@@ -1807,7 +1815,7 @@ from migrations import migrate, prepare_db, seed_theatres  # noqa: E402,F401 —
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
 # Each area registers its routes on `app` when imported (routes/*.py).
-from routes import (alerts, auth, clubs, discord, help, internal, people, plans, polls,  # noqa: E402,F401
+from routes import (alerts, auth, challenges, clubs, discord, help, internal, people, plans, polls,  # noqa: E402,F401
                     quizzes, schedule, social)
 
 

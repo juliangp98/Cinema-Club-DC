@@ -74,7 +74,8 @@ def test_everything_is_opt_in():
                                                'trivia_result': False, 'bingo_card': False, 'bingo_win': True,
                                                'reviews': True, 'join_requests': False,
                                                'digest': True, 'digest_out': False,
-                                               'poll_result': True}  # bell only; join emails off
+                                               'poll_result': True, 'challenge_invite': True,
+                                               'challenge_result': True, 'challenge_open': False}  # bell only; join emails off
         assert not notify.wants_dm(both, 'attendance') and not notify.wants_dm(both, 'showings')
         notify.set_prefs(mail, {'channels': {'discord': True, 'email': True}, 'types': {'bogus': True}})
         assert notify.prefs(mail)['channels'] == {**off, 'email': True}                 # no Discord to DM

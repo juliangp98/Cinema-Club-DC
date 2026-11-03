@@ -11,6 +11,8 @@
              +5 for a first line on the month's card, +15 for the full card
   games      the quiz games (quizzes.py; each off unless the club turned it
              on): +1 a right call, at most 5 a day from each game
+  challenges members against each other (challenges.py; off unless the
+             club turned it on): pots won or lost, and backing players
   members    what other members gave you (or took) for your activity
 
 Everything but the gifts is worked out from the source tables, like poll
@@ -137,20 +139,21 @@ def breakdowns(user_ids, group_id=None, since=None):
     out_k, gifts = going_out(user_ids, group_id, since), from_members(user_ids, group_id, since)
     quizzes = trivia.kernels_for(user_ids, group_id, since)
     games = __import__('quizzes').kernels_for(user_ids, group_id, since)
+    versus = __import__('challenges').kernels_for(user_ids, group_id, since)
     cards = bingo.kernels_for(user_ids, group_id, since)
     result = {}
     for uid in user_ids:
         polls, correct = calc_user_kernels(uid, group_id=group_id, since=since)
         go, quiz = sum(out_k[uid].values()), quizzes.get(uid, 0)
-        card, game = cards.get(uid, 0), games.get(uid, 0)
-        result[uid] = {'kernels': polls + go + quiz + card + game + gifts.get(uid, 0), 'correct': correct,
+        card, game, vs = cards.get(uid, 0), games.get(uid, 0), versus.get(uid, 0)
+        result[uid] = {'kernels': polls + go + quiz + card + game + vs + gifts.get(uid, 0), 'correct': correct,
                        'polls': polls, 'going_out': go, 'trivia': quiz, 'bingo': card, 'games': game,
-                       'members': gifts.get(uid, 0),
+                       'challenges': vs, 'members': gifts.get(uid, 0),
                        'detail': out_k[uid]}
     return result
 
 
-PARTS = ('polls', 'going_out', 'trivia', 'bingo', 'games', 'members')   # a breakdown's parts, in the order they're shown
+PARTS = ('polls', 'going_out', 'trivia', 'bingo', 'games', 'challenges', 'members')   # a breakdown's parts, in the order they're shown
 
 
 def rules(group_id=None):

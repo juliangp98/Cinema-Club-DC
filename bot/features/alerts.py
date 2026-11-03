@@ -12,7 +12,7 @@ from api import ApiError
 import embeds
 from .shared import (DEFAULT_GROUP_ID, DIGEST_OFF_MSG, GONE_MSG, SITE_URL, api, channel_for, client, club, club_now, connected_clubs,
                      discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club, zone_now)
-from . import games, threads      # used at call time, so the order they load in doesn't matter
+from . import challenges, games, threads      # used at call time, so the order they load in doesn't matter
 
 
 # ─── Announce loop ────────────────────────────────────────────────────────────
@@ -272,6 +272,8 @@ async def notify_loop():
             await user.send(embed=embeds.alerts_embed(p['items'], p.get('title')))
             for post_id in [r for r in p.get('reviews') or [] if r]:          # game posts waiting for this admin (R14)
                 await games.send_review(user, p['discord_user_id'], post_id)
+            for cid in [c for c in p.get('challenges') or [] if c]:           # challenge invites: Accept / Decline
+                await challenges.send_invite(user, p['discord_user_id'], cid)
         except discord.Forbidden:
             pass                                   # DMs closed: the bell has it
         except Exception as e:

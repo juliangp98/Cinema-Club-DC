@@ -252,6 +252,7 @@ def organizer_fields():
     import game_posts
     return {'theatres', 'trivia_enabled', 'trivia_anytime', 'trivia_source', 'quizzes', 'bingo_enabled', 'bingo_home',
             'notes_enabled', 'digest_enabled', 'announce_theatres',
+            'challenges_enabled', 'challenge_max_stake', 'challenge_backing',
             *game_posts.SETTINGS.values()}
 
 
@@ -325,6 +326,15 @@ def update_group(slug):
         quizzes.set_switches(group, data['quizzes'])
     if isinstance(data.get('notes_enabled'), bool):           # screening notes (R10f), off by default
         group.notes_enabled = data['notes_enabled']
+    if isinstance(data.get('challenges_enabled'), bool):      # challenges, off by default
+        group.challenges_enabled = data['challenges_enabled']
+    if isinstance(data.get('challenge_backing'), bool):
+        group.challenge_backing = data['challenge_backing']
+    if 'challenge_max_stake' in data:
+        stake = _as_int(data.get('challenge_max_stake'))
+        if stake is None or not 0 <= stake <= 50:
+            return jsonify({'error': 'The most a player can stake is 0 to 50 kernels.'}), 400
+        group.challenge_max_stake = stake
     if isinstance(data.get('digest_enabled'), bool):          # the Monday digest
         group.digest_enabled = data['digest_enabled']
     import game_posts                                         # what the games post in Discord (R14)

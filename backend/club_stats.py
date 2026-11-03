@@ -171,6 +171,7 @@ def member_stats(group, user_ids, since=None, now=None):
     first, quiz = _first_going(group, member_ids(group.id), since), _trivia(group, user_ids, since)
     cards, talk = _bingo(group, user_ids, since), _comments(group, user_ids, since)
     played = _quizzes(group, user_ids, since)
+    versus = __import__('challenges').records(user_ids, group.id, since)
     out = {}
     for uid in user_ids:
         ss = shows.get(uid, [])
@@ -186,6 +187,7 @@ def member_stats(group, user_ids, since=None, now=None):
             'trivia': quiz[uid],
             'bingo': cards[uid],
             'quizzes': played[uid],
+            'challenges': versus[uid],
             'last_out': ss[-1].start_time.isoformat() if ss else None,
         }
     return out

@@ -4,7 +4,7 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import taste
 import places
-from app import (Attendance, CINEMA_EMOJIS, ClubDigest, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
+from app import (Attendance, CINEMA_EMOJIS, Challenge, ClubDigest, DiscordDeletion, FEED_PAGE, Group, GroupMembership, KernelGift, Message, Movie,
     Poll, PollVote, RSVP, Reaction, Showtime, ShowtimeThread, User, Watchlist, _as_int, _brief_user,
     _screening_item, _utcnow_naive, member_ids, open_polls, went_visible_in, _with_attendance, app, can_share, current_user, datetime, db, face,
     jsonify, next_showings, public_reactions, request, require_auth, require_group_member, require_role,
@@ -73,6 +73,11 @@ def feed_events(group_id, since):
         for kind, at in (('poll_opened', p.created_at), ('poll_closed', p.closed_at), ('poll_scored', p.scored_at)):
             if at and at >= since:
                 ev.append((kind, f'p{p.id}', at, p.created_by, None))
+    for ch in Challenge.query.filter(Challenge.group_id == group_id, Challenge.visibility == 'club',
+                                     Challenge.status != 'cancelled', Challenge.created_at >= since):
+        for kind, at in (('challenge_opened', ch.created_at), ('challenge_decided', ch.decided_at)):
+            if at:
+                ev.append((kind, f'c{ch.id}', at, ch.created_by, None))
     return ev, members
 
 
@@ -84,7 +89,7 @@ FEED_TYPES = {                 # ?type= on the feed page
     'recaps': lambda c: c['key'][0] == 'r',
     'digests': lambda c: c['key'][0] == 'd',
     'joins': lambda c: c['key'][0] == 'j',
-    'games': lambda c: c['key'][0] == 'b',
+    'games': lambda c: c['key'][0] in 'bc',
 }
 
 
@@ -279,6 +284,14 @@ def _feed_poll(viewer, poll_id):
             'voters': len(voters), 'you_voted': viewer.id in voters}
 
 
+def _feed_challenge(viewer, challenge_id):
+    import challenges
+    ch = db.session.get(Challenge, challenge_id)
+    if not ch or not challenges.can_see(ch, viewer.id):
+        return None
+    return {'type': 'challenge', 'challenge': challenges.as_dict(ch, viewer.id)}
+
+
 def hydrate_feed(viewer, group_id, skeletons, member_ids):
     uids = {e[3] for c in skeletons for e in c['events']} | \
         {e[4]['to'] for c in skeletons for e in c['events'] if e[0] == 'kernels'}
@@ -292,6 +305,8 @@ def hydrate_feed(viewer, group_id, skeletons, member_ids):
             card = _feed_watchlist(viewer, int(ref), c['events'], users, member_ids)
         elif kind == 'p':
             card = _feed_poll(viewer, int(ref))
+        elif kind == 'c':
+            card = _feed_challenge(viewer, int(ref))
         elif kind == 'r':
             card = _feed_recap(group_id, ref, c['events'], users)
         elif kind == 'b':

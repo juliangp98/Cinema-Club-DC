@@ -8,9 +8,9 @@ from discord.ext import tasks
 from discord.ui import DynamicItem
 
 import bot  # noqa: F401 — loads every feature
-from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, club, servers
+from features import shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, club, servers
 
-FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, club, servers)
+FEATURES = (shared, chat, alerts, schedule, threads, profile, polls, admin, games, challenges, club, servers)
 
 
 def test_every_button_and_loop_is_registered():
@@ -35,13 +35,15 @@ def test_every_command_is_one_command_with_options():
     groups = [c.name for c in shared.client.tree.get_commands() if isinstance(c, app_commands.Group)]
     assert groups == []
     by_name = {c.name: c for c in shared.client.tree.get_commands()}
-    for name, option in (('quote', 'action'), ('poll', 'action'), ('llm', 'action'), ('play', 'game'),
+    for name, option in (('quote', 'action'), ('poll', 'action'), ('llm', 'action'), ('play', 'solo'), ('play', 'versus'),
                          ('leaderboard', 'period'), ('watch', 'action'), ('announcements', 'action')):
         params = {p.name: p for p in by_name[name].parameters}
         assert params[option].choices and not params[option].required, (name, option)
 
 
 def test_play_offers_every_quiz_game():
-    """/play game: lists the backend's quiz games (quizzes.GAMES), each once."""
+    """/play solo: lists the backend's quiz games (quizzes.GAMES), each once —
+    and versus: the same, plus trivia."""
     import quizzes
     assert [k for k, _ in games.QUIZ_GAMES] == list(quizzes.GAMES)
+    assert [c.value for c in challenges.VERSUS_GAMES] == [*quizzes.GAMES, 'trivia']

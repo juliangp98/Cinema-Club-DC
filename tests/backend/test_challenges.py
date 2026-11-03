@@ -1,0 +1,393 @@
+"""Challenges (challenges.py): members play the same set of a game against
+each other with kernels on the line, others back a player; scores sealed or
+live, 30 seconds a question, open seats, rematches, records and rivalries —
+and who hears about it, on the site and in Discord."""
+import json
+from datetime import datetime, timedelta
+
+import pytest
+
+from helpers import H, client, setup_db
+
+FILMS = [('ALPHA', 1950), ('BRAVO', 1962), ('CHARLIE', 1971), ('DELTA', 1984), ('ECHO', 1990), ('FOXTROT', 1999),
+         ('GOLF', 2004), ('HOTEL', 2011), ('INDIA', 2018), ('JULIET', 1977)]
+
+
+@pytest.fixture
+def club():
+    """Versus Club (our films; Who said it and Higher or lower on, challenges
+    on): Ana (organizer), Bo, Cy and Di (members, Bo on Discord), Eve in
+    another club. Everyone in Versus Club has 20 kernels to play with."""
+    from app import app, db, Group, GroupMembership, KernelGift, Movie, Quote, Showtime, User
+    setup_db()
+    with app.app_context():
+        g = Group(name='Versus Club', slug='versus-club', is_public=False, trivia_source='local', challenges_enabled=True,
+                  quizzes_json=json.dumps({'who_said': True, 'higher_lower': True, 'still': True}))
+        other = Group(name='Elsewhere', slug='elsewhere-v', is_public=False)
+        us = {n: User(name=n, email=f'{n.lower()}@versus.test', is_active=True) for n in ('Ana', 'Bo', 'Cy', 'Di', 'Eve', 'Gift')}
+        us['Bo'].discord_user_id = '9911'
+        db.session.add_all([g, other, *us.values()])
+        db.session.flush()
+        for n, u in us.items():
+            db.session.add(GroupMembership(user_id=u.id, group_id=(other if n == 'Eve' else g).id, status='active',
+                                           role='organizer' if n == 'Ana' else 'member'))
+        for i, (t, y) in enumerate(FILMS):
+            db.session.add(Movie(title=t, release_year=str(y), tmdb_id=960000 + i, genres='drama'))
+        cast = [{'name': n, 'character': c} for n, c in (('Humphrey Bogart', 'Rick Blaine'), ('Ingrid Bergman', 'Ilsa Lund'),
+                                                        ('Paul Henreid', 'Victor Laszlo'), ('Claude Rains', 'Captain Renault'),
+                                                        ('Conrad Veidt', 'Major Strasser'))]
+        db.session.add(Movie(title='CASABLANCA', release_year='1942', tmdb_id=969999, genres='drama,romance',
+                             cast_json=json.dumps(cast)))
+        db.session.add(Quote(text='Here’s looking at you, kid.', movie='Casablanca', character='Rick'))
+        show = Showtime.query.first()
+        for n in ('Ana', 'Bo', 'Cy', 'Di'):
+            db.session.add(KernelGift(giver_id=us['Gift'].id, recipient_id=us[n].id, group_id=g.id, showtime_id=show.id,
+                                      week=datetime(2026, 1, 5).date(), amount=20))
+        db.session.commit()
+        return {'G': g.id, 'slug': g.slug, **{n: u.id for n, u in us.items()}}
+
+
+def make(c, who='Ana', **body):
+    data = {'group_id': c['G'], 'kind': 'who_said', 'opponents': [c['Bo'], c['Cy']], 'stake': 3, 'questions': 3,
+            'deadline': 'tonight', 'visibility': 'club', 'reveal': 'sealed', **body}
+    return client(c[who]).post('/api/challenges', json=data)
+
+
+def act(c, who, cid, action, **body):
+    return client(c[who]).post(f'/api/challenges/{cid}/{action}', json=body)
+
+
+def truth(cid, i):
+    from app import app, db, Challenge
+    with app.app_context():
+        ch = db.session.get(Challenge, cid)
+        state = json.loads(ch.state_json)
+        if ch.kind == 'higher_lower':
+            chain = state['chain']
+            return 'before' if chain[i + 1]['year'] < chain[i]['year'] else 'after'
+        return state['questions'][i]['answer']
+
+
+def play(c, who, cid, rights):
+    """Play every question: right where `rights` says so, wrong otherwise."""
+    shown = []
+    for right in rights:
+        q = client(c[who]).get(f'/api/challenges/{cid}/play').json['question']
+        if not q:
+            break
+        shown.append(q)
+        good = truth(cid, q['q'])
+        choice = good if right else ((good + 1) % len(q['options']) if isinstance(good, int)
+                                     else ('after' if good == 'before' else 'before'))
+        r = client(c[who]).post(f'/api/challenges/{cid}/play', json={'choice': choice})
+        assert r.status_code == 200, r.json
+    return shown
+
+
+def kernels(c, who):
+    return client(c[who]).get(f"/api/kernels?group_id={c['G']}").json
+
+
+def test_off_until_the_club_turns_it_on(club):
+    from app import app, db, Group
+    with app.app_context():
+        db.session.get(Group, club['G']).challenges_enabled = False
+        db.session.commit()
+    r = make(club)
+    assert r.status_code == 400 and 'off' in r.json['error']
+
+
+def test_everyone_gets_the_same_set_and_the_top_score_takes_the_pot(club):
+    r = make(club)
+    assert r.status_code == 201, r.json
+    cid = r.json['id']
+    assert r.json['pot'] == 3 and [p['status'] for p in r.json['players']] == ['accepted', 'invited', 'invited']
+    for who in ('Bo', 'Cy'):
+        assert act(club, who, cid, 'respond', accept=True).status_code == 200
+    a = play(club, 'Ana', cid, [True, True, True])
+    b = play(club, 'Bo', cid, [True, False, True])
+    assert [(q['quote'], q['options']) for q in a] == [(q['quote'], q['options']) for q in b]    # the identical set
+    view = client(club['Di']).get(f'/api/challenges/{cid}').json
+    assert view['status'] == 'open' and all(p['score'] is None for p in view['players'])        # sealed
+    mine = client(club['Ana']).get(f'/api/challenges/{cid}').json
+    assert next(p for p in mine['players'] if p['user']['id'] == club['Ana'])['score'] == 3    # but you see yours
+    play(club, 'Cy', cid, [False, False, False])
+    done = client(club['Di']).get(f'/api/challenges/{cid}').json
+    assert done['status'] == 'done' and done['pot'] == 9
+    by = {p['user']['name']: p for p in done['players']}
+    assert (by['Ana']['score'], by['Bo']['score'], by['Cy']['score']) == (3, 2, 0)
+    assert (by['Ana']['net'], by['Bo']['net'], by['Cy']['net']) == (6, -3, -3) and by['Ana']['winner']
+    assert len(done['results']) == 3 and done['results'][1]['answers'][str(club['Bo'])]['right'] is False
+    k = kernels(club, 'Ana')
+    assert k['challenges'] == 6 and k['kernels'] == 26
+    row = next(r for r in client(club['Ana']).get(f"/api/groups/{club['G']}/leaderboard").json['rows']
+               if r['user']['id'] == club['Ana'])
+    assert row['breakdown']['challenges'] == 6 and row['stats']['challenges'] == {'played': 1, 'won': 1, 'lost': 0, 'streak': 1}
+
+
+def test_a_tie_splits_the_pot_and_a_no_show_forfeits(club):
+    from app import app, db, Challenge
+    cid = make(club, stake=5).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    act(club, 'Cy', cid, 'respond', accept=True)
+    play(club, 'Ana', cid, [True, False, False])
+    play(club, 'Bo', cid, [False, True, False])
+    with app.app_context():                                              # the deadline passes; Cy never played
+        db.session.get(Challenge, cid).closes_at = datetime.utcnow() - timedelta(minutes=1)
+        db.session.commit()
+    done = client(club['Ana']).get(f'/api/challenges/{cid}').json
+    by = {p['user']['name']: p for p in done['players']}
+    assert by['Cy']['status'] == 'forfeit' and by['Cy']['net'] == -5
+    assert sorted((by['Ana']['net'], by['Bo']['net'])) == [2, 3]       # 15 split two ways: the odd one to whoever finished first
+    assert by['Ana']['net'] == 3
+
+
+def test_live_scores_show_as_each_player_finishes(club):
+    cid = make(club, reveal='live').json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    play(club, 'Bo', cid, [True, True, False])
+    view = client(club['Di']).get(f'/api/challenges/{cid}').json
+    assert next(p for p in view['players'] if p['user']['id'] == club['Bo'])['score'] == 2
+
+
+def test_thirty_seconds_a_question(club):
+    from app import app, db, ChallengePlayer
+    cid = make(club).json['id']
+    q = client(club['Ana']).get(f'/api/challenges/{cid}/play').json['question']
+    assert q['q'] == 0 and q['ends_at']
+    with app.app_context():                                              # Ana walks away for a minute
+        p = ChallengePlayer.query.filter_by(challenge_id=cid, user_id=club['Ana']).one()
+        prog = json.loads(p.progress_json)
+        prog['shown_at'] = (datetime.utcnow() - timedelta(seconds=60)).isoformat()
+        p.progress_json = json.dumps(prog)
+        db.session.commit()
+    r = client(club['Ana']).post(f'/api/challenges/{cid}/play', json={'choice': truth(cid, 0)}).json
+    assert r['answered']['q'] == 1 and r['answered']['last'] is None or r['question']['q'] >= 1     # the first ran out
+    with app.app_context():
+        answers = json.loads(ChallengePlayer.query.filter_by(challenge_id=cid, user_id=club['Ana']).one().progress_json)['answers']
+    assert answers[0]['timeout'] and answers[0]['points'] == 0
+
+
+def test_backing_a_player(club):
+    cid = make(club, stake=2).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    act(club, 'Cy', cid, 'respond', accept=True)
+    assert act(club, 'Bo', cid, 'back', user_id=club['Ana'], amount=3).status_code == 400          # players can't back
+    assert act(club, 'Di', cid, 'back', user_id=club['Bo'], amount=11).status_code == 400          # 1–10
+    assert act(club, 'Di', cid, 'back', user_id=club['Bo'], amount=4).status_code == 200
+    assert act(club, 'Di', cid, 'back', user_id=club['Cy'], amount=1).status_code == 400           # once
+    assert client(club['Di']).get(f'/api/challenges/{cid}').json['backing']['total'] == 4
+    assert client(club['Di']).get(f"/api/challenges?group_id={club['G']}").json['on_the_line'] == 4
+    play(club, 'Bo', cid, [True, True, True])
+    assert not client(club['Di']).get(f'/api/challenges/{cid}').json['backing']['open']             # closed once someone finishes
+    play(club, 'Ana', cid, [True, False, False])
+    play(club, 'Cy', cid, [False, False, False])
+    done = client(club['Di']).get(f'/api/challenges/{cid}').json
+    assert done['backing']['mine'] == {'backing_id': club['Bo'], 'amount': 4, 'net': 0}            # only backer of the winner: theirs back
+    assert kernels(club, 'Di')['challenges'] == 0
+
+
+def test_the_backing_pot_goes_to_whoever_backed_the_winner(club):
+    from app import app, db, GroupMembership, KernelGift, User, Showtime
+    with app.app_context():                                              # a second onlooker, with kernels
+        fay = User(name='Fay', email='fay@versus.test', is_active=True)
+        db.session.add(fay)
+        db.session.flush()
+        db.session.add(GroupMembership(user_id=fay.id, group_id=club['G'], status='active'))
+        db.session.add(KernelGift(giver_id=club['Gift'], recipient_id=fay.id, group_id=club['G'],
+                                  showtime_id=Showtime.query.first().id, week=datetime(2026, 1, 5).date(), amount=20))
+        db.session.commit()
+        club['Fay'] = fay.id
+    cid = make(club, opponents=[club['Bo']], stake=0).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    act(club, 'Di', cid, 'back', user_id=club['Bo'], amount=6)
+    act(club, 'Fay', cid, 'back', user_id=club['Ana'], amount=3)
+    play(club, 'Bo', cid, [True, True, True])
+    play(club, 'Ana', cid, [False, False, False])
+    assert kernels(club, 'Di')['challenges'] == 3 and kernels(club, 'Fay')['challenges'] == -3
+    assert kernels(club, 'Bo')['challenges'] == 0                        # stake 0: bragging rights only
+
+
+def test_you_can_only_put_in_what_you_have(club):
+    from app import app, db, Group
+    with app.app_context():
+        db.session.get(Group, club['G']).challenge_max_stake = 50
+        db.session.commit()
+    r = make(club, stake=30)
+    assert r.status_code == 400 and 'You have 20 🍿' in r.json['error']
+    cid = make(club, stake=15).json['id']
+    assert 'You have 5 🍿' in make(club, stake=15, opponents=[club['Di']]).json['error']           # 15 already on the line
+    assert act(club, 'Bo', cid, 'respond', accept=True).status_code == 200
+
+
+def test_fewer_than_two_players_is_called_off(club):
+    cid = make(club).json['id']
+    act(club, 'Bo', cid, 'respond', accept=False)
+    act(club, 'Cy', cid, 'respond', accept=False)
+    done = client(club['Ana']).get(f'/api/challenges/{cid}').json
+    assert done['status'] == 'cancelled' and kernels(club, 'Ana')['kernels'] == 20
+
+
+def test_the_creator_can_call_it_off_or_end_it_early(club):
+    cid = make(club).json['id']
+    assert act(club, 'Bo', cid, 'cancel').status_code == 400                                       # not Bo's to call off
+    assert act(club, 'Ana', cid, 'cancel').json['status'] == 'cancelled'
+    cid = make(club, seats=2).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    play(club, 'Ana', cid, [True, True, True])
+    assert act(club, 'Ana', cid, 'end').status_code == 400                                         # Bo hasn't played
+    play(club, 'Bo', cid, [True, False, False])
+    r = act(club, 'Ana', cid, 'end').json
+    assert r['status'] == 'done' and next(p for p in r['players'] if p['user']['id'] == club['Cy'])['status'] == 'expired'
+
+
+def test_open_seats(club):
+    cid = make(club, opponents=[], seats=1).json['id']
+    assert act(club, 'Eve', cid, 'join').status_code == 404                                        # not in the club
+    assert act(club, 'Di', cid, 'join').json['seats_left'] == 0
+    assert act(club, 'Cy', cid, 'join').status_code == 400                                         # full
+    play(club, 'Ana', cid, [True, True, False])
+    play(club, 'Di', cid, [True, False, False])
+    assert client(club['Di']).get(f'/api/challenges/{cid}').json['status'] == 'done'
+
+
+def test_rematch_and_double_or_nothing(club):
+    cid = make(club, opponents=[club['Bo']], stake=4).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    play(club, 'Ana', cid, [True, True, True])
+    play(club, 'Bo', cid, [False, False, False])
+    r = act(club, 'Bo', cid, 'rematch', double=True)
+    assert r.status_code == 201 and r.json['stake'] == 8 and r.json['rematch_of'] == cid
+    assert [(p['user']['name'], p['status']) for p in r.json['players']] == [('Bo', 'accepted'), ('Ana', 'invited')]
+    assert client(club['Ana']).get(f'/api/challenges/{cid}').json['rematch'] == r.json['id']
+
+
+def test_higher_or_lower_is_one_run_on_the_same_films(club):
+    cid = make(club, kind='higher_lower', opponents=[club['Bo']]).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    a = play(club, 'Ana', cid, [True, True, False, True])
+    b = play(club, 'Bo', cid, [True, False, True])
+    assert len(a) == 3 and len(b) == 2                                                             # a miss ends the run
+    assert [q['current']['title'] for q in a[:2]] == [q['current']['title'] for q in b[:2]]
+    done = client(club['Ana']).get(f'/api/challenges/{cid}').json
+    assert {p['user']['name']: p['score'] for p in done['players']} == {'Ana': 2, 'Bo': 1}
+
+
+def test_records_and_rivals(club):
+    for winner in ('Ana', 'Ana', 'Bo'):
+        cid = make(club, opponents=[club['Bo']], stake=1).json['id']
+        act(club, 'Bo', cid, 'respond', accept=True)
+        play(club, 'Ana', cid, [winner == 'Ana'] * 3)
+        play(club, 'Bo', cid, [winner == 'Bo'] * 3)
+    r = client(club['Bo']).get(f"/api/challenges/rivals?group_id={club['G']}&user_id={club['Ana']}").json
+    assert r['record'] == {'played': 3, 'won': 2, 'lost': 1, 'streak': 0}
+    assert r['rivals'][0]['user']['name'] == 'Bo' and (r['rivals'][0]['won'], r['rivals'][0]['lost']) == (2, 1)
+    assert (r['versus_you']['won'], r['versus_you']['lost']) == (2, 1)                            # Ana against Bo, as Bo sees it
+
+
+def test_who_sees_a_challenge(club):
+    hidden = make(club, visibility='players').json['id']
+    shown = make(club, opponents=[club['Bo']]).json['id']
+    listed = [c['id'] for c in client(club['Di']).get(f"/api/challenges?group_id={club['G']}").json['challenges']]
+    assert shown in listed and hidden not in listed
+    assert client(club['Di']).get(f'/api/challenges/{hidden}').status_code == 404
+    assert client(club['Eve']).get(f'/api/challenges/{shown}').status_code == 404
+
+
+def test_who_hears_about_it(club):
+    """Invites wait in the bell (and go out by DM, email or push only if
+    chosen); results reach players and backers; new club challenges only those who asked."""
+    import notify
+    from app import app, db, Notification, User
+    with app.app_context():
+        notify.set_prefs(db.session.get(User, club['Cy']), {'types': {'challenge_open': True}})
+        notify.set_prefs(db.session.get(User, club['Bo']), {'channels': {'discord': True}})
+        db.session.commit()
+    cid = make(club, opponents=[club['Bo']]).json['id']
+    with app.app_context():
+        notes = {(n.user_id, n.kind): n.channels for n in Notification.query.filter(Notification.kind.like('challenge_%'))}
+    assert notes == {(club['Bo'], 'challenge_invite'): 'discord', (club['Cy'], 'challenge_open'): ''}
+    bell = client(club['Bo']).get('/api/notifications').json['items'][0]
+    assert bell['headline'] == 'Ana challenges you: 🗣️ Who said it' and bell['needs_answer'] and bell['link'] == f'/challenges/{cid}'
+    act(club, 'Di', cid, 'back', user_id=club['Bo'], amount=2)
+    act(club, 'Bo', cid, 'respond', accept=True)
+    assert not client(club['Bo']).get('/api/notifications').json['items'][-1]['needs_answer']   # answered
+    play(club, 'Ana', cid, [True, True, True])
+    play(club, 'Bo', cid, [False, False, False])
+    with app.app_context():
+        got = sorted((n.user_id, n.kind) for n in Notification.query.filter(Notification.kind.in_(('challenge_result', 'challenge_backed'))))
+    assert got == sorted([(club['Bo'], 'challenge_backed'), (club['Ana'], 'challenge_result'),
+                          (club['Bo'], 'challenge_result'), (club['Di'], 'challenge_result')])
+    di = client(club['Di']).get('/api/notifications').json['items'][0]
+    assert di['headline'] == '🗣️ Who said it: Ana won'
+    assert di['detail'] == 'You backed Bo · nobody backed Ana, so your 2 🍿 came back'
+
+
+def test_discord_posts_follow_the_creators_setting_and_never_ping(club):
+    import app as A
+    from app import app, db, DiscordPost, User, render_post, set_share_pref
+    from helpers import all_linked_present
+    with app.app_context():
+        for n, did in (('Ana', '9910'), ('Cy', '9912')):
+            db.session.get(User, club[n]).discord_user_id = did
+        set_share_pref(db.session.get(User, club['Cy']), 'challenge', 'never')
+        db.session.commit()
+    A.HOME_GROUP_ID = club['G']
+    all_linked_present()
+    cid = make(club, announce='now').json['id']
+    with app.app_context():
+        post = DiscordPost.query.filter_by(kind='challenge', ref_id=cid).one()
+        payload = render_post(post)
+    assert payload['game'] == '🗣️ Who said it' and payload['by'] == 'Ana' and payload['pot'] == 3
+    assert [p['name'] for p in payload['players']] == ['Ana', 'Bo', None]                         # Cy said Never
+    quiet = make(club, visibility='players', announce='now').json['id']
+    with app.app_context():
+        assert DiscordPost.query.filter_by(kind='challenge', ref_id=quiet).count() == 0              # not the club's to see
+
+
+def test_posting_in_discord_is_the_creators_call_on_the_spot(club):
+    """Whatever "Challenges I start or play" says, the creator can post this
+    one (their name shows) or not post it."""
+    import app as A
+    from app import app, db, DiscordPost, User, render_post, set_share_pref
+    from helpers import all_linked_present
+    with app.app_context():
+        ana = db.session.get(User, club['Ana'])
+        ana.discord_user_id = '9910'
+        set_share_pref(ana, 'challenge', 'never')
+        db.session.commit()
+    A.HOME_GROUP_ID = club['G']
+    all_linked_present()
+    posted = make(club, announce='now').json['id']
+    with app.app_context():
+        assert render_post(DiscordPost.query.filter_by(kind='challenge', ref_id=posted).one())['by'] == 'Ana'
+        set_share_pref(db.session.get(User, club['Ana']), 'challenge', 'always')
+        db.session.commit()
+    kept = make(club, announce='none').json['id']
+    default = make(club).json['id']
+    with app.app_context():
+        assert DiscordPost.query.filter_by(kind='challenge', ref_id=kept).count() == 0
+        assert DiscordPost.query.filter_by(kind='challenge', ref_id=default).count() == 1           # Always, nothing said
+
+
+def test_a_challenge_still_is_each_players_own(club, monkeypatch):
+    import quizzes
+    monkeypatch.setattr(quizzes, '_backdrops', lambda tid: ['/still.jpg'])
+    monkeypatch.setattr(quizzes, 'crop_still', lambda state, step: b'jpeg-' + str(step).encode())
+    cid = make(club, kind='still', opponents=[club['Bo']]).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    a = client(club['Ana']).get(f'/api/challenges/{cid}/play').json['question']
+    b = client(club['Bo']).get(f'/api/challenges/{cid}/play').json['question']
+    assert a['image'] != b['image'] and a['options'] == b['options']
+    assert client().get(a['image']).data == b'jpeg-1'
+    assert client().get(a['image'].replace('-1.jpg', '-2.jpg')).status_code == 404                 # no peeking ahead
+    client(club['Ana']).post(f'/api/challenges/{cid}/play', json={'choice': 'more'})
+    assert client().get(a['image'].replace('-1.jpg', '-2.jpg')).data == b'jpeg-2'
+
+
+def test_the_feed_shows_club_challenges(club):
+    cid = make(club, opponents=[club['Bo']]).json['id']
+    make(club, visibility='players', opponents=[club['Cy']])
+    cards = client(club['Di']).get(f"/api/feed?group_id={club['G']}&type=games").json['cards']
+    mine = [c for c in cards if c['type'] == 'challenge']
+    assert len(mine) == 1 and mine[0]['challenge']['id'] == cid and mine[0]['challenge']['status'] == 'open'

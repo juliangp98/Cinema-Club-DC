@@ -160,6 +160,10 @@ class Group(db.Model):
     bingo_home = db.Column(db.Boolean, default=False)       # R15: Letterboxd diaries fill film squares
     trivia_source = db.Column(db.String(8), default='both')  # R15: local | tmdb | both (film_pool.SOURCES)
     quizzes_json = db.Column(db.Text)                        # R15: {game: on} — each quiz game's switch (quizzes.GAMES)
+    # Challenges (challenges.py): off to start; the most each player can stake; whether others may back players
+    challenges_enabled = db.Column(db.Boolean, default=False)
+    challenge_max_stake = db.Column(db.Integer, default=10)
+    challenge_backing = db.Column(db.Boolean, default=True)
     # R14: what the games post in the club's Discord (game_posts.py), each its
     # own choice, all off by default: the question of the day and the month's
     # card 'never' | 'ask' (an admin OKs it first) | 'always'; wins 'never' | 'always'.
@@ -195,6 +199,8 @@ class Group(db.Model):
             'notes': {'enabled': bool(self.notes_enabled)},
             'digest': {'enabled': bool(self.digest_enabled)},
             'quizzes': __import__('quizzes').switches(self),
+            'challenges': {'enabled': bool(self.challenges_enabled), 'max_stake': self.challenge_max_stake or 10,
+                           'backing': self.challenge_backing is not False},
             # 7g: theatres whose new showtimes the bot announces in #movies (the same as /announcements)
             'announce_theatres': [t.strip() for t in (self.announce_enabled_theatres or '').split(',') if t.strip()],
         }
@@ -762,6 +768,63 @@ class QuizRound(db.Model):
     source = db.Column(db.String(10))                                    # 'site' | 'discord'
     created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
     finished_at = db.Column(db.DateTime)
+
+
+class Challenge(db.Model):
+    """Members playing the same set of a game against each other, with
+    kernels on the line (challenges.py). `state_json`: the questions, made as
+    the first player reaches each one, so everyone gets the same."""
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False, index=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    kind = db.Column(db.String(20), nullable=False)                      # a quiz game, or 'trivia'
+    questions = db.Column(db.Integer, nullable=False, default=5)         # how many (higher or lower: one run)
+    stake = db.Column(db.Integer, nullable=False, default=0)             # each player's, into the pot
+    seats = db.Column(db.Integer, nullable=False, default=0)             # open to anyone in the club
+    visibility = db.Column(db.String(8), nullable=False, default='players')   # players | club
+    reveal = db.Column(db.String(8), nullable=False, default='sealed')   # sealed | live: scores as each finishes
+    closes_at = db.Column(db.DateTime, nullable=False)                   # the deadline (naive UTC)
+    status = db.Column(db.String(10), nullable=False, default='open')    # open | done | cancelled
+    state_json = db.Column(db.Text, nullable=False, default='{}')
+    rematch_of = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    decided_at = db.Column(db.DateTime)
+    creator = db.relationship('User', lazy=True)
+    players = db.relationship('ChallengePlayer', backref='challenge', lazy=True, cascade='all, delete-orphan',
+                              order_by='ChallengePlayer.id')
+    bets = db.relationship('ChallengeBet', backref='challenge', lazy=True, cascade='all, delete-orphan',
+                           order_by='ChallengeBet.id')
+
+
+class ChallengePlayer(db.Model):
+    """Someone in a challenge: invited (or took an open seat), then their run."""
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    # invited | accepted | declined | expired (never answered) | finished | forfeit (accepted, never played)
+    status = db.Column(db.String(10), nullable=False, default='invited')
+    seat = db.Column(db.Boolean, default=False)                          # took an open seat (wasn't invited)
+    progress_json = db.Column(db.Text, nullable=False, default='{}')     # where they are, their answers, the timer
+    score = db.Column(db.Integer, nullable=False, default=0)
+    took_ms = db.Column(db.Integer, nullable=False, default=0)           # time spent answering
+    finished_at = db.Column(db.DateTime)
+    net = db.Column(db.Integer)                                          # kernels won (+) or lost (−), once decided
+    user = db.relationship('User', lazy=True)
+    __table_args__ = (db.UniqueConstraint('challenge_id', 'user_id'),)
+
+
+class ChallengeBet(db.Model):
+    """A member backing a player: the backing pot goes to whoever backed the winner."""
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    backing_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: core._utcnow_naive())
+    net = db.Column(db.Integer)
+    user = db.relationship('User', lazy=True, foreign_keys=[user_id])
+    backing = db.relationship('User', lazy=True, foreign_keys=[backing_id])
+    __table_args__ = (db.UniqueConstraint('challenge_id', 'user_id'),)
 
 
 class PoolFilm(db.Model):

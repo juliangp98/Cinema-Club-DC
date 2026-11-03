@@ -28,6 +28,9 @@ TYPES = {
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
     'poll_result': ('Polls: your results', 'When a poll you voted in is finalized: your kernels and your place. In the bell only.'),
+    'challenge_invite': ('Challenges: someone challenges you', 'An invite to play, with what’s on the line. It waits in the bell until you answer.'),
+    'challenge_result': ('Challenges: results and backing', 'How a challenge you played or backed came out, and when someone backs you. In the bell only.'),
+    'challenge_open': ('Challenges: new ones to watch and back', 'When members start a challenge the club can see. In the bell only.'),
     'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
     # Running a club (R15): an email per join request (admins always get one)
     'join_requests': ('Someone asks to join your club', 'Club organizers: an email when someone asks to join, to approve or deny it. (Admins always get one.)'),
@@ -36,7 +39,8 @@ TYPES = {
 TYPE_GROUPS = (('films', 'Your films', ('showings', 'on_sale', 'searches', 'favorites')),
                ('going', 'Going out', ('attendance',)),
                ('club', 'Your club', ('digest', 'digest_out')),
-               ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'poll_result')),
+               ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'poll_result',
+                                   'challenge_invite', 'challenge_result', 'challenge_open')),
                ('running', 'Running a club', ('reviews', 'join_requests')))
 GROUP_OF = {t: (key, label) for key, label, types in TYPE_GROUPS for t in types}
 # Switches only for people who run a club: {type: the roles it's for}.
@@ -71,7 +75,8 @@ def available(user):
 # Watchlist alerts still land in the site's bell (it never sends anything).
 DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True,
                  'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True,
-                 'join_requests': False, 'digest': True, 'digest_out': False, 'poll_result': True}
+                 'join_requests': False, 'digest': True, 'digest_out': False, 'poll_result': True,
+                 'challenge_invite': True, 'challenge_result': True, 'challenge_open': False}
 ASKS = ('alerts', 'attendance')
 
 
@@ -462,7 +467,8 @@ def describe(n):
     return {'headline': title, 'detail': '', 'link': link}
 
 
-GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review', 'poll_result')
+GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review', 'poll_result',
+              'challenge_invite', 'challenge_result', 'challenge_backed', 'challenge_open')
 
 
 def _describe_game(kind, p):
@@ -476,6 +482,8 @@ def _describe_game(kind, p):
     if kind == 'bingo_card':
         return {'headline': f"{p.get('month_label', 'This month')}’s bingo card is up",
                 'detail': ' · '.join(p.get('squares') or []), 'link': '/play#bingo'}
+    if kind.startswith('challenge_'):
+        return _describe_challenge(kind, p)
     if kind == 'poll_result':
         place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else None
         right = f"{p.get('correct', 0)} of {p['total']} right" if p.get('total') else 'No picks in the scored categories'
@@ -502,7 +510,32 @@ def bundle_title(ns):
 
 # The bell's picture for alerts that aren't about one film.
 ICONS = {'digest': '🍿', 'trivia_daily': '🧠', 'trivia_result': '🧠', 'bingo_card': '🎱', 'bingo_win': '🎱',
-         'game_review': '👀', 'poll_result': '🏆'}
+         'game_review': '👀', 'poll_result': '🏆', 'challenge_invite': '⚔️', 'challenge_result': '⚔️',
+         'challenge_backed': '🍿', 'challenge_open': '⚔️'}
+
+
+def _describe_challenge(kind, p):
+    link = f"/challenges/{p.get('challenge_id')}"
+    stake = f"{p.get('stake')} 🍿 each" if p.get('stake') else 'for bragging rights'
+    if kind == 'challenge_invite':
+        return {'headline': f"{p.get('by') or 'A member'} challenges you: {p.get('game', '')}", 'detail': f'{stake} · accept or decline',
+                'link': link}
+    if kind == 'challenge_open':
+        return {'headline': f"New challenge: {p.get('game', '')}", 'detail': f"Started by {p.get('by') or 'a member'} · {stake} · watch or back a player",
+                'link': link}
+    if kind == 'challenge_backed':
+        return {'headline': f"{p.get('backer') or 'A member'} backed you", 'detail': f"{p.get('amount', 0)} 🍿 on you · {p.get('game', '')}",
+                'link': link}
+    net = f"{p.get('net', 0):+d} 🍿".replace('-', '−')
+    if p.get('status') == 'cancelled':
+        return {'headline': f"Called off: {p.get('game', '')}", 'detail': "Not enough players — nothing changed hands.", 'link': link}
+    won = ', '.join(p.get('winners') or []) or 'Nobody'
+    if p.get('backed') is not None:
+        how = net if p.get('net') else f"nobody backed {won}, so your {p.get('amount', 0)} 🍿 came back"
+        return {'headline': f"{p.get('game', '')}: {won} won", 'detail': f"You backed {p['backed']} · {how}", 'link': link}
+    place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else None
+    return {'headline': f"{p.get('game', '')}: {won} won", 'detail': ' · '.join(b for b in (net, f"{p.get('score', 0)} points", place) if b),
+            'link': link}
 
 
 def _ordinal(n):
@@ -513,6 +546,9 @@ def needs_answer(n):
     """An alert still asking you something, which Clear leaves in the bell: a
     game post waiting for your OK, or today's trivia question you haven't answered."""
     p = json.loads(n.payload_json or '{}')
+    if n.kind == 'challenge_invite':
+        import challenges
+        return challenges.needs_answer(n.user_id, p)
     if n.kind == 'game_review':
         from app import db, GamePost
         post = db.session.get(GamePost, p.get('post_id') or 0)
@@ -648,5 +684,7 @@ def pending_dms(now=None):
              'items': [{**{k: v for k, v in describe(n).items() if k != 'link'},
                         'url': FRONTEND_URL + describe(n)['link'], 'poster_url': item(n)['poster_url']} for n in ns],
              # admins' game posts waiting for an OK (R14): the bot DMs these with Post / Skip buttons
-             'reviews': [json.loads(n.payload_json or '{}').get('post_id') for n in ns if n.kind == 'game_review']}
+             'reviews': [json.loads(n.payload_json or '{}').get('post_id') for n in ns if n.kind == 'game_review'],
+             # challenge invites: the bot DMs the challenge with Accept / Decline
+             'challenges': [json.loads(n.payload_json or '{}').get('challenge_id') for n in ns if n.kind == 'challenge_invite']}
             for uid, ns in by_user.items()]

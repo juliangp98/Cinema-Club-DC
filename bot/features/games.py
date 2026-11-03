@@ -9,7 +9,7 @@ from api import ApiError
 import embeds
 from .shared import (SITE_URL, api, channel_for, client, club, connected_clubs, discord_identity, register,
                      reply_failure, use_club)
-from . import polls, threads      # used at call time, so the order they load in doesn't matter
+from . import challenges, polls, threads      # used at call time, so the order they load in doesn't matter
 
 
 LEADERBOARD_PERIODS = [app_commands.Choice(name=n, value=v) for v, n in (
@@ -266,26 +266,57 @@ def play_view(p):
         view.add_item(QuizButton('start', g['kind'], label=f"{g['emoji']} {g['label']}", style=discord.ButtonStyle.primary, row=1))
     for poll in [x for x in p.get('polls', []) if not x['you_voted']][:3]:
         view.add_item(polls.VoteButton('open', poll['id'], label=f"🗳️ Vote: {poll['title']}", row=2))
+    ch = p.get('challenges') or {}
+    for c in (ch.get('invites', []) + ch.get('your_turn', []))[:4]:
+        view.add_item(challenges.ChallengeButton('view', c['id'], label=f"⚔️ {c['game']}", row=3))
     view.add_item(discord.ui.Button(label='Play on the site', url=f'{SITE_URL}/play', row=2))
     return view
 
 
-# /play game: — straight into one. The quiz games are the backend's
+# /play solo: — straight into one. The quiz games are the backend's
 # quizzes.GAMES (a test keeps the two lists the same).
 QUIZ_GAMES = (('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ Who said it'), ('still', '🖼️ Guess the still'),
               ('reviews', '📝 Guess from the reviews'), ('emoji', '🎭 Emoji plot'))
 PLAY_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
     ('trivia', "🧠 Trivia: today's question"), ('bingo', '🎱 My bingo card'), *QUIZ_GAMES, ('kernels', '🍿 My kernels'))]
+V = challenges                     # /play versus: and challenges: (features/challenges.py)
 
 
-@client.tree.command(name='play', description='Games and kernels: trivia, bingo, quiz games, polls to vote in, your kernels')
-@app_commands.describe(game='Jump straight into one (default: the games hub, with polls to vote in)')
-@app_commands.choices(game=PLAY_GAMES)
-async def play_cmd(interaction: discord.Interaction, game: app_commands.Choice[str] = None):
-    await interaction.response.defer(ephemeral=True, thinking=bool(game))
-    if game:
+@client.tree.command(name='play', description='Games and kernels: play solo, challenge members, polls to vote in, your kernels')
+@app_commands.describe(
+    solo='Play on your own: trivia, your bingo card, a quiz game — or see your kernels',
+    versus='Challenge members to a game (then pick opponent, stake…)',
+    opponent='Versus: who you challenge', opponent2='Versus: another player', opponent3='Versus: another player',
+    stake='Versus: kernels each player puts in the pot (0 = for bragging rights)',
+    seats='Versus: open seats anyone in the club can take',
+    questions='Versus: how many questions (Higher or lower is one run)',
+    deadline='Versus: when it closes (default: tonight)',
+    scores='Versus: show scores as each player finishes, or only once everyone has',
+    club_visible='Versus: the club can see it and back players (default: yes)',
+    post='Versus: post it in the channel (default: your sharing setting)',
+    challenges="Your challenges, or the club's open ones",
+)
+@app_commands.rename(club_visible='club')
+@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, questions=V.LENGTHS, deadline=V.DEADLINES,
+                      scores=V.REVEALS, challenges=V.LISTS)
+async def play_cmd(interaction: discord.Interaction, solo: app_commands.Choice[str] = None,
+                   versus: app_commands.Choice[str] = None, opponent: discord.Member = None, opponent2: discord.Member = None,
+                   opponent3: discord.Member = None, stake: app_commands.Range[int, 0, 50] = None,
+                   seats: app_commands.Range[int, 0, 6] = None, questions: app_commands.Choice[int] = None,
+                   deadline: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
+                   club_visible: bool = None, post: bool = None, challenges: app_commands.Choice[str] = None):
+    await interaction.response.defer(ephemeral=True, thinking=bool(solo or versus or challenges))
+    if versus:
+        await V.versus_flow(interaction, versus.value, [opponent, opponent2, opponent3], stake, seats,
+                            questions.value if questions else None, deadline.value if deadline else None,
+                            scores.value if scores else None, club_visible, post)
+        return
+    if challenges:
+        await V.list_flow(interaction, challenges.value)
+        return
+    if solo:
         flows = {'trivia': trivia_flow, 'bingo': bingo_flow, 'kernels': kernels_flow}
-        await (flows[game.value](interaction) if game.value in flows else quiz_start_flow(interaction, game.value))
+        await (flows[solo.value](interaction) if solo.value in flows else quiz_start_flow(interaction, solo.value))
         return
     try:
         p = await api.get('/api/internal/play', **discord_identity(interaction))

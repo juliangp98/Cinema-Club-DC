@@ -838,7 +838,8 @@ HELP_SECTIONS = [
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
     ('🎮 Play, polls & kernels', [
-        ('/play', 'the games hub — or `game:` straight into trivia, your bingo card, a quiz game or your kernels'),
+        ('/play', 'the games hub — `solo:` straight into trivia, your bingo card, a quiz game or your kernels; '
+                  '`versus:` challenge members (`opponent`, `stake`, `seats`…); `challenges:` yours or the club\'s open ones'),
         ('/poll', "`action:` what's open, your private ballot, or make one — describe it and the AI drafts it (organizers)"),
         ('/leaderboard', 'the kernel standings 🍿 — `period:` all time, this year or this month'),
     ]),
@@ -988,10 +989,11 @@ def notify_settings_embed(s):
 def kernel_parts(k):
     """'polls 12 · going out 20 · from members 3' — where someone's kernels came
     from (trivia and bingo only once there's some)."""
-    return ' · '.join(f'{label} {k[key]}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
-                                                              ('trivia', 'trivia'), ('bingo', 'bingo'),
-                                                              ('games', 'games'), ('members', 'from members'))
-                      if key not in ('trivia', 'bingo', 'games') or k.get(key))
+    return ' · '.join(f'{label} {k.get(key, 0)}' for key, label in (('polls', 'polls'), ('going_out', 'going out'),
+                                                                     ('trivia', 'trivia'), ('bingo', 'bingo'),
+                                                                     ('games', 'games'), ('challenges', 'challenges'),
+                                                                     ('members', 'from members'))
+                      if key not in ('trivia', 'bingo', 'games', 'challenges') or k.get(key))
 
 
 def kernels_embed(k):
@@ -1089,6 +1091,8 @@ def quiz_round_embed(r):
             body = f"{said + chr(10) if said else ''}“{r['quote']}”\n\nWho says it in {_year_film(r['film'])}?\n\n{opts}"
         elif r['kind'] == 'emoji':
             body = f"{said + chr(10) if said else ''}# {r['emojis']}\n\nWhich film is this?\n\n{opts}"
+        elif r['kind'] == 'trivia':
+            body = f"{said + chr(10) if said else ''}**{r['prompt']}**\n\n{opts}"
         elif r['kind'] == 'reviews':
             frm = {'club': "from a club member's diary", 'tmdb': 'from a review on TMDB'}
             clues = '\n'.join(f"> {c['text']}\n-# — {frm.get(c['from'], '')}" for c in r['clues'])
@@ -1103,6 +1107,95 @@ def quiz_round_embed(r):
     worth = (f"worth {r['worth']} 🍿 now" if r.get('by_step') and not r['done'] else
              '3 / 2 / 1 🍿' if r.get('by_step') else f"+{r['each']} 🍿 a right call")
     embed.set_footer(text=f"{worth} · {r['left_today']} left to earn today · only you see this")
+    return embed
+
+
+# ─── Challenges ───────────────────────────────────────────────────────────────
+
+STATUS_ICONS = {'invited': '✉️', 'accepted': '🎮', 'finished': '✅', 'forfeit': '💤', 'declined': '✖️', 'expired': '⌛'}
+STATUS_WORDS = {'invited': 'invited', 'accepted': 'in', 'finished': 'played', 'forfeit': "didn't play",
+                'declined': 'declined', 'expired': 'never answered'}
+
+
+def _signed(n):
+    return f"{n:+d}".replace('-', '−')
+
+
+def _stakes(c):
+    return f"**{c['stake']} 🍿** each · pot **{c['pot']} 🍿**" if c['stake'] else 'For bragging rights (no kernels)'
+
+
+def challenge_embed(c, note=None):
+    """A challenge as one member sees it (challenges.as_dict): who's in, what's
+    on the line, the deadline — the scores when they're out — and the results."""
+    status = {'open': '⚔️', 'done': '🏆', 'cancelled': '✖️'}.get(c['status'], '⚔️')
+    length = f"{c['questions']} questions" if c.get('questions') else 'one run — longest streak wins'
+    lines = [f"Started by **{c['created_by']['name']}** · {length}", _stakes(c)]
+    if c['status'] == 'open':
+        lines.append(closes_line(c['closes_at']).replace('Voting closes', 'Closes'))
+        lines.append('Scores show as each player finishes.' if c['reveal'] == 'live' else 'Scores stay sealed until everyone has played.')
+        if c['seats_left']:
+            lines.append(f"🪑 {c['seats_left']} open seat{'s' if c['seats_left'] != 1 else ''} — anyone in the club can join")
+    elif c['status'] == 'cancelled':
+        lines.append('Called off — nothing changed hands.')
+    rows = []
+    for p in c['players']:
+        score = f" — **{p['score']}**" if p.get('score') is not None else ''
+        net = f" ({_signed(p['net'])} 🍿)" if p.get('net') is not None and c['stake'] else ''
+        crown = '🏆 ' if p.get('winner') else ''
+        rows.append(f"{STATUS_ICONS.get(p['status'], '')} {crown}{p['user']['name']} · {STATUS_WORDS.get(p['status'], p['status'])}{score}{net}")
+    lines += ['', '**Players**', *rows]
+    b = c['backing']
+    if b['allowed'] and (b['count'] or b['open']):
+        lines += ['', f"🍿 **Backing:** {b['total']} 🍿 from {b['count']} member{'s' if b['count'] != 1 else ''}"
+                      + (' · open until the first player finishes' if b['open'] else '')]
+        if b.get('mine'):
+            backed = next((p['user']['name'] for p in c['players'] if p['user']['id'] == b['mine']['backing_id']), '?')
+            got = f" · {_signed(b['mine']['net'])} 🍿" if b['mine'].get('net') is not None else ''
+            lines.append(f"You backed **{backed}** with {b['mine']['amount']} 🍿{got}")
+    if note:
+        lines += ['', note]
+    embed = discord.Embed(title=f"{status} {c['emoji']} {c['label']} challenge"[:256], colour=AMBER,
+                          description='\n'.join(lines)[:4000], url=f"{SITE_URL}/challenges/{c['id']}")
+    embed.set_footer(text='Only you see this · the site has the full results' if c['status'] == 'done' else 'Only you see this')
+    return embed
+
+
+def challenge_post_embed(p):
+    """A challenge's post in the club's channel (challenges.post_payload):
+    names only — never pings; members who said Never stay unnamed."""
+    who = lambda x: f"**{x['name']}**" if x.get('name') else '*a member*'
+    length = f"{p['questions']} questions" if p.get('questions') else 'one run'
+    head = {'open': f"⚔️ {p['game']} challenge", 'done': f"🏆 {p['game']}: results", 'cancelled': f"✖️ {p['game']}: called off"}
+    lines = [f"Started by {who({'name': p.get('by')})} · {length} · "
+             + (f"{p['stake']} 🍿 each, pot {p['pot']} 🍿" if p['stake'] else 'for bragging rights')]
+    if p['status'] == 'open':
+        lines.append(closes_line(p['closes_at']).replace('Voting closes', 'Closes'))
+    rows = []
+    for x in sorted(p['players'], key=lambda x: -(x['score'] if x.get('score') is not None else -1)):
+        score = f" — **{x['score']}**" if x.get('score') is not None else ''
+        net = f" ({_signed(x['net'])} 🍿)" if x.get('net') is not None and p['stake'] else ''
+        rows.append(f"{STATUS_ICONS.get(x['status'], '')} {'🏆 ' if x.get('winner') else ''}{who(x)} · "
+                    f"{STATUS_WORDS.get(x['status'], x['status'])}{score}{net}")
+    lines += ['', *rows]
+    if p['backing']['count'] or p['backing']['open']:
+        lines.append(f"\n🍿 {p['backing']['total']} 🍿 backing from {p['backing']['count']}"
+                     + (' · back a player until the first one finishes' if p['backing']['open'] else ''))
+    if p['status'] == 'open' and p['seats_left']:
+        lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''} — tap Join")
+    return discord.Embed(title=head.get(p['status'], head['open'])[:256], colour=AMBER, description='\n'.join(lines)[:4000],
+                         url=f"{SITE_URL}/challenges/{p['challenge_id']}")
+
+
+def challenge_question_embed(q):
+    """A challenge question: the solo round's look, with the clock and where you are."""
+    embed = quiz_round_embed(q)
+    if not q['done'] and q.get('ends_at'):
+        ts = int(datetime.fromisoformat(q['ends_at'].replace('Z', '+00:00')).timestamp())
+        embed.description = f"{embed.description}\n\n⏱️ Time's up <t:{ts}:R>"[:4000]
+    worth = f"worth {q['worth']} 🍿 now · " if q.get('worth') and not q['done'] else ''
+    embed.set_footer(text=f"Question {q['q'] + 1}{' of ' + str(q['of']) if q['kind'] != 'higher_lower' else ''} · "
+                          f"{worth}score {q['score']} · only you see this")
     return embed
 
 
@@ -1150,6 +1243,13 @@ def play_embed(p):
         left = sum(max(0, g['cap'] - g['earned_today']) for g in games)
         lines.append('🎮 Quiz games: ' + ' · '.join(f"{g['emoji']} {g['label']}" for g in games)
                      + f" — {left} 🍿 left to earn today")
+    ch = p.get('challenges')
+    if ch and (ch['invites'] or ch['your_turn']):
+        bits = [f"**{c['by']}** challenged you ({c['game']})" for c in ch['invites'][:3]]
+        bits += [f"your turn in {c['game']}" for c in ch['your_turn'][:3]]
+        lines.append('⚔️ ' + ' · '.join(bits))
+    elif ch is not None:
+        lines.append('⚔️ Challenge someone: `/play versus:`')
     waiting = [x for x in p.get('polls', []) if not x['you_voted']]
     if waiting:
         lines.append('🗳️ Waiting for your vote: ' + ', '.join(f"**{x['title']}**" for x in waiting[:3]))

@@ -36,6 +36,10 @@ def migrate():
         # Polls: answers live or all at once, and a voting deadline
         "ALTER TABLE poll ADD COLUMN reveal VARCHAR(8) DEFAULT 'final'",
         "ALTER TABLE poll ADD COLUMN closes_at DATETIME",
+        # Challenges: the club's switches
+        "ALTER TABLE 'group' ADD COLUMN challenges_enabled BOOLEAN DEFAULT 0",
+        "ALTER TABLE 'group' ADD COLUMN challenge_max_stake INTEGER DEFAULT 10",
+        "ALTER TABLE 'group' ADD COLUMN challenge_backing BOOLEAN DEFAULT 1",
         # R15: trivia difficulty and sources (film_pool.py)
         "ALTER TABLE trivia_question ADD COLUMN difficulty VARCHAR(8)",
         "ALTER TABLE trivia_question ADD COLUMN tmdb_id INTEGER",

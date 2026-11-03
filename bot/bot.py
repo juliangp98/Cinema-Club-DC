@@ -15,7 +15,7 @@ All data comes from the Flask backend's /api/internal/* endpoints — the bot
 never touches the database directly.
 
 The bot is split by feature in features/ (shared, chat, alerts, schedule,
-threads, profile, polls, admin, games, club, servers); each registers its own
+threads, profile, polls, admin, games, challenges, club, servers); each registers its own
 buttons and loops. This file starts it, and gathers their names in one place
 (for the tests).
 """
@@ -23,7 +23,7 @@ buttons and loops. This file starts it, and gathers their names in one place
 import os
 
 from features import shared                       # first: it loads the env the others read
-from features import chat, alerts, schedule, threads, profile, polls, admin, games, club, servers  # noqa: F401 — they register themselves
+from features import chat, alerts, schedule, threads, profile, polls, admin, games, challenges, club, servers  # noqa: F401 — they register themselves
 from features.shared import *                  # noqa: F401,F403
 from features.chat import *                    # noqa: F401,F403
 from features.alerts import *                  # noqa: F401,F403
@@ -33,6 +33,7 @@ from features.profile import *                 # noqa: F401,F403
 from features.polls import *                   # noqa: F401,F403
 from features.admin import *                   # noqa: F401,F403
 from features.games import *                   # noqa: F401,F403
+from features.challenges import *              # noqa: F401,F403
 from features.club import *                    # noqa: F401,F403
 from features.servers import *                 # noqa: F401,F403
 from features.shared import DISCORD_BOT_TOKEN, client

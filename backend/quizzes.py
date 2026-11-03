@@ -268,9 +268,6 @@ def still_image(r, token_step):
     """The still for a round at a step, cropped around its focus — the whole
     picture never reaches the browser before the round is over. JPEG bytes,
     or None for a wrong token."""
-    import io
-    import enrich
-    from PIL import Image
     state = json.loads(r.state_json)
     token, _, step = token_step.rpartition('-')
     if token != state.get('token') or step not in ('1', '2', '3'):
@@ -278,6 +275,15 @@ def still_image(r, token_step):
     step = int(step)
     if r.status != 'done' and step > state['step']:            # no peeking ahead
         return None
+    return crop_still(state, step)
+
+
+def crop_still(state, step):
+    """A still ({path, focus}) at a step's zoom, as JPEG bytes — shared with
+    challenges, which check their own token and step first."""
+    import io
+    import enrich
+    from PIL import Image
     raw = _image_cache.get(state['path'])
     if raw is None:
         resp = enrich._http.get(f"https://image.tmdb.org/t/p/w1280{state['path']}", timeout=15)
