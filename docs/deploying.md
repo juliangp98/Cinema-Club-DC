@@ -81,10 +81,18 @@ How the scrapers pace themselves: [scrapers.md](scrapers.md).
   run it with just `--smtp` to test the mail login; it says whether Gmail refused the password or
   couldn't be reached (DNS, below). If the site says it couldn't send the email, the backend log has the
   reason (`sudo docker logs cinemaclub-backend 2>&1 | grep "Email failed"`).
-- **DNS** — the backend and bot look names up through the router (`dns:` in `docker-compose.yml`). When the
-  router's resolver fails for a moment, outside calls fail with "Temporary failure in name resolution":
-  sign-in emails (tried three times, over about 4 seconds), TMDB and OMDb (the scraper retries), the AI.
-  `account_check.py --smtp --repeat 20` shows how often it happens.
+- **DNS** — the router on the NAS fails about 1 name lookup in 6 ("Temporary failure in name
+  resolution": sign-in emails, TMDB and OMDb, the AI). So the backend and bot look names up through the
+  club's own caching resolver, the `dns` service (Dockerfile.dns, `dns/unbound.conf.in`): it asks the
+  router and keeps the answers, and when the router fails, a name it has seen before is answered from the
+  cache. If the resolver is ever down, the containers ask the router directly. Sign-in emails are also
+  tried three times (over about 4 seconds). `account_check.py --smtp --repeat 50` shows how often a
+  lookup still fails; `sudo docker logs cinemaclub-dns` shows the resolver's own log.
+  The resolver sits at a fixed address (172.29.53.53) on the project's network (172.29.53.0/24). If
+  Docker says that range overlaps another network on the NAS, pick another `/24` and change it in
+  `docker-compose.yml` (the subnet, the resolver's `ipv4_address` and both `dns:` lists).
+  The first deploy with it needs the network made again, once:
+  `sudo docker-compose down && sudo docker-compose up -d --build` (the database is a volume: it stays).
 - **Search engines** — in Google Search Console add a Domain property for your domain, verify it with the
   TXT record in your DNS, and submit `https://your-domain/sitemap.xml`. Private pages are `noindex` and
   `robots.txt` keeps crawlers out of them.

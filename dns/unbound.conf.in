@@ -1,0 +1,45 @@
+# The club's caching DNS resolver (Dockerfile.dns, docker-compose.yml's `dns`
+# service). The backend and bot look names up here first: it asks the router
+# (@UPSTREAM@, from DNS_UPSTREAM) and keeps the answers. When the router fails
+# a lookup (it does now and then on the NAS: "Temporary failure in name
+# resolution"), a name it has seen before is answered from the cache, even
+# expired, instead of failing.
+server:
+    verbosity: 1
+    interface: 0.0.0.0
+    port: 53
+    do-ip4: yes
+    do-ip6: no
+    do-udp: yes
+    do-tcp: yes
+    # Only the Docker networks and the NAS itself may ask.
+    access-control: 127.0.0.0/8 allow
+    access-control: 10.0.0.0/8 allow
+    access-control: 172.16.0.0/12 allow
+    access-control: 192.168.0.0/16 allow
+    username: ""
+    chroot: ""
+    directory: "/etc/unbound"
+    pidfile: "/tmp/unbound.pid"
+    use-syslog: no
+    logfile: ""
+    # A forwarder: no DNSSEC validation here (the router answers), so no trust anchor to keep.
+    module-config: "iterator"
+    hide-identity: yes
+    hide-version: yes
+    num-threads: 1
+    so-reuseport: no
+    msg-cache-size: 16m
+    rrset-cache-size: 32m
+    # Keep answers at least a minute, and refresh popular ones before they expire.
+    cache-min-ttl: 60
+    prefetch: yes
+    # The point of all this: when the router doesn't answer in 1.5 s, answer
+    # from the cache, even expired (up to a day old), and refresh it behind the scenes.
+    serve-expired: yes
+    serve-expired-ttl: 86400
+    serve-expired-client-timeout: 1500
+
+forward-zone:
+    name: "."
+    forward-addr: @UPSTREAM@

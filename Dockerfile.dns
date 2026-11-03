@@ -1,0 +1,10 @@
+# The club's caching DNS resolver (dns/unbound.conf.in): unbound from
+# Alpine's own packages, on the official Alpine image.
+FROM alpine:3.20
+RUN apk add --no-cache unbound
+COPY dns/unbound.conf.in /etc/unbound/unbound.conf.in
+COPY dns/start.sh /usr/local/bin/start-dns
+RUN chmod +x /usr/local/bin/start-dns
+EXPOSE 53/udp 53/tcp
+HEALTHCHECK --interval=60s --timeout=5s --retries=3 CMD nslookup smtp.gmail.com 127.0.0.1 > /dev/null || exit 1
+CMD ["start-dns"]
