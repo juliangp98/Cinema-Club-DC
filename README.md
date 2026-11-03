@@ -19,7 +19,7 @@ keep watchlists, check in after screenings, and earn 🍿 kernels.
 | **Calendar** | Every showtime as an agenda, a week or a month, with the same filters. Announced films show on the day a theatre expects them. |
 | **Film** and **Theatre** pages | A film's details, ratings, trailer and every showing; a theatre's map, what's on this week, and members' notes. |
 | **Feed** | The club's activity: who's going where, check-ins (with Letterboxd ratings if shared), discussion, polls, weekly recaps, and the Monday digest of the week ahead (a club setting). |
-| **Play** | The games hub: daily and anytime **trivia**, **repertory bingo** (a monthly card filled by screenings — and Letterboxd diary entries, if the club allows), **quiz games** (Higher or lower, Who said it, Guess the still, Guess from the reviews, Emoji plot), **polls** with kernel stakes, and **Records** for you, everyone and the club. |
+| **Play** | The games hub: daily and anytime **trivia**, **repertory bingo** (a monthly card filled by screenings — and Letterboxd diary entries, if the club allows), **quiz games** (Higher or lower, Who said it, Guess the still, Guess from the reviews, Emoji plot), **polls and predictions** (kernel stakes, answers revealed live or all at once, voting deadlines), and **Records** for you, everyone and the club. |
 | **Club** | Members, the leaderboard, the club's theatres and settings (organizers and admins). |
 | **Me** | Your plans, history, watchlist, check-ins and **Settings** — by category: profile, Your taste, notifications, connections (Discord, Letterboxd, calendar feeds), privacy. |
 | **People** pages | A member's profile, taste match, history and game records (within your clubs). |

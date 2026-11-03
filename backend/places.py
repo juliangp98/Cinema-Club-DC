@@ -124,6 +124,12 @@ def to_utc(local, city):
     return local.replace(tzinfo=zone).astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def from_utc(utc, city):
+    """A naive UTC time (activity, poll deadlines) as a city's wall clock."""
+    zone = cities.zone(cities.clean(city) or cities.DEFAULT_CITY)
+    return utc.replace(tzinfo=timezone.utc).astimezone(zone).replace(tzinfo=None)
+
+
 def to_server(local, city):
     """A wall-clock time someone typed in a city, on the server's clock (the post queue)."""
     zone = cities.zone(cities.clean(city) or cities.DEFAULT_CITY)

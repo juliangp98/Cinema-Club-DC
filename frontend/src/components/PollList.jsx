@@ -11,6 +11,21 @@ export const SCORING_LABELS = {
 };
 export const TYPE_LABELS = { standard: "Opinion", prediction: "Prediction" };
 export const POLL_STATUS = { open: "Open", closed: "Voting closed", scored: "Results in" };
+// When members see a scored poll's answers (Poll.reveal).
+export const REVEAL_LABELS = { final: "All at once", live: "Live" };
+export const REVEAL_HINTS = {
+  final: "Members see the answers and standings together when you finalize — everyone's picks are in, then the reveal.",
+  live: "Each answer shows as soon as you set it, and that category stops taking votes — so timing counts. Kernels reach totals when you finalize.",
+};
+
+// "in 3 days", "in 5 hours", "in 20 minutes" — how long until a deadline.
+export function untilText(iso) {
+  const s = Math.max(0, (new Date(iso) - Date.now()) / 1000);
+  const n = (v, unit) => `in ${v} ${unit}${v === 1 ? "" : "s"}`;
+  if (s < 3600) return n(Math.max(1, Math.round(s / 60)), "minute");
+  if (s < 86400) return n(Math.round(s / 3600), "hour");
+  return n(Math.round(s / 86400), "day");
+}
 const PAST_SHOWN = 3;
 
 // The club's polls on Play (R15 — they used to have their own page): open ones
@@ -57,8 +72,9 @@ function PollCard({ poll: p, onOpen }) {
         <span className={`ui-badge ${{ open: "go", scored: "gold" }[p.status] || ""}`}>{POLL_STATUS[p.status] || p.status}</span>
         <span className="pv-card-title">{p.title}</span>
         <span className="pv-card-meta">
-          {TYPE_LABELS[p.poll_type] || "Poll"} · {SCORING_LABELS[p.scoring_mode]} · {total} {total === 1 ? "category" : "categories"}
-          {" · "}{p.voters || 0} voted
+          {TYPE_LABELS[p.poll_type] || "Poll"} · {SCORING_LABELS[p.scoring_mode]}{p.reveal === "live" && p.scoring_mode !== "none" ? " · Live answers" : ""}
+          {" · "}{total} {total === 1 ? "category" : "categories"}{" · "}{p.voters || 0} voted
+          {open && p.closes_at && <> · <strong className="pv-card-closes">closes {untilText(p.closes_at)}</strong></>}
         </span>
         {open && total > 0 && (
           <span className="pv-progress" aria-label={`You've picked ${picked} of ${total}`}>

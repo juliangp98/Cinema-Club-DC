@@ -4,7 +4,8 @@ poll drafts, quotes.
 import json as _json
 from app import (Group, HOME_GROUP_ID, Poll, PollCategory, PollDraft, PollVote, Quote, RANKED_PICKS, GamePost, discord_group,
     role_at_least, _active_membership, _as_int, _draft_poll, _utcnow_naive, announce_new_poll, app, apply_votes,
-    build_poll, db, jsonify, poll_scores, request, require_role, timedelta, vote_kernels)
+    _live_post, build_poll, close_due_polls, db, jsonify, poll_open, poll_your_score, request, require_role, share_prefs, timedelta,
+    utc_iso, vote_kernels)
 from routes.internal.common import require_internal, resolve_discord_user
 
 
@@ -46,44 +47,47 @@ def internal_create_from_draft(draft_id):
         return err
     d.poll_id = poll.id
     db.session.commit()
-    announce_new_poll(poll, user, {'announce': 'now'})
-    return jsonify(poll.to_dict(include_categories=True)), 201
+    # Announced like the site's form does by default: unless their "Polls I create" setting says Never.
+    announce_new_poll(poll, user, {'announce': 'none' if share_prefs(user)['poll'] == 'never' else 'now'})
+    return jsonify({**poll.to_dict(include_categories=True), 'announced': _live_post('poll', poll.id, poll.group_id) is not None}), 201
 
 
 def poll_ballot(user, poll):
     """Everything a Discord ballot shows, for one member: each category's
     nominees, their picks, the vote split (once they've picked, or voting has
-    closed), and — once scored — the winners, their kernels and their place."""
+    closed), and the answers members may see — all at once when it's scored,
+    or one by one in a live poll (a decided category is then locked) — with
+    their kernels and their place so far."""
+    poll_open(poll)
     mine = {}
     for v in PollVote.query.join(PollCategory).filter(PollCategory.poll_id == poll.id,
                                                        PollVote.user_id == user.id):
         mine.setdefault(v.category_id, []).append(v)
-    scored = poll.status == 'scored'
     cats = []
     for c in poll.categories:
         votes = sorted(mine.get(c.id, []), key=lambda v: v.rank or 0)
+        shown = poll.answer_shown(c)
         d = {'id': c.id, 'title': c.title,
              'options': [{'id': o.id, 'text': o.text} for o in c.options],
              'picks': [{'option_id': v.option_id, 'confidence': v.confidence, 'rank': v.rank} for v in votes],
-             'correct_option_id': c.correct_option_id if scored else None}
-        if votes or poll.status != 'open':
+             'correct_option_id': c.correct_option_id if shown else None,
+             'locked': bool(c.correct_option_id) and poll.live}
+        if votes or poll.status != 'open' or shown:
             # Picks per nominee (ranked: any rank), out of the members who voted here.
             d['voters'] = len({v.user_id for v in c.votes})
             d['split'] = {}
             for v in c.votes:
                 d['split'][str(v.option_id)] = d['split'].get(str(v.option_id), 0) + 1
-        if scored and c.correct_option_id and votes:
+        if shown and votes:
             d['kernels'] = sum(vote_kernels(poll.scoring_mode, v, c.correct_option_id) for v in votes)
         cats.append(d)
     out = {'poll': {'id': poll.id, 'title': poll.title, 'status': poll.status,
-                    'scoring_mode': poll.scoring_mode, 'poll_type': poll.poll_type,
-                    'ranked_picks': RANKED_PICKS},
-           'categories': cats, 'answered': sum(1 for c in cats if c['picks'])}
-    if scored:
-        board = poll_scores(poll)
-        place = next((i for i, s in enumerate(board) if s['user'].id == user.id), None)
-        out['score'] = ({'kernels': board[place]['kernels'], 'correct': board[place]['correct'],
-                         'place': place + 1, 'of': len(board)} if place is not None else None)
+                    'scoring_mode': poll.scoring_mode, 'poll_type': poll.poll_type, 'reveal': poll.reveal or 'final',
+                    'closes_at': utc_iso(poll.closes_at), 'ranked_picks': RANKED_PICKS},
+           'categories': cats, 'answered': sum(1 for c in cats if c['picks']),
+           'decided': sum(1 for c in cats if c['correct_option_id'])}
+    if poll.scoring_mode != 'none' and out['decided']:
+        out['score'] = poll_your_score(poll, user.id)
     return out
 
 
@@ -93,6 +97,7 @@ def internal_polls():
     group_id = request.args.get('group_id', type=int)
     if not group_id:
         return jsonify({'error': 'group_id required'}), 400
+    close_due_polls(force=True)
     q = Poll.query.filter_by(group_id=group_id)
     if request.args.get('include_closed'):
         # /poll vote's picker: open polls, then ones that closed in the last 60 days
@@ -140,7 +145,7 @@ def internal_poll_vote(poll_id):
     _, err = require_role(user, poll.group_id, 'member')
     if err:
         return err
-    if poll.status != 'open':
+    if not poll_open(poll):
         return jsonify({'error': 'poll_closed', **poll_ballot(user, poll)}), 409
     apply_votes(user, poll, data.get('votes'), data.get('clear'))
     return jsonify(poll_ballot(user, poll))

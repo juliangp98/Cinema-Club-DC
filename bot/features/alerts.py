@@ -12,7 +12,7 @@ from api import ApiError
 import embeds
 from .shared import (DEFAULT_GROUP_ID, DIGEST_OFF_MSG, GONE_MSG, SITE_URL, api, channel_for, client, club, club_now, connected_clubs,
                      discord_identity, dm_owner, register, reply_failure, tell, theatre_choices, use_club, zone_now)
-from . import games, polls, threads      # used at call time, so the order they load in doesn't matter
+from . import games, threads      # used at call time, so the order they load in doesn't matter
 
 
 # ─── Announce loop ────────────────────────────────────────────────────────────
@@ -66,14 +66,6 @@ async def announce_loop():
             p = ev.get('payload') or {}
             if ev['kind'] in ('llm_switch', 'owner_note'):      # the AI changed models, a key works: owner only
                 await dm_owner(p.get('message') or 'The AI models changed.')
-            elif ev['kind'] in ('poll_opened', 'poll_scored'):
-                channel = channel_for(p.get('group_id'))       # the poll's own club's server, if it has one
-                if channel is not None:
-                    if ev['kind'] == 'poll_opened':
-                        await channel.send(embed=embeds.poll_opened_embed(p),
-                                           view=polls.vote_open_view([{'id': p['poll_id'], 'title': p['title']}]))
-                    else:
-                        await channel.send(embed=embeds.poll_results_embed(p))
             elif msg := embeds.activity_message(ev):
                 channel = channel_for(p.get('group_id') or DEFAULT_GROUP_ID)
                 if channel is not None:

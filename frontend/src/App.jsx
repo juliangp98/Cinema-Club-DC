@@ -217,6 +217,8 @@ export default function App() {
           <Route path="/polls" element={<Navigate to="/play#polls" replace />} />
           <Route path="/polls/new" element={
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/polls/:pollId/edit" element={
+            <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/polls/:pollId" element={
             <RequireSignIn user={user}><PollDetailPage user={user} setUser={setUser} apiBase={API_BASE} /></RequireSignIn>} />
         </Route>

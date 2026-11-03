@@ -49,6 +49,10 @@
 .pv-edit-opt .share-input { flex: 1; }
 .pv-form > .btn { align-self: flex-start; margin-top: 0.75rem; }
 .pv-announce { margin-top: 1rem; }
+.pv-set p { margin: 0 0 0.25rem; }
+.pv-deadline { margin-top: 0.25rem; }
+.pv-deadline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.pv-deadline-at { width: auto; }
 .pv-form-foot { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 
 /* Ballot */
@@ -86,6 +90,17 @@
 .pv-confidence input { flex: 1; accent-color: var(--amber); }
 .pv-confidence strong { color: var(--cream); min-width: 3.5rem; }
 .pv-saved { font-size: var(--fs-xs); color: var(--muted); min-height: 1em; }
+.pv-stake { margin: 0; }
+.pv-locked { margin: 0; padding: 0.55rem 0.7rem; border-radius: var(--radius); background: var(--bg3);
+  border: 1px solid var(--gold-line); font-size: var(--fs-sm); color: var(--muted); }
+.pv-locked strong { color: var(--cream); }
+.pv-cat-locked { margin-left: auto; }
+.pv-closes { color: var(--amber); font-size: var(--fs-sm); margin: -0.5rem 0 1rem; }
+.pv-card-closes { color: var(--amber); font-weight: 600; }
+.pv-score { background: var(--gold-wash); border: 1px solid var(--gold-line); border-radius: var(--card-radius);
+  padding: 0.6rem 0.9rem; margin: 0 0 0.75rem; font-size: var(--fs-sm); color: var(--cream); }
+.pv-score strong { color: var(--amber); font-size: var(--fs-md); }
+.pv-score span { color: var(--muted); }
 .pv-saved.saved { color: var(--green); }
 .pv-saved.error { color: var(--soft-red); }
 

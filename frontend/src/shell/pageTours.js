@@ -80,10 +80,10 @@ export const PAGE_TOURS = {
       body: "The club's Discord server: admins connect it here (Add to Discord, then /setup with a code), and the bot posts what the club chooses." },
   ] },
   poll: { title: "a poll", help: "polls", steps: [
-    { target: ".pv-tabs", title: "Vote or see results", body: "Switch between your ballot and how everyone voted." },
-    { target: ".pv-progress", title: "Your progress", body: "Picks save as you go — finish any time before voting closes." },
+    { target: ".pv-tabs", title: "Vote or see results", body: "Switch between your ballot, how everyone voted (with the answers once they're in — all at once, or live as they come) and the standings." },
+    { target: ".pv-progress", title: "Your progress", body: "Picks save as you go — finish any time before voting closes. In a live poll, a category locks once its answer is in." },
     { target: ".pv-jump", title: "Categories", body: "Jump to any category; the filled dots are ones you've picked." },
-    { target: ".pv-manage", title: "Running the poll", body: "Organizers close voting, mark the winners and award the kernels here." },
+    { target: ".pv-manage", title: "Running the poll", body: "Organizers close voting, set the answers, finalize them (kernels to everyone's totals) and edit the poll here." },
   ] },
   me: { title: "the Me page", help: "lists", steps: [
     { target: ".me-card", title: "You", body: "Your picture, name and a line about you, as your clubs see them." },

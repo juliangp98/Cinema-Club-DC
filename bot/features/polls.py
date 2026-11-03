@@ -65,11 +65,12 @@ def vote_open_view(polls):
 
 
 def next_unanswered(ballot, after):
-    """Index of the next category without a pick after `after` (wrapping), or None."""
+    """Index of the next category without a pick (and still taking picks)
+    after `after` (wrapping), or None."""
     cats = ballot['categories']
     for step in range(1, len(cats) + 1):
         i = (after + step) % len(cats)
-        if not cats[i]['picks']:
+        if not cats[i]['picks'] and not cats[i].get('locked'):
             return i
     return None
 
@@ -77,6 +78,7 @@ def next_unanswered(ballot, after):
 def ballot_view(ballot, idx, page=0):
     poll, cats = ballot['poll'], ballot['categories']
     pid, cat, mode, is_open = poll['id'], cats[idx], poll['scoring_mode'], poll['status'] == 'open'
+    can_pick = is_open and not cat.get('locked')        # a live poll's decided category is locked
     size = 24 if mode == 'ranked' else 25            # ranked dropdowns also carry "— none —"
     pages = max(1, -(-len(cat['options']) // size))
     page = min(page, pages - 1)
@@ -84,7 +86,7 @@ def ballot_view(ballot, idx, page=0):
     of_pages = f' ({page + 1}/{pages})' if pages > 1 else ''
     view, row = discord.ui.View(timeout=None), 0
 
-    if is_open and chunk:
+    if can_pick and chunk:
         if mode == 'ranked':
             by_rank = {p['rank']: p['option_id'] for p in cat['picks']}
             for r in range(1, poll.get('ranked_picks', 3) + 1):
@@ -121,9 +123,9 @@ def ballot_view(ballot, idx, page=0):
         if nxt is not None and nxt != idx:
             view.add_item(VoteButton('nav', pid, nxt, 2, label='⏭ Next unanswered', row=row,
                                      style=discord.ButtonStyle.primary))
-    if is_open and cat['picks'] and mode != 'ranked':
+    if can_pick and cat['picks'] and mode != 'ranked':
         view.add_item(VoteButton('clear', pid, idx, label='Clear pick', row=row))
-    if is_open and pages > 1:
+    if can_pick and pages > 1:
         nxt_page = (page + 1) % pages
         view.add_item(VoteButton('page', pid, idx, 0, nxt_page, row=row,
                                  label=f'More nominees ({nxt_page * size + 1}–{min((nxt_page + 1) * size, len(cat["options"]))})'))
@@ -178,6 +180,9 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
             return
 
         cat, mode = cats[idx], ballot['poll']['scoring_mode']
+        if cat.get('locked'):                      # its answer came in while the ballot was open
+            await show(ballot, idx, page, note="🔒 This one's answer just came in — picks are locked.")
+            return
         mine = cat['picks'][0] if cat['picks'] else None
         votes, clear, note = [], [], None
         if act == 'pick' and values:
@@ -290,9 +295,10 @@ class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'po
                    else api_failure(e, "Couldn't create it ({status})."))
             await interaction.followup.send(msg, ephemeral=True)
             return
-        await interaction.followup.send(
-            f"✓ **{poll['title']}** is open — it'll be announced in the club's channel in a moment. {SITE_URL}/polls/{poll['id']}",
-            ephemeral=True)
+        said = ("it'll be announced in the club's channel in a moment" if poll.get('announced')
+                else "not announced (your setting for polls you create says Never — share it from the site any time)")
+        await interaction.followup.send(f"✓ **{poll['title']}** is open — {said}. {SITE_URL}/polls/{poll['id']}",
+                                        ephemeral=True)
 
 
 async def poll_make(interaction: discord.Interaction, request: str, based_on: app_commands.Choice[str] = None):

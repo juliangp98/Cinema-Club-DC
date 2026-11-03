@@ -2,14 +2,13 @@
 ballots built from dropdowns and buttons (within Discord's limits), scored
 results, closing mid-ballot, who may vote, and the #movies poll posts."""
 import asyncio
-import json
 import re
 import types
 
 import discord
 import pytest
 
-from helpers import patch_bot_api, setup_db, patch_bot
+from helpers import patch_bot_api, setup_db
 
 VEE, WES, LONE = 9101, 9102, 9109
 
@@ -299,26 +298,44 @@ def test_who_may_vote(polls):
 
 # ── #movies posts ──
 
-def test_poll_posts_in_movies(polls, monkeypatch):
-    from app import app, db, ActivityEvent
-    sent = []
+def test_poll_announcements_show_the_deadline_and_live_standings(polls):
+    """The #movies announcement (the shared-posts queue renders it): the
+    deadline in each reader's own time, and a live poll's standings as
+    answers come in — names only, never a ping."""
+    from datetime import datetime, timezone
+    p = {'poll_id': 7, 'title': 'Oscar stakes', 'status': 'open', 'scoring_mode': 'confidence', 'reveal': 'live',
+         'categories': 24, 'creator': 'Vee', 'closes_at': '2027-03-15T00:00:00+00:00'}
+    e = polls.bot.embeds.poll_post_embed(p)
+    ts = int(datetime(2027, 3, 15, tzinfo=timezone.utc).timestamp())
+    assert f'<t:{ts}:f>' in e.description and 'answers show as they come in' in e.description and not e.fields
+    e = polls.bot.embeds.poll_post_embed({**p, 'decided': 8, 'live_top': [{'name': 'Ben', 'kernels': 21, 'correct': 6},
+                                                                         {'name': None, 'kernels': 14, 'correct': 5}]})
+    assert e.fields[0].name == 'Live standings · 8 of 24 decided'
+    assert e.fields[0].value == '🥇 **Ben** — 21 🍿\n🥈 *a member on the site* — 14 🍿' and '<@' not in e.fields[0].value
+    closed = polls.bot.embeds.poll_post_embed({**p, 'status': 'closed', 'decided': 8, 'live_top': []})
+    assert closed.description == 'Answers are coming in.'
 
-    class Channel:
-        async def send(self, content=None, embed=None, view=None, **k):
-            sent.append((content, embed, view))
-    patch_bot(movies_channel=lambda: Channel())
-    top = [{'name': 'Vee', 'discord_user_id': '9101', 'kernels': 9, 'correct': 2},
-           {'name': 'Ann', 'discord_user_id': None, 'kernels': 3, 'correct': 1}]
+
+def test_a_live_polls_answers_show_and_lock_in_the_ballot(polls):
+    """Live: Vee's ballot shows Best Picture's answer as soon as it's set,
+    with her ❌ and kernels, and offers no more picks there; the other
+    categories stay open."""
+    from app import app, db, Poll, PollVote, User
     with app.app_context():
-        for kind, gid in (('poll_opened', 1), ('poll_scored', 1), ('poll_opened', 999)):
-            db.session.add(ActivityEvent(kind=kind, payload_json=json.dumps({
-                'poll_id': polls.pid['Oscar stakes'], 'group_id': gid, 'title': 'Oscar stakes', 'scoring_mode': 'confidence',
-                'categories': 2, 'creator': 'Vee', 'voters': 2, 'top': top})))
+        p = db.session.get(Poll, polls.pid['Quick picks'])
+        p.reveal = 'live'
+        cat = p.categories[0]
+        vee = User.query.filter_by(discord_user_id=str(VEE)).first()
+        db.session.add(PollVote(category_id=cat.id, user_id=vee.id, option_id=cat.options[1].id))
+        cat.correct_option_id = cat.options[0].id
         db.session.commit()
-    run(polls.bot.announce_loop.coro())
-    assert len(sent) == 2                                                                     # only this server's polls
-    assert 'New poll: Oscar stakes' in sent[0][1].title
-    assert sent[0][2] and items(sent[0][2])[0].custom_id == f"vote:b:open:{polls.pid['Oscar stakes']}:0:0:0"
-    assert '🥇 <@9101> — **9 🍿**' in sent[1][1].description and '🥈 **Ann**' in sent[1][1].description   # mention if linked
-    with app.app_context():
-        assert ActivityEvent.query.filter(ActivityEvent.kind.like('poll_%'), ActivityEvent.announced_at.is_(None)).count() == 0
+    opened = vote(polls, VEE, 'Quick picks').last
+    assert opened[3].description.startswith('### Best Score')                  # opens on one still taking picks
+    it = click(polls, VEE, find(polls, opened[4], 'nav', idx=0))               # ◀ back to Best Picture
+    embed, view = it.last[3], it.last[4]
+    assert "🔒 *This one's answer is in" in embed.description
+    assert '🏆 SIRÂT' in embed.description and '❌ HAMNET' in embed.description and 'You earned **+0 🍿** here' in embed.description
+    assert find(polls, view, 'pick') is None and find(polls, view, 'clear') is None                  # locked
+    assert embed.fields[0].name == 'Your score' and '0 of 1 right' in embed.fields[0].value
+    nxt = find(polls, view, 'nav', arg=2)
+    assert int(re.fullmatch(polls.bot.VOTE_ID, nxt.custom_id)['idx']) == 1                           # on to an open one

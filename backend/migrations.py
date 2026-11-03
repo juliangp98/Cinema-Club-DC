@@ -33,6 +33,9 @@ def migrate():
         "ALTER TABLE letterboxd_entry ADD COLUMN genres TEXT",
         "ALTER TABLE letterboxd_entry ADD COLUMN runtime INTEGER",
         "ALTER TABLE letterboxd_entry ADD COLUMN details_at DATETIME",
+        # Polls: answers live or all at once, and a voting deadline
+        "ALTER TABLE poll ADD COLUMN reveal VARCHAR(8) DEFAULT 'final'",
+        "ALTER TABLE poll ADD COLUMN closes_at DATETIME",
         # R15: trivia difficulty and sources (film_pool.py)
         "ALTER TABLE trivia_question ADD COLUMN difficulty VARCHAR(8)",
         "ALTER TABLE trivia_question ADD COLUMN tmdb_id INTEGER",

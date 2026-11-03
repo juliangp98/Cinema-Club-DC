@@ -4,18 +4,13 @@ Routes (and their own helpers) moved out of app.py in R9b; shared helpers
 and the models are imported from app."""
 import json as _json
 import places
-from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote,
-    _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes,
-    build_poll, can_share, current_user, datetime, db, jsonify, os, poll_scores,
-    post_dict, queue_poll_post, request, require_auth, require_group_member, require_role, role_at_least,
-    share_prefs, timezone)
+from app import (DiscordPost, Group, Poll, PollCategory, PollDraft, PollOption, PollVote, POLL_TYPES, REVEALS,
+    SCORING_MODES, _active_membership, _as_int, _draft_poll, _live_post, announce_new_poll, app, apply_votes,
+    build_poll, can_share, clear_poll_results, close_due_polls, close_poll, current_user, datetime, db,
+    edit_poll_categories, jsonify, notify_poll_results, parse_closes_at, poll_open, poll_posts_changed, poll_scores,
+    poll_your_score, post_dict, queue_poll_post, request, require_auth, require_group_member, require_role,
+    role_at_least, share_prefs, timezone)
 
-
-def poll_posts_changed(poll_id):
-    """A poll was edited, closed, scored, un-scored or deleted: refresh (or
-    remove) its announcement and results posts."""
-    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll_id,
-                             DiscordPost.status == 'posted').update({'dirty': True}, synchronize_session=False)
 
 def _require_group_member(group_id):
     """Return (user, membership) or abort with JSON error."""
@@ -29,6 +24,7 @@ def get_group_polls(group_id):
     user, membership = _require_group_member(group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
+    close_due_polls(force=True)
     polls = Poll.query.filter_by(group_id=group_id).order_by(Poll.created_at.desc()).all()
     # For the list (R6a): how many voted, and how far you've got.
     cat_poll = {c.id: c.poll_id for c in PollCategory.query.filter(PollCategory.poll_id.in_([p.id for p in polls]))} if polls else {}
@@ -88,58 +84,6 @@ def get_poll_draft(draft_id):
     return jsonify({'id': d.id, 'group_id': d.group_id, 'prompt': d.prompt, 'poll_id': d.poll_id, **_json.loads(d.data_json)})
 
 
-@app.route('/api/groups/<int:group_id>/polls/oscars', methods=['POST'])
-@require_auth
-def create_oscars_poll(group_id):
-    user, membership = _require_group_member(group_id)
-    if not role_at_least(membership, 'organizer'):
-        return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
-
-    # Load template
-    template_path = os.path.join(os.path.dirname(__file__), 'oscars_2026.json')
-    if not os.path.exists(template_path):
-        return jsonify({'error': 'Oscars template not found'}), 404
-
-    with open(template_path) as f:
-        tmpl = _json.load(f)
-
-    data = request.json or {}
-    scoring_mode = data.get('scoring_mode', 'confidence')
-
-    poll = Poll(
-        group_id=group_id,
-        created_by=user.id,
-        title=tmpl.get('title', 'Oscar Predictions'),
-        description=tmpl.get('description', ''),
-        poll_type='prediction',
-        scoring_mode=scoring_mode,
-    )
-    db.session.add(poll)
-    db.session.flush()
-
-    for i, cat_data in enumerate(tmpl.get('categories', [])):
-        cat = PollCategory(
-            poll_id=poll.id,
-            title=cat_data['title'],
-            sort_order=i,
-        )
-        db.session.add(cat)
-        db.session.flush()
-        for j, nom in enumerate(cat_data.get('nominees', [])):
-            extra = nom.get('extra')
-            opt = PollOption(
-                category_id=cat.id,
-                text=nom['text'],
-                sort_order=j,
-                extra_data=_json.dumps(extra) if extra else None,
-            )
-            db.session.add(opt)
-
-    db.session.commit()
-    announce_new_poll(poll, user, data)
-    return jsonify(poll.to_dict(include_categories=True)), 201
-
-
 @app.route('/api/polls/<int:poll_id>', methods=['GET'])
 @require_auth
 def get_poll(poll_id):
@@ -149,7 +93,11 @@ def get_poll(poll_id):
     user, membership = _require_group_member(poll.group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
-    d = poll.to_dict(include_categories=True, user_id=user.id)
+    poll_open(poll)
+    runner = role_at_least(membership, 'organizer')
+    d = poll.to_dict(include_categories=True, user_id=user.id, runner=runner)
+    d['your_score'] = poll_your_score(poll, user.id) if poll.scoring_mode != 'none' else None
+    d['has_votes'] = poll.has_votes()
     if can_share(user, poll.group_id):
         live = {k: _live_post(k, poll.id, poll.group_id) for k in ('poll', 'poll_results')}
         d['discord'] = {'announce': post_dict(live['poll']) if live['poll'] else None,
@@ -167,22 +115,44 @@ def update_poll(poll_id):
     if not role_at_least(membership, 'organizer'):
         return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
-    data = request.json
+    data = request.json or {}
     if 'title' in data:
-        poll.title = data['title'].strip()
+        title = (data['title'] or '').strip()[:200]
+        if not title:
+            return jsonify({'error': 'Title required'}), 400
+        poll.title = title
     if 'description' in data:
-        poll.description = data['description']
-    if 'poll_type' in data and data['poll_type'] in ('standard', 'prediction'):
-        poll.poll_type = data['poll_type']
-    if 'scoring_mode' in data and data['scoring_mode'] in ('none', 'single', 'ranked', 'confidence'):
-        poll.scoring_mode = data['scoring_mode']
-    if 'status' in data and data['status'] in ('open', 'closed'):
-        poll.status = data['status']
+        poll.description = (data['description'] or '')[:2000]
+    # How it's scored can't change once anyone has picked: their picks were made for it.
+    changes = {k: data[k] for k, allowed in (('poll_type', POLL_TYPES), ('scoring_mode', SCORING_MODES), ('reveal', REVEALS))
+               if k in data and data[k] in allowed and data[k] != getattr(poll, k)}
+    if changes and poll.has_votes():
+        return jsonify({'error': "Members have voted, so how it's scored can't change now.", 'code': 'has_votes'}), 409
+    for k, v in changes.items():
+        setattr(poll, k, v)
+    if 'closes_at' in data:
+        poll.closes_at, err = parse_closes_at(data['closes_at'], places.club_city(poll.group))
+        if err:
+            return err
+    if 'categories' in data:
+        err = edit_poll_categories(poll, data['categories'])
+        if err:
+            db.session.rollback()
+            return err
+    if 'status' in data and data['status'] in ('open', 'closed') and data['status'] != poll.status:
+        if poll.status == 'scored':
+            clear_poll_results(poll)                  # scoring undone ("Edit answers"): the notes go until it's finalized again
         if data['status'] == 'closed':
-            poll.closed_at = datetime.now(timezone.utc)
+            if poll.status == 'open':
+                close_poll(poll)
+            poll.status = 'closed'
+        else:
+            poll.status = 'open'
+            if poll.closes_at and 'closes_at' not in data and poll.closes_at <= datetime.now(timezone.utc).replace(tzinfo=None):
+                poll.closes_at = None                 # reopened past its deadline: open until closed (or a new one)
     poll_posts_changed(poll.id)
     db.session.commit()
-    return jsonify(poll.to_dict())
+    return jsonify(poll.to_dict(include_categories='categories' in data, runner=True))
 
 
 @app.route('/api/polls/<int:poll_id>', methods=['DELETE'])
@@ -196,6 +166,7 @@ def delete_poll(poll_id):
         return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
     poll_posts_changed(poll.id)            # its Discord posts come down
+    clear_poll_results(poll)
     DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll.id,
                              DiscordPost.status == 'pending').update({'status': 'cancelled'}, synchronize_session=False)
     db.session.delete(poll)
@@ -209,8 +180,8 @@ def submit_votes(poll_id):
     poll = db.session.get(Poll, poll_id)
     if not poll:
         return jsonify({'error': 'Poll not found'}), 404
-    if poll.status != 'open':
-        return jsonify({'error': 'Poll is not open for voting'}), 400
+    if not poll_open(poll):
+        return jsonify({'error': 'Voting has closed.', 'code': 'closed'}), 400
     user, membership = _require_group_member(poll.group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
@@ -239,8 +210,8 @@ def set_category_winner(poll_id, cat_id):
     if not cat or cat.poll_id != poll.id:
         return jsonify({'error': 'Category not found'}), 404
 
-    data = request.json  # { option_id: int | null }
-    opt_id = data.get('option_id')
+    data = request.json or {}  # { option_id: int | null }
+    opt_id = _as_int(data.get('option_id'))
     if opt_id:
         opt = db.session.get(PollOption, opt_id)
         if not opt or opt.category_id != cat_id:
@@ -249,9 +220,12 @@ def set_category_winner(poll_id, cat_id):
     else:
         cat.correct_option_id = None
 
-    poll_posts_changed(poll.id)            # posted results follow corrections
+    poll_posts_changed(poll.id)            # posted results (and a live poll's standings) follow
+    if poll.status == 'scored':
+        notify_poll_results(poll)          # a correction after finalizing updates everyone's result note
     db.session.commit()
-    return jsonify({'category_id': cat_id, 'correct_option_id': cat.correct_option_id})
+    return jsonify({'category_id': cat_id, 'correct_option_id': cat.correct_option_id, 'saved_answer': cat.correct_option_id,
+                    'locked': bool(cat.correct_option_id) and poll.live})
 
 
 @app.route('/api/polls/<int:poll_id>/score', methods=['POST'])
@@ -264,27 +238,28 @@ def score_poll(poll_id):
     if not role_at_least(membership, 'organizer'):
         return jsonify({'error': 'Organizer access required', 'code': 'role'}), 403
 
-    data = request.json  # { winners: { category_id: option_id } }
-    winners = data.get('winners', {})
-
-    for cat_id_str, opt_id in winners.items():
-        cat_id = int(cat_id_str)
-        cat = db.session.get(PollCategory, cat_id)
-        if cat and cat.poll_id == poll.id:
-            cat.correct_option_id = opt_id
+    data = request.json or {}  # { winners: { category_id: option_id } } — any not sent keep what's saved
+    cats = {c.id: c for c in poll.categories}
+    for cat_id_str, opt_id in (data.get('winners') or {}).items():
+        cat = cats.get(_as_int(cat_id_str))
+        if cat and _as_int(opt_id) in {o.id for o in cat.options}:
+            cat.correct_option_id = _as_int(opt_id)
+    if not any(c.correct_option_id for c in poll.categories):
+        return jsonify({'error': 'Mark at least one answer first.'}), 400
 
     first_scoring = poll.status != 'scored'
     poll.status = 'scored'
     poll.closed_at = poll.closed_at or datetime.now(timezone.utc)
     poll.scored_at = datetime.now(timezone.utc)
     poll_posts_changed(poll.id)            # a correction updates results already posted
+    notify_poll_results(poll)
     db.session.commit()
     # Results go to Discord when asked for, or right away for "always" sharers.
     if can_share(user, poll.group_id) and (data.get('post_results') is True or (
             first_scoring and data.get('post_results') is None and share_prefs(user)['poll'] == 'always')):
         queue_poll_post(poll, user, 'poll_results', places.server_now())
 
-    return jsonify(poll.to_dict(include_categories=True))
+    return jsonify(poll.to_dict(include_categories=True, user_id=user.id, runner=True))
 
 
 @app.route('/api/polls/<int:poll_id>/leaderboard', methods=['GET'])
@@ -296,8 +271,10 @@ def poll_leaderboard(poll_id):
     user, membership = _require_group_member(poll.group_id)
     if not membership:
         return jsonify({'error': 'Not a group member'}), 403
-
-    return jsonify([{**s, 'user': s['user'].public_dict()} for s in poll_scores(poll)])
+    # Members see standings over the answers they can see; organizers may
+    # preview an all-at-once poll's before finalizing (?preview=1).
+    preview = request.args.get('preview') and role_at_least(membership, 'organizer')
+    return jsonify([{**s, 'user': s['user'].public_dict()} for s in poll_scores(poll, members_view=not preview)])
 
 
 @app.route('/api/users/<int:user_id>/kernels', methods=['GET'])

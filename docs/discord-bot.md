@@ -22,9 +22,11 @@ joins it to a site account later.
 - **Screening threads** — a card in the channel (poster, time, who's going, Going / Maybe buttons) with a
   thread mirrored both ways with the site's discussion: site comments appear under the commenter's name
   through a webhook, messages in the thread become site comments, edits and deletions follow.
-- **Game posts** — the question of the day, bingo cards and wins, poll openings and results, as each club
+- **Game posts** — the question of the day and bingo cards and wins, as each club
   chooses (Never / Ask first, where an admin approves each by DM / Always).
-- **What members share** — RSVPs, "who's in?" invites and polls, only for members who choose to share.
+- **What members share** — RSVPs, "who's in?" invites and polls, only for members who choose to share. A poll's
+  creator announces it (now, later or not; "Create now" in Discord follows their Never) and posts the results;
+  a live poll's announcement keeps its standings as answers come in, and shows the voting deadline.
 - **"Did you go?"** — after a screening someone was going to, a private DM (10 AM–9 PM their time, at most one a day)
   with Went / Didn't go. Closed DMs: it asks after their next command instead.
 - **Alerts by DM** — for members who chose Discord for their alerts (watchlist, saved searches, favorites).

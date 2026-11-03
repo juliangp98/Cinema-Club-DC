@@ -161,7 +161,7 @@ def test_scored_ballots_show_winners_and_kernels(scored):
     b = ballot(scored, scored['poll']).json
     assert b['categories'][0]['correct_option_id'] == scored['sirat']
     assert b['categories'][0]['kernels'] == -10 and 'kernels' not in b['categories'][1]    # a wrong 10 loses 10
-    assert b['score'] == {'kernels': -10, 'correct': 0, 'place': 2, 'of': 2}
+    assert b['score'] == {'kernels': -10, 'correct': 0, 'total': 1, 'place': 2, 'of': 2}
 
 
 def test_results_are_posted_once_without_pings(scored):

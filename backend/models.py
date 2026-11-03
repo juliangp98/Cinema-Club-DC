@@ -1000,6 +1000,11 @@ class Poll(db.Model):
     poll_type = db.Column(db.String(20), default='standard')  # 'standard' | 'prediction'
     scoring_mode = db.Column(db.String(20), default='none')   # 'none' | 'single' | 'ranked' | 'confidence'
     status = db.Column(db.String(20), default='open')         # 'open' | 'closed' | 'scored'
+    # When members see the answers (scored polls): 'final' — all at once, when
+    # it's finalized; 'live' — each as it's set, and that category stops
+    # taking votes (timing counts). Kernels reach totals at finalize either way.
+    reveal = db.Column(db.String(8), default='final')
+    closes_at = db.Column(db.DateTime, nullable=True)          # voting deadline (naive UTC); closes by itself
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     closed_at = db.Column(db.DateTime, nullable=True)
     scored_at = db.Column(db.DateTime, nullable=True)
@@ -1009,7 +1014,21 @@ class Poll(db.Model):
     categories = db.relationship('PollCategory', backref='poll', lazy=True, cascade='all, delete-orphan',
                                  order_by='PollCategory.sort_order')
 
-    def to_dict(self, include_categories=False, user_id=None):
+    @property
+    def live(self):
+        return self.reveal == 'live' and self.scoring_mode != 'none'
+
+    def answer_shown(self, cat):
+        """May members see this category's answer yet?"""
+        return bool(cat.correct_option_id) and (self.status == 'scored' or self.live)
+
+    def has_votes(self):
+        return PollVote.query.join(PollCategory).filter(PollCategory.poll_id == self.id).first() is not None
+
+    def to_dict(self, include_categories=False, user_id=None, runner=False):
+        """`runner`: the viewer runs the club, so sees the answers they've
+        saved (`saved_answer`) before members do."""
+        city = places.club_city(self.group)
         d = {
             'id': self.id,
             'group_id': self.group_id,
@@ -1023,9 +1042,15 @@ class Poll(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'closed_at': self.closed_at.isoformat() if self.closed_at else None,
             'category_count': len(self.categories),
+            'reveal': self.reveal or 'final',
+            # The deadline: when (UTC, for "in 2 hours") and as the club's city's wall clock (to show and edit)
+            'closes_at': core.utc_iso(self.closes_at),
+            'closes_at_local': places.from_utc(self.closes_at, city).isoformat(timespec='minutes') if self.closes_at else None,
+            'decided': sum(1 for c in self.categories if self.answer_shown(c)),
         }
         if include_categories:
-            d['categories'] = [c.to_dict(user_id=user_id, show_winner=self.status == 'scored') for c in self.categories]
+            d['categories'] = [c.to_dict(user_id=user_id, show_winner=self.answer_shown(c), runner=runner)
+                               for c in self.categories]
         return d
 
 
@@ -1040,7 +1065,7 @@ class PollCategory(db.Model):
                               order_by='PollOption.sort_order')
     votes = db.relationship('PollVote', backref='category', lazy=True, cascade='all, delete-orphan')
 
-    def to_dict(self, user_id=None, show_winner=False):
+    def to_dict(self, user_id=None, show_winner=False, runner=False):
         d = {
             'id': self.id,
             'title': self.title,
@@ -1048,8 +1073,14 @@ class PollCategory(db.Model):
             'options': [o.to_dict() for o in self.options],
             'correct_option_id': self.correct_option_id if show_winner else None,
             'vote_count': len(self.votes),
+            # A live poll's decided category takes no more votes.
+            'locked': bool(self.correct_option_id) and self.poll.live,
         }
+        if runner:
+            d['saved_answer'] = self.correct_option_id
         user_votes = [v for v in self.votes if v.user_id == user_id] if user_id else []
+        if show_winner and user_votes:
+            d['your_kernels'] = sum(core.vote_kernels(self.poll.scoring_mode, v, self.correct_option_id) for v in user_votes)
         if user_id:
             if user_votes:
                 if self.poll.scoring_mode == 'ranked':

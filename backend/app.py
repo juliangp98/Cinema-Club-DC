@@ -819,14 +819,18 @@ def poll_payload(poll, results=False):
     """What a poll announcement / results post shows (plain names: no pings;
     members who aren't on Discord stay unnamed)."""
     payload = {'poll_id': poll.id, 'group_id': poll.group_id, 'title': poll.title, 'status': poll.status,
-               'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode,
-               'categories': len(poll.categories),
+               'poll_type': poll.poll_type, 'scoring_mode': poll.scoring_mode, 'reveal': poll.reveal or 'final',
+               'categories': len(poll.categories), 'closes_at': utc_iso(poll.closes_at),
                'creator': poll.creator.name if on_discord(poll.creator, poll.group_id) else None}
+    top = lambda board: [{'name': s['user'].name if on_discord(s['user'], poll.group_id) else None,
+                          'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
     if results:
-        board = poll_scores(poll)
-        payload['voters'] = len(board)
-        payload['top'] = [{'name': s['user'].name if on_discord(s['user'], poll.group_id) else None,
-                           'kernels': s['kernels'], 'correct': s['correct']} for s in board[:3]]
+        payload['voters'] = poll_voter_count(poll)
+        payload['top'] = top(poll_scores(poll))
+    elif poll.live and poll.status != 'scored':
+        # A live poll's announcement keeps the standings as answers come in.
+        payload['decided'] = sum(1 for c in poll.categories if c.correct_option_id)
+        payload['live_top'] = top(poll_scores(poll, members_view=True)) if payload['decided'] else []
     return payload
 
 
@@ -1172,10 +1176,15 @@ def build_poll(group_id, user, data):
     title = (data.get('title') or '').strip()[:200]
     if not title:
         return None, (jsonify({'error': 'Title required'}), 400)
+    group = db.session.get(Group, group_id)
+    closes_at, err = parse_closes_at(data.get('closes_at'), places.club_city(group))
+    if err:
+        return None, err
     poll = Poll(group_id=group_id, created_by=user.id, title=title,
                 description=(data.get('description') or '')[:2000],
-                poll_type=data.get('poll_type') if data.get('poll_type') in ('standard', 'prediction') else 'standard',
-                scoring_mode=data.get('scoring_mode') if data.get('scoring_mode') in ('none', 'single', 'ranked', 'confidence') else 'none')
+                poll_type=data.get('poll_type') if data.get('poll_type') in POLL_TYPES else 'standard',
+                scoring_mode=data.get('scoring_mode') if data.get('scoring_mode') in SCORING_MODES else 'none',
+                reveal=data.get('reveal') if data.get('reveal') in REVEALS else 'final', closes_at=closes_at)
     db.session.add(poll)
     db.session.flush()
     order = 0
@@ -1189,11 +1198,94 @@ def build_poll(group_id, user, data):
         db.session.add(cat)
         db.session.flush()
         for j, opt_data in enumerate(options):
-            extra = opt_data.get('extra')
             db.session.add(PollOption(category_id=cat.id, text=opt_data['text'].strip()[:200], sort_order=j,
-                                      extra_data=_json.dumps(extra) if extra else None))
+                                      extra_data=_option_extra(opt_data)))
     db.session.commit()
     return poll, None
+
+
+POLL_TYPES = ('standard', 'prediction')
+SCORING_MODES = ('none', 'single', 'ranked', 'confidence')
+REVEALS = ('final', 'live')
+MAX_DEADLINE = timedelta(days=366)
+
+
+def _option_extra(opt_data):
+    extra = opt_data.get('extra')
+    return _json.dumps(extra) if isinstance(extra, dict) and extra else None
+
+
+def parse_closes_at(value, city):
+    """A voting deadline from the form ("2027-03-14T20:00", the club's city's
+    wall clock) as naive UTC: (when or None, error)."""
+    if not value:
+        return None, None
+    try:
+        local = datetime.fromisoformat(str(value).replace('Z', ''))
+    except ValueError:
+        return None, (jsonify({'error': "That deadline isn't a date and time."}), 400)
+    at = places.to_utc(local.replace(tzinfo=None), city)
+    if at <= _utcnow_naive() + timedelta(minutes=1) or at > _utcnow_naive() + MAX_DEADLINE:
+        return None, (jsonify({'error': 'Pick a deadline in the future (within a year).'}), 400)
+    return at, None
+
+
+def edit_poll_categories(poll, categories):
+    """Organizers fix a poll after it's made: rename categories and nominees,
+    add them, reorder, and remove ones nobody has picked (a pick, or the
+    answer, keeps it). `categories`: [{id?, title, options: [{id?, text, extra?}]}]
+    in their new order. Returns an error response or None (nothing is saved on error)."""
+    cats = {c.id: c for c in poll.categories}
+    kept_cats = set()
+    plan = []
+    for cd in categories or []:
+        if not isinstance(cd, dict):
+            continue
+        title = (cd.get('title') or '').strip()[:200]
+        opts = [o for o in cd.get('options') or [] if isinstance(o, dict) and (o.get('text') or '').strip()]
+        cat = cats.get(_as_int(cd.get('id')))
+        if not title or len(opts) < 2:
+            return jsonify({'error': 'Every category needs a title and at least two options.'}), 400
+        if cat:
+            kept_cats.add(cat.id)
+        plan.append((cat, title, opts))
+    if not plan:
+        return jsonify({'error': 'A poll needs at least one category.'}), 400
+    for c in poll.categories:
+        if c.id not in kept_cats and c.votes:
+            return jsonify({'error': f"“{c.title}” has picks, so it can't be removed."}), 409
+    for cat, _, opts in plan:
+        if not cat:
+            continue
+        kept = {_as_int(o.get('id')) for o in opts}
+        for o in cat.options:
+            if o.id not in kept and (o.id == cat.correct_option_id or any(v.option_id == o.id for v in cat.votes)):
+                return jsonify({'error': f"“{o.text}” has picks in {cat.title}, so it can't be removed."}), 409
+    for c in poll.categories:
+        if c.id not in kept_cats:
+            db.session.delete(c)
+    for i, (cat, title, opts) in enumerate(plan):
+        if not cat:
+            cat = PollCategory(poll_id=poll.id, title=title, sort_order=i)
+            db.session.add(cat)
+            db.session.flush()
+        cat.title, cat.sort_order = title, i
+        options = {o.id: o for o in cat.options}
+        kept = set()
+        for j, od in enumerate(opts):
+            opt = options.get(_as_int(od.get('id')))
+            if opt:
+                kept.add(opt.id)
+                opt.text, opt.sort_order = od['text'].strip()[:200], j
+                if 'extra' in od:
+                    opt.extra_data = _option_extra(od)
+            else:
+                db.session.add(PollOption(category_id=cat.id, text=od['text'].strip()[:200], sort_order=j,
+                                          extra_data=_option_extra(od)))
+        for oid, opt in options.items():
+            if oid not in kept:
+                db.session.delete(opt)
+    return None
 
 
 # ─── Poll drafts from a plain-English ask (R6a) ───────────────────────────────
@@ -1243,7 +1335,7 @@ def apply_votes(user, poll, votes_data, clear=()):
     - single/none: one pick per category (the last one sent wins)
     - confidence: one pick, confidence clamped to 1–10
     - ranked: up to RANKED_PICKS distinct nominees, distinct ranks 1..RANKED_PICKS"""
-    cats = {c.id: c for c in poll.categories}
+    cats = {c.id: c for c in poll.categories if not (poll.live and c.correct_option_id)}   # live: decided ones are locked
     picks = {}
     for v in votes_data or []:
         if not isinstance(v, dict):
@@ -1302,21 +1394,125 @@ def vote_kernels(scoring_mode, vote, correct_option_id):
     return -vote.confidence if scoring_mode == 'confidence' else 0
 
 
-def poll_scores(poll):
-    """One poll's standings: [{user, correct, kernels, total}], best first."""
+def poll_scores(poll, members_view=False):
+    """One poll's standings: [{user, correct, total, kernels}], best first —
+    over the categories with an answer (`total`: those you picked in).
+    `members_view`: only answers members may see yet (an all-at-once poll
+    shows nothing until it's finalized)."""
     scores = {}
     for cat in poll.categories:
+        if not cat.correct_option_id or (members_view and not poll.answer_shown(cat)):
+            continue
+        mine = {}
         for vote in cat.votes:
-            s = scores.setdefault(vote.user_id, {'correct': 0, 'kernels': 0, 'total': 0})
+            mine.setdefault(vote.user_id, []).append(vote)
+        for uid, votes in mine.items():
+            s = scores.setdefault(uid, {'correct': 0, 'kernels': 0, 'total': 0})
             s['total'] += 1
-            k = vote_kernels(poll.scoring_mode, vote, cat.correct_option_id)
-            if k is not None:
-                s['kernels'] += k
-                s['correct'] += vote.option_id == cat.correct_option_id
+            s['kernels'] += sum(vote_kernels(poll.scoring_mode, v, cat.correct_option_id) for v in votes)
+            s['correct'] += any(v.option_id == cat.correct_option_id for v in votes)
     users = {u.id: u for u in User.query.filter(User.id.in_(scores))} if scores else {}
     board = [{'user': users[uid], **s} for uid, s in scores.items() if uid in users]
     board.sort(key=lambda x: (-x['kernels'], -x['correct']))
     return board
+
+
+def poll_voter_count(poll):
+    return (db.session.query(PollVote.user_id).join(PollCategory).filter(PollCategory.poll_id == poll.id)
+            .distinct().count())
+
+
+def poll_your_score(poll, user_id):
+    """{kernels, correct, total, place, of} for one member, over the answers
+    members can see — or None (no answers shown yet, or no picks in them)."""
+    board = poll_scores(poll, members_view=True)
+    place = next((i for i, s in enumerate(board) if s['user'].id == user_id), None)
+    if place is None:
+        return None
+    s = board[place]
+    return {'kernels': s['kernels'], 'correct': s['correct'], 'total': s['total'], 'place': place + 1, 'of': len(board)}
+
+
+def poll_posts_changed(poll_id):
+    """A poll was edited, closed, scored, un-scored or deleted (or a live
+    answer came in): refresh (or remove) its announcement and results posts."""
+    DiscordPost.query.filter(DiscordPost.kind.in_(('poll', 'poll_results')), DiscordPost.ref_id == poll_id,
+                             DiscordPost.status == 'posted').update({'dirty': True}, synchronize_session=False)
+
+
+def close_poll(poll, at=None):
+    poll.status = 'closed'
+    poll.closed_at = at or datetime.now(timezone.utc)
+    poll_posts_changed(poll.id)
+
+
+def poll_open(poll):
+    """Is voting open — closing it now if its deadline has passed?"""
+    if poll.status == 'open' and poll.closes_at and poll.closes_at <= _utcnow_naive():
+        close_poll(poll, poll.closes_at)
+        db.session.commit()
+    return poll.status == 'open'
+
+
+POLL_SWEEP_EVERY = 20             # seconds between checks for polls past their deadline
+_poll_sweep = {'at': 0.0}
+
+
+def close_due_polls(force=False):
+    """Polls past their deadline close (their Discord posts follow). Every
+    API request may run it, so it checks at most every POLL_SWEEP_EVERY s."""
+    if not force and time.time() - _poll_sweep['at'] < POLL_SWEEP_EVERY:
+        return
+    _poll_sweep['at'] = time.time()
+    due = Poll.query.filter(Poll.status == 'open', Poll.closes_at.isnot(None),
+                            Poll.closes_at <= _utcnow_naive()).all()
+    for poll in due:
+        close_poll(poll, poll.closes_at)
+    if due:
+        db.session.commit()
+
+
+@app.before_request
+def _close_due_polls():
+    if request.path.startswith('/api/'):
+        try:
+            close_due_polls()
+        except Exception as e:            # never in the way of the request itself
+            db.session.rollback()
+            print(f'poll deadline check failed: {e}')
+
+
+def notify_poll_results(poll):
+    """Finalized: each voter's result in their bell's For You ("+5 🍿 · 3rd of 4").
+    The bell only — never a DM, email or push. Finalizing again (after a
+    correction) updates the note rather than adding one."""
+    import notify
+    board = poll_scores(poll)
+    voters = {uid for (uid,) in db.session.query(PollVote.user_id).join(PollCategory)
+              .filter(PollCategory.poll_id == poll.id).distinct()}
+    place = {s['user'].id: (i + 1, s) for i, s in enumerate(board)}
+    old = {n.user_id: n for n in Notification.query.filter_by(kind='poll_result')
+           if _json.loads(n.payload_json or '{}').get('poll_id') == poll.id}
+    for uid in voters:
+        user = db.session.get(User, uid)
+        if not user or not notify.wants(user, 'poll_result'):
+            continue
+        rank, s = place.get(uid, (None, None))
+        payload = {'poll_id': poll.id, 'title': poll.title, 'group_id': poll.group_id,
+                   'kernels': s['kernels'] if s else 0, 'correct': s['correct'] if s else 0,
+                   'total': s['total'] if s else 0, 'place': rank, 'of': len(board)}
+        if uid in old:
+            if _json.loads(old[uid].payload_json or '{}') != payload:
+                old[uid].payload_json, old[uid].read_at, old[uid].cleared_at = _json.dumps(payload), None, None
+        else:
+            notify._make(db, Notification, user, 'poll_result', None, None, payload, ready=True, channels=())
+
+
+def clear_poll_results(poll):
+    """Its result notes leave the bells (scoring undone, or the poll deleted)."""
+    for n in Notification.query.filter_by(kind='poll_result'):
+        if _json.loads(n.payload_json or '{}').get('poll_id') == poll.id:
+            db.session.delete(n)
 
 
 def calc_user_kernels(user_id, group_id=None, since=None):

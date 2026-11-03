@@ -27,6 +27,7 @@ TYPES = {
     'trivia_result': ('Trivia: yesterday\u2019s answer', 'The answer, whether you got it, and how the club did.'),
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
+    'poll_result': ('Polls: your results', 'When a poll you voted in is finalized: your kernels and your place. In the bell only.'),
     'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
     # Running a club (R15): an email per join request (admins always get one)
     'join_requests': ('Someone asks to join your club', 'Club organizers: an email when someone asks to join, to approve or deny it. (Admins always get one.)'),
@@ -35,7 +36,7 @@ TYPES = {
 TYPE_GROUPS = (('films', 'Your films', ('showings', 'on_sale', 'searches', 'favorites')),
                ('going', 'Going out', ('attendance',)),
                ('club', 'Your club', ('digest', 'digest_out')),
-               ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win')),
+               ('games', 'Games', ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'poll_result')),
                ('running', 'Running a club', ('reviews', 'join_requests')))
 GROUP_OF = {t: (key, label) for key, label, types in TYPE_GROUPS for t in types}
 # Switches only for people who run a club: {type: the roles it's for}.
@@ -70,7 +71,7 @@ def available(user):
 # Watchlist alerts still land in the site's bell (it never sends anything).
 DEFAULT_TYPES = {'showings': True, 'on_sale': True, 'attendance': False, 'searches': True, 'favorites': True,
                  'trivia_daily': False, 'trivia_result': False, 'bingo_card': False, 'bingo_win': True, 'reviews': True,
-                 'join_requests': False, 'digest': True, 'digest_out': False}
+                 'join_requests': False, 'digest': True, 'digest_out': False, 'poll_result': True}
 ASKS = ('alerts', 'attendance')
 
 
@@ -461,7 +462,7 @@ def describe(n):
     return {'headline': title, 'detail': '', 'link': link}
 
 
-GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review')
+GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_review', 'poll_result')
 
 
 def _describe_game(kind, p):
@@ -475,6 +476,12 @@ def _describe_game(kind, p):
     if kind == 'bingo_card':
         return {'headline': f"{p.get('month_label', 'This month')}’s bingo card is up",
                 'detail': ' · '.join(p.get('squares') or []), 'link': '/play#bingo'}
+    if kind == 'poll_result':
+        place = f"{_ordinal(p['place'])} of {p['of']}" if p.get('place') else None
+        right = f"{p.get('correct', 0)} of {p['total']} right" if p.get('total') else 'No picks in the scored categories'
+        return {'headline': f"Results are in: {p.get('title', 'a poll')}",
+                'detail': ' · '.join(b for b in (f"{p.get('kernels', 0):+d} 🍿".replace('-', '−'), right, place) if b),
+                'link': f"/polls/{p.get('poll_id')}"}
     if kind == 'bingo_win':
         what = 'the full card 🎉🎉' if p.get('which') == 'full' else 'bingo 🎉'
         return {'headline': f'You got {what}', 'detail': f"+{p.get('kernels', 0)} kernels · {p.get('month_label', '')}",
@@ -495,7 +502,11 @@ def bundle_title(ns):
 
 # The bell's picture for alerts that aren't about one film.
 ICONS = {'digest': '🍿', 'trivia_daily': '🧠', 'trivia_result': '🧠', 'bingo_card': '🎱', 'bingo_win': '🎱',
-         'game_review': '👀'}
+         'game_review': '👀', 'poll_result': '🏆'}
+
+
+def _ordinal(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
 def needs_answer(n):

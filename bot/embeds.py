@@ -476,6 +476,14 @@ POLL_MODES = {
 }
 
 
+def closes_line(closes_at):
+    """"Voting closes <time> (<in 2 hours>)" — Discord shows it in each reader's own time."""
+    if not closes_at:
+        return ''
+    ts = int(datetime.fromisoformat(closes_at).timestamp())
+    return f"Voting closes <t:{ts}:f> (<t:{ts}:R>)"
+
+
 def _pct(count, total):
     return f"{round(100 * count / total)}%" if total else '0%'
 
@@ -495,7 +503,8 @@ def _pick_line(cat, mode):
 
 def ballot_embed(ballot, idx, note=None):
     """One category of a /poll vote ballot. Open polls show your pick and (once
-    you've picked) the split; closed ones show the split; scored ones mark the
+    you've picked) the split; closed ones show the split; answers members can
+    see (all at once when scored, or one by one in a live poll) mark the
     winner, ✅/❌ on your picks, and the kernels they earned."""
     poll, cats = ballot['poll'], ballot['categories']
     cat = cats[idx]
@@ -505,6 +514,8 @@ def ballot_embed(ballot, idx, note=None):
     if status == 'open':
         lines[-1] += f" · **{ballot['answered']}/{len(cats)} answered**"
         lines.append(f"Your pick: {_pick_line(cat, mode)}")
+        if cat.get('locked'):
+            lines.append("🔒 *This one's answer is in — picks are locked.*")
     if 'split' in cat:
         win = cat.get('correct_option_id')
         rows = []
@@ -523,16 +534,22 @@ def ballot_embed(ballot, idx, note=None):
     if note:
         lines += ['', note]
 
+    if status == 'open' and poll.get('closes_at'):
+        lines += ['', closes_line(poll['closes_at'])]
+
     state = {'open': '🗳️', 'closed': '🔒', 'scored': '🏆'}.get(status, '🗳️')
     embed = discord.Embed(title=f"{state} {poll['title']}"[:256], colour=AMBER,
                           description='\n'.join(lines)[:4000], url=f"{SITE_URL}/polls/{poll['id']}")
     score = ballot.get('score')
-    if status == 'scored' and score:
-        embed.add_field(name='Your result', inline=False,
-                        value=f"**{score['kernels']} 🍿** · {score['correct']} correct · "
-                              f"#{score['place']} of {score['of']}")
-    footer = {'open': 'Picks save as you go — finish any time, here or on the site.',
-              'closed': 'Voting has closed — results come once it’s scored.',
+    if score:
+        so_far = '' if status == 'scored' else f" · so far ({ballot.get('decided', 0)} of {len(cats)} decided)"
+        embed.add_field(name='Your result' if status == 'scored' else 'Your score', inline=False,
+                        value=f"**{score['kernels']} 🍿** · {score['correct']} of {score['total']} right · "
+                              f"#{score['place']} of {score['of']}{so_far}")
+    live = poll.get('reveal') == 'live' and mode != 'none'
+    footer = {'open': 'Picks save as you go — finish any time, here or on the site.'
+                      + (' Answers show as they come in.' if live else ''),
+              'closed': 'Voting has closed — ' + ('answers show as they come in.' if live else 'results come once it’s scored.'),
               'scored': 'Final results.'}.get(status, '')
     embed.set_footer(text=f"{POLL_MODES.get(mode, '')} · {footer}" if status == 'open' else footer)
     return embed
@@ -542,9 +559,22 @@ def poll_opened_embed(p):
     embed = discord.Embed(title=f"🗳️ New poll: {p['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
     by = f" · from {p['creator']}" if p.get('creator') else ''
     n = p.get('categories', 0)
-    embed.description = (f"{plural(n, 'category', 'categories')}{by}\n{POLL_MODES.get(p.get('scoring_mode'), '')}\n\n"
-                         "Tap **Vote** — your ballot is private and picks save as you go.")
+    live = ' · answers show as they come in' if p.get('reveal') == 'live' and p.get('scoring_mode') != 'none' else ''
+    deadline = f"\n{closes_line(p['closes_at'])}" if p.get('closes_at') else ''
+    embed.description = (f"{plural(n, 'category', 'categories')}{by}\n{POLL_MODES.get(p.get('scoring_mode'), '')}{live}"
+                         f"{deadline}\n\nTap **Vote** — your ballot is private and picks save as you go.")
+    _live_standings(embed, p)
     return embed
+
+
+def _live_standings(embed, p):
+    """A live poll's announcement keeps its standings as answers come in (names only, never pings)."""
+    if not p.get('decided'):
+        return
+    who = lambda t: f"**{t['name']}**" if t.get('name') else '*a member on the site*'
+    rows = [f"{MEDALS[i]} {who(t)} — {t['kernels']} 🍿" for i, t in enumerate(p.get('live_top') or [])]
+    embed.add_field(name=f"Live standings · {p['decided']} of {p.get('categories', 0)} decided", inline=False,
+                    value='\n'.join(rows) or 'Nobody picked those yet.')
 
 
 def poll_results_embed(p):
@@ -783,7 +813,8 @@ def poll_post_embed(p):
     embed = discord.Embed(title=f"🔒 Voting closed: {p['title']}"[:256], colour=AMBER,
                           url=f"{SITE_URL}/polls/{p['poll_id']}")
     embed.description = ('Results are in — see them on the site.' if p.get('status') == 'scored'
-                         else 'Results coming soon.')
+                         else 'Answers are coming in.' if p.get('decided') else 'Results coming soon.')
+    _live_standings(embed, p)
     return embed
 
 
