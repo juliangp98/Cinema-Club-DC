@@ -12,6 +12,9 @@ import json
 from api import ApiError
 
 _api = None
+# The backend tries the primary model, then the fallback (Groq's client gives
+# each 20 s, backend/ai.py), so a chat may take longer than an ordinary call.
+AI_TIMEOUT = 45
 
 
 class RateLimited(Exception):
@@ -30,7 +33,7 @@ def configure(api):
 async def chat(messages, max_tokens=300):
     """messages: OpenAI-style [{role, content}] (system first) → reply text."""
     try:
-        r = await _api.post('/api/internal/ai/chat', {'messages': messages, 'max_tokens': max_tokens})
+        r = await _api.post('/api/internal/ai/chat', {'messages': messages, 'max_tokens': max_tokens}, timeout=AI_TIMEOUT)
     except ApiError as e:
         if e.status == 429:
             try:

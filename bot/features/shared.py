@@ -26,7 +26,7 @@ for candidate in (_here / '.env',
 
 import discord                                   # noqa: E402 — after the env is loaded
 from discord import app_commands                 # noqa: E402
-from api import InternalApi, ApiError            # noqa: E402
+from api import InternalApi, ApiError, quick as api_quick   # noqa: E402
 import llm                                       # noqa: E402
 
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
@@ -442,6 +442,8 @@ async def reply_failure(interaction, e, what, fallback=None, missing=None, ephem
 
 async def fetch_window(days, search=None):
     now = club_now()
+    if api_quick.get():                  # an autocomplete: a start that holds for 15 minutes, so its answer can be cached
+        now = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
     return await api.get(
         '/api/internal/showtimes',
         group_id=club(),
@@ -481,7 +483,7 @@ _theatre_cache = {}              # club → (when, theatres)
 async def fetch_theatres():
     """{theatres (the club's first, each saying its city), multi, city}."""
     hit = _theatre_cache.get(club())
-    if hit is None or time.monotonic() - hit[0] > 300:
+    if hit is None or time.monotonic() - hit[0] > 300 or api_quick.get():     # quick: api.py's cache decides
         hit = _theatre_cache[club()] = (time.monotonic(), await api.get(
             '/api/internal/theatres', group_id=club(), city=club_city()))
     return hit[1]

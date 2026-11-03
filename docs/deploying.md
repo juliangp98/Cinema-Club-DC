@@ -147,3 +147,4 @@ sudo docker cp cinemaclub-backend:/app/instance/backup.db ./cinemaclub-backup.db
 | cloudflared can't reach the frontend | Same Docker network: `--network cinema-club-dc_default` |
 | A theatre's showtimes stopped updating | The owner gets a DM about scraper errors (once a day per theatre); `scraper.log` has details; see [scrapers.md](scrapers.md) |
 | Slash commands don't appear in a new server | Global commands can take up to an hour the first time |
+| The bot (or the site) is slow or fails on the first try after a quiet spell | Turn off **HDD hibernation** (Synology: Control Panel → Hardware & Power): spinning the disks back up takes longer than Discord's 3 seconds. Then the bot's log says where time goes: `slow interaction: /x … reached the bot 2.4s after it was sent` (the bot itself was busy or the network slow), `api: GET /api/internal/… took 4.1s` (the backend was slow), `api: … failed` / `timed out` (it couldn't answer) |

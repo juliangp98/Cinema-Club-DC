@@ -10,10 +10,12 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 
+import api as api_module
 import embeds
 from api import ApiError
 from .shared import (DEFAULT_GROUP_ID, NOT_CONNECTED_MSG, UNREACHABLE_MSG, _dm_last, api, api_error_text, backend_ready, client,
-                     club_for_guild, club_of, movies_channel, refresh_servers, register, tell, use_club)
+                     club_for_guild, club_of, connected_clubs, fetch_theatres, fetch_window, movies_channel, refresh_servers,
+                     register, tell, use_club)
 
 # Work in a server that isn't connected yet (everything they show is public).
 PUBLIC_COMMANDS = {'showtimes', 'movie', 'find', 'surprise', 'theatre', 'help', 'setup'}
@@ -25,17 +27,24 @@ NEEDED = (('view_channel', 'View Channel'), ('send_messages', 'Send Messages'), 
           ('create_public_threads', 'Create Public Threads'), ('send_messages_in_threads', 'Send Messages in Threads'))
 
 _dm_clubs = {}                                   # Discord user id → (when, [{id, name}])
+SLOW_ARRIVAL = 1.5                               # seconds: an interaction this late to reach the bot is logged
 
 
 async def dm_clubs(user_id):
-    """The connected clubs a member is in (whose servers they're in)."""
+    """The connected clubs a member is in (whose servers they're in). Asked
+    before the bot has answered Discord, so it's a quick lookup (api.quick):
+    an older list straight away, refreshed behind the scenes."""
     hit = _dm_clubs.get(user_id)
     if hit and time.monotonic() - hit[0] < DM_CLUBS_KEEP:
         return hit[1]
+    token = api_module.quick.set(True)
     try:
         clubs = await api.get('/api/internal/clubs', discord_user_id=str(user_id))
-    except Exception:
-        clubs = []
+    except Exception as e:
+        print(f'servers: club lookup for a DM failed: {e!r}')
+        return hit[1] if hit else []              # a failure isn't remembered
+    finally:
+        api_module.quick.reset(token)
     _dm_clubs[user_id] = (time.monotonic(), clubs)
     return clubs
 
@@ -73,6 +82,12 @@ async def interaction_check(interaction: discord.Interaction) -> bool:
     your one connected club, or a menu when you're in several."""
     name = (interaction.data or {}).get('name')
     is_command = interaction.type is discord.InteractionType.application_command
+    if interaction.type is discord.InteractionType.autocomplete:
+        api_module.quick.set(True)                   # 3 seconds and no extensions: cached answers (api.py)
+    sent = getattr(interaction, 'created_at', None)
+    late = (discord.utils.utcnow() - sent).total_seconds() if sent else 0
+    if late > SLOW_ARRIVAL:
+        print(f'slow interaction: /{name} ({interaction.type.name}) reached the bot {late:.1f}s after it was sent')
     if interaction.guild_id:
         group_id = club_for_guild(interaction.guild_id)
         use_club(group_id)
@@ -177,6 +192,27 @@ async def before_servers():
     await client.wait_until_ready()
 
 
+@tasks.loop(minutes=4)
+async def warm_loop():
+    """Keep what the first autocompletes ask for (each club's theatres and the
+    month's films) cached in the bot, and the backend awake, so a command
+    after a quiet spell answers as quickly as the next one."""
+    api_module.quick.set(True)
+    for group_id, _ in connected_clubs():
+        use_club(group_id)
+        for fetch in (fetch_theatres, lambda: fetch_window(30)):
+            try:
+                await fetch()
+            except Exception as e:
+                print(f'warm: club {group_id}: {e!r}')
+
+
+@warm_loop.before_loop
+async def before_warm():
+    await client.wait_until_ready()
+    await backend_ready()
+
+
 @client.event
 async def on_ready():
     """Register the home server (the bot's own, from its settings) and load the map."""
@@ -216,4 +252,4 @@ async def on_guild_remove(guild):
     await refresh_servers()
 
 
-register(loops=(servers_loop,))
+register(loops=(servers_loop, warm_loop))

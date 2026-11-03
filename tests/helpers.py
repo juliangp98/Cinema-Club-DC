@@ -38,7 +38,7 @@ def patch_bot_api():
     async def get(path, **params):
         return _resp(flask.get(path, query_string={k: v for k, v in params.items() if v is not None}, headers=H))
 
-    async def send(method, path, payload=None):
+    async def send(method, path, payload=None, **kw):
         return _resp(flask.open(path, method=method, json=payload or {}, headers=H))
 
     bot.api.get = get

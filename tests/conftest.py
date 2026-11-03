@@ -47,7 +47,8 @@ def _reset_state(instance_dir):
         cache.clear()
     ai._client = None
     ai._extras.clear()
-    ai._state.update(primary=None, fallback=None, how={}, available=[], checked_at=0.0)
+    ai._state.update(primary=None, fallback=None, how={}, available=[], checked_at=0.0, loaded_at=0.0)
+    ai.BACKGROUND = False                            # model checks run inline, so tests see their result
 
 
 # Module-level settings a test may swap (e.g. the Discord group, the bot's

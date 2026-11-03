@@ -30,11 +30,7 @@ def internal_ai_chat():
 @app.route('/api/internal/ai/status')
 @require_internal
 def internal_ai_status():
-    ai = _ai()
-    s = ai.status()
-    if not s['primary']:
-        s = ai.refresh('first use')
-    return jsonify(s)
+    return jsonify(_ai().current())
 
 
 @app.route('/api/internal/ai/refresh', methods=['POST'])

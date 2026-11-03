@@ -1687,10 +1687,61 @@ def _ai_switched(choice, message):
     db.session.commit()
 
 
+# The model choice is shared by the server processes (ai.py): a setting each
+# re-reads, and a lease so only one checks Groq at a time. Their own
+# connections, so they never commit (or wait on) a request's work.
+AI_CHECK_LEASE = 10 * 60
+
+
+def _ai_load_shared():
+    with db.engine.connect() as conn:
+        value = conn.execute(db.text("SELECT value FROM bot_setting WHERE key = 'ai_models'")).scalar()
+    return _json.loads(value) if value else None
+
+
+def _ai_save_shared(state):
+    with db.engine.begin() as conn:
+        conn.execute(db.text("INSERT OR REPLACE INTO bot_setting (key, value) VALUES ('ai_models', :v)"),
+                     {'v': _json.dumps(state)})
+
+
+def _ai_claim_check():
+    now = time.time()
+    with db.engine.begin() as conn:
+        conn.execute(db.text("INSERT OR IGNORE INTO bot_setting (key, value) VALUES ('ai_check_at', '0')"))
+        took = conn.execute(db.text("UPDATE bot_setting SET value = :now WHERE key = 'ai_check_at' "
+                                    "AND CAST(value AS REAL) < :cut"), {'now': str(now), 'cut': now - AI_CHECK_LEASE})
+    return took.rowcount == 1
+
+
+def _ai_in_context(fn):
+    def run():
+        with app.app_context():
+            fn()
+    return run
+
+
 def _ai():
     import ai
-    ai.configure(on_switch=_ai_switched, load_overrides=_ai_overrides)
+    ai.configure(on_switch=_ai_switched, load_overrides=_ai_overrides, load_shared=_ai_load_shared,
+                 save_shared=_ai_save_shared, claim_check=_ai_claim_check, in_context=_ai_in_context)
     return ai
+
+
+def start_ai_check():
+    """A server process starting: adopt the shared model choice, or check
+    Groq in the background, so the first chat never waits on it."""
+    import threading
+
+    def run():
+        time.sleep(5)
+        try:
+            with app.app_context():
+                if os.environ.get('GROQ_API_KEY'):
+                    _ai().prepare()
+        except Exception as e:
+            print(f'ai: start-up check failed: {e}')
+    threading.Thread(target=run, name='ai-prepare', daemon=True).start()
 
 
 # ─── Init ─────────────────────────────────────────────────────────────────────
@@ -1747,8 +1798,9 @@ def start_warming():
     threading.Thread(target=loop, name='warm-public-pages', daemon=True).start()
 
 
-if os.environ.get('WARM_PUBLIC_CACHE') == '1':
+if os.environ.get('WARM_PUBLIC_CACHE') == '1':      # the real server (not tests or scripts)
     start_warming()
+    start_ai_check()
 
 
 from migrations import migrate, prepare_db, seed_theatres  # noqa: E402,F401 — re-exported

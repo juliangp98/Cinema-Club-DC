@@ -138,7 +138,7 @@ bot/
 │   ├── games.py     # trivia, bingo, quiz games, /play, /leaderboard, game posts
 │   ├── club.py      # /club, /help, who's in the server
 │   └── admin.py     # /llm
-├── api.py           # the backend's internal API client
+├── api.py           # the backend's internal API client (autocompletes answer from its cache; one retry; slow calls logged)
 ├── embeds.py        # every message and embed the bot builds (and HELP_SECTIONS for /help)
 ├── llm.py           # the chatbot's model choice (lives in the backend; shared with the site)
 └── quotes.py        # the original quote list (seeds an empty database)
@@ -158,6 +158,8 @@ as options (`action:`, `game:`, `period:` — like `/showtimes`), never sub-comm
 Discord lists sub-commands apart, and a test fails on one. Buttons that must keep working after a restart
 are `DynamicItem`s; list them (and any `tasks.loop`) in that module's `register(...)` call — a test fails
 if one is missed. Add the command to `embeds.HELP_SECTIONS` (its test checks every command is listed) and,
-if it changes what members can do, to the site's Help (`frontend/src/help.json`). Tests drive commands
+if it changes what members can do, to the site's Help (`frontend/src/help.json`). Discord gives a command 3 seconds
+to answer: acknowledge first (`interaction.response.defer()`), then call the backend. Autocompletes can't
+ask for more time, so their `api.get` calls answer from the bot's cache (`api.quick`, set before each one runs). Tests drive commands
 against the real backend with no Discord connection (`tests/bot/`, `helpers.patch_bot_api`; swap a bot
 name such as the channel lookup with `helpers.patch_bot`).

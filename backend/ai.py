@@ -9,8 +9,10 @@ family at once — so models are chosen from Groq's live catalogue instead of
 being hard-coded:
 
   * refresh() lists Groq's models (free, no tokens), keeps text-chat models and
-    ranks them by MODEL_PREFERENCE. It runs on first use, again once a day,
-    and immediately when a model turns out to be retired.
+    ranks them by MODEL_PREFERENCE. It runs in the background — when a server
+    process starts with no choice made yet, and once a day — and immediately
+    when a model turns out to be retired. A request never waits for it unless
+    no model has ever been chosen (and none is pinned).
   * Primary and fallback come from different model families, so one retirement
     wave can't take out both.
   * A model is test-called before it's adopted. Reasoning models that spend
@@ -22,8 +24,10 @@ being hard-coded:
   * configure(on_switch=…) is told whenever the choice changes, so the owner
     hears about it.
 
-Each server process keeps its own choice (they agree: same catalogue, same
-ranking); calls are thread-safe.
+The choice is shared by every server process (configure(load_shared=…,
+save_shared=…), a setting in the database): a process re-reads it every
+SHARED_RELOAD_SEC, so a check or an /llm change in one reaches the others,
+and only one process checks at a time (claim_check). Calls are thread-safe.
 """
 
 import os
@@ -50,6 +54,8 @@ MODEL_PREFERENCE = [
 _NOT_CHAT = re.compile(r'guard|whisper|tts|orpheus|playai', re.I)
 MIN_CONTEXT = 8192            # the chatbot's system prompt alone is ~2k tokens
 REFRESH_EVERY_SEC = 24 * 3600
+SHARED_RELOAD_SEC = 30        # how often a process re-reads the shared choice
+BACKGROUND = True             # checks run on their own thread (tests run them inline)
 
 # gpt-oss models spend hidden reasoning tokens before answering; at short reply
 # caps, default reasoning returns an empty reply.
@@ -67,9 +73,12 @@ PROBE_MESSAGES = [
 
 _client = None
 _lock = threading.RLock()
-_state = {'primary': None, 'fallback': None, 'how': {}, 'available': [], 'checked_at': 0.0}
+_checking = threading.Lock()  # one background check at a time in this process
+# checked_at / loaded_at: wall-clock seconds (shared between processes)
+_state = {'primary': None, 'fallback': None, 'how': {}, 'available': [], 'checked_at': 0.0, 'loaded_at': 0.0}
 _extras = {}      # per-model request settings learned while probing
-_config = {'on_switch': None, 'load_overrides': None}
+_config = {'on_switch': None, 'load_overrides': None, 'load_shared': None, 'save_shared': None, 'claim_check': None,
+           'in_context': None}
 
 
 class RateLimited(Exception):
@@ -91,17 +100,22 @@ def _get_client():
         from groq import Groq
         if not os.environ.get('GROQ_API_KEY'):
             raise Unavailable('GROQ_API_KEY is not set')
-        _client = Groq()
+        # A slow Groq shouldn't outlast the bot's patience: 20 s a call, one retry.
+        _client = Groq(timeout=20.0, max_retries=1)
     return _client
 
 
-def configure(on_switch=None, load_overrides=None):
+def configure(on_switch=None, load_overrides=None, load_shared=None, save_shared=None, claim_check=None,
+              in_context=None):
     """on_switch(message): told whenever the model choice changes.
-    load_overrides(): {'primary': str, 'fallback': str} saved by /llm."""
-    if on_switch:
-        _config['on_switch'] = on_switch
-    if load_overrides:
-        _config['load_overrides'] = load_overrides
+    load_overrides(): {'primary': str, 'fallback': str} saved by /llm.
+    load_shared() / save_shared(dict): the choice every server process uses.
+    claim_check(): True if this process may run the background check now.
+    in_context(fn): fn wrapped to run on another thread (the app's context)."""
+    for key, fn in (('on_switch', on_switch), ('load_overrides', load_overrides), ('load_shared', load_shared),
+                    ('save_shared', save_shared), ('claim_check', claim_check), ('in_context', in_context)):
+        if fn:
+            _config[key] = fn
 
 
 def _overrides():
@@ -206,10 +220,9 @@ def refresh(reason='scheduled'):
             listing = _get_client().models.list()
         except Exception as e:
             print(f'ai: listing Groq models failed: {e}')
-            _state['checked_at'] = time.monotonic()
+            _state['checked_at'] = time.time()
             if not _state['primary']:    # Groq unreachable on first run: trust the pins
-                _state['primary'] = overrides['primary'] or ENV_PRIMARY or None
-                _state['fallback'] = overrides['fallback'] or ENV_FALLBACK or None
+                _use_pins(overrides)
             return status()
 
         available = [m.id for m in sorted(filter(_usable, listing.data), key=_rank)]
@@ -224,11 +237,12 @@ def refresh(reason='scheduled'):
                                       other_family + same_family, available, notes, exclude={primary})
 
         _state['available'] = available
-        _state['checked_at'] = time.monotonic()
+        _state['checked_at'] = time.time()
         if primary:
             _state.update(primary=primary, fallback=fallback, how={'primary': how_p, 'fallback': how_f})
         new = (_state['primary'], _state['fallback'])
         print(f'ai: refresh ({reason}) → primary={new[0]} fallback={new[1]}')
+        _save_shared()
 
         if _config['on_switch'] and (new != old or notes):
             lines = [f'🤖 **AI models** ({reason}): primary `{new[0]}`, fallback `{new[1]}`']
@@ -240,6 +254,91 @@ def refresh(reason='scheduled'):
             except Exception as e:
                 print(f'ai: on_switch notify failed: {e}')
         return status()
+
+
+def _use_pins(overrides=None):
+    """No choice yet: the /llm override or env pin, if there is one."""
+    o = overrides or _overrides()
+    primary = o['primary'] or ENV_PRIMARY or None
+    fallback = o['fallback'] or ENV_FALLBACK or None
+    _state.update(primary=primary, fallback=None if fallback == 'none' else fallback,
+                  how={'primary': 'pinned', 'fallback': 'pinned' if fallback else None})
+    return primary
+
+
+def _load_shared():
+    """Adopt the choice another process (or this one, earlier) saved, if it's newer."""
+    _state['loaded_at'] = time.time()
+    try:
+        got = (_config['load_shared'] or (lambda: None))()
+    except Exception as e:
+        print(f'ai: loading the shared choice failed: {e}')
+        return
+    if got and got.get('primary') and got.get('checked_at', 0) >= _state['checked_at']:
+        _state.update(primary=got['primary'], fallback=got.get('fallback'), how=got.get('how') or {},
+                      available=got.get('available') or [], checked_at=got['checked_at'])
+        _extras.update(got.get('extras') or {})
+
+
+def _save_shared():
+    try:
+        (_config['save_shared'] or (lambda s: None))({
+            'primary': _state['primary'], 'fallback': _state['fallback'], 'how': _state['how'],
+            'available': _state['available'], 'checked_at': _state['checked_at'], 'extras': dict(_extras)})
+        _state['loaded_at'] = time.time()
+    except Exception as e:
+        print(f'ai: saving the shared choice failed: {e}')
+
+
+def current():
+    """The models to use now. Only waits on Groq when no model was ever chosen
+    — not by this process, not by another, and none pinned; otherwise a missing
+    or day-old choice is checked in the background."""
+    if time.time() - _state['loaded_at'] > SHARED_RELOAD_SEC:
+        _load_shared()
+    if not _state['primary']:
+        if _use_pins():
+            check_soon('first use')
+        else:
+            with _lock:                  # a check already running (prepare) chooses for us: wait for it
+                if not _state['primary']:
+                    refresh('first use')
+    elif time.time() - _state['checked_at'] > REFRESH_EVERY_SEC:
+        check_soon('daily check')
+    return status()
+
+
+def check_soon(reason):
+    """Re-check the models in the background — one process at a time
+    (claim_check), one check at a time in this one."""
+    if not _checking.acquire(blocking=False):
+        return
+
+    def run():
+        try:
+            claim = _config['claim_check']
+            if claim is None or claim():
+                refresh(reason)
+        except Exception as e:
+            print(f'ai: background check failed: {e}')
+        finally:
+            _checking.release()
+    if BACKGROUND:
+        wrap = _config['in_context'] or (lambda fn: fn)
+        threading.Thread(target=wrap(run), name='ai-check', daemon=True).start()
+    else:
+        run()
+
+
+def prepare():
+    """A server process starting: adopt the shared choice, and check it in
+    the background if there's none or it's a day old — so the first chat
+    never waits."""
+    _load_shared()
+    if not _state['primary'] or time.time() - _state['checked_at'] > REFRESH_EVERY_SEC:
+        if not _state['primary']:
+            _use_pins()
+        check_soon('first use' if not _state['checked_at'] else 'daily check')
 
 
 def status():
@@ -259,8 +358,7 @@ def chat(messages, max_tokens=300, json_mode=False):
     first when one was retired). Raises RateLimited when every model tried is
     rate-limited, Unavailable when none can answer."""
     from groq import BadRequestError, NotFoundError, RateLimitError
-    if not _state['primary'] or time.monotonic() - _state['checked_at'] > REFRESH_EVERY_SEC:
-        refresh('daily check' if _state['primary'] else 'first use')
+    current()
 
     tried, rate_limited = set(), None
     for _ in range(3):

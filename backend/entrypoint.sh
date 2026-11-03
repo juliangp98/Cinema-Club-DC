@@ -13,5 +13,7 @@ config_check.report()
 # Start Gunicorn
 # Threads: AI calls (the chatbot, poll drafts) take seconds; they mustn't hold up page loads.
 # Each worker keeps the public pages pre-built (see start_warming in app.py).
+# --keep-alive 30: the bot reuses a connection for up to 15 s (bot/api.py), so
+# it never picks one the server has already closed (gunicorn's default is 2 s).
 export WARM_PUBLIC_CACHE=1
-exec gunicorn -w 2 --threads 4 -b 0.0.0.0:5001 --timeout 120 app:app
+exec gunicorn -w 2 --threads 4 -b 0.0.0.0:5001 --timeout 120 --keep-alive 30 app:app
