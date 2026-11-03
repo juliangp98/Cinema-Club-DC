@@ -108,6 +108,22 @@ def email_text(html_body):
     return '\n'.join(line.strip() for line in html.unescape(text).splitlines() if line.strip())
 
 
+EMAIL_RETRY_WAITS = (1, 3)       # seconds before trying again after a network failure
+
+
+def email_failure(e):
+    """What went wrong sending an email: 'password' (Gmail refused the login:
+    a changed or revoked app password), 'lookup' (smtp.gmail.com's address
+    couldn't be looked up: the server's DNS), or 'network' (anything else on
+    the way: worth another try)."""
+    import socket
+    if isinstance(e, smtplib.SMTPAuthenticationError):
+        return 'password'
+    if isinstance(e, socket.gaierror):
+        return 'lookup'
+    return 'network'
+
+
 def send_email(to, subject, html_body):
     """Send an email via Gmail SMTP (HTML, with a plain-text copy). Without
     SMTP settings it's printed to the console instead. Returns False if the
@@ -126,24 +142,28 @@ def send_email(to, subject, html_body):
         print(flush=True)  # don't let stdout buffering hide the link
         return True
 
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{SITE_NAME} <{SMTP_EMAIL}>"
-        msg['To'] = to
-        msg['Subject'] = subject
-        msg['Date'] = formatdate()
-        msg['Message-ID'] = make_msgid(domain=SMTP_EMAIL.rpartition('@')[2] or None)
-        msg.attach(MIMEText(email_text(html_body), 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))          # the last part is the one mail apps show
-
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20) as server:
-            server.login(SMTP_EMAIL, SMTP_PASSWORD)
-            server.sendmail(SMTP_EMAIL, to, msg.as_string())
-        print(f"📧 Email sent to {to}: {subject}", flush=True)
-        return True
-    except Exception as e:
-        print(f"⚠️  Email failed to {to}: {e}", flush=True)
-        return False
+    msg = MIMEMultipart('alternative')
+    msg['From'] = f"{SITE_NAME} <{SMTP_EMAIL}>"
+    msg['To'] = to
+    msg['Subject'] = subject
+    msg['Date'] = formatdate()
+    msg['Message-ID'] = make_msgid(domain=SMTP_EMAIL.rpartition('@')[2] or None)
+    msg.attach(MIMEText(email_text(html_body), 'plain'))
+    msg.attach(MIMEText(html_body, 'html'))          # the last part is the one mail apps show
+    for attempt, wait in enumerate(EMAIL_RETRY_WAITS + (None,), 1):
+        try:
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20) as server:
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.sendmail(SMTP_EMAIL, to, msg.as_string())
+            print(f"📧 Email sent to {to}: {subject}" + (f" (try {attempt})" if attempt > 1 else ''), flush=True)
+            return True
+        except Exception as e:
+            kind = email_failure(e)
+            print(f"⚠️  Email failed to {to} ({kind}): {e}", flush=True)
+            if kind == 'password' or wait is None:
+                return False
+            time.sleep(wait)                         # a name lookup or the network hiccuped: try again
+    return False
 
 
 def email_page(body):

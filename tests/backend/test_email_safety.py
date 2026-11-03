@@ -104,3 +104,56 @@ def test_account_check_hands_over_a_working_link(capsys):
     token = re.search(r'token=([\w-]+)', out).group(1)
     c = A.app.test_client()
     assert c.post('/api/auth/verify', json={'token': token}).json['user']['email'] == 'early@t.dev'
+
+
+def test_a_failed_lookup_is_tried_again_but_a_refused_password_isnt(monkeypatch):
+    """On the NAS, smtp.gmail.com's name lookup sometimes fails for a moment:
+    that's tried again (twice, after 1 s and 3 s). A refused login isn't:
+    another try wouldn't change Gmail's mind."""
+    import smtplib
+    import socket
+    import app as A
+    tries, waits = [], []
+
+    class Server:
+        def __init__(self, *a, **k):
+            tries.append(1)
+            if len(tries) <= fail_first:
+                raise error
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def login(self, *a):
+            pass
+
+        def sendmail(self, *a):
+            pass
+    monkeypatch.setattr(A, 'SMTP_EMAIL', 'club@t.dev')
+    monkeypatch.setattr(A, 'SMTP_PASSWORD', 'secret')
+    monkeypatch.setattr(A.smtplib, 'SMTP_SSL', Server)
+    monkeypatch.setattr(A.time, 'sleep', waits.append)
+    error, fail_first = socket.gaierror(-3, 'Temporary failure in name resolution'), 2
+    assert A.send_email('x@t.dev', 'Hi', '<p>hi</p>') is True and len(tries) == 3 and waits == [1, 3]
+    tries.clear(), waits.clear()
+    error, fail_first = smtplib.SMTPAuthenticationError(535, b'Username and Password not accepted'), 9
+    assert A.send_email('x@t.dev', 'Hi', '<p>hi</p>') is False and len(tries) == 1 and waits == []
+    assert [A.email_failure(e) for e in (socket.gaierror(-3, 'x'), smtplib.SMTPAuthenticationError(535, b'x'),
+                                         TimeoutError())] == ['lookup', 'password', 'network']
+
+
+def test_account_check_says_what_kind_of_failure_it_was(monkeypatch, capsys):
+    import socket
+    import account_check
+    monkeypatch.setattr(account_check, 'SMTP_EMAIL', 'club@t.dev')
+    monkeypatch.setattr(account_check, 'SMTP_PASSWORD', 'secret')
+
+    def lookup_fails(*a, **k):
+        raise socket.gaierror(-3, 'Temporary failure in name resolution')
+    monkeypatch.setattr(account_check.smtplib, 'SMTP_SSL', lookup_fails)
+    assert account_check.smtp_check() is False
+    out = capsys.readouterr().out
+    assert 'Gmail could not be reached' in out and 'The password wasn' in out and 'DNS' in out

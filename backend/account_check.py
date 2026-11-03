@@ -11,6 +11,8 @@ sign-in link yourself.
                                                 minutes) to pass on to them yourself
   account_check.py --smtp                      only test the mail settings: log in
                                                 to Gmail's SMTP server, send nothing
+  account_check.py --smtp --repeat 20          …20 times, a second apart: how often
+                                                name lookups or the network fail
 
 Usage:
     # Local
@@ -25,7 +27,16 @@ import smtplib
 from datetime import timedelta
 
 from app import (FRONTEND_URL, SMTP_EMAIL, SMTP_PASSWORD, GroupMembership, LoginToken, User, _utcnow_naive, app, db,
-                 email_signin_link, prepare_db)
+                 email_failure, email_signin_link, prepare_db)
+
+# What each kind of failure means, and what to do about it.
+ADVICE = {
+    'password': ('Gmail refused the login: the app password was changed or revoked. Make a new one (Google account →'
+                 ' Security → App passwords), put it in SMTP_PASSWORD in .env.production and rebuild the backend.'),
+    'lookup': ("The server couldn't look up smtp.gmail.com's address (DNS). The password wasn't tried. If this keeps"
+               ' happening, the NAS or router is failing name lookups: see "DNS" in docs/deploying.md.'),
+    'network': ("Couldn't reach Gmail's mail server (the network, not the password). Try again in a minute."),
+}
 
 
 def smtp_check():
@@ -38,9 +49,9 @@ def smtp_check():
         print(f'✓ Gmail accepted the login for {SMTP_EMAIL}.')
         return True
     except Exception as e:
-        print(f'✗ Gmail refused the login for {SMTP_EMAIL}: {e}')
-        print('  If the app password was changed or revoked, make a new one (Google account → Security →'
-              ' App passwords), put it in SMTP_PASSWORD in .env.production and restart the backend.')
+        kind = email_failure(e)
+        print(f"✗ {'Gmail refused the login' if kind == 'password' else 'Gmail could not be reached'} for {SMTP_EMAIL}: {e}")
+        print(f'  {ADVICE[kind]}')
         return False
 
 
@@ -95,9 +106,17 @@ def main():
     ap.add_argument('--send', action='store_true', help='send them a real sign-in email')
     ap.add_argument('--link', action='store_true', help='print a one-time sign-in link to pass on')
     ap.add_argument('--smtp', action='store_true', help='only test the mail settings')
+    ap.add_argument('--repeat', type=int, default=1, help='with --smtp: try this many times, a second apart')
     args = ap.parse_args()
     if args.smtp or not args.email:
-        smtp_check()
+        import time
+        results = []
+        for n in range(max(1, args.repeat)):
+            if n:
+                time.sleep(1)
+            results.append(smtp_check())
+        if len(results) > 1:
+            print(f'{sum(results)} of {len(results)} worked.')
         return
     prepare_db()
     with app.app_context():
