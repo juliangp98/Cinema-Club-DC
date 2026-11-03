@@ -39,6 +39,11 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///cinemaclub.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+    # A write waits up to 15 s for another's lock (a scrape's, the other
+    # worker's) instead of failing with "database is locked" — on every
+    # connection, and short of the bot's 20 s for a call.
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'connect_args': {'timeout': 15}}
 # Sign-ins last 30 days (sessions are marked permanent at sign-in).
 # The cookie lasts 90 days (guest profiles live in it); members' sessions
 # still end after MEMBER_IDLE_LIMIT without a visit (see _session_upkeep).
@@ -1790,8 +1795,7 @@ def start_ai_check():
 def enable_wal():
     if not getattr(app, '_wal_enabled', False):
         try:
-            db.session.execute(db.text("PRAGMA journal_mode=WAL"))
-            db.session.execute(db.text("PRAGMA busy_timeout=5000"))
+            db.session.execute(db.text("PRAGMA journal_mode=WAL"))    # kept in the file: readers never wait on a writer
             app._wal_enabled = True
         except Exception:
             pass

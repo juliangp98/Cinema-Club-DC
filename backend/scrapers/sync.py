@@ -49,6 +49,31 @@ def adopt_matched_title(movie, enriched, label):
     return None
 
 
+def remembered(enrich_movie):
+    """enrich_movie, answering a question it was already asked from memory."""
+    seen = {}
+
+    def lookup(title, year=None, alternates=()):
+        key = (title, year, tuple(alternates or ()))
+        if key not in seen:
+            seen[key] = enrich_movie(title, year, alternates=alternates)
+        return seen[key]
+    return lookup
+
+
+def look_up_first(db, Movie, MovieAlias, items, enrich_movie):
+    """Every film's TMDB / OMDb lookup, before anything is written: a write
+    holds SQLite's lock until the commit, and the site and the bot can't
+    write meanwhile (an admin's Skip, an RSVP), so the network calls mustn't
+    happen inside one. Returns enrich_movie remembering the answers."""
+    lookup = remembered(enrich_movie)
+    for m in items:
+        if m.get('title'):
+            _match_movie(Movie, MovieAlias, m, lookup)
+    db.session.rollback()                        # end the read: the writes start on a fresh view
+    return lookup
+
+
 def _match_movie(Movie, MovieAlias, m, enrich_movie):
     """Find the Movie for scraped dict `m`.
 
@@ -300,6 +325,10 @@ def sync_announced(cfg, items):
         if not theatre:
             return 0
         now = places.now_at(theatre)        # its city's clock
+        unknown = [m for m in items if m.get('title') and m.get('announced_for') and m['announced_for'] >= now.date()
+                   and not (m.get('tmdb_id') and Movie.query.filter_by(tmdb_id=m['tmdb_id']).first())]
+        enrich_movie = look_up_first(db, Movie, MovieAlias, unknown, enrich_movie)
+        theatre = Theatre.query.filter_by(slug=cfg.slug).first()
         # A film is on sale here if it has an upcoming showtime, or a recent
         # one (sold out, off sale or already started all count) no more than
         # a week before the post's date — so it doesn't flip back to "Coming
@@ -355,6 +384,8 @@ def sync_to_db(cfg, scraped_movies):
         if not theatre:
             print(f"  Theatre '{cfg.slug}' not found in DB. Run app.py first to seed theatres.")
             return None
+        enrich_movie = look_up_first(db, Movie, MovieAlias, scraped_movies, enrich_movie)
+        theatre = Theatre.query.filter_by(slug=cfg.slug).first()
 
         now = places.now_at(theatre)        # its city's clock
         run = ScrapeRun(theatre_id=theatre.id, started_at=datetime.datetime.utcnow(),

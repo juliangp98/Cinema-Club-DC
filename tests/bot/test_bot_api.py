@@ -121,10 +121,10 @@ def test_a_dropped_connection_is_retried_once_for_reads():
     c = api_module.InternalApi()
     c._session = FlakySession()
     assert run(c.get('/api/internal/servers')) == {'ok': True} and c._session.calls == ['GET', 'GET']
-    c._session = FlakySession()
+    c._writes = FlakySession()
     with pytest.raises(aiohttp.ServerDisconnectedError):
         run(c.post('/api/internal/rsvp', {'x': 1}))                    # a write might have landed: not repeated
-    assert c._session.calls == ['POST']
+    assert c._writes.calls == ['POST']
     c._session = FlakySession(drops=2)
     with pytest.raises(aiohttp.ServerDisconnectedError):
         run(c.get('/api/internal/servers'))                           # once, not forever
@@ -161,3 +161,15 @@ def test_where_answers_from_one_lookup(monkeypatch):
     assert asked == ['/api/internal/theatres']
     assert choices[0].name.startswith('Anywhere in ') and choices[0].value.startswith('region:')
     assert any(c.value.startswith('theatre:') for c in choices)
+
+
+def test_writes_never_reuse_a_connection():
+    """A POST on a connection the backend just closed is lost (and not
+    repeated), so writes each get a fresh one; reads share the pool."""
+    async def sessions():
+        c = api_module.InternalApi()
+        reads, writes = await c._ensure(), await c._ensure(write=True)
+        out = (reads.connector.force_close, writes.connector.force_close, reads is await c._ensure())
+        await c.close()
+        return out
+    assert run(sessions()) == (False, True, True)

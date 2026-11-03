@@ -196,3 +196,27 @@ def test_a_failed_scrape_is_recorded_as_an_error(suns, monkeypatch):
         run = ScrapeRun.query.order_by(ScrapeRun.id.desc()).first()
         assert run.status == 'error' and 'layout' in run.error_text
         assert ScrapeEvent.query.filter_by(event_type='scrape_error').count() == 1     # the owner's DM
+
+
+def test_films_are_looked_up_before_anything_is_written(suns, monkeypatch):
+    """A write holds SQLite's lock until the commit; while the scraper asks
+    TMDB about each new film, the site and the bot must still be able to
+    write (an admin's Skip on a game post failed during a scrape). So every
+    lookup happens first, outside any write — and each is asked only once."""
+    import sqlite3
+    import enrich
+    from app import app
+    path = app.config['SQLALCHEMY_DATABASE_URI'].removeprefix('sqlite:///')
+    asked = []
+
+    def lookup(title, year=None, alternates=()):
+        asked.append(title)
+        other = sqlite3.connect(path, timeout=0)          # someone else writing right now
+        other.execute('BEGIN IMMEDIATE')
+        other.execute('ROLLBACK')
+        other.close()
+        return None
+    monkeypatch.setattr(enrich, 'enrich_movie', lookup)
+    sync([film('FIRST LOOK', day(1)), film('SECOND LOOK', day(2)), film('THIRD LOOK', day(3))])
+    assert asked == ['FIRST LOOK', 'SECOND LOOK', 'THIRD LOOK']
+    assert [len(rows(t)) for t in ('FIRST LOOK', 'SECOND LOOK', 'THIRD LOOK')] == [1, 1, 1]

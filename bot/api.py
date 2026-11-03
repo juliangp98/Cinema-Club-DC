@@ -4,8 +4,10 @@ Discord gives the bot 3 seconds to answer an autocomplete (and it can't ask
 for more), so while one is running (`quick`, set by the command tree's check)
 GETs come from a short-lived cache: a fresh answer as it is, an older one
 straight away while it's refreshed in the background, and only a first-ever
-lookup waits — at most QUICK_WAIT. A dropped connection is retried once, and
-slow calls are logged with how long they took.
+lookup waits — at most QUICK_WAIT. A dropped connection is retried once for
+a read; a write (POST, PUT, DELETE) goes on a fresh connection, so it never
+lands on one the backend has just closed — it isn't repeated once sent, as
+it may have happened. Slow calls are logged with how long they took.
 """
 
 import asyncio
@@ -43,23 +45,27 @@ class ApiError(Exception):
 class InternalApi:
     def __init__(self):
         self._session = None
+        self._writes = None           # writes: a fresh connection each (never a reused one)
         self._cache = {}          # (path, params) → (when, answer)
         self._pending = {}        # (path, params) → the task refreshing it
 
-    async def _ensure(self):
+    def _new_session(self, connector):
+        return aiohttp.ClientSession(base_url=BOT_API_BASE, headers={'X-Internal-Token': INTERNAL_API_TOKEN},
+                                     timeout=aiohttp.ClientTimeout(total=TIMEOUT), connector=connector)
+
+    async def _ensure(self, write=False):
+        if write:
+            if self._writes is None or self._writes.closed:
+                self._writes = self._new_session(aiohttp.TCPConnector(force_close=True))
+            return self._writes
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                base_url=BOT_API_BASE,
-                headers={'X-Internal-Token': INTERNAL_API_TOKEN},
-                timeout=aiohttp.ClientTimeout(total=TIMEOUT),
-                connector=aiohttp.TCPConnector(keepalive_timeout=KEEPALIVE),
-            )
+            self._session = self._new_session(aiohttp.TCPConnector(keepalive_timeout=KEEPALIVE))
         return self._session
 
     async def _call(self, method, path, timeout=None, **kw):
         """One request, retried once if the connection dropped (GETs always;
         anything when it never got through)."""
-        session = await self._ensure()
+        session = await self._ensure(write=method != 'GET')
         started = time.monotonic()
         for attempt in (1, 2):
             try:
@@ -127,5 +133,6 @@ class InternalApi:
         return await self._send('DELETE', path, payload)
 
     async def close(self):
-        if self._session and not self._session.closed:
-            await self._session.close()
+        for s in (self._session, self._writes):
+            if s and not s.closed:
+                await s.close()
