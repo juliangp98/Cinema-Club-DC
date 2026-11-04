@@ -182,3 +182,18 @@ def test_harder_questions_pay_more(club):
     assert r['earned'] == 3 and r['difficulty'] == 'hard' and r['kernels'] == 3
     with app.app_context():
         assert trivia.worth('anytime', 'hard') == 2 and trivia.worth('daily', None) == 2      # older questions: medium
+
+
+def test_the_scraper_refreshes_the_pool_on_its_own(monkeypatch):
+    """Found filling a demo copy: the scraper calls refresh_if_due() outside any request, and it
+    failed every time ("outside of application context"), so the pool never filled. It runs on its own
+    now, once a week."""
+    import film_pool
+    from app import app, db, BotSetting
+    setup_db()
+    calls = []
+    monkeypatch.setattr(film_pool, 'refresh', lambda size=film_pool.SIZE, now=None: calls.append(1) or 40)
+    assert film_pool.refresh_if_due() == 40 and calls == [1]                         # no app context here, as in scraper.py
+    with app.app_context():
+        assert db.session.get(BotSetting, 'film_pool_at').value
+    assert film_pool.refresh_if_due() is None and calls == [1]                       # not again for a week

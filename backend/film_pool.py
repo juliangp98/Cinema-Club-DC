@@ -240,8 +240,13 @@ def refresh(size=SIZE, now=None):
 
 
 def refresh_if_due(now=None):
-    """refresh() when the pool is empty or a week old (after a scrape run)."""
-    from app import db, BotSetting
+    """refresh() when the pool is empty or a week old (after a scrape run).
+    Works on its own (the scraper calls it outside any request)."""
+    from flask import has_app_context
+    from app import app, db, BotSetting
+    if not has_app_context():
+        with app.app_context():
+            return refresh_if_due(now)
     row = db.session.get(BotSetting, 'film_pool_at')
     last = datetime.fromisoformat(row.value) if row and row.value else None
     utc = datetime.utcnow()

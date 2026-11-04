@@ -265,7 +265,7 @@ def waiting_anytime(group, user):
 
 
 LEVELS = ('easy', 'medium', 'hard')
-LEVEL_TRIES = 8                        # questions made, at most, looking for the level asked for
+LEVEL_TRIES = 12                       # questions made, at most, looking for the level asked for (a quarter come out hard)
 
 
 def another(group, user, level=None):
