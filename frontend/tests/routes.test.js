@@ -51,7 +51,7 @@ test("every page is linked from somewhere else", () => {
 
 test("old addresses still land somewhere", () => {
   const app = readFileSync(join(SRC, "App.jsx"), "utf8");
-  for (const [from, to] of [["/polls", "/play#polls"], ["/members", "/club?tab=members"], ["/leaderboard", "/club?tab=leaderboard"]]) {
+  for (const [from, to] of [["/polls", "/play/polls"], ["/members", "/club?tab=members"], ["/leaderboard", "/club?tab=leaderboard"]]) {
     expect(app).toMatch(new RegExp(`path="${from}" element=\\{<Navigate to="${to.replace(/[?]/g, "\\?")}" replace />\\}`));
   }
 });

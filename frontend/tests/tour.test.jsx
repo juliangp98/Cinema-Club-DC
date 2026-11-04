@@ -109,19 +109,19 @@ describe("a page's tour", () => {
   });
 
   test("what's on the page, then its part of Help", async () => {
-    document.body.insertAdjacentHTML("beforeend", `<section id="trivia">t</section><section id="games">g</section>`);
+    document.body.insertAdjacentHTML("beforeend", `<section class="play-turn">t</section><ul class="play-tiles"><li>g</li></ul>`);
     const onFinish = vi.fn();
     renderPage(<><PageTour tour={PAGE_TOURS.play} onFinish={onFinish} /><Where /></>, { route: "/play" });
-    expect(screen.getByRole("dialog", { name: "Trivia" })).toHaveTextContent("1 of 3");   // challenges, bingo, records: not here
+    expect(screen.getByRole("dialog", { name: "Your turn" })).toHaveTextContent("1 of 3");   // the tabs and the boards: not here
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByRole("dialog", { name: "Polls and more games" })).toHaveTextContent("2 of 3");
+    expect(screen.getByRole("dialog", { name: "Every game" })).toHaveTextContent("2 of 3");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByRole("dialog", { name: "There's more in Help" })).toHaveTextContent("Everything about Play");
     await userEvent.click(screen.getByRole("button", { name: "Open Help" }));
     expect(onFinish).toHaveBeenCalled();
     expect(page()).toBe("/help");
-    document.getElementById("trivia").remove();
-    document.getElementById("games").remove();
+    document.querySelector(".play-turn").remove();
+    document.querySelector(".play-tiles").remove();
   });
 
   test("every page's tour ends at Help that exists, in 3 to 6 steps", async () => {
@@ -132,7 +132,7 @@ describe("a page's tour", () => {
       expect(t.steps.length + 1).toBeGreaterThanOrEqual(3);
       expect(t.steps.length + 1).toBeLessThanOrEqual(6);
     }
-    expect(Object.keys(PAGE_TOURS).sort()).toEqual(["browse", "calendar", "challenge", "club", "discover", "feed", "film", "me", "play", "poll", "theatre", "tournament"]);
+    expect(Object.keys(PAGE_TOURS).sort()).toEqual(["browse", "calendar", "challenge", "club", "discover", "feed", "film", "me", "play", "play-challenges", "poll", "theatre", "tournament"]);
   });
 });
 

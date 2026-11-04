@@ -159,11 +159,11 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
     if (!window.confirm(`Delete this poll? Its votes go too, and this can't be undone.${warn}`)) return;
     try {
       await send(`${apiBase}/api/polls/${pollId}`, "DELETE");
-      navigate("/play#polls");
+      navigate("/play/polls");
     } catch (e) { setError(e.data?.error || "Couldn't delete it — try again."); }
   }
 
-  const back = editing ? { to: `/polls/${pollId}`, label: "The poll" } : { to: "/play#polls", label: "Play" };
+  const back = editing ? { to: `/polls/${pollId}`, label: "The poll" } : { to: "/play/polls", label: "Play" };
   if (!canRun) {
     return (
       <div className="page">

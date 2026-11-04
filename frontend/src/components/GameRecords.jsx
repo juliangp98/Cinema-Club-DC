@@ -174,7 +174,7 @@ export function MemberGames({ apiBase, group, userId, name }) {
       {on.bingo && <MemberBingo apiBase={apiBase} groupId={group.id} userId={userId} name={name} />}
       {row && <StatTiles label={`${name}'s records`} items={recordItems(row, on)} />}
       {on.challenges && <Rivals apiBase={apiBase} groupId={group.id} userId={userId} name={name} />}
-      <p className="ui-hint"><Link to="/play?tab=records">Everyone's records on Play →</Link></p>
+      <p className="ui-hint"><Link to="/play/records">Everyone's records on Play →</Link></p>
     </section>
   );
 }

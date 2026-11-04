@@ -210,13 +210,15 @@ export default function App() {
           <Route path="/styleguide" element={<RequireSignIn user={user}><StyleguidePage /></RequireSignIn>} />
           <Route path="/play" element={
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/play/:section" element={
+            <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/club" element={
             <RequireSignIn user={user}><ClubPage user={user} apiBase={API_BASE} /></RequireSignIn>} />
           {/* The Club page has the old Members and Leaderboard pages as tabs (R6b). */}
           <Route path="/members" element={<Navigate to="/club?tab=members" replace />} />
           <Route path="/leaderboard" element={<Navigate to="/club?tab=leaderboard" replace />} />
           {/* Polls live on Play (R15). */}
-          <Route path="/polls" element={<Navigate to="/play#polls" replace />} />
+          <Route path="/polls" element={<Navigate to="/play/polls" replace />} />
           <Route path="/polls/new" element={
             <RequireSignIn user={user}><PollEditorPage apiBase={API_BASE} activeGroupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/challenges/:challengeId" element={

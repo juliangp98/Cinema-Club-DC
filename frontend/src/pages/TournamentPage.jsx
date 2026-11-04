@@ -51,7 +51,7 @@ export default function TournamentPage({ apiBase, user }) {
   const anything = y.can_accept || y.can_join || y.match || y.can_start || y.can_cancel || inIt;
   return (
     <div className="page tournament-page">
-      <PageHeader title={t.title} back={{ to: "/play#challenges", label: "Play" }} tour="tournament"
+      <PageHeader title={t.title} back={{ to: "/play/challenges", label: "Play" }} tour="tournament"
                   meta={[{ label: TOURNAMENT_STATUS[t.status], gold: ["open", "running"].includes(t.status) }, { label: t.games_line },
                          { label: t.stake ? `${t.stake} 🍿 entry · pot ${t.pot} 🍿` : "For bragging rights" },
                          t.stake ? { label: t.payout_label } : null, { label: `Each match: ${t.match_time_label.toLowerCase()}` },

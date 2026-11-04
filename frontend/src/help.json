@@ -117,23 +117,23 @@
   },
   "play-trivia": {
    "label": "trivia on Play",
-   "to": "/play#trivia"
+   "to": "/play/trivia"
   },
   "play-bingo": {
    "label": "bingo on Play",
-   "to": "/play#bingo"
+   "to": "/play/bingo"
   },
   "play-polls": {
    "label": "polls on Play",
-   "to": "/play#polls"
+   "to": "/play/polls"
   },
   "play-games": {
    "label": "the quiz games on Play",
-   "to": "/play#games"
+   "to": "/play/games"
   },
   "play-kernels": {
    "label": "your kernels on Play",
-   "to": "/play#kernels"
+   "to": "/play/kernels"
   },
   "new-poll": {
    "label": "＋ New poll",
@@ -257,7 +257,7 @@
   },
   "play-records": {
    "label": "Records on Play",
-   "to": "/play?tab=records"
+   "to": "/play/records"
   },
   "repo": {
    "label": "Cinema Club DC on GitHub",
@@ -273,7 +273,7 @@
   },
   "play-challenges": {
    "label": "Challenges on Play",
-   "to": "/play#challenges"
+   "to": "/play/challenges"
   }
  },
  "sections": [
@@ -495,7 +495,7 @@
     {
      "id": "where-games",
      "q": "Where are the games?",
-     "a": "On [the Play page](play) (Play in the menu), beside [your kernels](play-kernels), this month's standings and this week's movers. [Challenges](play-challenges) come first — your record, the club's best and who you should challenge — then trivia, bingo, [every poll](play-polls) (open ones to vote in, past ones with their results) and the quiz games; trivia, bingo and challenges appear once a club organizer or admin turns them on in [Club settings → Games](club-settings-games)."
+     "a": "On [Play](play) (Play in the menu). Its first page, Today, lists everything waiting on you, each with one button (today's trivia question, polls to vote in, challenge invites, your matches), then a tile for each part of Play. Each part has its own page, in the tabs along the top: [Challenges](play-challenges), [Trivia](play-trivia), [Bingo](play-bingo), [Polls](play-polls), [Games](play-games), [Records](play-records) and [Kernels](play-kernels). On a wide screen your kernels and the boards sit beside Today; on a phone they're the Kernels page. Trivia, bingo and challenges appear once a club organizer or admin turns them on in [Club settings → Games](club-settings-games)."
     },
     {
      "id": "polls",

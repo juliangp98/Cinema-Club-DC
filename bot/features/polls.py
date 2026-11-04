@@ -348,7 +348,7 @@ async def poll_list(interaction: discord.Interaction):
         await reply_failure(interaction, e, '/poll list', ephemeral=False)
         return
     if not open_polls:
-        await interaction.followup.send(f'No open polls right now. See past results and start one: {SITE_URL}/play#polls')
+        await interaction.followup.send(f'No open polls right now. See past results and start one: {SITE_URL}/play/polls')
         return
     lines = [f"🗳️ **[{p['title']}](<{SITE_URL}/polls/{p['id']}>)** — {embeds.plural(p.get('category_count', 0), 'category', 'categories')}"
              for p in open_polls[:10]]

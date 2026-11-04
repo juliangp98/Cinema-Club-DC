@@ -272,7 +272,7 @@ export default function PollDetailPage({ user, apiBase }) {
   const chooseLayout = v => { if (!v) return; setLayout(v); try { localStorage.setItem(LAYOUT_KEY, v); } catch { /* private mode */ } };
 
   if (loading) return null;
-  if (!poll) { navigate("/play#polls"); return null; }
+  if (!poll) { navigate("/play/polls"); return null; }
 
   const cats = poll.categories || [];
   const mode = poll.scoring_mode;
@@ -304,7 +304,7 @@ export default function PollDetailPage({ user, apiBase }) {
 
   return (
     <div className="page polls">
-      <PageHeader title={poll.title} back={{ to: "/play#polls", label: "Play" }} tour="poll"
+      <PageHeader title={poll.title} back={{ to: "/play/polls", label: "Play" }} tour="poll"
                   meta={[{ label: STATUS[poll.status] || poll.status, gold: poll.status === "open" },
                          { label: TYPE_LABELS[poll.poll_type] || "Poll" }, { label: SCORING_LABELS[mode] },
                          ...(mode !== "none" ? [{ label: `Answers: ${REVEAL_LABELS[live ? "live" : "final"].toLowerCase()}` }] : []),

@@ -1038,7 +1038,7 @@ def kernel_parts(k):
 def kernels_embed(k):
     """🍿 My kernels on /play: your total, where it came from, this week's allowance, and how to earn more."""
     d, r, a = k['detail'], k['rules'], k['allowance']
-    embed = discord.Embed(title=f"🍿 Your kernels: {k['kernels']}", colour=AMBER, url=f'{SITE_URL}/play#kernels',
+    embed = discord.Embed(title=f"🍿 Your kernels: {k['kernels']}", colour=AMBER, url=f'{SITE_URL}/play/kernels',
                           description=kernel_parts(k))
     embed.add_field(name='Going out', inline=False, value=(
         f"Checked in +{d['went']} · planned it +{d['planned']} · trailblazer +{d['trailblazer']} · crew nights +{d['crew']}"))
@@ -1068,7 +1068,7 @@ LETTERS = 'ABCD'
 def trivia_embed(q, yesterday=None, title='🧠 Daily trivia'):
     """The question of the day (R10d): the options lettered, how hard it is
     and what it's worth (R15), and yesterday's answer underneath when there was one."""
-    embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/play#trivia', description='\n'.join(
+    embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/play/trivia', description='\n'.join(
         [q['prompt'], ''] + [f"**{LETTERS[i]}.** {o}" for i, o in enumerate(q['options'])]))
     if yesterday and yesterday.get('answer') is not None:
         st = yesterday.get('stats') or {}
@@ -1087,7 +1087,7 @@ def bingo_card_post_embed(post):
     """The month's card in #movies (R14): its eight squares around the free middle."""
     sq = post['squares']
     lines = [f"{s['emoji']} **{s['label']}** — *{s['hint']}*" for s in sq]
-    embed = discord.Embed(title=f"🎱 {post['month_label']}'s repertory bingo card", colour=AMBER, url=f'{SITE_URL}/play#bingo',
+    embed = discord.Embed(title=f"🎱 {post['month_label']}'s repertory bingo card", colour=AMBER, url=f'{SITE_URL}/play/bingo',
                           description='Fills in by itself when you check in ("Went") to screenings this month — '
                                       'the middle is free.\n\n' + '\n'.join(lines))
     embed.set_footer(text=f"A line of 3 is bingo: +{post['rules']['line']} 🍿 · the full card +{post['rules']['full']} 🍿 · yours: /play")
@@ -1098,7 +1098,7 @@ def bingo_win_embed(post):
     """A win in #movies (R14) — naming them only if they said Always."""
     who = post.get('name') or 'Someone'
     what = 'filled the whole card 🎉🎉' if post.get('which') == 'full' else 'got bingo 🎉'
-    return discord.Embed(title=f"🎱 {who} {what}", colour=AMBER, url=f'{SITE_URL}/play#bingo',
+    return discord.Embed(title=f"🎱 {who} {what}", colour=AMBER, url=f'{SITE_URL}/play/bingo',
                          description=f"{post.get('month_label', 'This month')}'s repertory bingo · your card: /play")
 
 
@@ -1140,7 +1140,7 @@ def quiz_round_embed(r):
             body = f"{said + chr(10) if said else ''}Which film is this still from?\n\n{opts}"
         if r['done'] and r.get('film'):
             body += f"\n\n🎬 {_year_film(r['film'])}"
-    embed = discord.Embed(title=f"{r['emoji']} {r['label']}", colour=AMBER, url=f'{SITE_URL}/play#games', description=body)
+    embed = discord.Embed(title=f"{r['emoji']} {r['label']}", colour=AMBER, url=f'{SITE_URL}/play/games', description=body)
     if r['kind'] == 'still':
         embed.set_image(url=f"{SITE_URL}{r['image']}")
     worth = (f"worth {r['worth']} 🍿 now" if r.get('by_step') and not r['done'] else
@@ -1349,7 +1349,7 @@ def scout_embed(got):
         if p['suggest']['kind']:
             lines.append(f"Try: {p['suggest']['emoji']} {p['suggest']['label']}" + (f" for {p['suggest']['stake']} 🍿" if p['suggest']['stake'] else ''))
     embed = discord.Embed(title='🔍 Who should you challenge?', colour=AMBER, description='\n'.join(lines)[:4000],
-                          url=f"{SITE_URL}/play#challenges")
+                          url=f"{SITE_URL}/play/challenges")
     embed.set_footer(text='Only you see this · 🔥 for a roast of their movie habits')
     return embed
 
@@ -1447,7 +1447,7 @@ def bingo_embed(b):
                 else f" — *{s['hint']}*") for s in sq if s['key'] != 'free']
     status = ('🎉 **Full card!**' if b['full'] else '🎉 **Bingo!** Now the full card…' if b['line']
               else f"{b['filled']} of 8 — a line of 3 (the middle's free) is bingo")
-    embed = discord.Embed(title=f"🎱 Repertory bingo · {b['month_label']}", colour=AMBER, url=f'{SITE_URL}/play#bingo',
+    embed = discord.Embed(title=f"🎱 Repertory bingo · {b['month_label']}", colour=AMBER, url=f'{SITE_URL}/play/bingo',
                           description=f"{grid}\n\n{status}\n\n" + '\n'.join(lines))
     leaders = [f"{r['user']['name']} {r['filled']}/8" + (' 🎉' if r['line'] else '') for r in b.get('club', [])[:6]]
     if leaders:

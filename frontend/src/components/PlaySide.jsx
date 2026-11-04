@@ -6,9 +6,10 @@ import { KernelBar } from "./ClubBoard";
 import { SkippedPosts, useGamePosts } from "./GamePostsWaiting";
 import { kernelParts } from "../kernels";
 
-// Play's side column (R15, layout A): your kernels, this month's standings
-// (top five and you), this week's movers — and, for organizers and admins,
-// the games they run. On phones a strip of your numbers sits on top instead.
+// Play's boards: your kernels, this month's standings (top five and you),
+// this week's movers and, for organizers and admins, the games they run.
+// The side column on Today on wide screens; on phones, their own page
+// (/play/kernels), with a strip of your numbers on top of every Play page.
 
 const rankOf = (rows, id) => (rows ? rows.findIndex(r => r.user.id === id) : -1);
 // Trivia's kernels by difficulty (R15): "+1 easy · +2 medium · +3 hard".
@@ -61,10 +62,10 @@ export function LeftToday({ k }) {
         <>
           <span className="rail-big">🎯 {t.total}</span>
           <ul className="play-today-parts">
-            {t.parts.map(p => <li key={p.key}><a href={p.to.replace("/play", "")}>{p.label}</a><strong>+{p.left}</strong></li>)}
+            {t.parts.map(p => <li key={p.key}><Link to={p.to}>{p.label}</Link><strong>+{p.left}</strong></li>)}
           </ul>
         </>
-      ) : <p className="ui-hint">✓ You've earned every game kernel there is today — back tomorrow for more.</p>}
+      ) : <p className="ui-hint">✓ You've earned every game kernel there is today. More tomorrow.</p>}
     </Panel>
   );
 }
@@ -104,19 +105,19 @@ export function Movers({ week, viewerId }) {
         <ol className="play-board">
           {up.map(row => <BoardRow key={row.user.id} row={row} place={row.place} viewerId={viewerId} value={`+${row.kernels}`} />)}
         </ol>
-      ) : <p className="ui-hint">No kernels yet this week — be the first.</p>}
+      ) : <p className="ui-hint">No kernels yet this week. Be the first.</p>}
     </Panel>
   );
 }
 
-// Phones: your numbers in one row, above the games.
+// Phones: your numbers in one row, on top of every Play page.
 export function KernelStrip({ k, month, viewerId }) {
   if (!k) return null;
   const i = rankOf(month, viewerId);
   return (
     <nav className="games-strip play-strip" aria-label="Your kernels">
-      <a href="#kernels" className="chip gold">🍿 {k.kernels}</a>
-      {k.today?.total > 0 && <a href="#games" className="chip gold">🎯 {k.today.total} left today</a>}
+      <Link to="/play/kernels" className="chip gold">🍿 {k.kernels}</Link>
+      {k.today?.total > 0 && <Link to="/play/games" className="chip gold">🎯 {k.today.total} left today</Link>}
       {i >= 0 && <Link to="/club?tab=leaderboard" className="chip">#{month[i].place} this month</Link>}
       <span className="chip">{k.allowance.give_left} to give</span>
     </nav>

@@ -474,15 +474,15 @@ GAME_KINDS = ('trivia_daily', 'trivia_result', 'bingo_card', 'bingo_win', 'game_
 
 def _describe_game(kind, p):
     if kind == 'trivia_daily':
-        return {'headline': 'Today’s trivia question is up', 'detail': p.get('prompt', ''), 'link': '/play#trivia'}
+        return {'headline': 'Today’s trivia question is up', 'detail': p.get('prompt', ''), 'link': '/play/trivia'}
     if kind == 'trivia_result':
         you = {'right': 'You got it ✅', 'wrong': 'You missed this one', None: 'You didn’t answer'}[p.get('you')]
         return {'headline': f"Yesterday’s trivia: {p.get('answer', '')}",
                 'detail': ' · '.join(b for b in (p.get('prompt'), you, f"{p.get('correct', 0)} of {p.get('answered', 0)} got it") if b),
-                'link': '/play#trivia'}
+                'link': '/play/trivia'}
     if kind == 'bingo_card':
         return {'headline': f"{p.get('month_label', 'This month')}’s bingo card is up",
-                'detail': ' · '.join(p.get('squares') or []), 'link': '/play#bingo'}
+                'detail': ' · '.join(p.get('squares') or []), 'link': '/play/bingo'}
     if kind.startswith('challenge_'):
         return _describe_challenge(kind, p)
     if kind.startswith('tournament_'):
@@ -496,7 +496,7 @@ def _describe_game(kind, p):
     if kind == 'bingo_win':
         what = 'the full card 🎉🎉' if p.get('which') == 'full' else 'bingo 🎉'
         return {'headline': f'You got {what}', 'detail': f"+{p.get('kernels', 0)} kernels · {p.get('month_label', '')}",
-                'link': '/play#bingo'}
+                'link': '/play/bingo'}
     what = 'Today’s trivia question' if p.get('post_kind') == 'trivia' else f"{p.get('month_label', 'This month')}’s bingo card"
     return {'headline': f'{what} is waiting for your OK', 'detail': 'Look it over, then post it in Discord, skip it or change it.',
             'link': '/club?tab=settings#game-posts'}

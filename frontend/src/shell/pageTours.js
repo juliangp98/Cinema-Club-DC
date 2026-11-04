@@ -5,7 +5,7 @@
 // off, phones) are skipped, as in the welcome tour.
 // Which tour the page at `pathname` has (the ? in the top bar), or null.
 const ROUTES = [[/^\/$/, "discover"], [/^\/calendar$/, "calendar"], [/^\/browse$/, "browse"], [/^\/theatres\/[^/]+$/, "theatre"],
-                [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/club$/, "club"],
+                [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/play\/challenges$/, "play-challenges"], [/^\/club$/, "club"],
                 [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/challenges\/[^/]+$/, "challenge"], [/^\/tournaments\/[^/]+$/, "tournament"],
                 [/^\/me$/, "me"]];
 export const tourFor = pathname => ROUTES.find(([re]) => re.test(pathname))?.[1] || null;
@@ -64,11 +64,15 @@ export const PAGE_TOURS = {
     { target: ".games-rail, .feed-strip", title: "Waiting for you", body: "Today's trivia, polls to vote in, and your kernels." },
   ] },
   play: { title: "Play", help: "games", steps: [
-    { target: "#challenges", title: "Challenges", body: "Play members for a pot of kernels — one game, a gauntlet, or a whole tournament. Up top: your record and the club's best, then who you should challenge and why — with their habits next to yours, and a roast 🔥." },
-    { target: "#trivia", title: "Trivia", body: "The question of the day — one try, 1 to 3 kernels by how hard it is — and anytime questions if your club allows them." },
-    { target: "#bingo", title: "Repertory bingo", body: "This month's card fills in by itself from your check-ins — and under it, everyone's. Tap one to see their squares." },
-    { target: "#games", title: "Polls and more games", body: "Above, every poll: vote in the open ones; past ones show their results. Here, Higher or lower, Who said it, Guess the still and more — the ones your club has on. Beside them: your kernels as you earn them, and what's still on the table today." },
-    { target: '[data-tab="records"]', title: "Records", body: "Your game records, everyone's (sort by any game), and the club's — this month, this year or all time." },
+    { target: ".play-turn", title: "Your turn", body: "Everything waiting on you, with one button each: today's trivia question, polls to vote in, challenge invites, your matches." },
+    { target: ".play-tiles", title: "Every game", body: "A tile for each part of Play, with what's new in it. Tap one for its page." },
+    { target: ".route-tabs", title: "Play's pages", body: "Challenges, trivia, bingo, polls, the quiz games, records and your kernels, each on its own page." },
+    { target: ".play-side, .play-strip", title: "Your kernels", body: "Your kernels as you earn them, what's left to earn today, this month's board and this week's movers." },
+  ] },
+  "play-challenges": { title: "Challenges", help: "challenges", steps: [
+    { target: ".ch-head", title: "Start one", body: "Challenge members to a game or a gauntlet for a pot of kernels, or start a tournament for three or more." },
+    { target: ".ch-arena", title: "Your record", body: "Your wins and losses, your nemesis and your best game, and the club's best." },
+    { target: ".ch-scout", title: "Who to challenge", body: "Picked by your record, theirs and the kernels, with a game to try. Compare habits, or ask for a roast 🔥." },
   ] },
   club: { title: "the Club page", help: "club", steps: [
     { target: ".club-hero", title: "Your club", body: "Its theatres, how many members, and your role." },

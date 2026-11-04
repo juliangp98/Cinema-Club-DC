@@ -1081,7 +1081,7 @@ button.feed-title:hover { color: var(--amber); }
 @media (min-width: 1024px) {                  /* wide screens: the feed with a games rail beside it */
   .feed-strip { display: none; }
   .feed-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1.75rem; align-items: start; }
-  .games-rail { display: block; position: sticky; top: calc(var(--topbar-h) + 5rem); }
+  .feed-layout .games-rail { display: block; top: calc(var(--topbar-h) + 5rem); max-height: calc(100vh - var(--topbar-h) - 6rem); }   /* sticky and scrolling: ui.css */
 }
 .games-rail-inner { display: flex; flex-direction: column; gap: 0.75rem; }
 .rail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; font-size: var(--fs-sm); }
@@ -1117,10 +1117,39 @@ button.feed-title:hover { color: var(--amber); }
 .member-bingo-past { list-style: none; margin: 0.35rem 0 0; padding: 0; display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .member-bingo-past li { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); color: var(--muted); }
 .play-section { margin-bottom: 1.5rem; }
-/* Play (R15, layout A): the games beside your kernels and the standings;
-   phones: one column, your numbers as chips up top. */
+/* Play: Today (what's waiting, then a tile per part) beside the boards on
+   wide screens; each part its own page. Phones: your numbers as chips up top,
+   the boards on their own page (no side column trailing below the games). */
 .play-strip { margin-top: -0.25rem; }          /* the columns: .ui-split */
-@media (min-width: 1024px) { .play-strip { display: none; } }
+@media (min-width: 1024px) { .play-strip { display: none; } .play-tiles .phone-only { display: none; } }
+@media (max-width: 1023px) { .play-today .play-side { display: none; } }
+.play-turn { margin-bottom: 1.25rem; }
+.play-turn .ui-panel-title { display: block; margin-bottom: 0.5rem; }
+.play-turn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.play-turn-list li { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0.7rem;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-left: 3px solid var(--amber); border-radius: var(--radius); }
+.play-turn-icon { font-size: 1.25rem; line-height: 1; }
+.play-turn-text { flex: 1; min-width: 0; color: var(--cream); font-size: var(--fs-sm); }
+.play-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.75rem; }
+.play-tiles li { display: flex; }
+.play-tile { flex: 1; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 0.75rem; row-gap: 0.15rem;
+  align-items: center; padding: 1rem; min-height: 92px; text-decoration: none; color: var(--cream);
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--card-radius); transition: border-color 0.15s; }
+.play-tile:hover, .play-tile:focus-visible { border-color: var(--amber); }
+.play-tile.hot { border-color: var(--amber); box-shadow: inset 3px 0 0 var(--amber); }
+.play-tile-icon { grid-row: span 2; font-size: 2rem; line-height: 1; }
+.play-tile-name { font-family: var(--font-serif); font-size: var(--fs-lg); color: var(--amber); }
+.play-tile-line { font-size: var(--fs-sm); color: var(--muted); }
+.play-tile.hot .play-tile-line { color: var(--cream); }
+.play-actions { margin: 0 0 0.75rem; }
+.play-kernels { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; align-items: start; }
+@media (max-width: 599px) {                    /* phones: two tiles a row, the icon on top */
+  .play-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .play-tile { grid-template-columns: 1fr; padding: 0.8rem; min-height: 0; }
+  .play-tile-icon { grid-row: auto; font-size: 1.6rem; }
+  .play-tile-name { font-size: var(--fs-md); }
+}
+a.profile-tab { text-decoration: none; }
 .play-board-gap { justify-content: center; color: var(--muted); }
 /* Quiz games on Play (R15) */
 .quiz-games { display: flex; flex-direction: column; gap: 0.75rem; }

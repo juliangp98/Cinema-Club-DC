@@ -785,14 +785,19 @@ a.share-state { color: var(--green); }
 /* A page with a side column (7f): the main column beside a side one on wide
    screens, one column on phones (the side after the main, or before it with
    .side-first). --split-side sets the side's width; .sticky keeps the side in
-   view while the main column scrolls. Play, the Club overview, Me, a member's
-   page, Help and Club settings all use it. */
+   view while the main column scrolls, and a side taller than the screen
+   scrolls on its own (or its bottom stayed out of reach until the page's
+   end). Play, the Club overview, Me, a member's page, Help and Club settings
+   all use it. */
 .ui-split { display: block; }
 .ui-split-side { display: flex; flex-direction: column; gap: 0.75rem; }
 @media (min-width: 1024px) {
   .ui-split { display: grid; grid-template-columns: minmax(0, 1fr) var(--split-side, 300px); gap: 1.75rem; align-items: start; }
   .ui-split.side-first { grid-template-columns: var(--split-side, 220px) minmax(0, 1fr); }
-  .ui-split-side.sticky { position: sticky; top: calc(var(--topbar-h) + 1rem); }
+  .ui-split-side.sticky, .games-rail {
+    position: sticky; top: calc(var(--topbar-h) + 1rem); max-height: calc(100vh - var(--topbar-h) - 2rem);
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent;
+  }
 }
 /* .side-top: on phones the side comes first (a section menu, a topic list). */
 @media (max-width: 1023px) {

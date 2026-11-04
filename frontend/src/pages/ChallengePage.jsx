@@ -141,7 +141,7 @@ export default function ChallengePage({ apiBase }) {
   return (
     <div className="page challenge-page">
       <PageHeader title={tour ? `${tour.match}: ${title}` : title} tour="challenge"
-                  back={tour ? { to: `/tournaments/${tour.id}`, label: "The bracket" } : { to: "/play#challenges", label: "Play" }}
+                  back={tour ? { to: `/tournaments/${tour.id}`, label: "The bracket" } : { to: "/play/challenges", label: "Play" }}
                   meta={[{ label: CHALLENGE_STATUS[c.status], gold: c.status === "open" }, { label: lengthLine(c) },
                          { label: tour ? tour.title : stakesLine(c) }, { label: c.reveal === "live" ? "Scores live" : "Scores sealed" },
                          { label: c.visibility === "club" ? "The club sees it" : "Just the players" }]} />

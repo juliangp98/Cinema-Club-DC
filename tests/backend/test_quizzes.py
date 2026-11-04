@@ -147,4 +147,4 @@ def test_still_on_the_table_today(club):
     answer(club, rid, truth(rid))                                                       # +1
     left = today()
     assert left['total'] == 9 and left['parts'][0] == {'key': 'higher_lower', 'label': 'Higher or lower', 'left': 4,
-                                                        'to': '/play#games'}
+                                                        'to': '/play/games'}
