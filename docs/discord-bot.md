@@ -42,7 +42,7 @@ joins it to a site account later.
 |---|---|
 | **Find something to see** | `/showtimes` what's playing (days, a date, a theatre, tickets; `going:True` for who's going; `city:` another city's) · `/movie` a film's details and showtimes · `/foryou` picks from Your taste · `/find` a kind of film (🔔 Alert me saves the search) · `/surprise` one random pick · `/theatre` where it is, what's on, members' notes |
 | **Make plans** | `/rsvp` Going / Maybe / Can't go · `/discuss` open a screening's thread · `/watch` add to, remove from or show a watchlist · `/notifications` your alerts and where they go |
-| **Play, polls & kernels** | `/play` the games hub; `solo:` straight into trivia, your bingo card, a quiz game or your kernels; `versus:` challenge members — one game, 🎲 a random one or a 🧩 gauntlet (`games:`), with `opponent`…`opponent3`, `questions` (1–10), `stake`, `seats`, `deadline`, `scores`, `club`, `post`; `tournament:` double elimination or round robin + final (`versus:` picks the game; `match_time`, `payout`, the rest as versus); `challenges:` yours, the club's open ones, or who you should challenge — 🔥 Roast and ⚔️ Challenge buttons ([challenges.md](challenges.md)) · `/poll` with `action:` the open polls, your private ballot, make one (describe it and the AI drafts it; organizers; `scoring`, `answers` all at once or live, `in_discord` for a live poll: its post updates, a reply per answer, or both), or mark the answers, close, reopen and finalize (whoever runs it: organizers, admins, its maker) · `/leaderboard` with `period:` all time, this year or this month |
+| **Play, polls & kernels** | `/play today` the games hub (what's waiting on you, a button for each game) · `/play solo game:` straight into trivia, your bingo card or a quiz game · `/play kernels` · `/play challenge start game:` one game, 🎲 a random one or a 🧩 gauntlet (`games:`), with `opponent`…`opponent3`, `questions` (1–10), `stake`, `seats`, `closes`, `scores`, `club`, `post` · `/play challenge list which:` yours or the club's open ones · `/play challenge scout` who you should challenge, with 🔥 Roast and ⚔️ Challenge buttons · `/play tournament start format:` double elimination or round robin + final, with `game`, `player`…`player5`, `entry`, `seats`, `prizes`, `closes`, `match_time`, the rest as a challenge · `/play tournament list` ([challenges.md](challenges.md)) · `/poll list` the open polls · `/poll vote poll:` your private ballot · `/poll make request:` describe it and the AI drafts it (organizers; `scoring`, `answers` all at once or live, `in_discord` for a live poll: its post updates, a reply per answer, or both) · `/poll answers poll:` mark the answers, close, reopen and finalize (whoever runs it: organizers, admins, its maker) · `/leaderboard` with `period:` all time, this year or this month |
 | **You and the club** | `/profile` yours or @someone's (history, watchlist, compare, give kernels) · `/club` the club at a glance · `/link` connect an existing site account |
 | **Extras** | `/digest` this week's digest (if the club has it on), or a private preview · `/announcements` which theatres post drops · `/quote` a random line, or `action:` add, fix, remove and find quotes |
 | **Server admins** | `/setup` connect this server to your club (with a code from Club settings), or move the bot's channel · `/llm` (`action:` show or set) the AI models — the whole site's, so only in the home server (Manage Server by default; grant them to other roles in Server Settings → Integrations) |
@@ -134,10 +134,10 @@ bot/
 │   ├── schedule.py  # /link /showtimes /movie /rsvp /watch /find /surprise /foryou /theatre
 │   ├── threads.py   # screening threads and what members share from the site
 │   ├── profile.py   # /profile and giving kernels
-│   ├── polls.py     # /poll: list, ballots, make, and running a poll (answers, close, finalize)
-│   ├── games.py     # trivia, bingo, quiz games, /play, /leaderboard, game posts
-│   ├── challenges.py # /play versus: and challenges: (and scouting), a challenge's buttons and channel post, invite and match DMs
-│   ├── tournaments.py # /play tournament:, a tournament's buttons and channel post, invite DMs
+│   ├── polls.py     # /poll list|vote|make|answers: ballots, drafts, and running a poll (answers, close, finalize)
+│   ├── games.py     # trivia, bingo, quiz games, the /play tree, /leaderboard, game posts
+│   ├── challenges.py # /play challenge start|list|scout's flows, a challenge's buttons and channel post, invite and match DMs
+│   ├── tournaments.py # /play tournament start's flow, a tournament's buttons and channel post, invite DMs
 │   ├── club.py      # /club, /help, who's in the server
 │   └── admin.py     # /llm
 ├── api.py           # the backend's internal API client (autocompletes answer from its cache; one retry; slow calls logged)
@@ -156,8 +156,12 @@ the club: being in one server never names you in another club's. In the bot, a c
 `channel_for(group_id)`.
 
 **Adding a command:** put it in the feature it belongs to. One command per thing, with its choices
-as options (`action:`, `solo:`, `versus:`, `period:` — like `/showtimes`), never sub-commands (`/quote add`):
-Discord lists sub-commands apart, and a test fails on one. Buttons that must keep working after a restart
+as options (`action:`, `period:`, like `/showtimes`). A command that does many different things, each
+with options of its own, is a tree instead: `/play` (today, solo, kernels, then the `challenge` and
+`tournament` groups) and `/poll` (list, vote, make, answers), each subcommand carrying only its own
+options. Discord allows two levels below the command, and a command with subcommands can't run bare
+(so the hub is `/play today`). A test holds the trees' shape, and another Discord's 100-character limits
+(one description too long and the whole sync fails). Buttons that must keep working after a restart
 are `DynamicItem`s; list them (and any `tasks.loop`) in that module's `register(...)` call — a test fails
 if one is missed. Add the command to `embeds.HELP_SECTIONS` (its test checks every command is listed) and,
 if it changes what members can do, to the site's Help (`frontend/src/help.json`). Discord gives a command 3 seconds

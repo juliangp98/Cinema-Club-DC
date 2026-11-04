@@ -255,7 +255,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
               <p className="ui-hint">One question a day, the same for everyone, about films and classic quotes. A right answer is worth
                 1, 2 or 3 kernels — easy, medium or hard.</p>
               <SwitchRow label="Play anytime" checked={!!group.trivia?.anytime} onChange={set("trivia_anytime")}
-                         hint="Extra questions whenever members like (on Play, or /play in Discord): +1 kernel (+2 if hard), up to 5 a day." />
+                         hint="Extra questions whenever members like (on Play, or /play solo in Discord): +1 kernel (+2 if hard), up to 5 a day." />
               {(group.trivia?.enabled || group.trivia?.anytime) && (
                 <SettingRow stack label="Trivia's films" hint="Our showings: films that have played at the club's theatres. Well-known films: TMDB's 5,000 most-voted.">
                   <Segmented label="Trivia's films" options={TRIVIA_SOURCES} value={group.trivia?.source || "both"}

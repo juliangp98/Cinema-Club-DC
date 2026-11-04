@@ -432,7 +432,7 @@ def digest_message(digest, tag_watchers=False):
     polls = digest.get('open_polls', [])
     if polls:
         embed.add_field(name='🗳️ Polls', inline=False,
-                        value=(' · '.join(f"**{p['title']}**" for p in polls[:3]) + ' — vote with `/poll`')[:1024])
+                        value=(' · '.join(f"**{p['title']}**" for p in polls[:3]) + '. Vote with `/poll vote`')[:1024])
 
     recap = digest.get('recap') or {}
     bits = []
@@ -622,7 +622,7 @@ def poll_results_embed(p):
              f" — **{t['kernels']} 🍿** ({t['correct']} correct)" for i, t in enumerate(top)]
     voters = p.get('voters', len(top))
     embed.description = '\n'.join(lines) + f"\n\n{voters} {'member' if voters == 1 else 'members'} voted · " \
-                                           f"see your own picks with `/poll`"
+                                           f"see your own picks with `/poll vote`"
     return embed
 
 
@@ -872,15 +872,22 @@ HELP_SECTIONS = [
         ('/watch', 'add to, remove from, or show a watchlist'),
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
-    ('🎮 Play, polls & kernels', [
-        ('/play', 'the games hub: `solo:` straight into trivia, your bingo card, a quiz game or your kernels; '
-                  '`versus:` challenge members (`opponent`, `stake`, `seats`…); `tournament:` a bracket for 3 or more '
-                  '(double elimination or round robin — `versus:` picks the game, `payout`, `match_time`); '
-                  '`challenges:` yours, the club\'s open ones, or who you should challenge (with a roast 🔥)'),
-        ('/poll', "`action:` what's open, your private ballot, make one (describe it and the AI drafts it; `scoring`, "
-                  "`answers` all at once or live, `in_discord`), or mark the answers, close and finalize "
-                  "(organizers, or whoever made the poll)"),
-        ('/leaderboard', 'the kernel standings 🍿 — `period:` all time, this year or this month'),
+    ('🎮 Play & kernels', [
+        ('/play today', "what's waiting on you, and every game a tap away"),
+        ('/play solo', 'straight into trivia, your bingo card or a quiz game'),
+        ('/play kernels', "yours, where they came from, and what's left to earn today"),
+        ('/play challenge start', 'one game, 🎲 a random one or a 🧩 gauntlet (`opponent`, `stake`, `seats`…)'),
+        ('/play challenge list', "yours, or the club's open ones"),
+        ('/play challenge scout', 'who you should challenge, with a 🔥 roast'),
+        ('/play tournament start', 'a bracket for 3 or more: double elimination, or round robin + a final'),
+        ('/play tournament list', "yours, or the club's open and running ones"),
+        ('/leaderboard', 'the kernel standings 🍿, `period:` all time, this year or this month'),
+    ]),
+    ('🗳️ Polls', [
+        ('/poll list', "what's open, posted here with a Vote button"),
+        ('/poll vote', 'your private ballot, one question at a time'),
+        ('/poll make', 'describe one and the AI drafts it (organizers; `scoring`, `answers`, `in_discord`)'),
+        ('/poll answers', 'mark the answers, close and finalize (whoever runs the poll)'),
     ]),
     ('👤 You and the club', [
         ('/profile', "yours, or @someone's — history (and check-ins), watchlist, compare, give kernels"),
@@ -1050,13 +1057,13 @@ def kernels_embed(k):
         f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
         f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
         '• Right picks in scored polls',
-        *([f"• Trivia question of the day: {by_level(r['trivia'])} for a right answer (`/play`)"] if r.get('trivia') else []),
+        *([f"• Trivia question of the day: {by_level(r['trivia'])} for a right answer (`/play solo`)"] if r.get('trivia') else []),
         *([f"• Anytime trivia: {by_level(r['trivia_anytime']['each'])} each, up to {r['trivia_anytime']['per_day']} a day"]
           if r.get('trivia_anytime') else []),
-        *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/play`)"]
+        *([f"• Repertory bingo: **+{r['bingo']['line']}** for a line, **+{r['bingo']['full']}** for the full card (`/play solo`)"]
           if r.get('bingo') else []),
         *[f"• {g['label']}: " + ('**3 / 2 / 1** by how much you needed to see' if g.get('by_step') else f"**+{g['each']}** a right call")
-          + f", up to {g['per_day']} a day (`/play`)" for g in r.get('games') or []],
+          + f", up to {g['per_day']} a day (`/play solo`)" for g in r.get('games') or []],
         f"• Members can give you up to {r['give']} a week for what you do (and take a few back)",
     ]))
     return embed
@@ -1090,7 +1097,7 @@ def bingo_card_post_embed(post):
     embed = discord.Embed(title=f"🎱 {post['month_label']}'s repertory bingo card", colour=AMBER, url=f'{SITE_URL}/play/bingo',
                           description='Fills in by itself when you check in ("Went") to screenings this month — '
                                       'the middle is free.\n\n' + '\n'.join(lines))
-    embed.set_footer(text=f"A line of 3 is bingo: +{post['rules']['line']} 🍿 · the full card +{post['rules']['full']} 🍿 · yours: /play")
+    embed.set_footer(text=f"A line of 3 is bingo: +{post['rules']['line']} 🍿 · the full card +{post['rules']['full']} 🍿 · yours: /play solo")
     return embed
 
 
@@ -1099,7 +1106,7 @@ def bingo_win_embed(post):
     who = post.get('name') or 'Someone'
     what = 'filled the whole card 🎉🎉' if post.get('which') == 'full' else 'got bingo 🎉'
     return discord.Embed(title=f"🎱 {who} {what}", colour=AMBER, url=f'{SITE_URL}/play/bingo',
-                         description=f"{post.get('month_label', 'This month')}'s repertory bingo · your card: /play")
+                         description=f"{post.get('month_label', 'This month')}'s repertory bingo · your card: /play solo")
 
 
 LEVELS = {'easy': 'Easy', 'medium': 'Medium', 'hard': 'Hard'}
@@ -1324,7 +1331,7 @@ def tournament_post_embed(p):
 
 
 def scout_embed(got):
-    """/play challenges: who — your record, the club's best, and the three best
+    """/play challenge scout: your record, the club's best, and the three best
     people to challenge, each with why (scout.py)."""
     s, lines = got['stats'], []
     you = s.get('you')
@@ -1389,7 +1396,7 @@ def review_note(post, error=None):
 
 
 def play_embed(p):
-    """/play, the games hub: trivia, bingo, the quiz games, polls waiting for
+    """/play today, the games hub: trivia, bingo, the quiz games, polls waiting for
     your vote, your kernels (games the club has off are left out)."""
     lines = []
     t = p.get('trivia')
@@ -1418,7 +1425,7 @@ def play_embed(p):
         bits += [f"your turn in {c['game']}" for c in ch['your_turn'][:3]]
         lines.append('⚔️ ' + ' · '.join(bits))
     elif ch is not None:
-        lines.append('⚔️ Challenge someone: `/play versus:`')
+        lines.append('⚔️ Challenge someone: `/play challenge start`')
     waiting = [x for x in p.get('polls', []) if not x['you_voted']]
     if waiting:
         lines.append('🗳️ Waiting for your vote: ' + ', '.join(f"**{x['title']}**" for x in waiting[:3]))

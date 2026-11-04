@@ -28,22 +28,61 @@ def test_every_command_is_on_the_tree():
     assert len(names) == 22
 
 
-def test_every_command_is_one_command_with_options():
-    """Like /showtimes: one command, its choices as options Discord shows
-    (action:, game:, period:…) — never sub-commands ("/quote add") listed apart."""
+def tree(c):
+    """{subcommand: its options as members see them}, nested for a group: /play's shape."""
     from discord import app_commands
-    groups = [c.name for c in shared.client.tree.get_commands() if isinstance(c, app_commands.Group)]
-    assert groups == []
+    if isinstance(c, app_commands.Group):
+        return {s.name: tree(s) for s in c.commands}
+    return {p.display_name for p in c.parameters}
+
+
+def test_commands_with_options_and_the_two_trees():
+    """Most commands are one command, its choices as options Discord shows
+    (action:, period:…), like /showtimes. /play and /poll do many different
+    things, so they're trees: each subcommand carries only its own options."""
+    from discord import app_commands
     by_name = {c.name: c for c in shared.client.tree.get_commands()}
-    for name, option in (('quote', 'action'), ('poll', 'action'), ('llm', 'action'), ('play', 'solo'), ('play', 'versus'),
-                         ('leaderboard', 'period'), ('watch', 'action'), ('announcements', 'action')):
+    assert sorted(n for n, c in by_name.items() if isinstance(c, app_commands.Group)) == ['play', 'poll']
+    for name, option in (('quote', 'action'), ('llm', 'action'), ('leaderboard', 'period'), ('watch', 'action'),
+                         ('announcements', 'action')):
         params = {p.name: p for p in by_name[name].parameters}
         assert params[option].choices and not params[option].required, (name, option)
+    play = tree(by_name['play'])
+    assert set(play) == {'today', 'solo', 'kernels', 'challenge', 'tournament'}
+    assert play['today'] == play['kernels'] == set() and play['solo'] == {'game'}
+    assert set(play['challenge']) == {'start', 'list', 'scout'} and set(play['tournament']) == {'start', 'list'}
+    start, cup = play['challenge']['start'], play['tournament']['start']
+    assert {'game', 'opponent', 'stake', 'closes', 'club'} <= start and not {'format', 'prizes', 'player'} & start
+    assert {'format', 'game', 'player', 'player5', 'entry', 'prizes', 'match_time', 'club'} <= cup and 'opponent' not in cup
+    assert play['challenge']['scout'] == set() and play['challenge']['list'] == play['tournament']['list'] == {'which'}
+    poll = tree(by_name['poll'])
+    assert poll == {'list': set(), 'vote': {'poll'}, 'answers': {'poll'},
+                    'make': {'request', 'based_on', 'scoring', 'answers', 'in_discord'}}
 
 
 def test_play_offers_every_quiz_game():
-    """/play solo: lists the backend's quiz games (quizzes.GAMES), each once —
-    and versus: the same, plus trivia."""
+    """/play solo lists the backend's quiz games (quizzes.GAMES), each once,
+    and /play challenge start the same, plus trivia."""
     import quizzes
     assert [k for k, _ in games.QUIZ_GAMES] == list(quizzes.GAMES)
     assert [c.value for c in challenges.VERSUS_GAMES] == ['random', 'gauntlet', *quizzes.GAMES, 'trivia']
+
+
+def test_every_command_fits_discords_limits():
+    """Discord refuses the whole tree at sync if one description, option or
+    choice is too long (100 characters), so a restart would leave every
+    command stale."""
+    from discord import app_commands
+
+    def walk(c):                                  # (name, its most, description) for each piece
+        yield c.name, 32, c.description
+        if isinstance(c, app_commands.Group):
+            for s in c.commands:
+                yield from walk(s)
+            return
+        for p in c.parameters:
+            yield p.display_name, 32, p.description
+            yield from ((ch.name, 100, ch.name) for ch in p.choices)
+    too_long = [(n, d) for c in shared.client.tree.get_commands() for n, most, d in walk(c)
+                if len(n) > most or not 1 <= len(d) <= 100]
+    assert too_long == []

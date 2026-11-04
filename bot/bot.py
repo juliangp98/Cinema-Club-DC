@@ -4,8 +4,9 @@ Posts a Monday digest in #movies (the main notification: who's going, watchlist
 tags, rare screenings, new showtimes), announces schedule drops for theatres
 members opt into with /announcements, DMs the owner about scraper errors and chatbot
 model changes, and serves slash commands — films (/showtimes, /movie, /foryou, /find,
-/surprise, /theatre), plans (/rsvp, /discuss, /watch, /notifications), games (/play,
-/leaderboard, /poll list|vote|make), people (/profile, /club, /link) and extras
+/surprise, /theatre), plans (/rsvp, /discuss, /watch, /notifications), games (/play
+today|solo|kernels|challenge|tournament, /leaderboard, /poll list|vote|make|answers),
+people (/profile, /club, /link) and extras
 (/digest, /announcements, /quote, /help, /llm) — and DMs members "did you go?" after
 screenings they RSVP'd to.
 Members choose what they share from the site (RSVPs, "who's in?" invites,

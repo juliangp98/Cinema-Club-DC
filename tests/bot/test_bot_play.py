@@ -40,7 +40,7 @@ def bot():
 
 def play(bot):
     it = FakeInteraction(uid=9801, name='ana')
-    asyncio.run(bot.play_cmd.callback(it))
+    asyncio.run(bot.play_today.callback(it))
     return it.last[2]
 
 

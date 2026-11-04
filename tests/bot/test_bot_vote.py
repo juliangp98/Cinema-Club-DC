@@ -111,8 +111,7 @@ def run(coro):
 def vote(w, uid, title=None):
     """/poll vote [poll]; the ballot it opens becomes this member's message."""
     it = Interaction(uid)
-    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Vote', value='vote'),
-                                **({'poll': str(w.pid[title])} if title else {})))
+    run(w.bot.poll_vote_cmd.callback(it, **({'poll': str(w.pid[title])} if title else {})))
     if len(it.last) > 3 and it.last[3] is not None:
         w.state[uid] = it.last[3:5]
     return it
@@ -173,8 +172,8 @@ def test_vote_without_a_poll_asks_which(polls):
 
 def test_polls_lists_open_polls_with_vote_buttons(polls):
     it = Interaction(VEE)
-    run(polls.bot.poll_cmd.callback(it))                                    # no action: the open polls
-    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2] and '`/poll action:Vote`' in it.last[2]
+    run(polls.bot.poll_list_cmd.callback(it))                               # the open polls
+    assert len(it.last[4].children) == 3 and 'Tap **Vote**' in it.last[2] and '`/poll vote`' in it.last[2]
     assert '/polls/' in it.last[2] and ' 1 categories' not in it.last[2]
     import embeds
     assert (embeds.plural(1, 'category', 'categories'), embeds.plural(3, 'category', 'categories')) == ('1 category', '3 categories')
@@ -365,7 +364,7 @@ def test_whoever_runs_a_poll_marks_its_answers_here(polls):
     assert not any((i.custom_id or '').startswith('pollrun:') for i in items(w.state[WES][1]))
 
     it = Interaction(VEE)
-    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Answers', value='answers'), poll=str(pid)))
+    run(w.bot.poll_answers_cmd.callback(it, poll=str(pid)))
     _, _, _, embed, v = it.last
     assert embed.title == '🛠️ Quick picks' and embed.footer.text == 'Question 1 of 3 · 0 answered · Voting is open'
     ids = [i.custom_id for i in items(v) if i.custom_id]
@@ -379,5 +378,5 @@ def test_whoever_runs_a_poll_marks_its_answers_here(polls):
     assert "Finalized: kernels are in everyone's totals." in it.last[3].description and 'Finalized' in it.last[3].footer.text
 
     it = Interaction(WES)
-    run(w.bot.poll_cmd.callback(it, action=discord.app_commands.Choice(name='Answers', value='answers'), poll=str(pid)))
+    run(w.bot.poll_answers_cmd.callback(it, poll=str(pid)))
     assert 'whoever made the poll' in it.last[2]

@@ -1,4 +1,5 @@
-"""Games: trivia, bingo, quiz games, the /play hub, /leaderboard, and game posts in
+"""Games: trivia, bingo, quiz games, the /play tree (its challenge and tournament
+groups call features/challenges.py and tournaments.py), /leaderboard, and game posts in
 the channel.
 """
 
@@ -192,7 +193,7 @@ class QuizButton(discord.ui.DynamicItem[discord.ui.Button],
 
 
 async def quiz_start_flow(interaction, kind):
-    """A new round of a quiz game, after a defer (its button, or /play game:)."""
+    """A new round of a quiz game, after a defer (its button, or /play solo)."""
     try:
         r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), 'action': 'start', 'kind': kind})
     except Exception as e:
@@ -275,71 +276,133 @@ def play_view(p):
     return view
 
 
-# /play solo: — straight into one. The quiz games are the backend's
-# quizzes.GAMES (a test keeps the two lists the same).
+# /play is a tree: today (the hub), solo, kernels, then challenge and
+# tournament, each a group. Every subcommand carries only its own options.
+# The quiz games are the backend's quizzes.GAMES (a test keeps the two lists
+# the same).
 QUIZ_GAMES = (('higher_lower', '↕️ Higher or lower'), ('who_said', '🗣️ Who said it'), ('still', '🖼️ Guess the still'),
               ('reviews', '📝 Guess from the reviews'), ('emoji', '🎭 Emoji plot'))
-PLAY_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
-    ('trivia', "🧠 Trivia: today's question"), ('bingo', '🎱 My bingo card'), *QUIZ_GAMES, ('kernels', '🍿 My kernels'))]
-V = challenges                     # /play versus: and challenges: (features/challenges.py)
-T = tournaments                    # /play tournament: (features/tournaments.py)
+SOLO_GAMES = [app_commands.Choice(name=n, value=v) for v, n in (
+    ('trivia', "🧠 Trivia: today's question"), ('bingo', '🎱 My bingo card'), *QUIZ_GAMES)]
+V = challenges                     # /play challenge (features/challenges.py)
+T = tournaments                    # /play tournament (features/tournaments.py)
+
+play_group = app_commands.Group(name='play', description='Games and kernels: today, solo games, challenges, tournaments')
+challenge_group = app_commands.Group(name='challenge', description='Challenge members: start one, yours and the club\'s, '
+                                     'who to challenge', parent=play_group)
+tournament_group = app_commands.Group(name='tournament', description='Tournaments for 3 or more: start one, yours and '
+                                      'the club\'s', parent=play_group)
 
 
-@client.tree.command(name='play', description='Games and kernels: play solo, challenge members, tournaments, your kernels')
-@app_commands.describe(
-    solo='Play on your own: trivia, your bingo card, a quiz game — or see your kernels',
-    versus='Challenge members to a game (then pick opponent, stake…) — with tournament:, the game every match plays',
-    tournament='A tournament for 3 or more: double elimination or round robin + a final',
-    opponent='Versus or tournament: who you invite', opponent2='Another player', opponent3='Another player',
-    stake='Kernels each player puts in the pot (0 = for bragging rights)',
-    seats='Open seats anyone in the club can take',
-    questions='Questions in each game, 1–10 (Higher or lower is one run)',
-    games='Gauntlet: how many games, 2–6 (random — or pick them after)',
-    deadline='When it closes — a tournament: when entries close (default: tonight)',
-    match_time='Tournament: how long each match stays open (default: a day)',
-    payout='Tournament: winner takes all, or 60 / 30 / 10',
-    scores='Show scores as each player finishes, or only once everyone has',
-    club_visible='The club can see it and back players (default: yes)',
-    post='Post it in the channel (default: your sharing setting)',
-    challenges="Your challenges, the club's open ones, or who you should challenge",
-)
-@app_commands.rename(club_visible='club')
-@app_commands.choices(solo=PLAY_GAMES, versus=V.VERSUS_GAMES, tournament=T.TOURNAMENT_FORMATS, deadline=V.DEADLINES,
-                      match_time=T.TOURNAMENT_MATCH_TIMES, payout=T.TOURNAMENT_PAYOUTS, scores=V.REVEALS, challenges=V.LISTS)
-async def play_cmd(interaction: discord.Interaction, solo: app_commands.Choice[str] = None,
-                   versus: app_commands.Choice[str] = None, tournament: app_commands.Choice[str] = None,
-                   opponent: discord.Member = None, opponent2: discord.Member = None,
-                   opponent3: discord.Member = None, stake: app_commands.Range[int, 0, 50] = None,
-                   seats: app_commands.Range[int, 0, 8] = None, questions: app_commands.Range[int, 1, 10] = None,
-                   games: app_commands.Range[int, 2, 6] = None,
-                   deadline: app_commands.Choice[str] = None, match_time: app_commands.Choice[str] = None,
-                   payout: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
-                   club_visible: bool = None, post: bool = None, challenges: app_commands.Choice[str] = None):
-    await interaction.response.defer(ephemeral=True, thinking=bool(solo or versus or tournament or challenges))
-    if tournament:
-        await T.tournament_flow(interaction, tournament.value, versus.value if versus else None, [opponent, opponent2, opponent3],
-                                stake, seats, questions, games, deadline.value if deadline else None,
-                                match_time.value if match_time else None, payout.value if payout else None,
-                                scores.value if scores else None, club_visible, post)
-        return
-    if versus:
-        await V.versus_flow(interaction, versus.value, [opponent, opponent2, opponent3], stake, seats, questions,
-                            deadline.value if deadline else None, scores.value if scores else None, club_visible, post,
-                            games)
-        return
-    if challenges:
-        await V.list_flow(interaction, challenges.value)
-        return
-    if solo:
-        flows = {'trivia': trivia_flow, 'bingo': bingo_flow, 'kernels': kernels_flow}
-        await (flows[solo.value](interaction) if solo.value in flows else quiz_start_flow(interaction, solo.value))
-        return
+@play_group.command(name='today', description="What's waiting on you, and every game a tap away")
+async def play_today(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     try:
         p = await api.get('/api/internal/play', **discord_identity(interaction))
     except Exception as e:
-        await reply_failure(interaction, e, '/play')
+        await reply_failure(interaction, e, '/play today')
         return
     await interaction.followup.send(embed=embeds.play_embed(p), view=play_view(p), ephemeral=True)
+
+
+@play_group.command(name='solo', description='Play on your own: trivia, your bingo card or a quiz game')
+@app_commands.describe(game='Which one')
+@app_commands.choices(game=SOLO_GAMES)
+async def play_solo(interaction: discord.Interaction, game: app_commands.Choice[str]):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    flows = {'trivia': trivia_flow, 'bingo': bingo_flow}
+    await (flows[game.value](interaction) if game.value in flows else quiz_start_flow(interaction, game.value))
+
+
+@play_group.command(name='kernels', description="Your kernels: where they came from, and what's left to earn today")
+async def play_kernels(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await kernels_flow(interaction)
+
+
+@challenge_group.command(name='start', description='Challenge members: one game, a random one, or a gauntlet')
+@app_commands.describe(
+    game='The game: one, 🎲 a random one, or a 🧩 gauntlet of several',
+    opponent='Who you challenge', opponent2='Another player', opponent3='Another player',
+    stake='Kernels each player puts in the pot (0 = for bragging rights)',
+    seats='Open seats anyone in the club can take',
+    questions='Questions in each game, 1–10 (Higher or lower is one run)',
+    games='Gauntlet: how many games, 2–6 (random, or pick them after)',
+    closes='When it closes (default: tonight)',
+    scores='Show scores as each player finishes, or only once everyone has',
+    club_visible='The club can see it and back players (default: yes)',
+    post='Post it in the channel (default: your sharing setting)')
+@app_commands.rename(club_visible='club')
+@app_commands.choices(game=V.VERSUS_GAMES, closes=V.DEADLINES, scores=V.REVEALS)
+async def challenge_start(interaction: discord.Interaction, game: app_commands.Choice[str],
+                          opponent: discord.Member = None, opponent2: discord.Member = None,
+                          opponent3: discord.Member = None, stake: app_commands.Range[int, 0, 50] = None,
+                          seats: app_commands.Range[int, 0, 6] = None, questions: app_commands.Range[int, 1, 10] = None,
+                          games: app_commands.Range[int, 2, 6] = None, closes: app_commands.Choice[str] = None,
+                          scores: app_commands.Choice[str] = None, club_visible: bool = None, post: bool = None):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await V.versus_flow(interaction, game.value, [opponent, opponent2, opponent3], stake, seats, questions,
+                        closes.value if closes else None, scores.value if scores else None, club_visible, post, games)
+
+
+@challenge_group.command(name='list', description="Your challenges and tournaments, or the club's open ones")
+@app_commands.describe(which="Yours (default) or the club's open ones")
+@app_commands.choices(which=V.LISTS)
+async def challenge_list(interaction: discord.Interaction, which: app_commands.Choice[str] = None):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await V.list_flow(interaction, which.value if which else 'mine')
+
+
+@challenge_group.command(name='scout', description='Who should you challenge? Their numbers next to yours, and a roast')
+async def challenge_scout(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await V.scout_flow(interaction)
+
+
+@tournament_group.command(name='start', description='A tournament for 3 or more: double elimination, or round robin + a final')
+@app_commands.describe(
+    fmt='Double elimination (3–16 players) or round robin + a final (3–6)',
+    game='The game every match plays: one, 🎲 random (drawn for each match), or a 🧩 gauntlet',
+    player='Who you invite', player2='Another player', player3='Another player', player4='Another player',
+    player5='Another player',
+    entry='Kernels each player puts in the prize pot (0 = for bragging rights)',
+    seats='Open seats anyone in the club can take',
+    questions='Questions in each game, 1–10 (Higher or lower is one run)',
+    games='Gauntlet: how many games, 2–6',
+    closes='When entries close (default: tonight)',
+    match_time='How long each match stays open (default: a day)',
+    prizes='Winner takes all, or 60 / 30 / 10',
+    scores="Show each match's scores as each player finishes, or only once both have",
+    club_visible='The club can see it and back players (default: yes)',
+    post='Post it in the channel (default: your sharing setting)')
+@app_commands.rename(fmt='format', club_visible='club')
+@app_commands.choices(fmt=T.TOURNAMENT_FORMATS, game=V.VERSUS_GAMES, closes=V.DEADLINES,
+                      match_time=T.TOURNAMENT_MATCH_TIMES, prizes=T.TOURNAMENT_PAYOUTS, scores=V.REVEALS)
+async def tournament_start(interaction: discord.Interaction, fmt: app_commands.Choice[str],
+                           game: app_commands.Choice[str] = None, player: discord.Member = None,
+                           player2: discord.Member = None, player3: discord.Member = None,
+                           player4: discord.Member = None, player5: discord.Member = None,
+                           entry: app_commands.Range[int, 0, 50] = None, seats: app_commands.Range[int, 0, 8] = None,
+                           questions: app_commands.Range[int, 1, 10] = None, games: app_commands.Range[int, 2, 6] = None,
+                           closes: app_commands.Choice[str] = None, match_time: app_commands.Choice[str] = None,
+                           prizes: app_commands.Choice[str] = None, scores: app_commands.Choice[str] = None,
+                           club_visible: bool = None, post: bool = None):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await T.tournament_flow(interaction, fmt.value, game.value if game else None,
+                            [player, player2, player3, player4, player5], entry, seats, questions, games,
+                            closes.value if closes else None, match_time.value if match_time else None,
+                            prizes.value if prizes else None, scores.value if scores else None, club_visible, post)
+
+
+@tournament_group.command(name='list', description="Your tournaments, or the club's open and running ones")
+@app_commands.describe(which="Yours (default) or the club's open ones")
+@app_commands.choices(which=V.LISTS)
+async def tournament_list(interaction: discord.Interaction, which: app_commands.Choice[str] = None):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    await V.list_flow(interaction, which.value if which else 'mine', tournaments_only=True)
+
+
+client.tree.add_command(play_group)
 
 
 # ─── Game posts in #movies (R14) ───────────────────────────────────────────────

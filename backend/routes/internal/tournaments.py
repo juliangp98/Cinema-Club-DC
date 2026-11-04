@@ -1,4 +1,4 @@
-"""Tournaments, for the bot (/play tournament:, the buttons on a tournament,
+"""Tournaments, for the bot (/play tournament start and list, the buttons on a tournament,
 invite DMs). The rules are tournaments.py's — the same as the site's; each
 match is a challenge, played with the challenge buttons."""
 import tournaments

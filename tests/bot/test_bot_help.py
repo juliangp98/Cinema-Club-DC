@@ -18,11 +18,14 @@ def help_embed():
 
 
 def commands():
+    """Every command as members type it: /showtimes, /play challenge start…"""
     import bot
-    real = set()
-    for c in bot.client.tree.get_commands():
-        real |= ({f'/{c.name} {s.name}' for s in c.commands} | {f'/{c.name}'}) if hasattr(c, 'commands') else {f'/{c.name}'}
-    return real
+    from discord import app_commands
+
+    def paths(c, at='/'):
+        here = f'{at}{c.name}'
+        return set().union(*(paths(s, here + ' ') for s in c.commands)) if isinstance(c, app_commands.Group) else {here}
+    return set().union(*(paths(c) for c in bot.client.tree.get_commands()))
 
 
 def test_help_is_a_private_guide(help_embed):
@@ -33,8 +36,7 @@ def test_help_is_a_private_guide(help_embed):
 def test_help_lists_exactly_the_member_commands():
     import embeds
     listed = {cmd for _, rows in embeds.HELP_SECTIONS for cmd, _ in rows if cmd.startswith('/')}
-    hidden = {'/llm', '/llm show', '/llm set', '/help', '/poll', '/quote random', '/quote add', '/quote edit', '/quote remove',
-              '/quote find'}
+    hidden = {'/llm', '/help'}
     assert listed <= commands()                                   # every command listed exists
     assert commands() - listed <= hidden                          # every member command is listed (admin /llm left out)
 

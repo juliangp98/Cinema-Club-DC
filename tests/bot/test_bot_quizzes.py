@@ -35,7 +35,7 @@ def run(coro):
 
 def test_off_until_the_club_turns_one_on(bot):
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.play_cmd.callback(it))
+    run(bot.play_today.callback(it))
     assert not [b for b in items_of(it.last[2]['view']) if (b.custom_id or '').startswith('quiz:')]
     assert 'Quiz games' not in it.last[2]['embed'].description
 
@@ -46,7 +46,7 @@ def test_a_higher_or_lower_round_with_buttons(bot):
         slug = db.session.get(Group, 1).slug
     assert client(bot.test_admin).put(f'/api/groups/{slug}', json={'quizzes': {'higher_lower': True}}).status_code == 200
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.play_cmd.callback(it))
+    run(bot.play_today.callback(it))
     kind, _, kw = it.last
     assert kind == 'followup' and kw['ephemeral'] and '🎮 Quiz games: ↕️ Higher or lower — 5 🍿 left to earn today' in kw['embed'].description
     [play] = [b for b in items_of(kw['view']) if (b.custom_id or '').startswith('quiz:')]
@@ -91,21 +91,21 @@ def test_a_still_in_discord():
 
 
 def test_play_game_goes_straight_into_one(bot):
-    """/play game: — a round of that game at once (no hub, no button); a game
-    the club has off says so."""
+    """/play solo game: a round of that game at once (no hub, no button); a
+    game the club has off says so. /play kernels: yours."""
     from discord import app_commands
     from app import app, db, Group
     pick = lambda v: app_commands.Choice(name=v, value=v)
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.play_cmd.callback(it, solo=pick('higher_lower')))
+    run(bot.play_solo.callback(it, game=pick('higher_lower')))
     assert it.sent[0][0] == 'defer' and 'embed' not in it.last[2]                     # off in this club: no round
     with app.app_context():
         slug = db.session.get(Group, 1).slug
     client(bot.test_admin).put(f'/api/groups/{slug}', json={'quizzes': {'higher_lower': True}})
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.play_cmd.callback(it, solo=pick('higher_lower')))
+    run(bot.play_solo.callback(it, game=pick('higher_lower')))
     kind, _, kw = it.last
     assert kind == 'followup' and kw['ephemeral'] and 'come out before or after' in kw['embed'].description
     it = FakeInteraction(uid=9611, name='ana')
-    run(bot.play_cmd.callback(it, solo=pick('kernels')))
+    run(bot.play_kernels.callback(it))
     assert it.last[2]['embed'].title and it.last[2]['ephemeral']                        # your kernels, privately

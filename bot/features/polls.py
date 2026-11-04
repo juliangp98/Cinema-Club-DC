@@ -1,4 +1,4 @@
-"""/poll: list, vote, make, or mark the answers (action:). Whoever runs a poll
+"""/poll list, vote, make, or answers (mark them). Whoever runs a poll
 (the club's organizers and admins, and whoever made it) marks its answers,
 closes and reopens voting and finalizes it here too: the backend's rules,
 the same as the site's.
@@ -301,7 +301,7 @@ class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'po
             poll = await api.post(f'/api/internal/poll-drafts/{self.draft_id}/create', discord_identity(interaction))
         except ApiError as e:
             body = e.body or ''
-            msg = ("Already created — see it with `/poll`." if 'already_created' in body
+            msg = ("Already created. See it with `/poll vote`." if 'already_created' in body
                    else "Only organizers and admins can create polls." if e.status == 403
                    else api_failure(e, "Couldn't create it ({status})."))
             await interaction.followup.send(msg, ephemeral=True)
@@ -352,7 +352,7 @@ async def poll_list(interaction: discord.Interaction):
         return
     lines = [f"🗳️ **[{p['title']}](<{SITE_URL}/polls/{p['id']}>)** — {embeds.plural(p.get('category_count', 0), 'category', 'categories')}"
              for p in open_polls[:10]]
-    lines.append('Tap **Vote** for a private ballot (or use `/poll action:Vote`).')
+    lines.append('Tap **Vote** for a private ballot (or use `/poll vote`).')
     await interaction.followup.send('\n'.join(lines), view=vote_open_view(open_polls))
 
 
@@ -366,7 +366,7 @@ async def poll_vote(interaction: discord.Interaction, poll: str = None):
             await reply_failure(interaction, e, '/poll vote')
             return
         if not open_polls:
-            await tell(interaction, 'No open polls right now. Pick one in `/poll poll:` to look back at recent results.')
+            await tell(interaction, 'No open polls right now. Pick one in `/poll vote poll:` to look back at recent results.')
             return
         if len(open_polls) > 1:
             await tell(interaction, 'Which poll?', view=vote_open_view(open_polls))
@@ -519,10 +519,6 @@ async def poll_answers(interaction: discord.Interaction, poll: str = None):
     await show_answers(interaction, int(poll), edit=False)
 
 
-POLL_ACTIONS = [app_commands.Choice(name=n, value=v) for v, n in (
-    ('list', 'Open polls (posted here)'), ('vote', 'Vote — a private ballot'),
-    ('make', 'Make one — describe it and the AI drafts it (organizers)'),
-    ('answers', 'Mark the answers, close or finalize (organizers, or whoever made it)'))]
 POLL_BASES = [app_commands.Choice(name='Local showings', value='playing'), app_commands.Choice(name='All films', value='all')]
 POLL_SCORING = [app_commands.Choice(name=n, value=v) for v, n in (
     ('none', 'Plain vote (no right answers)'), ('single', 'Predictions: 1 🍿 per right pick'),
@@ -532,34 +528,45 @@ POLL_REVEALS = [app_commands.Choice(name='All at once, when it\'s finalized', va
 POLL_LIVE = [app_commands.Choice(name="Update the poll's post", value='post'),
              app_commands.Choice(name='Post each answer as a reply', value='feed'), app_commands.Choice(name='Both', value='both')]
 
+# /poll is a tree, like /play: each subcommand carries only its own options.
+poll_group = app_commands.Group(name='poll', description="The club's polls: what's open, your ballot, make one, run one")
+WHICH_POLL = 'Which poll (open ones first; closed ones show your picks and results)'
 
-@client.tree.command(name='poll', description="The club's polls: what's open, your ballot, make one, or mark its answers")
-@app_commands.describe(action='What to do (default: vote if you pick a poll, make if you describe one, else list)',
-                       poll='Vote or mark answers: which poll (open ones first; closed ones show your picks and results)',
-                       request='Make: e.g. "spookiest Halloween movies" or "tonight\'s Senate races"',
-                       based_on="Make: local showings (films at the club's theatres) or all films (default: local)",
-                       scoring='Make: how it\'s scored (default: the AI\'s pick)',
-                       answers='Make: show the answers all at once when finalized, or live as you set each',
-                       in_discord="Make, live answers: update the poll's post, post each answer as a reply, or both")
-@app_commands.choices(action=POLL_ACTIONS, based_on=POLL_BASES, scoring=POLL_SCORING, answers=POLL_REVEALS, in_discord=POLL_LIVE)
+
+@poll_group.command(name='list', description="What's open, posted here with a Vote button for each")
+async def poll_list_cmd(interaction: discord.Interaction):
+    await poll_list(interaction)
+
+
+@poll_group.command(name='vote', description='Your private ballot, one question at a time')
+@app_commands.describe(poll=WHICH_POLL)
 @app_commands.autocomplete(poll=vote_poll_autocomplete)
-async def poll_cmd(interaction: discord.Interaction, action: app_commands.Choice[str] = None, poll: str = None,
-                   request: app_commands.Range[str, 3, 300] = None, based_on: app_commands.Choice[str] = None,
-                   scoring: app_commands.Choice[str] = None, answers: app_commands.Choice[str] = None,
-                   in_discord: app_commands.Choice[str] = None):
-    what = action.value if action else 'make' if request else 'vote' if poll else 'list'
-    if what == 'make' and not request:
-        await interaction.response.send_message('Describe the poll: fill in **request**, e.g. "spookiest Halloween movies".',
-                                                ephemeral=True)
-    elif what == 'make':
-        await poll_make(interaction, request, based_on, {k: c.value for k, c in (('scoring_mode', scoring), ('reveal', answers),
-                                                                                  ('live_discord', in_discord)) if c})
-    elif what == 'answers':
-        await poll_answers(interaction, poll)
-    elif what == 'vote':
-        await poll_vote(interaction, poll)
-    else:
-        await poll_list(interaction)
+async def poll_vote_cmd(interaction: discord.Interaction, poll: str = None):
+    await poll_vote(interaction, poll)
+
+
+@poll_group.command(name='make', description='Describe a poll and the AI drafts it, to create or edit (organizers)')
+@app_commands.describe(request='e.g. "spookiest Halloween movies" or "tonight\'s Senate races"',
+                       based_on="Local showings (films at the club's theatres) or all films (default: local)",
+                       scoring="How it's scored (default: the AI's pick)",
+                       answers='Show the answers all at once when finalized, or live as you set each',
+                       in_discord="Live answers: update the poll's post, post each answer as a reply, or both")
+@app_commands.choices(based_on=POLL_BASES, scoring=POLL_SCORING, answers=POLL_REVEALS, in_discord=POLL_LIVE)
+async def poll_make_cmd(interaction: discord.Interaction, request: app_commands.Range[str, 3, 300],
+                        based_on: app_commands.Choice[str] = None, scoring: app_commands.Choice[str] = None,
+                        answers: app_commands.Choice[str] = None, in_discord: app_commands.Choice[str] = None):
+    await poll_make(interaction, request, based_on, {k: c.value for k, c in (('scoring_mode', scoring), ('reveal', answers),
+                                                                              ('live_discord', in_discord)) if c})
+
+
+@poll_group.command(name='answers', description='Mark the answers, close or finalize (organizers, or whoever made it)')
+@app_commands.describe(poll=WHICH_POLL)
+@app_commands.autocomplete(poll=vote_poll_autocomplete)
+async def poll_answers_cmd(interaction: discord.Interaction, poll: str = None):
+    await poll_answers(interaction, poll)
+
+
+client.tree.add_command(poll_group)
 
 
 register(items=(VoteButton, VoteSelect, DraftCreateButton, AnswerSelect, RunButton))

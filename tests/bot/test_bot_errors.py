@@ -44,7 +44,7 @@ def test_commands_use_it_when_the_server_is_down(monkeypatch):
     async def down(*a, **k):
         raise ConnectionError('down')
     monkeypatch.setattr(b.api, 'get', down)
-    for cmd in (b.play_cmd, b.club_cmd):
+    for cmd in (b.play_today, b.club_cmd):
         it = FakeInteraction()
         run(cmd.callback(it))
         assert it.last[:2] == ('followup', b.UNREACHABLE_MSG)

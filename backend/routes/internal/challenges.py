@@ -1,4 +1,4 @@
-"""Challenges, for the bot (/play versus: and challenges:, the buttons on a
+"""Challenges, for the bot (/play challenge start and list, the buttons on a
 challenge, invite DMs). The rules are challenges.py's — the same as the site's."""
 import challenges
 from app import Challenge, Group, _active_membership, _as_int, app, close_due_polls, db, jsonify, request
@@ -120,7 +120,7 @@ def internal_challenge_action():
 @app.route('/api/internal/challenges/scout')
 @require_internal
 def internal_scout():
-    """/play challenges: who — the stats and who to challenge (scout.py)."""
+    """/play challenge scout: the stats and who to challenge (scout.py)."""
     import scout
     user, group, err = _who(request.args)
     if err:

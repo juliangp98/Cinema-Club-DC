@@ -1,6 +1,6 @@
-"""Tournaments in Discord: /play tournament: (make one — `versus:` picks the
-game), the buttons on a tournament — accept, take a seat, back a player, start
-it — the channel post (the bracket so far), and invite DMs. Each match is a
+"""Tournaments in Discord: /play tournament start (make one) and list, the
+buttons on a tournament (accept, take a seat, back a player, start it), the
+channel post (the bracket so far), and invite DMs. Each match is a
 challenge: ▶ Play is the challenge's own button. The rules live in the
 backend (tournaments.py), the same as the site's.
 """
@@ -167,8 +167,8 @@ async def tournament_back_flow(interaction, tid):
 
 async def tournament_flow(interaction, fmt, kind, people, stake=None, seats=None, questions=None, games=None, deadline=None,
                           match_time=None, payout=None, reveal=None, club_visible=None, post=None):
-    """Make a tournament (after /play's defer): the game from `versus:` (one,
-    random, or a gauntlet of `games` random ones), invitees and seats."""
+    """Make a tournament (after the command's defer): the game (one, random,
+    or a gauntlet of `games` random ones), invitees and seats."""
     invited = [{'discord_user_id': str(m.id), 'discord_name': getattr(m, 'display_name', None) or m.name}
                for m in people if m is not None and not getattr(m, 'bot', False) and m.id != interaction.user.id]
     body = {**discord_identity(interaction), 'action': 'create', 'format': fmt, 'kind': kind or 'random',
@@ -183,7 +183,7 @@ async def tournament_flow(interaction, fmt, kind, people, stake=None, seats=None
         await interaction.followup.send(_error(e, api_failure(e, "Couldn't start that ({status}).")), ephemeral=True)
         return
     except Exception as e:
-        await reply_failure(interaction, e, '/play tournament')
+        await reply_failure(interaction, e, '/play tournament start')
         return
     note = '🏆 Tournament set up' + (' and posted in the channel' if t.get('posted') else '') + \
         '. It starts once everyone has answered and the seats are taken — or tap 🏁 Start it now.'

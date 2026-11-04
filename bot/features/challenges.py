@@ -1,6 +1,6 @@
-"""Challenges in Discord: /play versus: (make one), /play challenges: (yours,
-the club's open ones, or who you should challenge — with a roast), and the
-buttons on a challenge — accept, join an open seat, play (a private ballot,
+"""Challenges in Discord: /play challenge start (make one), list (yours, or
+the club's open ones) and scout (who you should challenge, with a roast), and
+the buttons on a challenge: accept, join an open seat, play (a private ballot,
 30 seconds a question), back a player, rematch. The rules live in the backend
 (challenges.py, scout.py), the same as the site's. Tournaments:
 features/tournaments.py (each match is a challenge, played here).
@@ -21,8 +21,7 @@ DEADLINES = [app_commands.Choice(name=n, value=v) for v, n in (('hour', 'In an h
                                                                ('days', 'In 3 days'))]
 REVEALS = [app_commands.Choice(name='Sealed until everyone has played', value='sealed'),
            app_commands.Choice(name='Live: as each player finishes', value='live')]
-LISTS = [app_commands.Choice(name='Mine', value='mine'), app_commands.Choice(name="The club's open ones", value='open'),
-         app_commands.Choice(name='🔍 Who should I challenge?', value='scout')]
+LISTS = [app_commands.Choice(name='Mine', value='mine'), app_commands.Choice(name="The club's open ones", value='open')]
 AMOUNTS = (1, 2, 3, 5, 10)
 
 
@@ -293,11 +292,11 @@ async def back_flow(interaction, cid):
                                     view=view, ephemeral=True)
 
 
-# ─── /play versus: and challenges: ────────────────────────────────────────────
+# ─── /play challenge start and list, /play tournament list ────────────────────
 
 async def versus_flow(interaction, kind, opponents, stake=None, seats=None, questions=None, deadline=None,
                       reveal=None, club_visible=None, post=None, games=None):
-    """Make a challenge (after /play's defer): one game, a random one, or a
+    """Make a challenge (after the command's defer): one game, a random one, or a
     gauntlet of `games` random ones (the creator can pick them instead, after)."""
     people = [{'discord_user_id': str(m.id), 'discord_name': getattr(m, 'display_name', None) or m.name}
               for m in opponents if m is not None and not getattr(m, 'bot', False) and m.id != interaction.user.id]
@@ -313,34 +312,33 @@ async def versus_flow(interaction, kind, opponents, stake=None, seats=None, ques
         await interaction.followup.send(_error(e, api_failure(e, "Couldn't start that ({status}).")), ephemeral=True)
         return
     except Exception as e:
-        await reply_failure(interaction, e, '/play versus')
+        await reply_failure(interaction, e, '/play challenge start')
         return
     note = '⚔️ Challenge sent' + (' and posted in the channel' if c.get('posted') else '') + ". Tap ▶ Play when you're ready."
     await interaction.followup.send(embed=embeds.challenge_embed(c, note), view=challenge_view(c), ephemeral=True)
 
 
-async def list_flow(interaction, which):
-    """Your challenges and tournaments, the club's open ones, or who you should challenge."""
+async def list_flow(interaction, which, tournaments_only=False):
+    """Your challenges and tournaments, or the club's open ones (only
+    tournaments, for /play tournament list)."""
     from . import tournaments
-    if which == 'scout':
-        await scout_flow(interaction)
-        return
     try:
         got = await api.get('/api/internal/challenges', **discord_identity(interaction))
     except Exception as e:
-        await reply_failure(interaction, e, '/play challenges')
+        await reply_failure(interaction, e, '/play tournament list' if tournaments_only else '/play challenge list')
         return
     if not got['enabled']:
-        await interaction.followup.send('Challenges are off in this club — an organizer can turn them on in Club settings → Games.',
+        await interaction.followup.send('Challenges are off in this club. An organizer can turn them on in Club settings → Games.',
                                         ephemeral=True)
         return
-    rows = [c for c in got['challenges'] if (c['you']['status'] if which == 'mine' else c['status'] == 'open')]
-    if which == 'open':
-        rows = [c for c in rows if c['status'] == 'open']
+    rows = [] if tournaments_only else [c for c in got['challenges']
+                                        if (c['you']['status'] if which == 'mine' else c['status'] == 'open')]
     cups = [t for t in got.get('tournaments') or [] if (t['you']['status'] if which == 'mine' else t['status'] in ('open', 'running'))]
     if not rows and not cups:
-        await interaction.followup.send("Nothing here right now — start one with `/play versus:` or `/play tournament:`."
-                                        if which == 'mine' else "No open challenges in the club right now.", ephemeral=True)
+        start = '`/play tournament start`' if tournaments_only else '`/play challenge start` or `/play tournament start`'
+        what = 'tournaments' if tournaments_only else 'challenges'
+        await interaction.followup.send(f"Nothing here right now. Start one with {start}." if which == 'mine'
+                                        else f"No open {what} in the club right now.", ephemeral=True)
         return
     lines, view = [], discord.ui.View(timeout=None)
     for t in cups[:5]:
@@ -351,7 +349,7 @@ async def list_flow(interaction, which):
         state = {'open': 'open', 'done': 'decided', 'cancelled': 'called off'}[c['status']]
         what = f"🏆 {c['tournament']['match']}" if c.get('tournament') else f"{c['emoji']} **{c['label']}**"
         lines.append(f"{what} · {who} · {c['stake']} 🍿 · {state}")
-    for t in cups[:2]:
+    for t in cups[:5 if tournaments_only else 2]:
         view.add_item(tournaments.TournamentButton('view', t['id'], label=f"🏆 {t['format_label']}"[:80]))
     for c in rows[:5 - min(2, len(cups))]:
         view.add_item(ChallengeButton('view', c['id'], label=f"{c['emoji']} {c['label']}"[:80]))
@@ -370,7 +368,7 @@ async def scout_flow(interaction):
         await tell(interaction, _error(e, api_failure(e, "Couldn't scout the club ({status}).")))
         return
     except Exception as e:
-        await reply_failure(interaction, e, '/play challenges')
+        await reply_failure(interaction, e, '/play challenge scout')
         return
     view = discord.ui.View(timeout=None)
     for n, p in enumerate(got['picks'][:3]):

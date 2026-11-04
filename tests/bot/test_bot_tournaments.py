@@ -1,6 +1,6 @@
-"""Tournaments and scouting in Discord: /play tournament: (versus: picks the
-game), the buttons — I'm in, start it, ▶ Play your match — the channel post,
-and /play challenges: scout with its roasts and one-tap challenges."""
+"""Tournaments and scouting in Discord: /play tournament start and list, the
+buttons (I'm in, start it, ▶ Play your match), the channel post, and /play
+challenge scout with its roasts and one-tap challenges."""
 import asyncio
 import types
 
@@ -17,8 +17,8 @@ def choice(v):
 
 
 def test_a_tournament_from_play(bot):
-    _, _, kw = play(bot, FakeInteraction(501, 'ana'), tournament=choice('double'), versus=pick('who_said'),
-                    opponent=BEA, opponent2=CAL, questions=1, stake=0, payout=choice('top3'))
+    _, _, kw = play(bot.tournament_start, FakeInteraction(501, 'ana'), fmt=choice('double'), game=pick('who_said'),
+                    player=BEA, player2=CAL, questions=1, entry=0, prizes=choice('top3'))
     embed, view = kw['embed'], kw['view']
     tid = int(embed.url.rsplit('/', 1)[1])
     assert embed.title == '🏆 Taking entries: Double elimination' and 'Needs 3–16 players' in embed.description
@@ -31,6 +31,8 @@ def test_a_tournament_from_play(bot):
     views = [press(bot.TournamentButton, f'tour:view:{tid}', it).last[2]['view'] for it in mine]
     plays = [i for v in views for i in ids(v) if (i or '').startswith('chal:play:')]
     assert len(plays) == 2                                                                   # the two in the first match
+    _, content, kw = play(bot.tournament_list, FakeInteraction(503, 'cal'))
+    assert content.startswith('🏆 **Double elimination**') and ids(kw['view']) == [f'tour:view:{tid}']   # not its matches
 
 
 def test_the_channel_post():
@@ -56,8 +58,8 @@ def test_the_channel_post():
 def test_who_should_i_challenge(bot, monkeypatch):
     import ai
     monkeypatch.setattr(ai, 'chat', lambda *a, **k: (_ for _ in ()).throw(ai.Unavailable('no AI here')))
-    play(bot, FakeInteraction(502, 'bea'), solo=None)                                       # Bea's account exists
-    _, _, kw = play(bot, FakeInteraction(501, 'ana'), challenges=pick('scout'))
+    play(bot.play_today, FakeInteraction(502, 'bea'))                                       # Bea's account exists
+    _, _, kw = play(bot.challenge_scout, FakeInteraction(501, 'ana'))
     assert kw['embed'].title == '🔍 Who should you challenge?' and 'Bea' in kw['embed'].description
     roast = next(i for i in items_of(kw['view']) if (i.custom_id or '').startswith('scout:roast:'))
     fight = next(i for i in items_of(kw['view']) if (i.custom_id or '').startswith('scout:challenge:'))
@@ -69,5 +71,6 @@ def test_who_should_i_challenge(bot, monkeypatch):
 
 def test_help_says_so():
     import embeds
-    text = ' '.join(desc for _, rows in embeds.HELP_SECTIONS for name, desc in rows if name == '/play')
-    assert '`tournament:`' in text and 'who you should challenge' in text
+    rows = {name: desc for _, rows in embeds.HELP_SECTIONS for name, desc in rows}
+    assert 'double elimination' in rows['/play tournament start'] and '/play tournament list' in rows
+    assert 'who you should challenge' in rows['/play challenge scout']

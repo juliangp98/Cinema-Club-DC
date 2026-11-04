@@ -1,6 +1,6 @@
-"""Challenges in Discord: /play versus: (one game, random, or a gauntlet),
-the buttons — accept, play a private ballot, pick a gauntlet's games — the
-channel post, invite DMs and /play challenges:."""
+"""Challenges in Discord: /play challenge start (one game, random, or a
+gauntlet), the buttons (accept, play a private ballot, pick a gauntlet's
+games), the channel post, invite DMs and /play challenge list."""
 import asyncio
 import json
 import types
@@ -17,8 +17,9 @@ def pick(v):
 BEA = types.SimpleNamespace(id=502, display_name='Bea', name='bea', bot=False)
 
 
-def play(bot, it, **kw):
-    asyncio.run(bot.play_cmd.callback(it, **kw))
+def play(cmd, it, **kw):
+    """Run one of /play's subcommands (bot.challenge_start…) as a member."""
+    asyncio.run(cmd.callback(it, **kw))
     return it.last
 
 
@@ -33,7 +34,7 @@ def right(cid, r, i):
 
 
 def test_a_versus_from_play(bot):
-    _, _, kw = play(bot, FakeInteraction(501, 'ana'), versus=pick('who_said'), opponent=BEA, questions=2)
+    _, _, kw = play(bot.challenge_start, FakeInteraction(501, 'ana'), game=pick('who_said'), opponent=BEA, questions=2)
     embed, view = kw['embed'], kw['view']
     cid = int(embed.url.rsplit('/', 1)[1])
     assert kw['ephemeral'] and embed.title == '⚔️ 🗣️ Who said it challenge' and '2 questions' in embed.description
@@ -54,7 +55,7 @@ def test_a_versus_from_play(bot):
 
 
 def test_a_gauntlet_and_picking_its_games(bot):
-    _, _, kw = play(bot, FakeInteraction(501, 'ana'), versus=pick('gauntlet'), games=2, opponent=BEA, questions=3)
+    _, _, kw = play(bot.challenge_start, FakeInteraction(501, 'ana'), game=pick('gauntlet'), games=2, opponent=BEA, questions=3)
     embed, view = kw['embed'], kw['view']
     cid = int(embed.url.rsplit('/', 1)[1])
     assert embed.title == '⚔️ 🧩 Gauntlet' and '2 games:' in embed.description
@@ -86,7 +87,7 @@ def test_the_channel_post_names_and_buttons():
 
 
 def test_invites_by_dm_and_your_list(bot):
-    _, _, kw = play(bot, FakeInteraction(501, 'ana'), versus=pick('who_said'), opponent=BEA)
+    _, _, kw = play(bot.challenge_start, FakeInteraction(501, 'ana'), game=pick('who_said'), opponent=BEA)
     cid = int(kw['embed'].url.rsplit('/', 1)[1])
     sent = []
 
@@ -95,11 +96,12 @@ def test_invites_by_dm_and_your_list(bot):
             sent.append(k)
     asyncio.run(bot.send_invite(Bea(), 502, cid))
     assert "You've been challenged" in sent[0]['embed'].description and f'chal:accept:{cid}' in ids(sent[0]['view'])
-    _, content, _ = play(bot, FakeInteraction(502, 'bea'), challenges=pick('mine'))
+    _, content, _ = play(bot.challenge_list, FakeInteraction(502, 'bea'))                    # yours, by default
     assert '🗣️ **Who said it** · Ana, Bea' in content and 'to put in' in content
 
 
-def test_play_solo_and_help_say_so(bot):
+def test_help_lists_the_challenge_commands():
     import embeds
-    text = ' '.join(desc for _, rows in embeds.HELP_SECTIONS for name, desc in rows if name == '/play')
-    assert '`solo:`' in text and '`versus:`' in text and '`challenges:`' in text
+    rows = {name: desc for _, rows in embeds.HELP_SECTIONS for name, desc in rows}
+    assert {'/play solo', '/play challenge start', '/play challenge list', '/play challenge scout'} <= set(rows)
+    assert '🧩 gauntlet' in rows['/play challenge start'] and '`opponent`' in rows['/play challenge start']

@@ -43,7 +43,7 @@ who aren't playing can back a player. Off until an organizer turns it on (Club s
   "X backed you". "New challenges to back" is off until you turn it on. Discord DM, email and push only if
   you chose them for alerts (Settings → Notifications); invite DMs carry Accept / Decline.
 - **Discord** — a club-visible challenge is posted in the club's channel if its creator says so on the
-  spot (the site's sheet, or `post:` in `/play versus:`); without a choice, their "Challenges I start or
+  spot (the site's sheet, or `post:` in `/play challenge start`); without a choice, their "Challenges I start or
   play" setting decides (Always posts). The post updates as people play and ends with the results; it
   names only members in the server who don't say Never — never a ping.
 
@@ -80,7 +80,7 @@ Three or more members, a bracket of 1-v-1 challenges (`backend/tournaments.py`).
 
 ## Scouting: who to challenge, and a roast
 
-`backend/scout.py`, at the top of Play's Challenges (and `/play challenges: Who should I challenge?`):
+`backend/scout.py`, at the top of Play's Challenges (and `/play challenge scout`):
 
 - **Stats** — the club's (most wins, kernels won, the hottest streak, tournament titles, the biggest pot,
   the fiercest rivalry, the favorite game, how much has changed hands) and yours (record, win rate, your
@@ -112,8 +112,8 @@ Three or more members, a bracket of 1-v-1 challenges (`backend/tournaments.py`).
 | `frontend/src/components/Tournaments.jsx` | The tournament card, the new-tournament sheet, the bracket |
 | `frontend/src/pages/ChallengePage.jsx` | A challenge's page: actions, the ballot and clock (the quiz games' round components), backing, results |
 | `frontend/src/pages/TournamentPage.jsx` | A tournament's page: entries, your match, backing, the bracket |
-| `bot/features/challenges.py` | `/play versus:` and `challenges:` (incl. scouting and roasts), the buttons, the gauntlet's game picker, the channel post, invite and match DMs |
-| `bot/features/tournaments.py` | `/play tournament:`, a tournament's buttons and channel post, invite DMs |
+| `bot/features/challenges.py` | `/play challenge start`, `list` and `scout`'s flows (incl. roasts; the commands are in `games.py`'s `/play` tree), the buttons, the gauntlet's game picker, the channel post, invite and match DMs |
+| `bot/features/tournaments.py` | `/play tournament start`'s flow, a tournament's buttons and channel post, invite DMs |
 
 Tables: `challenge` (its games and questions in `state_json`; `tournament_id` for a match),
 `challenge_player` (each player's status, progress, score, time, `net` once decided), `challenge_bet`;
