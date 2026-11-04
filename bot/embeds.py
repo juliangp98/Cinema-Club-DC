@@ -874,7 +874,7 @@ HELP_SECTIONS = [
     ]),
     ('🎮 Play & kernels', [
         ('/play today', "what's waiting on you, and every game a tap away"),
-        ('/play solo', 'straight into trivia, your bingo card or a quiz game'),
+        ('/play solo', 'straight into trivia (`level`), your bingo card or a quiz game (Higher or lower: `decade`)'),
         ('/play kernels', "yours, where they came from, and what's left to earn today"),
         ('/play challenge start', 'one game, 🎲 a random one or a 🧩 gauntlet (`opponent`, `stake`, `seats`…)'),
         ('/play challenge list', "yours, or the club's open ones"),
@@ -1129,7 +1129,7 @@ def quiz_round_embed(r):
                     f"Streak: **{r['score']}**")
         else:
             body = (f"{said + chr(10) if said else ''}{_year_film(cur)}\n\nDid **{nxt['title']}** come out before or after "
-                    f"{cur['year']}?\n-# Streak: {r['score']}")
+                    f"{cur['year']}?\n-# Streak: {r['score']}{', in the ' + r['decade'] if r.get('decade') else ''}")
     else:
         opts = '\n'.join(f"**{LETTERS[i]}.** {o}" + (' ✅' if r['done'] and i == r.get('answer') else '')
                          for i, o in enumerate(r['options']))

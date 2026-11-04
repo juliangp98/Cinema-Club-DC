@@ -177,7 +177,7 @@ def _hl_view(state, done):
     chain = state['chain']
     shown = [*chain[:-1], {**chain[-1], 'year': chain[-1]['year'] if done else None}]
     return {'current': shown[-2], 'next': shown[-1], 'history': shown[:-2],
-            'decade': f"{state['decade']}s" if state.get('decade') else None}
+            'decade': f"{state['decade']}s" if state.get('decade') else None, 'decade_from': state.get('decade')}
 
 
 # ─── Who said it ──────────────────────────────────────────────────────────────

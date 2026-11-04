@@ -100,7 +100,7 @@ def test_anytime_questions_in_discord(bot):
     daily = items_of(it.last[2]['view'])
     answered = press(bot, daily[0].custom_id, bot.TriviaButton)                 # today's first…
     more = items_of(answered.last[2]['view'])
-    assert [b.custom_id for b in more] == ['trivia:more']                       # …then "🎲 Another one"
+    assert [b.custom_id for b in more] == ['trivia:more', 'trivia:more:easy', 'trivia:more:medium', 'trivia:more:hard']   # …then "🎲 Another one", or a level
     got = press(bot, 'trivia:more', bot.TriviaMoreButton)
     _, _, kw = got.last
     assert kw['ephemeral'] is True and kw['embed'].title == '🎲 Anytime trivia' and len(items_of(kw['view'])) == 4
@@ -119,3 +119,30 @@ def test_without_anytime_trivia_waits_for_tomorrow(bot):
     it = FakeInteraction(uid=9601, name='ana')
     tap(bot.PlayButton, 'play:trivia', it)
     assert 'Anytime questions are off' in it.last[1]
+
+
+def test_an_anytime_question_at_a_level_in_discord(bot, monkeypatch):
+    """Easy, Medium or Hard beside 🎲 Another one, and /play solo level: (the closest, if none at that level)."""
+    import itertools
+    import trivia
+    from app import app, TriviaQuestion
+    from discord import app_commands
+    switch(bot, trivia_enabled=True, trivia_anytime=True)
+    real = trivia.make_question
+    made = itertools.chain(['easy', 'medium', 'hard'], itertools.repeat('easy'))
+    monkeypatch.setattr(trivia, 'make_question', lambda *a, **k: (lambda q: q and {**q, 'difficulty': next(made)})(real(*a, **k)))
+    it = FakeInteraction(uid=9601, name='ana')
+    tap(bot.PlayButton, 'play:trivia', it)
+    press(bot, items_of(it.last[2]['view'])[0].custom_id, bot.TriviaButton)     # today's question first
+    got = press(bot, 'trivia:more:hard', bot.TriviaMoreButton)
+    assert got.last[2]['embed'].title == '🎲 Anytime trivia'
+    with app.app_context():
+        assert TriviaQuestion.query.filter(TriviaQuestion.slot != 'daily').one().difficulty == 'hard'
+    q = items_of(got.last[2]['view'])[0].custom_id
+    press(bot, q, bot.TriviaButton)
+    it = FakeInteraction(uid=9601, name='ana')
+    run(bot.play_solo.callback(it, game=app_commands.Choice(name='Trivia', value='trivia'),
+                               level=app_commands.Choice(name='Medium', value='medium')))
+    with app.app_context():
+        newest = TriviaQuestion.query.filter(TriviaQuestion.slot != 'daily').order_by(TriviaQuestion.id.desc()).first()
+    assert it.last[2]['embed'].title == '🎲 Anytime trivia' and newest.difficulty == 'easy'   # none at medium: the closest

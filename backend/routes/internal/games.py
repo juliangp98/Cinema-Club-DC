@@ -266,13 +266,14 @@ def internal_trivia_answer():
 @app.route('/api/internal/trivia/another', methods=['POST'])
 @require_internal
 def internal_trivia_another():
-    """Play trivia on /play or "🎲 Another one" in Discord: an anytime question for this member."""
+    """Play trivia on /play or "🎲 Another one" in Discord: an anytime question for this member
+    ({difficulty}: easy, medium or hard, or the closest found)."""
     import trivia
     data = request.json or {}
     user, err = resolve_discord_user(data)
     if err:
         return err
-    q, error = trivia.another(db.session.get(Group, _as_int(data.get('group_id')) or 0), user)
+    q, error = trivia.another(db.session.get(Group, _as_int(data.get('group_id')) or 0), user, level=data.get('difficulty'))
     if error:
         return jsonify({'error': error}), 400
     return jsonify(trivia.as_dict(q, user))

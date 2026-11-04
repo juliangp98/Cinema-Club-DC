@@ -50,16 +50,25 @@ async def leaderboard(interaction: discord.Interaction, period: app_commands.Cho
 TRIVIA_OFF_MSG = "Trivia is off for this club. A club admin can turn it on in Club settings on the site."
 
 
+# An anytime question's level (as on the site): any, or easy / medium / hard
+# (the closest the backend finds, if none at that level).
+LEVELS = ('easy', 'medium', 'hard')
+TRIVIA_LEVELS = [app_commands.Choice(name=lv.title(), value=lv) for lv in LEVELS]
+
+
 def trivia_more_view():
     view = discord.ui.View(timeout=None)
     view.add_item(TriviaMoreButton())
+    for level in LEVELS:
+        view.add_item(TriviaMoreButton(level))
     return view
 
 
-async def send_another(interaction):
-    """An anytime question, privately (after a defer)."""
+async def send_another(interaction, level=None):
+    """An anytime question, privately (after a defer), at `level` if asked."""
     try:
-        q = await api.post('/api/internal/trivia/another', discord_identity(interaction))
+        q = await api.post('/api/internal/trivia/another', {**discord_identity(interaction),
+                                                            **({'difficulty': level} if level else {})})
     except Exception as e:
         await reply_failure(interaction, e, 'trivia another')
         return
@@ -67,19 +76,22 @@ async def send_another(interaction):
                                     ephemeral=True)
 
 
-class TriviaMoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:more'):
-    """🎲 Another one — an anytime question (when the club has them on)."""
-    def __init__(self):
-        super().__init__(discord.ui.Button(label='🎲 Another one', style=discord.ButtonStyle.primary,
-                                           custom_id='trivia:more'))
+class TriviaMoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:more(?::(?P<level>easy|medium|hard))?'):
+    """🎲 Another one, an anytime question (when the club has them on): any
+    level, or Easy / Medium / Hard beside it."""
+    def __init__(self, level=None):
+        super().__init__(discord.ui.Button(label=level.title() if level else '🎲 Another one',
+                                           style=discord.ButtonStyle.secondary if level else discord.ButtonStyle.primary,
+                                           custom_id=f'trivia:more:{level}' if level else 'trivia:more'))
+        self.level = level
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
-        return cls()
+        return cls(match['level'])
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
-        await send_another(interaction)
+        await send_another(interaction, self.level)
 
 
 def trivia_view(q):
@@ -114,9 +126,9 @@ class TriviaButton(discord.ui.DynamicItem[discord.ui.Button], template=r'trivia:
             await interaction.followup.send(embeds.trivia_result(q), ephemeral=True)
 
 
-async def trivia_flow(interaction):
+async def trivia_flow(interaction, level=None):
     """🧠 Play trivia on /play, after a defer: today's question, then your
-    waiting anytime one, then a new one."""
+    waiting anytime one, then a new one (at `level`, if asked)."""
     try:
         t = await api.get('/api/internal/trivia/today', **discord_identity(interaction))
     except Exception as e:
@@ -132,7 +144,7 @@ async def trivia_flow(interaction):
         await interaction.followup.send(embed=embeds.trivia_embed(t['waiting'], title='🎲 Anytime trivia'),
                                         view=trivia_view(t['waiting']), ephemeral=True)
     elif t.get('anytime'):                                      # then a new one
-        await send_another(interaction)
+        await send_another(interaction, level)
     elif daily:
         await interaction.followup.send(embeds.trivia_result(daily) + '\n-# Anytime questions are off for this club.',
                                         ephemeral=True)
@@ -177,9 +189,9 @@ class QuizButton(discord.ui.DynamicItem[discord.ui.Button],
         return cls(match['act'], match['ref'], match['choice'], label=item.label, style=item.style)
 
     async def callback(self, interaction: discord.Interaction):
-        if self.act == 'start':
+        if self.act == 'start':                        # quiz:start:<game>[:<decade>] (Higher or lower's Play again)
             await interaction.response.defer(ephemeral=True, thinking=True)
-            await quiz_start_flow(interaction, self.ref)
+            await quiz_start_flow(interaction, self.ref, int(self.choice) if str(self.choice).isdigit() else None)
             return
         await interaction.response.defer()
         choice = int(self.choice) if str(self.choice).isdigit() else self.choice
@@ -192,21 +204,26 @@ class QuizButton(discord.ui.DynamicItem[discord.ui.Button],
         await interaction.edit_original_response(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r))
 
 
-async def quiz_start_flow(interaction, kind):
-    """A new round of a quiz game, after a defer (its button, or /play solo)."""
+async def quiz_start_flow(interaction, kind, decade=None):
+    """A new round of a quiz game, after a defer (its button, or /play solo);
+    Higher or lower in `decade` (1980 for the 1980s), if asked."""
     try:
-        r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), 'action': 'start', 'kind': kind})
+        r = await api.post('/api/internal/quizzes', {**discord_identity(interaction), 'action': 'start', 'kind': kind,
+                                                     **({'decade': decade} if decade else {})})
     except Exception as e:
         await reply_failure(interaction, e, 'quiz game')
         return
-    await interaction.followup.send(embed=embeds.quiz_round_embed(r), view=quiz_round_view(r), ephemeral=True)
+    note = (f"-# Not in the {decade}s: you were in the middle of a run, or the club doesn't have enough films from then yet."
+            if decade and r.get('decade_from') != decade else None)
+    await interaction.followup.send(note, embed=embeds.quiz_round_embed(r), view=quiz_round_view(r), ephemeral=True)
 
 
 def quiz_round_view(r):
     """A round's buttons: its answers while it's on; Play again once it's over."""
     view = discord.ui.View(timeout=None)
-    if r['done']:
-        view.add_item(QuizButton('start', r['kind'], label='🔁 Play again', style=discord.ButtonStyle.primary))
+    if r['done']:                                       # in the same decade, for Higher or lower
+        view.add_item(QuizButton('start', r['kind'], str(r['decade_from']) if r.get('decade_from') else None,
+                                 label='🔁 Play again', style=discord.ButtonStyle.primary))
     elif r['kind'] == 'higher_lower':
         y = r['current']['year']
         view.add_item(QuizButton('ans', r['id'], 'before', label=f'⬅️ Before {y}'))
@@ -305,13 +322,35 @@ async def play_today(interaction: discord.Interaction):
     await interaction.followup.send(embed=embeds.play_embed(p), view=play_view(p), ephemeral=True)
 
 
+async def fetch_decades():
+    """The decades Higher or lower can play in this club (cached: autocompletes and the warm loop)."""
+    return (await api.get('/api/internal/quizzes/decades', group_id=club())).get('decades') or []
+
+
+async def decade_autocomplete(interaction: discord.Interaction, current: str):
+    try:
+        decades = await fetch_decades()
+    except Exception:
+        return []
+    return [app_commands.Choice(name=f"The {d['label']}", value=str(d['value']))
+            for d in decades if current.lower().strip('s ') in d['label'].lower()][:25]
+
+
 @play_group.command(name='solo', description='Play on your own: trivia, your bingo card or a quiz game')
-@app_commands.describe(game='Which one')
-@app_commands.choices(game=SOLO_GAMES)
-async def play_solo(interaction: discord.Interaction, game: app_commands.Choice[str]):
+@app_commands.describe(game='Which one', level="Trivia: your anytime question's level (today's is everyone's)",
+                       decade="Higher or lower: one decade's films (default: any year)")
+@app_commands.choices(game=SOLO_GAMES, level=TRIVIA_LEVELS)
+@app_commands.autocomplete(decade=decade_autocomplete)
+async def play_solo(interaction: discord.Interaction, game: app_commands.Choice[str],
+                    level: app_commands.Choice[str] = None, decade: str = None):
     await interaction.response.defer(ephemeral=True, thinking=True)
-    flows = {'trivia': trivia_flow, 'bingo': bingo_flow}
-    await (flows[game.value](interaction) if game.value in flows else quiz_start_flow(interaction, game.value))
+    if game.value == 'trivia':
+        await trivia_flow(interaction, level.value if level else None)
+    elif game.value == 'bingo':
+        await bingo_flow(interaction)
+    else:
+        await quiz_start_flow(interaction, game.value,
+                              int(decade) if game.value == 'higher_lower' and decade and decade.isdigit() else None)
 
 
 @play_group.command(name='kernels', description="Your kernels: where they came from, and what's left to earn today")

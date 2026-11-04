@@ -82,7 +82,7 @@ def quiz_still(round_id, token_step):
 @require_internal
 def internal_quizzes():
     """The bot's /games: GET the club's games (with your rounds); POST
-    {action: start, kind} or {action: answer, round_id, choice}."""
+    {action: start, kind, decade?} or {action: answer, round_id, choice}."""
     import quizzes
     data = (request.json or {}) if request.method == 'POST' else request.args
     user, err = resolve_discord_user(data)
@@ -94,5 +94,17 @@ def internal_quizzes():
     if request.method == 'GET':
         return jsonify({'games': quizzes.summary(group, user)})
     if data.get('action') == 'start':
-        return _round(*quizzes.start(group, user, data.get('kind'), source='discord'))
+        return _round(*quizzes.start(group, user, data.get('kind'), source='discord', decade=_as_int(data.get('decade'))))
     return _round(*quizzes.answer(group, user, _as_int(data.get('round_id')), data.get('choice')))
+
+
+@app.route('/api/internal/quizzes/decades')
+@require_internal
+def internal_quiz_decades():
+    """?group_id=: the decades Higher or lower can play in this club (/play solo's decade:)."""
+    import quizzes
+    group = _group(request.args)
+    if not group:
+        return jsonify({'error': 'Group not found'}), 404
+    return jsonify({'decades': [d for d in quizzes.decades(group) if d['value']]})
+

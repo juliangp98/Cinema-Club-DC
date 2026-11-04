@@ -49,7 +49,7 @@ def test_commands_with_options_and_the_two_trees():
         assert params[option].choices and not params[option].required, (name, option)
     play = tree(by_name['play'])
     assert set(play) == {'today', 'solo', 'kernels', 'challenge', 'tournament'}
-    assert play['today'] == play['kernels'] == set() and play['solo'] == {'game'}
+    assert play['today'] == play['kernels'] == set() and play['solo'] == {'game', 'level', 'decade'}
     assert set(play['challenge']) == {'start', 'list', 'scout'} and set(play['tournament']) == {'start', 'list'}
     start, cup = play['challenge']['start'], play['tournament']['start']
     assert {'game', 'opponent', 'stake', 'closes', 'club'} <= start and not {'format', 'prizes', 'player'} & start

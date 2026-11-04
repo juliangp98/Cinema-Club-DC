@@ -109,3 +109,37 @@ def test_play_game_goes_straight_into_one(bot):
     it = FakeInteraction(uid=9611, name='ana')
     run(bot.play_kernels.callback(it))
     assert it.last[2]['embed'].title and it.last[2]['ephemeral']                        # your kernels, privately
+
+
+def test_higher_or_lower_in_a_decade_in_discord(bot, monkeypatch):
+    """/play solo decade: suggests the club's decades; the run stays in it, and Play again keeps it.
+    A decade it can't play says so and runs classic."""
+    import quizzes
+    from discord import app_commands
+    from app import app, db, Group, QuizRound
+    monkeypatch.setattr(quizzes, 'DECADE_FILMS', 2)
+    with app.app_context():
+        slug = db.session.get(Group, 1).slug
+    client(bot.test_admin).put(f'/api/groups/{slug}', json={'quizzes': {'higher_lower': True}})
+    choices = run(bot.decade_autocomplete(FakeInteraction(uid=9611, name='ana'), ''))
+    assert choices and all(c.name.startswith('The ') and c.name.endswith('0s') for c in choices)
+    decade = int(choices[0].value)
+    hl = app_commands.Choice(name='Higher or lower', value='higher_lower')
+    it = FakeInteraction(uid=9611, name='ana')
+    run(bot.play_solo.callback(it, game=hl, decade=str(decade)))
+    _, note, kw = it.last
+    assert note is None and f'in the {decade}s' in kw['embed'].description
+    with app.app_context():
+        r = QuizRound.query.filter_by(kind='higher_lower', status='open').one()
+        chain = json.loads(r.state_json)['chain']
+    assert all(decade <= f['year'] < decade + 10 for f in chain)
+    miss = 'after' if chain[-1]['year'] < chain[-2]['year'] else 'before'
+    button = next(b for b in items_of(kw['view']) if b.custom_id.endswith(f':{miss}'))
+    it = FakeInteraction(uid=9611, name='ana')
+    run(run(bot.QuizButton.from_custom_id(None, button, re.fullmatch(bot.QuizButton.__discord_ui_compiled_template__.pattern,
+                                                                       button.custom_id))).callback(it))
+    again = next(b for b in items_of(it.last[2]['view']) if b.label == '🔁 Play again')
+    assert again.custom_id == f'quiz:start:higher_lower:{decade}'
+    it = FakeInteraction(uid=9611, name='ana')
+    run(bot.play_solo.callback(it, game=hl, decade='1890'))
+    assert 'Not in the 1890s' in it.last[1] and 'in the 1890s' not in it.last[2]['embed'].description

@@ -197,11 +197,12 @@ async def warm_loop():
     """Keep what the first autocompletes ask for (each club's theatres and
     areas, the month's films, /find's types) cached in the bot, and the
     backend awake, so a command after a quiet spell answers as quickly as the next one."""
+    from .games import fetch_decades                     # /play solo's decades
     from .schedule import fetch_find_options             # /find's types: a month's genres, the slowest to build
     api_module.quick.set(True)
     for group_id, _ in connected_clubs():
         use_club(group_id)
-        for fetch in (fetch_theatres, lambda: fetch_window(30), fetch_find_options):
+        for fetch in (fetch_theatres, lambda: fetch_window(30), fetch_find_options, fetch_decades):
             try:
                 await fetch()
             except Exception as e:
