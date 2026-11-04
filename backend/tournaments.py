@@ -284,7 +284,7 @@ def back(t, user, backing_id, amount):
     if not betting_open(t):
         return 'Backing is closed for this one.'
     if player(t, user.id):
-        return "You're in this one — you can't back someone too."
+        return "You're in this one, so you can't back someone too."
     if not _active_membership(user, t.group_id):
         return 'Only club members can back a player.'
     if not any(p.user_id == backing_id and p.status == 'accepted' for p in t.players):

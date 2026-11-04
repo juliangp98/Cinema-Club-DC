@@ -12,6 +12,9 @@ import Select from "../ui/Select";
 import { SaveStatus, SettingRow, SettingsGroup, SettingsSection, Switch, SwitchRow } from "../ui/Settings";
 import SectionMenu from "../ui/SectionMenu";
 import StatTiles from "../ui/StatTiles";
+import Facts, { MetaRow } from "../ui/Facts";
+import VersusBar from "../ui/VersusBar";
+import RouteTabs from "../ui/RouteTabs";
 import MiniBingo from "../ui/MiniBingo";
 import BingoGrid from "../ui/BingoGrid";
 import TicketChips from "../ui/TicketChips";
@@ -145,8 +148,8 @@ export default function StyleguidePage() {
 
       <SectionTitle>Settings</SectionTitle>
       <p className="ui-hint">Every setting on the site (ui/Settings): a section with a line on what it covers, small group headings,
-        rows with the label and hint on the left and the control on the right — a switch for on / off, a segmented choice for three
-        ways — saved as they change, with one status line. A whole thing with its own switch (a club's game) is a panel with the
+        rows with the label and hint on the left and the control on the right (a switch for on / off, a segmented choice for three
+        ways), saved as they change, with one status line. A whole thing with its own switch (a club's game) is a panel with the
         switch at its head. A page of sections has a section menu (ui/SectionMenu) beside it.</p>
       <div className="ui-split" style={{ "--split-side": "200px" }}>
         <div>
@@ -185,12 +188,28 @@ export default function StyleguidePage() {
                 <button type="button" className="btn btn-sm">Not now</button>
               </>} />
 
+      <SectionTitle>Tabs</SectionTitle>
+      <p className="ui-hint">RouteTabs: tabs that are pages, each with its own address (Play's Today, Challenges, Trivia…).
+        Segmented is for a choice inside one page.</p>
+      <RouteTabs label="Sample tabs" tabs={[{ to: "/styleguide", label: "Style guide", end: true }, { to: "/play", label: "Play" },
+                                            { to: "/play/records", label: "Records" }]} />
+
       <SectionTitle>Numbers and tables</SectionTitle>
-      <p className="ui-hint">StatTiles for numbers at a glance (game records, club totals); .ui-table (in .ui-table-wrap, which
-        scrolls on phones) for rows to compare, with a sort button in each heading.</p>
-      <StatTiles label="Sample records" items={[{ label: "Trivia", value: "72%", sub: "18 of 25 · best streak 6" },
+      <p className="ui-hint">Numbers people can scan, never a run-on line joined with dots. StatTiles for numbers at a glance
+        (game records, club totals; size="sm" inside a card); Facts for a few label/value chips (a record, a poll score);
+        MetaRow for a card's details, each with its icon, the one that matters most in gold; VersusBar to set two numbers
+        side by side. .ui-table (in .ui-table-wrap, which scrolls on phones) for rows to compare, with a sort button in
+        each heading.</p>
+      <StatTiles label="Sample records" items={[{ label: "Trivia", value: "72%", sub: "18 of 25, best streak 6" },
                                                  { label: "Bingo", value: "2 lines", sub: "1 full card" },
                                                  { label: "Polls", value: 4, sub: "right picks" }]} />
+      <StatTiles size="sm" label="Sample small tiles" items={[{ label: "Won", value: "3–1" }, { label: "Pot", value: "20 🍿" },
+                                                               { label: "Players", value: 4 }]} />
+      <Facts label="Sample facts" items={[{ label: "Record", value: "3–1" }, { label: "Won", value: "75%", tone: "good" },
+                                          { label: "You vs them", value: "0–2", tone: "bad" }, { label: "Place", value: "1st", tone: "gold" }]} />
+      <MetaRow label="Sample details" items={[{ icon: "👤", text: "Bo started it" }, { icon: "🎮", text: "3 games" },
+                                              { icon: "🍿", text: "5 🍿 each, pot 10 🍿" }, { icon: "⏰", text: "closes in 2 days", strong: true }]} />
+      <VersusBar label="Sample comparison: Bo 120 kernels, you 80" rows={[{ label: "Bo", value: 120 }, { label: "You", value: 80, tone: "you" }]} />
       <div className="ui-table-wrap">
         <table className="ui-table" aria-label="Sample table">
           <thead><tr><th scope="col">Member</th><th scope="col" aria-sort="descending"><button type="button">Trivia ↓</button></th>

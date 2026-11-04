@@ -141,7 +141,7 @@ function ForYou({ apiBase, onSeen, onClose }) {
       {note && <p className="ui-hint alerts-note" role="status">{note}</p>}
       {items === null ? null : !items.length ? (
         <p className="feed-empty">
-          No alerts yet. Add films to your watchlist — even ones that aren't playing — or tap 🔔 Alert me on a
+          No alerts yet. Add films to your watchlist (even ones that aren't playing) or tap 🔔 Alert me on a
           Browse search, and you'll hear here (and by Discord or email, as you choose) when a theatre books one.
         </p>
       ) : (

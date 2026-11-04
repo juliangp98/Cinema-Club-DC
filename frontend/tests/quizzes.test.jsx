@@ -64,7 +64,7 @@ test("guess from the reviews: another review costs a kernel, the source is said 
               clues: [...rev().clues, { text: "Dreamy, sad and perfectly made.", from: "tmdb" }] })),
   });
   renderPage(<QuizGames apiBase="" groupId={1} canRun={false} />);
-  expect(await screen.findByText("3 / 2 / 1 🍿 · 5 left today")).toBeInTheDocument();
+  expect(await screen.findByText("3, 2 or 1 🍿, 5 left today")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "▶ Play" }));
   expect(await screen.findByText(/from a club member's diary/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "📝 Another review (then worth 2)" }));

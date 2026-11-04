@@ -4,7 +4,8 @@ import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import { KernelBar } from "./ClubBoard";
 import { SkippedPosts, useGamePosts } from "./GamePostsWaiting";
-import { kernelParts } from "../kernels";
+import Facts from "../ui/Facts";
+import { KERNEL_PARTS } from "../kernels";
 
 // Play's boards: your kernels, this month's standings (top five and you),
 // this week's movers and, for organizers and admins, the games they run.
@@ -12,14 +13,15 @@ import { kernelParts } from "../kernels";
 // (/play/kernels), with a strip of your numbers on top of every Play page.
 
 const rankOf = (rows, id) => (rows ? rows.findIndex(r => r.user.id === id) : -1);
-// Trivia's kernels by difficulty (R15): "+1 easy · +2 medium · +3 hard".
-const byLevel = t => ["easy", "medium", "hard"].filter(k => k in t).map(k => `+${t[k]} ${k}`).join(" · ");
+// Trivia's kernels by difficulty (R15): "+1 easy, +2 medium, +3 hard".
+const byLevel = t => ["easy", "medium", "hard"].filter(k => k in t).map(k => `+${t[k]} ${k}`).join(", ");
+const OPTIONAL_PARTS = ["trivia", "bingo", "games", "challenges"];
 
 function earnList(r) {
   return [
     `Check in after a screening: +${r.went} (+${r.planned} more if you'd said you were going)`,
     `Be first going to a screening: +1 for each member who joins (up to ${r.trailblazer_max})`,
-    `Crew night — ${r.crew_min}+ members check in to the same screening: +${r.crew} each`,
+    `Crew night, when ${r.crew_min}+ members check in to the same screening: +${r.crew} each`,
     "Right picks in scored polls",
     r.trivia && `Trivia question of the day: ${byLevel(r.trivia)} for a right answer`,
     r.trivia_anytime && `Anytime trivia: ${byLevel(r.trivia_anytime.each)} each, up to ${r.trivia_anytime.per_day} a day`,
@@ -38,9 +40,14 @@ export function YourKernels({ k, month, viewerId }) {
     <Panel as="div" tone="tile" title="Your kernels" kicker id="kernels">
       <span className="rail-big">🍿 {k.kernels}</span>
       <KernelBar breakdown={k} total={k.kernels} most={k.kernels} />
-      <span className="ui-hint">{kernelParts(k)}</span>
-      {mine && <span className="ui-hint">This month: 🍿 {mine.kernels} · #{mine.place} in the club</span>}
-      <span className="ui-hint">This week: {k.allowance.give_left} to give · {k.allowance.take_left} to take (on the feed's 🍿 Kernels buttons)</span>
+      <Facts label="Where they came from" items={KERNEL_PARTS.filter(p => !OPTIONAL_PARTS.includes(p.key) || k[p.key])
+        .map(p => ({ label: p.label[0].toUpperCase() + p.label.slice(1), value: k[p.key] }))} />
+      <Facts label="This month and this week" items={[
+        mine && { label: "This month", value: `${mine.kernels} 🍿, #${mine.place}`, tone: "gold" },
+        { label: "To give", value: k.allowance.give_left },
+        { label: "To take", value: k.allowance.take_left },
+      ]} />
+      <span className="ui-hint">Give and take this week with the feed's 🍿 Kernels buttons.</span>
       <details className="play-earn">
         <summary>How to earn kernels</summary>
         <ul>{earnList(k.rules).map(e => <li key={e}>{e}</li>)}</ul>

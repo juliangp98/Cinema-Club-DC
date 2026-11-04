@@ -10,7 +10,6 @@
   background: none; border: none; padding: 0; color: var(--cream); cursor: pointer; font: inherit; }
 .ch-card-title { font-weight: 600; font-size: var(--fs-md); }
 .ch-card-main:hover .ch-card-title { color: var(--amber); }
-.ch-card-meta { font-size: var(--fs-xs); color: var(--muted); }
 .ch-people { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .ch-person { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--fs-xs); color: var(--cream);
   background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.5rem 0.1rem 0.15rem; }
@@ -29,7 +28,7 @@
 .ch-actions { margin-bottom: 1rem; }
 .ch-ballot { margin-bottom: 1rem; }
 .ch-clock { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; color: var(--cream); }
-.ch-clock-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden; }
+.ch-clock-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .ch-clock-bar span { display: block; height: 100%; background: var(--amber); transition: width 0.25s linear; }
 .ch-clock.low .ch-clock-bar span { background: var(--soft-red); }
 .ch-clock.low strong { color: var(--soft-red); }
@@ -59,7 +58,7 @@
 }
 
 /* ── The arena, first on Play: stats, then who to challenge ─────────────── */
-.play-challenges .ch-head .btn { min-height: 38px; }
+.play-on-challenges .ch-head .btn { min-height: 38px; }
 .ch-arena { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
 .ch-arena .ui-hint { margin: 0; }
 .ch-trophies { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
@@ -85,12 +84,7 @@
 .ch-pick-head { display: flex; align-items: center; gap: 0.6rem; }
 .ch-pick-who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; min-width: 0; }
 .ch-pick-name { font-weight: 600; font-size: var(--fs-md); }
-.ch-pick-kernels { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.25rem 0.5rem; font-size: var(--fs-xs); color: var(--muted); }
-.ch-pick-kernels strong { color: var(--cream); text-align: right; }
-.ch-bar { height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden; }
-.ch-bar span { display: block; height: 100%; background: var(--amber); }
-.ch-bar.you span { background: var(--green); }
-.ch-pick-record { margin: 0; font-size: var(--fs-xs); color: var(--muted); }
+
 .ch-pick-why { margin: 0; padding-left: 1.1rem; font-size: var(--fs-sm); color: var(--cream); display: flex; flex-direction: column; gap: 0.15rem; }
 .ch-pick-try { margin: 0; font-size: var(--fs-sm); color: var(--amber); }
 .ch-pick-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: auto; }

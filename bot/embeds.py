@@ -873,7 +873,7 @@ HELP_SECTIONS = [
         ('/notifications', 'what alerts you get (watchlist, saved searches) and where'),
     ]),
     ('🎮 Play, polls & kernels', [
-        ('/play', 'the games hub — `solo:` straight into trivia, your bingo card, a quiz game or your kernels; '
+        ('/play', 'the games hub: `solo:` straight into trivia, your bingo card, a quiz game or your kernels; '
                   '`versus:` challenge members (`opponent`, `stake`, `seats`…); `tournament:` a bracket for 3 or more '
                   '(double elimination or round robin — `versus:` picks the game, `payout`, `match_time`); '
                   '`challenges:` yours, the club\'s open ones, or who you should challenge (with a roast 🔥)'),

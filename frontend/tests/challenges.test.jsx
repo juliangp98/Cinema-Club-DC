@@ -42,7 +42,7 @@ test("Play's challenges: yours first, then the club's, then results — and a ne
   expect(within(mine).getByRole("button", { name: "Accept or decline" })).toHaveClass("btn-primary");
   expect(within(live).getByRole("button", { name: "🍿 Back a player" })).toBeInTheDocument();
   expect(within(done).getByText("🏆 Ana")).toBeInTheDocument();
-  expect(screen.getByText(/You have 17 🍿 to put in · 3 🍿 on the line/)).toBeInTheDocument();
+  expect(screen.getByText(/You have 17 🍿 to put in, and 3 🍿 on the line/)).toBeInTheDocument();
 
   await userEvent.click(screen.getByRole("button", { name: "⚔️ Challenge someone" }));
   const sheet = within(screen.getByRole("dialog", { name: "New challenge" }));
@@ -83,7 +83,7 @@ test("a challenge's page: accept, play against the clock, then the results", asy
   await userEvent.click(screen.getByRole("button", { name: /A Rick/ }));
   expect(await screen.findByText("“Line 2”")).toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("✅ Right! +1 🍿");                        // kernels, like the solo games
-  expect(screen.getByText(/Question 2 of 2 · 1 🍿 scored/)).toBeInTheDocument();
+  expect(screen.getByText(/Question 2 of 2\. 1 🍿 scored/)).toBeInTheDocument();
 });
 
 test("decided: game by game, side by side, and a rematch", async () => {
@@ -100,7 +100,7 @@ test("decided: game by game, side by side, and a rematch", async () => {
   const calls = mockApi({ "GET /api/challenges/5": done, "POST /api/challenges/5/rematch": challenge({ id: 8, stake: 6 }), "GET /api/challenges/8": challenge({ id: 8 }) });
   renderPage(<Routes><Route path="/challenges/:challengeId" element={<ChallengePage apiBase="" />} /></Routes>, { route: "/challenges/5" });
   expect(await screen.findByText("Game 1: 🗣️ Who said it")).toBeInTheDocument();
-  expect(screen.getByText("🏆 2 games · 3 🍿 scored")).toBeInTheDocument();
+  expect(screen.getByText("🏆 2 games, 3 🍿 scored")).toBeInTheDocument();
   const trivia = screen.getByText("Game 2: 🧠 Trivia").closest(".ui-panel");
   expect(within(trivia).getAllByRole("cell").map(c => c.textContent)).toEqual(["✓ +2", "⏱️"]);
   await userEvent.click(screen.getByRole("button", { name: "🔁 Double or nothing" }));

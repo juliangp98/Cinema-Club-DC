@@ -6,6 +6,7 @@ import Avatar from "../ui/Avatar";
 import PersonLink from "../ui/PersonLink";
 import { Segmented } from "../ui/TicketRow";
 import Select from "../ui/Select";
+import Facts from "../ui/Facts";
 import { PollDiscord } from "../ui/DiscordShare";
 import { dayDateAt } from "../dates";
 import { SCORING_LABELS, TYPE_LABELS, REVEAL_LABELS, POLL_STATUS as STATUS, untilText } from "../components/PollList";
@@ -26,8 +27,8 @@ function Choices({ cat, mode, vote, onPick, onRank, onConfidence, status }) {
     return (
       <div className="pv-choices">
         <p className="pv-locked">🔒 The answer's in: <strong>🏆 {answer?.text}</strong>
-          {cat.your_kernels !== undefined ? <> · you {cat.your_kernels > 0 ? "got it" : "missed it"} ({signed(cat.your_kernels)} 🍿)</>
-                                           : <> · no pick from you</>}
+          {cat.your_kernels !== undefined ? <>. You {cat.your_kernels > 0 ? "got it" : "missed it"} ({signed(cat.your_kernels)} 🍿)</>
+                                           : <>. No pick from you</>}
         </p>
       </div>
     );
@@ -57,10 +58,10 @@ function Choices({ cat, mode, vote, onPick, onRank, onConfidence, status }) {
         </label>
       )}
       {mode === "confidence" && vote?.option_id && (
-        <p className="ui-hint pv-stake">Right: +{vote.confidence || 1} 🍿 · Wrong: −{vote.confidence || 1} 🍿</p>
+        <p className="ui-hint pv-stake">Right, +{vote.confidence || 1} 🍿. Wrong, −{vote.confidence || 1} 🍿</p>
       )}
       <span className={`pv-saved ${status || ""}`} aria-live="polite">
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Couldn't save — tap again" : ""}
+        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : status === "error" ? "Couldn't save. Tap again" : ""}
       </span>
     </div>
   );
@@ -241,7 +242,7 @@ export default function PollDetailPage({ user, apiBase }) {
 
   async function manage(fn) {
     setManageError("");
-    try { await fn(); fetchPoll(); } catch (e) { setManageError(e.data?.error || "That didn't work — try again."); }
+    try { await fn(); fetchPoll(); } catch (e) { setManageError(e.data?.error || "That didn't work. Try again."); }
   }
 
   async function handleFinalize() {
@@ -311,7 +312,7 @@ export default function PollDetailPage({ user, apiBase }) {
                          { label: `${totalCategories} ${totalCategories === 1 ? "category" : "categories"}` }]} />
       {poll.description && <p className="pv-desc">{poll.description}</p>}
       {poll.status === "open" && poll.closes_at && (
-        <p className="pv-closes">⏰ Voting closes {dayDateAt(poll.closes_at)} — {untilText(poll.closes_at)}</p>
+        <p className="pv-closes">⏰ Voting closes {dayDateAt(poll.closes_at)} ({untilText(poll.closes_at)})</p>
       )}
       {readOnly && poll.status === "open" && <p className="ui-hint">You're read-only in this club: you can follow the poll and its results, but not vote.</p>}
 
@@ -351,8 +352,8 @@ export default function PollDetailPage({ user, apiBase }) {
           <div className="pv-progress big" aria-label={`${votedCategories} of ${totalCategories} picked`}>
             <span className="pv-progress-bar"><span style={{ width: `${totalCategories ? (doneCategories / totalCategories) * 100 : 0}%` }} /></span>
             <span className="pv-progress-text">
-              {doneCategories === totalCategories ? "All picked ✓ — change anything until voting closes" : `${votedCategories} of ${totalCategories} picked · saves as you go`}
-              {live && poll.decided > 0 ? ` · ${poll.decided} answered` : ""}
+              {doneCategories === totalCategories ? "All picked ✓. Change anything until voting closes." : `${votedCategories} of ${totalCategories} picked, saved as you go.`}
+              {live && poll.decided > 0 ? ` ${poll.decided} answered so far.` : ""}
             </span>
           </div>
 
@@ -393,10 +394,14 @@ export default function PollDetailPage({ user, apiBase }) {
       {tab === "results" && (
         <div className="pv-results">
           {score && (
-            <p className="pv-score">
-              <strong>{signed(score.kernels)} 🍿</strong> · {score.correct} of {score.total} right · {ORDINAL(score.place)} of {score.of}
-              {poll.status !== "scored" && <span> · so far, {poll.decided} of {totalCategories} answered</span>}
-            </p>
+            <div className="pv-score" role="group" aria-label="Your score">
+              <strong>{signed(score.kernels)} 🍿</strong>
+              <Facts label="How you did" items={[
+                { label: "Right", value: `${score.correct} of ${score.total}` },
+                { label: "Place", value: `${ORDINAL(score.place)} of ${score.of}`, tone: score.place === 1 ? "gold" : undefined },
+                poll.status !== "scored" && { label: "Answered so far", value: `${poll.decided} of ${totalCategories}` },
+              ]} />
+            </div>
           )}
           {mode !== "none" && poll.status !== "scored" && !isAdmin && (
             <p className="ui-hint">{live ? "Answers show here as they're set." : "Answers show here when the results are finalized."}</p>
@@ -427,7 +432,7 @@ export default function PollDetailPage({ user, apiBase }) {
                           {isWinner && "🏆 "}{opt.text}
                           {isMine && <span className="pv-bar-you">{isRanked ? `your #${mine.rank}` : "your pick"}{correctId ? (isWinner ? " ✓" : " ✗") : ""}{earned}</span>}
                         </span>
-                        {!splitHidden && <span className="pv-bar-count">{count} · {pct}%</span>}
+                        {!splitHidden && <span className="pv-bar-count">{count} ({pct}%)</span>}
                       </div>
                     );
                   })}
@@ -443,7 +448,7 @@ export default function PollDetailPage({ user, apiBase }) {
                               saveWinnerForCategory(cat.id, val);
                             }} />
                     <span className={`pv-saved ${winnerSaveStatus[cat.id] || ""}`}>
-                      {winnerSaveStatus[cat.id] === "saving" ? "Saving…" : winnerSaveStatus[cat.id] === "saved" ? (live ? "Saved ✓ — members see it now" : "Saved ✓") : winnerSaveStatus[cat.id] === "error" ? "Couldn't save" : ""}
+                      {winnerSaveStatus[cat.id] === "saving" ? "Saving…" : winnerSaveStatus[cat.id] === "saved" ? (live ? "Saved ✓. Members see it now" : "Saved ✓") : winnerSaveStatus[cat.id] === "error" ? "Couldn't save" : ""}
                     </span>
                   </label>
                 )}
@@ -456,7 +461,7 @@ export default function PollDetailPage({ user, apiBase }) {
       {tab === "leaderboard" && (
         <div className="pv-board">
           {previewing && leaderboard.length > 0 && (
-            <p className="ui-hint">A preview from the answers you've set — members see the standings when you finalize.</p>
+            <p className="ui-hint">A preview from the answers you've set. Members see the standings when you finalize.</p>
           )}
           {leaderboard.length === 0 && (
             <p className="pv-empty">

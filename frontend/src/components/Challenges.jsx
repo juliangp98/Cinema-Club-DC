@@ -7,6 +7,7 @@ import ToggleChip from "../ui/ToggleChip";
 import Loading, { LoadError } from "../ui/Loading";
 import { Segmented } from "../ui/TicketRow";
 import Select from "../ui/Select";
+import { MetaRow } from "../ui/Facts";
 import { useShell } from "../shell/AppShell";
 import { untilText } from "./PollList";
 import { ChallengeStats, ScoutPicks } from "./ChallengeScout";
@@ -25,7 +26,7 @@ export const STATUS_WORDS = { invited: "invited", accepted: "in", finished: "pla
                               declined: "declined", expired: "never answered" };
 export const CHALLENGE_STATUS = { open: "Open", done: "Decided", cancelled: "Called off" };
 export const signed = n => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
-export const stakesLine = c => (c.stake ? `${c.stake} 🍿 each · pot ${c.pot} 🍿` : "For bragging rights");
+export const stakesLine = c => (c.stake ? `${c.stake} 🍿 each, pot ${c.pot} 🍿` : "For bragging rights");
 export const lengthLine = c => (c.gauntlet ? `${c.rounds.length} games` : c.questions ? `${c.questions} questions` : "one run");
 export const netClass = n => `ch-net ${n > 0 ? "up" : n < 0 ? "down" : ""}`;
 
@@ -48,13 +49,15 @@ export function ChallengeCard({ c, onOpen }) {
       <button type="button" className="ch-card-main" onClick={onOpen}>
         <span className={`ui-badge ${{ open: "go", done: "gold" }[c.status] || ""}`}>{CHALLENGE_STATUS[c.status]}</span>
         <span className="ch-card-title">
-          {c.tournament && <>🏆 {c.tournament.match} · </>}{c.gauntlet ? c.games_line : `${c.emoji} ${c.label}`}
+          {c.tournament && <>🏆 {c.tournament.match}: </>}{c.gauntlet ? c.games_line : `${c.emoji} ${c.label}`}
         </span>
-        <span className="ch-card-meta">
-          {c.tournament ? c.tournament.title : c.created_by.name} · {lengthLine(c)}{!c.tournament && ` · ${stakesLine(c)}`}
-          {c.status === "open" && <> · <strong className="pv-card-closes">closes {untilText(c.closes_at)}</strong></>}
-          {c.backing.count > 0 && ` · ${c.backing.total} 🍿 backing`}
-        </span>
+        <MetaRow label="About it" items={[
+          { icon: c.tournament ? "🏆" : "👤", text: c.tournament ? c.tournament.title.replace("🏆 ", "") : c.created_by.name },
+          { icon: "🎮", text: lengthLine(c) },
+          !c.tournament && { icon: "🍿", text: stakesLine(c) },
+          c.status === "open" && { icon: "⏰", text: `closes ${untilText(c.closes_at)}`, strong: true },
+          c.backing.count > 0 && { icon: "🤝", text: `${c.backing.total} 🍿 backing` },
+        ]} />
         <span className="ch-people">
           {shown.map(p => (
             <span key={p.user.id} className={`ch-person${p.winner ? " winner" : ""}`} title={`${p.user.name}: ${STATUS_WORDS[p.status]}`}>
@@ -215,7 +218,7 @@ export function NewChallenge({ apiBase, groupId, settings, viewerId, rematchOf, 
       });
       changed("kernels");                      // a stake is on the line now
       onMade(made);
-    } catch (e) { setError(e.data?.error || "Couldn't start that — try again."); }
+    } catch (e) { setError(e.data?.error || "Couldn't start that. Try again."); }
     finally { setBusy(false); }
   }
 
@@ -291,13 +294,13 @@ export default function ChallengesSection({ apiBase, groupId, viewerId, canRun }
       <div className="ch-head">
         <button type="button" className="btn btn-primary" onClick={() => setMaking({})} disabled={!data.games.length}>⚔️ Challenge someone</button>
         <button type="button" className="btn" onClick={() => setCup(true)} disabled={!data.games.length || !cups}>🏆 Start a tournament</button>
-        <span className="ui-hint">You have {data.available} 🍿 to put in{data.on_the_line ? ` · ${data.on_the_line} 🍿 on the line` : ""}.</span>
+        <span className="ui-hint">You have {data.available} 🍿 to put in{data.on_the_line ? `, and ${data.on_the_line} 🍿 on the line` : ""}.</span>
       </div>
       <ChallengeStats apiBase={apiBase} groupId={groupId}>
         {scout => <ScoutPicks apiBase={apiBase} groupId={groupId} picks={scout.picks}
                               onChallenge={p => setMaking({ opponent: p.user.id, kind: p.suggest.kind, stake: p.suggest.stake })} />}
       </ChallengeStats>
-      {empty && <p className="pv-empty">No challenges yet — start one.</p>}
+      {empty && <p className="pv-empty">No challenges yet. Start one!</p>}
       {lists.map(([title, list, ts]) => (list.length > 0 || ts.length > 0) && (
         <div key={title}>
           <h3 className="pv-past-title">{title}</h3>

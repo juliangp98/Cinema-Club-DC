@@ -38,7 +38,7 @@ export default function TournamentPage({ apiBase, user }) {
     try {
       setT(await send(`${base}/${action}`, "POST", body));
       changed("kernels");
-    } catch (e) { setError(e.data?.error || "That didn't work — try again."); }
+    } catch (e) { setError(e.data?.error || "That didn't work. Try again."); }
     finally { setBusy(false); }
   }
 
@@ -53,15 +53,15 @@ export default function TournamentPage({ apiBase, user }) {
     <div className="page tournament-page">
       <PageHeader title={t.title} back={{ to: "/play/challenges", label: "Play" }} tour="tournament"
                   meta={[{ label: TOURNAMENT_STATUS[t.status], gold: ["open", "running"].includes(t.status) }, { label: t.games_line },
-                         { label: t.stake ? `${t.stake} 🍿 entry · pot ${t.pot} 🍿` : "For bragging rights" },
+                         { label: t.stake ? `${t.stake} 🍿 entry, pot ${t.pot} 🍿` : "For bragging rights" },
                          t.stake ? { label: t.payout_label } : null, { label: `Each match: ${t.match_time_label.toLowerCase()}` },
                          { label: t.visibility === "club" ? "The club sees it" : "Just the players" }].filter(Boolean)} />
       {t.status === "open" && (
-        <p className="pv-closes">⏰ Entries close {dayDateAt(t.closes_at)} — {untilText(t.closes_at)} · started by {t.created_by.name}</p>
+        <p className="pv-closes">⏰ Entries close {dayDateAt(t.closes_at)} ({untilText(t.closes_at)}). Started by {t.created_by.name}.</p>
       )}
       {t.stake > 0 && t.status !== "cancelled" && (
         <p className="ui-hint ch-kernels-note">
-          Prizes: {t.prizes.map((n, i) => `${MEDALS[i + 1]} ${n} 🍿`).join(" · ")}{t.status === "open" ? " (as it stands — more players, a bigger pot)" : ""}.
+          Prizes: {t.prizes.map((n, i) => `${MEDALS[i + 1]} ${n} 🍿`).join(", ")}{t.status === "open" ? " (as it stands: more players, a bigger pot)" : ""}.
           Each match is a 1-v-1 challenge; a tie goes to the faster player, then the higher seed.
         </p>
       )}
@@ -79,10 +79,10 @@ export default function TournamentPage({ apiBase, user }) {
                                    onClick={() => window.confirm("Call it off? Nobody's entry changes hands.") && act("cancel")}>Call it off</button>}
         </div>
         {y.status === "accepted" && t.status === "open" && <p className="ui-hint">You're in. Your first match opens once it starts.</p>}
-        {t.status === "running" && y.status === "accepted" && !y.match && <p className="ui-hint">Nothing for you to play right now — your next match opens as soon as your opponent is known.</p>}
+        {t.status === "running" && y.status === "accepted" && !y.match && <p className="ui-hint">Nothing for you to play right now. Your next match opens as soon as your opponent is known.</p>}
       </section>}
       {error && <p className="share-error" role="alert">{error}</p>}
-      {t.status === "cancelled" && <p className="pv-empty">Called off — nothing changed hands.</p>}
+      {t.status === "cancelled" && <p className="pv-empty">Called off. Nothing changed hands.</p>}
 
       <Panel as="div" className="ch-players" title="Players" kicker>
         <ul className="ch-player-list">
@@ -91,8 +91,8 @@ export default function TournamentPage({ apiBase, user }) {
               <Avatar user={p.user} size={28} link />
               <PersonLink user={p.user} className="ch-player-name" />
               <span className="ch-player-status">
-                {p.seed ? `seed ${p.seed}` : `${STATUS_ICONS[p.status]} ${STATUS_WORDS[p.status]}`}{p.seat ? " · took a seat" : ""}
-                {t.status === "running" && !p.alive ? " · out" : ""}
+                {p.seed ? `seed ${p.seed}` : `${STATUS_ICONS[p.status]} ${STATUS_WORDS[p.status]}`}{p.seat ? ", took a seat" : ""}
+                {t.status === "running" && !p.alive ? ", out" : ""}
               </span>
               {p.place && <strong className="ch-player-score">{MEDALS[p.place]} {["", "Champion", "Second", "Third"][p.place]}</strong>}
               {p.net != null && t.stake > 0 && <span className={netClass(p.net)}>{signed(p.net)} 🍿</span>}
@@ -100,12 +100,12 @@ export default function TournamentPage({ apiBase, user }) {
             </li>
           ))}
         </ul>
-        {t.seats_left > 0 && t.status === "open" && <p className="ui-hint">🪑 {t.seats_left} open seat{t.seats_left === 1 ? "" : "s"} — anyone in the club can take one.</p>}
+        {t.seats_left > 0 && t.status === "open" && <p className="ui-hint">🪑 {t.seats_left} open seat{t.seats_left === 1 ? "" : "s"}. Anyone in the club can take one.</p>}
       </Panel>
 
       {t.backing.allowed && (
         <Panel as="div" className="ch-backing" title="🍿 Back someone to win it all" kicker
-               hint={`${t.backing.total} 🍿 from ${t.backing.count} member${t.backing.count === 1 ? "" : "s"}${t.backing.open ? " · open until the first match is decided" : " · closed"}`}>
+               hint={`${t.backing.total} 🍿 from ${t.backing.count} member${t.backing.count === 1 ? "" : "s"}${t.backing.open ? ", open until the first match is decided" : ", closed"}`}>
           <Backing backing={t.backing} players={people.filter(p => p.status === "accepted")} available={t.available} busy={busy}
                    onBack={y.can_back ? (who, amount) => act("back", { user_id: who, amount }) : null} />
         </Panel>

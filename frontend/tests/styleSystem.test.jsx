@@ -79,13 +79,19 @@ const group = { id: 1, name: "Cinema Club DC", slug: "ccdc", emoji: "🎬" };
 test("the style guide shows the kit to admins", () => {
   renderPage(<StyleguidePage />, { shell: { group, role: "admin" } });
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Style guide");
-  for (const h of ["Page width", "Buttons", "Chips and badges", "Choices", "Theatres and cities", "Panels", "Text", "People and clubs"]) {
+  for (const h of ["Page width", "Buttons", "Chips and badges", "Choices", "Theatres and cities", "Panels", "Tabs",
+                   "Numbers and tables", "Text", "People and clubs"]) {
     expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
   }
   expect(screen.getByRole("group", { name: "A question asked in place?" })).toHaveClass("ui-panel-prompt");
   expect(document.querySelectorAll(".ui-badge")).toHaveLength(7);                // the six tones and a city tag
   expect(screen.getByRole("group", { name: "Sample theatres" })).toHaveTextContent("Other cities");
   expect(screen.getByRole("link", { name: "‹ Club settings" })).toHaveAttribute("href", "/club?tab=settings");
+  expect(screen.getByRole("navigation", { name: "Sample tabs" })).toHaveTextContent("Style guidePlayRecords");
+  expect(screen.getByLabelText("Sample facts")).toHaveTextContent("Record3–1Won75%");
+  expect(screen.getByLabelText("Sample details")).toHaveTextContent("closes in 2 days");
+  expect(screen.getByRole("img", { name: /Sample comparison/ })).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "Sample small tiles" })).toHaveClass("sm");
 });
 
 test("everyone else goes back to the Club page", () => {

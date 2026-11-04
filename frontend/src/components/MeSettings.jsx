@@ -37,7 +37,7 @@ const SHARE_KINDS = [
   ["comment", "My comments", "Only where a screening has a Discord thread. Ask = remember my last choice."],
   ["watchlist", "My watchlist", "Whether the weekly digest names (and pings) you when a film you want is playing."],
   ["games", "My game wins", "Whether a bingo win posted in your club's Discord names you (if the club posts wins).", ALWAYS_NEVER],
-  ["challenge", "Challenges and tournaments I start or play", "Whether a challenge or tournament you start is posted in the channel (you can still choose each time), and — Never — whether others' posts name you."],
+  ["challenge", "Challenges and tournaments I start or play", "Whether a challenge or tournament you start is posted in the channel (you can still choose each time). Never also keeps your name out of others' posts."],
 ];
 // Why sharing isn't on offer: only members who've linked Discord and are in
 // the club's server ever appear there.
@@ -333,7 +333,7 @@ export default function MeSettings({ user, apiBase }) {
             </>
           )}
           <SwitchRow label="Fair game for challenge scouting" checked={user.roastable !== false} onChange={setRoastable}
-                     hint="When members look for someone to challenge, they can see your movie habits next to theirs — only what your clubs already see — and get a playful roast of them. Off: only your challenge numbers show." />
+                     hint="When members look for someone to challenge, they can see your movie habits next to theirs (only what your clubs already see) and get a playful roast of them. Off: only your challenge numbers show." />
           <div id="profile-sharing">
             <SettingsGroup title="Sharing to Discord">
               <SharingRows user={user} apiBase={apiBase} onUpdate={onUpdate} save={save} />

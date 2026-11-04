@@ -16,7 +16,7 @@ const CARD = {
 test("the card: nine squares, what filled them, and how you're doing", async () => {
   mockApi({ "GET /api/bingo?group_id=1": CARD });
   renderPage(<BingoCard apiBase="" groupId={1} role="member" />);
-  const card = await screen.findByRole("region", { name: "🎱 Repertory bingo · October 2026" });
+  const card = await screen.findByRole("region", { name: "🎱 Repertory bingo for October 2026" });
   expect(card).toHaveClass("ui-panel", "ui-panel-gold");
   const cells = within(card).getAllByRole("listitem");
   expect(cells).toHaveLength(9);
@@ -24,7 +24,7 @@ test("the card: nine squares, what filled them, and how you're doing", async () 
   expect(cells[0]).toHaveTextContent("✓ VERTIGO");
   expect(cells[4]).toHaveClass("free");
   expect(within(card).getByText("🎉 Bingo! Now fill the whole card")).toBeInTheDocument();
-  expect(within(card).getByText(/you've earned 5/)).toBeInTheDocument();
+  expect(within(card).getByText(/You've earned 5/)).toBeInTheDocument();
   expect(within(card).queryByText(/The club:/)).toBeNull();                        // everyone's cards: the strip under it (records.test)
 });
 
@@ -38,10 +38,10 @@ test("home viewing (R15): a square a diary entry filled, and how it counts", asy
   const squares = CARD.squares.map((s, i) => (i === 1 ? { ...s, home: { title: "OLD DOC", watched_on: "2026-10-05", link: "" } } : s));
   mockApi({ "GET /api/bingo?group_id=1": { ...CARD, squares, rules: { line: 5, full: 15, home: true, home_line: 3, home_full: 10 } } });
   renderPage(<BingoCard apiBase="" groupId={1} role="member" />);
-  const card = await screen.findByRole("region", { name: "🎱 Repertory bingo · October 2026" });
+  const card = await screen.findByRole("region", { name: "🎱 Repertory bingo for October 2026" });
   const cell = within(card).getAllByRole("listitem")[1];
   expect(cell).toHaveClass("done", "home");
   expect(cell).toHaveTextContent("🏠 OLD DOC");
   expect(cell).toHaveAttribute("title", "OLD DOC · watched at home Oct 5");
-  expect(within(card).getByText(/a line that needs one is \+3, the full card \+10/)).toBeInTheDocument();
+  expect(within(card).getByText(/A line that needs one is \+3, the full card \+10/)).toBeInTheDocument();
 });

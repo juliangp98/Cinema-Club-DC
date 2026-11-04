@@ -284,7 +284,7 @@
     {
      "id": "about",
      "q": "What is Cinema Club DC?",
-     "a": "Everything playing at the DC area's independent and repertory theatres — AFI, Suns, Alamo, the Smithsonian and more — in one place, plus a club to plan outings with: who's going, what to see, and what you thought."
+     "a": "Everything playing at the DC area's independent and repertory theatres (AFI, Suns, Alamo, the Smithsonian and more) in one place, plus a club to plan outings with: who's going, what to see, and what you thought."
     },
     {
      "id": "which-city",
@@ -294,7 +294,7 @@
     {
      "id": "page-tours",
      "q": "Is there a tour of each page?",
-     "a": "Yes — every main page has a short one: tap ? at the top, beside the bell (it's also offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour — a quick trip through each main page — replays from the account menu, [the Me page](me) or the button at the top of Help."
+     "a": "Yes. Every main page has a short one: tap ? at the top, beside the bell (it's also offered once, the first time you open the page), and it ends at that page's part of Help. The welcome tour, a quick trip through each main page, replays from the account menu, [the Me page](me) or the button at the top of Help."
     },
     {
      "id": "ask-help",
@@ -304,7 +304,7 @@
     {
      "id": "where-settings",
      "q": "Where are my settings?",
-     "a": "On the Me page, under [Settings](settings) (the account menu's Settings goes straight there): your profile, [Your taste](profile-taste), [notifications](notify-settings), connections — Discord, Letterboxd and your calendar — [privacy and sharing](settings-privacy), and your account. Everything saves as you change it. A club's own settings are on its [Club page → Settings](club-settings), for organizers and admins."
+     "a": "On the Me page, under [Settings](settings) (the account menu's Settings goes straight there): your profile, [Your taste](profile-taste), [notifications](notify-settings), connections (Discord, Letterboxd and your calendar), [privacy and sharing](settings-privacy), and your account. Everything saves as you change it. A club's own settings are on its [Club page → Settings](club-settings), for organizers and admins."
     },
     {
      "id": "need-account",
@@ -355,12 +355,12 @@
     {
      "id": "tickets",
      "q": "Can I hide sold-out showings — or see what's coming?",
-     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) — [watchlist one](help:watchlist) to hear the moment tickets go on sale. A showing that disappears from a theatre's site says “Off sale — likely sold out” (some theatres just drop a full show); it counts as sold out, and your RSVP stays. Discover's suggestions only ever pick showings you can still get into."
+     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) . [Watchlist one](help:watchlist) to hear the moment tickets go on sale. A showing that disappears from a theatre's site says “Off sale — likely sold out” (some theatres just drop a full show); it counts as sold out, and your RSVP stays. Discover's suggestions only ever pick showings you can still get into."
     },
     {
      "id": "film-theatre-pages",
      "q": "What's on a film or theatre page?",
-     "a": "A film page has every showing, ratings, cast and the trailer. A [theatre](theatres) page has what's on, a map, and — if your club uses screening notes — what members say about the screenings there. With more than one city, [the Theatres page](theatres) puts yours first, by area, then each other city."
+     "a": "A film page has every showing, ratings, cast and the trailer. A [theatre](theatres) page has what's on, a map and, if your club uses screening notes, what members say about the screenings there. With more than one city, [the Theatres page](theatres) puts yours first, by area, then each other city."
     }
    ]
   },
@@ -453,7 +453,7 @@
     {
      "id": "genres",
      "q": "Which genres are there?",
-     "a": "The ones TMDB and IMDb use for films — action to western, plus film noir, musical, biography and sport — so what you pick matches how every film is labelled."
+     "a": "The ones TMDB and IMDb use for films (action to western, plus film noir, musical, biography and sport), so what you pick matches how every film is labelled."
     }
    ]
   },
@@ -469,12 +469,12 @@
     {
      "id": "club-page",
      "q": "What's on the Club page?",
-     "a": "[An overview](club) (this week, recent activity, the members, the month's numbers and your games), [every member as a tile](club-members) (tap one for their page), [the leaderboard](club-leaderboard), and — for organizers and admins — [the club's settings](club-settings) (admins also find the style guide there: every button, chip and panel the site uses)."
+     "a": "[An overview](club) (this week, recent activity, the members, the month's numbers and your games), [every member as a tile](club-members) (tap one for their page), [the leaderboard](club-leaderboard), and, for organizers and admins, [the club's settings](club-settings) (admins also find the style guide there: every button, chip and panel the site uses)."
     },
     {
      "id": "leaderboard",
      "q": "How does the leaderboard work?",
-     "a": "On [the leaderboard](club-leaderboard), switch between this month, this year and all time: kernels count in the period they were earned, shown as a bar by where they came from. Tap Stats on anyone for their screenings, film prints, theatres, late shows, crew nights, streaks, trivia and bingo. The period's titles — Night owl, Purist, Explorer, Early bird, Critic, Sharpshooter, Regular — go to whoever leads once they reach a minimum."
+     "a": "On [the leaderboard](club-leaderboard), switch between this month, this year and all time: kernels count in the period they were earned, shown as a bar by where they came from. Tap Stats on anyone for their screenings, film prints, theatres, late shows, crew nights, streaks, trivia and bingo. The period's titles (Night owl, Purist, Explorer, Early bird, Critic, Sharpshooter, Regular) go to whoever leads once they reach a minimum."
     },
     {
      "id": "screening-notes",
@@ -484,7 +484,7 @@
     {
      "id": "club-city",
      "q": "Can my club follow theatres in another city?",
-     "a": "Yes. A club has a home city — picked when it's started — that sets its clock (the Monday digest, trivia, the week's kernels) and the theatres it shows first. Its theatres can include other cities': in [Club settings → Theatres](club-settings-city) they're under Other cities, each city under its own name. Admins can change the home city there; the theatres it follows stay."
+     "a": "Yes. A club has a home city, picked when it's started, that sets its clock (the Monday digest, trivia, the week's kernels) and the theatres it shows first. Its theatres can include other cities': in [Club settings → Theatres](club-settings-city) they're under Other cities, each city under its own name. Admins can change the home city there; the theatres it follows stay."
     }
    ]
   },
@@ -500,27 +500,27 @@
     {
      "id": "polls",
      "q": "How do polls work?",
-     "a": "Pick your answers before a poll closes — it may close by itself at a set time (shown at the top). Some polls are scored: single picks (1 🍿 each), confidence (stake 1–10 kernels on each pick: a right pick earns them, a wrong one loses them) or ranked (3, 2 or 1 🍿 if your 1st, 2nd or 3rd choice wins). Answers come one of two ways, the creator's choice: all at once, when the poll's finalized; or live, each as it's set — and then that category stops taking picks, so timing counts. Either way, the kernels reach your total when it's finalized, and your result lands in [the 🔔 bell](bell). Organizers and admins make polls ([＋ New poll](new-poll) on Play, or /poll in Discord). Whoever runs a poll (the club's organizers and admins, and whoever made it) sets the answers, closes and reopens voting, finalizes it and can fix its names, nominees and deadline any time (how it's scored is set once anyone votes), on the site or with /poll action: Mark the answers in Discord. Every question is optional: skip any you like, and a skipped one scores nothing (in confidence mode it stakes nothing). For a live poll posted in the club's Discord, its creator picks what happens as answers come in: the poll's post keeps its standings up to date, each answer goes up as a new reply under it (the result, how many called it, the top three: a running feed for nights like an election), or both."
+     "a": "Pick your answers before a poll closes. It may close by itself at a set time (shown at the top). Some polls are scored: single picks (1 🍿 each), confidence (stake 1–10 kernels on each pick: a right pick earns them, a wrong one loses them) or ranked (3, 2 or 1 🍿 if your 1st, 2nd or 3rd choice wins). Answers come one of two ways, the creator's choice: all at once, when the poll's finalized; or live, each as it's set, and then that category stops taking picks, so timing counts. Either way, the kernels reach your total when it's finalized, and your result lands in [the 🔔 bell](bell). Organizers and admins make polls ([＋ New poll](new-poll) on Play, or /poll in Discord). Whoever runs a poll (the club's organizers and admins, and whoever made it) sets the answers, closes and reopens voting, finalizes it and can fix its names, nominees and deadline any time (how it's scored is set once anyone votes), on the site or with /poll action: Mark the answers in Discord. Every question is optional: skip any you like, and a skipped one scores nothing (in confidence mode it stakes nothing). For a live poll posted in the club's Discord, its creator picks what happens as answers come in: the poll's post keeps its standings up to date, each answer goes up as a new reply under it (the result, how many called it, the top three: a running feed for nights like an election), or both."
     },
     {
      "id": "challenges",
      "q": "How do challenges work?",
-     "a": "Challenge members of your club in its games, with kernels on the line. At the top of [Play](play-challenges), ⚔️ Challenge someone (or /play versus: in Discord): pick one game or a 🧩 gauntlet of several — each picked or random, 1 to 10 questions each — who (and any open seats anyone can take), a stake each player puts in the pot, when it closes, and whether scores show as each player finishes or only at the end. Everyone gets the same questions, 30 seconds each. The kernels you score decide it: one game, the top score takes the pot (a tie splits it); a gauntlet, most games won (then kernels scored, then speed). Members who aren't playing can back a player until the first one finishes — whoever backed the winner splits the backing pot. Then rematch, or double or nothing; your record and rivalries are on member pages. A club organizer turns challenges on in [Club settings → Games](club-settings-games); you choose your challenge alerts in Settings → Notifications and whether yours are posted in Discord in Privacy and sharing."
+     "a": "Challenge members of your club in its games, with kernels on the line. At the top of [Play](play-challenges), ⚔️ Challenge someone (or /play versus: in Discord): pick one game or a 🧩 gauntlet of several (each picked or random, 1 to 10 questions each), who (and any open seats anyone can take), a stake each player puts in the pot, when it closes, and whether scores show as each player finishes or only at the end. Everyone gets the same questions, 30 seconds each. The kernels you score decide it: one game, the top score takes the pot (a tie splits it); a gauntlet, most games won (then kernels scored, then speed). Members who aren't playing can back a player until the first one finishes — whoever backed the winner splits the backing pot. Then rematch, or double or nothing; your record and rivalries are on member pages. A club organizer turns challenges on in [Club settings → Games](club-settings-games); you choose your challenge alerts in Settings → Notifications and whether yours are posted in Discord in Privacy and sharing."
     },
     {
      "id": "tournaments",
      "q": "How do tournaments work?",
-     "a": "Three or more members, a bracket of 1-v-1 challenges. At the top of [Play](play-challenges), 🏆 Start a tournament (or /play tournament: in Discord): double elimination (3–16 players: lose once and you drop to the losers' bracket, twice and you're out; the two brackets' champions meet in one grand final) or a round robin and a final (3–6 players: everyone plays everyone once; the top two meet). Pick the games every match plays (random ones are drawn fresh for each match), who's invited and any open seats, an entry each player puts in the prize pot — winner takes all, or 60 / 30 / 10 to the top three — seeds (random, or by challenge record), when entries close and how long each match stays open. It starts when everyone's answered and the seats are filled, when entries close, or when you start it (three or more in). Each match opens as soon as both players are known; a tie goes to the faster player, then the higher seed, and someone who doesn't play forfeits (if neither does, the higher seed goes through). Members not playing can back someone to win it all until the first match is decided. Matches count in your challenge record; titles show in [Records](play-records)."
+     "a": "Three or more members, a bracket of 1-v-1 challenges. At the top of [Play](play-challenges), 🏆 Start a tournament (or /play tournament: in Discord): double elimination (3–16 players: lose once and you drop to the losers' bracket, twice and you're out; the two brackets' champions meet in one grand final) or a round robin and a final (3–6 players: everyone plays everyone once; the top two meet). Pick the games every match plays (random ones are drawn fresh for each match), who's invited and any open seats, an entry each player puts in the prize pot (winner takes all, or 60 / 30 / 10 to the top three), seeds (random, or by challenge record), when entries close and how long each match stays open. It starts when everyone's answered and the seats are filled, when entries close, or when you start it (three or more in). Each match opens as soon as both players are known; a tie goes to the faster player, then the higher seed, and someone who doesn't play forfeits (if neither does, the higher seed goes through). Members not playing can back someone to win it all until the first match is decided. Matches count in your challenge record; titles show in [Records](play-records)."
     },
     {
      "id": "who-to-challenge",
      "q": "Who should I challenge?",
-     "a": "At the top of [Play](play-challenges): your record (your nemesis, your favorite victim, your best game) and the club's best — most wins, kernels won, the hottest streak, the biggest pot, the fiercest rivalry — then 🔍 Who should you challenge?, best first: their kernels next to yours, their record and win rate, how you've done against them, a reason or two (a grudge match, a streak to end, a big fish) and a game and stake to try. 📊 Habits puts their movie habits beside yours — only what your clubs already see, their Letterboxd diary if they connected it (star ratings only if they show them) — and 🔥 Roast pokes fun at them (the AI writes it without being told anyone's name; a few a day). ⚔️ Challenge starts one with them. In Discord: /play challenges: Who should I challenge?. Rather not be roasted? Switch off \"Fair game for challenge scouting\" in [Privacy and sharing](settings-privacy)."
+     "a": "At the top of [Play](play-challenges): your record (your nemesis, your favorite victim, your best game) and the club's best (most wins, kernels won, the hottest streak, the biggest pot, the fiercest rivalry), then 🔍 Who should you challenge?, best first: their kernels next to yours, their record and win rate, how you've done against them, a reason or two (a grudge match, a streak to end, a big fish) and a game and stake to try. 📊 Habits puts their movie habits beside yours: only what your clubs already see, and their Letterboxd diary if they connected it (star ratings only if they show them). 🔥 Roast pokes fun at them (the AI writes it without being told anyone's name; a few a day). ⚔️ Challenge starts one with them. In Discord: /play challenges: Who should I challenge?. Rather not be roasted? Switch off \"Fair game for challenge scouting\" in [Privacy and sharing](settings-privacy)."
     },
     {
      "id": "trivia",
      "q": "How does trivia work?",
-     "a": "[A question of the day](play-trivia) for the whole club, and — if your club allows it — anytime questions whenever you like (up to 5 kernels a day). One try each. Each question is rated easy, medium or hard: the question of the day pays +1, +2 or +3, anytime ones +1, +1 or +2. The wrong answers are look-alikes — the same era, genre and fame — so you'll have to know it."
+     "a": "[A question of the day](play-trivia) for the whole club and, if your club allows it, anytime questions whenever you like (up to 5 kernels a day). One try each. Each question is rated easy, medium or hard: the question of the day pays +1, +2 or +3, anytime ones +1, +1 or +2. The wrong answers are look-alikes: the same era, genre and fame. You'll have to know it."
     },
     {
      "id": "trivia-films",
@@ -530,12 +530,12 @@
     {
      "id": "quiz-games",
      "q": "What are the quiz games?",
-     "a": "Quick games on [Play](play-games) (and /play in Discord), each one your club's choice in [Club settings → Games](club-settings-games): Higher or lower (did the next film come out before or after? keep the streak going), Who said it (a line, and four of the film's characters) and Emoji plot (a film's story in emojis, written by AI) — +1 kernel a right call — and Guess the still and Guess from the reviews, which pay 3, 2 or 1 by how much you needed to see. Up to 5 kernels a day from each game. Your rounds are private."
+     "a": "Quick games on [Play](play-games) (and /play in Discord), each one your club's choice in [Club settings → Games](club-settings-games). Higher or lower (did the next film come out before or after? keep the streak going), Who said it (a line, and four of the film's characters) and Emoji plot (a film's story in emojis, written by AI) pay +1 kernel a right call. Guess the still and Guess from the reviews pay 3, 2 or 1 by how much you needed to see. Up to 5 kernels a day from each game. Your rounds are private."
     },
     {
      "id": "bingo",
      "q": "How does repertory bingo work?",
-     "a": "[One card a month](play-bingo) for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more. If the club counts Letterboxd diaries ([Club settings → Games](club-settings-games)), films you log that month fill the film squares too — era, genre, length, your watchlist — marked 🏠; a line that needs one is +3, the full card +10. Anything seen in person counts first."
+     "a": "[One card a month](play-bingo) for the club, filled in by itself from your check-ins: on film, before 1960, a late show, a theatre you'd never been to… The middle is free. A first line is +5 kernels, the full card +15 more. If the club counts Letterboxd diaries ([Club settings → Games](club-settings-games)), films you log that month fill the film squares too (era, genre, length, your watchlist), marked 🏠. A line that needs one is +3, the full card +10. Anything seen in person counts first."
     },
     {
      "id": "others-bingo",
@@ -545,7 +545,7 @@
     {
      "id": "records",
      "q": "Where are the game records?",
-     "a": "On Play's [Records](play-records) tab: yours, everyone's — a table you can sort by trivia, streaks, bingo, the quiz games or poll picks — and the club's totals, for this month, this year or all time. A member's page shows their all-time records."
+     "a": "On Play's [Records](play-records) tab: yours, everyone's (a table you can sort by trivia, streaks, bingo, the quiz games or poll picks) and the club's totals, for this month, this year or all time. A member's page shows their all-time records."
     },
     {
      "id": "games-discord",
@@ -601,7 +601,7 @@
     {
      "id": "clear-alerts",
      "q": "Can I clear my notifications?",
-     "a": "Yes — open [the 🔔 bell](bell) and tap Clear (it asks first). Anything still waiting on you stays until you've answered it: a game post waiting for your OK, or today's trivia question; those are marked \"Needs your answer\". Clearing only tidies the bell — it doesn't change what you get or where."
+     "a": "Yes. Open [the 🔔 bell](bell) and tap Clear (it asks first). Anything still waiting on you stays until you've answered it: a game post waiting for your OK, or today's trivia question; those are marked \"Needs your answer\". Clearing only tidies the bell — it doesn't change what you get or where."
     },
     {
      "id": "save-search",
@@ -627,7 +627,7 @@
     {
      "id": "connect-server",
      "q": "Can I connect my club's Discord server?",
-     "a": "Yes — a club admin does it in [Club settings → Discord](club-settings-discord-server): Add to Discord (pick your server; you need Manage Server there), make a code, and run /setup with it in the channel the bot should post in. From then on the bot posts there what the club chooses (new showtimes, the Monday digest, game posts, screening threads), and anyone in the server who uses a command joins the club — no site account needed. Run /setup in another channel to move it; disconnect in Club settings. Until it's connected, the bot answers /showtimes, /movie, /find, /surprise and /theatre there."
+     "a": "Yes. A club admin does it in [Club settings → Discord](club-settings-discord-server): Add to Discord (pick your server; you need Manage Server there), make a code, and run /setup with it in the channel the bot should post in. From then on the bot posts there what the club chooses (new showtimes, the Monday digest, game posts, screening threads), and anyone in the server who uses a command joins the club — no site account needed. Run /setup in another channel to move it; disconnect in Club settings. Until it's connected, the bot answers /showtimes, /movie, /find, /surprise and /theatre there."
     },
     {
      "id": "discord-shows",
@@ -637,7 +637,7 @@
     {
      "id": "bot",
      "q": "What can the bot do?",
-     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play — trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button (or solo: straight into one), versus: to challenge members (one game, random or a gauntlet), tournament: for a bracket (versus: picks its game) and challenges: for yours, the club's, or who you should challenge (with a 🔥 roast) — plus /poll (action: the open polls, your ballot, make one, or mark its answers, close and finalize it) and /leaderboard (period: all time, this year or this month). Each command's choices are options Discord lists as you type, like /showtimes. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
+     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play for trivia, your bingo card, the quiz games, polls to vote in and your kernels, each a button (or solo: straight into one), versus: to challenge members (one game, random or a gauntlet), tournament: for a bracket (versus: picks its game) and challenges: for yours, the club's, or who you should challenge (with a 🔥 roast), plus /poll (action: the open polls, your ballot, make one, or mark its answers, close and finalize it) and /leaderboard (period: all time, this year or this month). Each command's choices are options Discord lists as you type, like /showtimes. People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
     }
    ]
   },
@@ -658,12 +658,12 @@
     {
      "id": "letterboxd-watchlist",
      "q": "Can I bring in my Letterboxd watchlist?",
-     "a": "Yes. On Letterboxd, go to Settings → Import & Export → Export your data, then upload the zip (or just the watchlist.csv inside it) in [Settings → Connections → Letterboxd → Watchlist](profile-letterboxd-watchlist). Its films join your watchlist here once they're in our listings — now, or whenever a theatre books one later — marked 📓. The first time, you choose whether they alert you like the rest of your watchlist or just shape For you. Import again any time: films you've taken off Letterboxd leave, ones you added here stay, and one you remove here stays off. Imports don't show in the club feed. Turn it off and the films it brought in leave."
+     "a": "Yes. On Letterboxd, go to Settings → Import & Export → Export your data, then upload the zip (or just the watchlist.csv inside it) in [Settings → Connections → Letterboxd → Watchlist](profile-letterboxd-watchlist). Its films join your watchlist here once they're in our listings (now, or whenever a theatre books one later), marked 📓. The first time, you choose whether they alert you like the rest of your watchlist or just shape For you. Import again any time: films you've taken off Letterboxd leave, ones you added here stay, and one you remove here stays off. Imports don't show in the club feed. Turn it off and the films it brought in leave."
     },
     {
      "id": "reviews-in-games",
      "q": "Can my reviews end up in a game?",
-     "a": "Guess from the reviews uses lines from film reviews: first your club's own — Letterboxd diaries of members who've connected theirs — then reviews posted on TMDB (The Movie Database). Letterboxd's other reviews can't be used: it has no way for sites to read them. A line from your diary is never shown with your name, and never one that names the film, its year or its people. Don't want yours used? In [Settings → Privacy and sharing](settings-privacy), turn off “Let a line from my reviews be a quiz clue”."
+     "a": "Guess from the reviews uses lines from film reviews: first your club's own (Letterboxd diaries of members who've connected theirs), then reviews posted on TMDB (The Movie Database). Letterboxd's other reviews can't be used: it has no way for sites to read them. A line from your diary is never shown with your name, and never one that names the film, its year or its people. Don't want yours used? In [Settings → Privacy and sharing](settings-privacy), turn off “Let a line from my reviews be a quiz clue”."
     },
     {
      "id": "ratings-shown",
@@ -679,7 +679,7 @@
     {
      "id": "members-see",
      "q": "What can other members see?",
-     "a": "Your name, picture, bio, your plans and check-ins in clubs you share, your Letterboxd link if you added one, and your taste only if you switch on showing it. Your email is only visible to admins of clubs you're in, and your settings are private. When members look for someone to challenge, they see your challenge record and kernels, and — unless you switch off \"Fair game for challenge scouting\" in [Privacy and sharing](settings-privacy) — your movie habits next to theirs, from what your clubs already see (and your Letterboxd diary, if you connected it; star ratings only if you show them), with a playful roast."
+     "a": "Your name, picture, bio, your plans and check-ins in clubs you share, your Letterboxd link if you added one, and your taste only if you switch on showing it. Your email is only visible to admins of clubs you're in, and your settings are private. When members look for someone to challenge, they see your challenge record and kernels and, unless you switch off \"Fair game for challenge scouting\" in [Privacy and sharing](settings-privacy), your movie habits next to theirs, from what your clubs already see (and your Letterboxd diary, if you connected it; star ratings only if you show them), with a playful roast."
     },
     {
      "id": "public",

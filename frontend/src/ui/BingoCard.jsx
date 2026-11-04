@@ -13,18 +13,18 @@ export default function BingoCard({ apiBase, groupId, role, offNote = false }) {
   if (!data.enabled) {
     return runsClub(role) ? (
       <p className="ui-note">🎱 Repertory bingo is off for the club. <Link to="/club?tab=settings#settings-games">Turn it on in Club settings</Link></p>
-    ) : offNote ? <p className="ui-note">🎱 Repertory bingo isn't on in this club yet — a club organizer or admin can turn it on.</p> : null;
+    ) : offNote ? <p className="ui-note">🎱 Repertory bingo isn't on in this club yet. A club organizer or admin can turn it on.</p> : null;
   }
-  const status = data.full ? "🎉 Full card!" : data.line ? "🎉 Bingo! Now fill the whole card" : `${data.filled} of 8 — any line of 3 is bingo`;
+  const status = data.full ? "🎉 Full card!" : data.line ? "🎉 Bingo! Now fill the whole card" : `${data.filled} of 8. Any line of 3 is bingo`;
   return (
     <Panel tone="gold" className="bingo-card" aria-labelledby="bingo-title" titleId="bingo-title"
-           title={`🎱 Repertory bingo · ${data.month_label}`} hint={status}>
+           title={`🎱 Repertory bingo for ${data.month_label}`} hint={status}>
       <BingoGrid squares={data.squares} />
       <p className="ui-hint">
         Fills in by itself when you check in ("Went") to a screening this month. First line +{data.rules.line} 🍿,
-        the full card +{data.rules.full} 🍿{data.kernels ? ` · you've earned ${data.kernels}` : ""}.
+        the full card +{data.rules.full} 🍿{data.kernels ? `. You've earned ${data.kernels}` : ""}.
         {data.rules.home && <> 🏠 Films in your Letterboxd diary this month fill the film squares too (era, genre, length,
-          your watchlist) — a line that needs one is +{data.rules.home_line}, the full card +{data.rules.home_full}.</>}
+          your watchlist). A line that needs one is +{data.rules.home_line}, the full card +{data.rules.home_full}.</>}
       </p>
     </Panel>
   );

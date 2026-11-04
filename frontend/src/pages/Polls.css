@@ -17,9 +17,8 @@
   background: none; border: none; padding: 0; color: var(--cream); cursor: pointer; font: inherit; }
 .pv-card-title { font-weight: 600; font-size: var(--fs-md); }
 .pv-card-main:hover .pv-card-title { color: var(--amber); }
-.pv-card-meta { font-size: var(--fs-xs); color: var(--muted); }
 .pv-progress { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.2rem; }
-.pv-progress-bar { flex: 1; max-width: 220px; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden; }
+.pv-progress-bar { flex: 1; max-width: 220px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .pv-progress-bar span { display: block; height: 100%; background: var(--amber); transition: width 0.3s; }
 .pv-progress-text { font-size: var(--fs-xs); color: var(--muted); }
 .pv-progress.big { margin-bottom: 1rem; }
@@ -96,11 +95,9 @@
 .pv-locked strong { color: var(--cream); }
 .pv-cat-locked { margin-left: auto; }
 .pv-closes { color: var(--amber); font-size: var(--fs-sm); margin: -0.5rem 0 1rem; }
-.pv-card-closes { color: var(--amber); font-weight: 600; }
-.pv-score { background: var(--gold-wash); border: 1px solid var(--gold-line); border-radius: var(--card-radius);
-  padding: 0.6rem 0.9rem; margin: 0 0 0.75rem; font-size: var(--fs-sm); color: var(--cream); }
-.pv-score strong { color: var(--amber); font-size: var(--fs-md); }
-.pv-score span { color: var(--muted); }
+.pv-score { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; background: var(--gold-wash);
+  border: 1px solid var(--gold-line); border-radius: var(--card-radius); padding: 0.6rem 0.9rem; margin: 0 0 0.75rem; }
+.pv-score > strong { color: var(--amber); font-size: var(--fs-md); }
 .pv-saved.saved { color: var(--green); }
 .pv-saved.error { color: var(--soft-red); }
 

@@ -17,8 +17,8 @@ test("your kernels: all time by source, this month's place, what's left to give"
   renderPage(<YourKernels k={k} month={month} viewerId={7} />);
   expect(screen.getByText("🍿 42")).toBeInTheDocument();
   expect(screen.getByRole("img")).toHaveAttribute("aria-label", "polls 2, going out 30, trivia 4, bingo 5, from members 1");
-  expect(screen.getByText("This month: 🍿 3 · #7 in the club")).toBeInTheDocument();
-  expect(screen.getByText(/8 to give · 3 to take/)).toBeInTheDocument();
+  expect(screen.getByLabelText("Where they came from")).toHaveTextContent("Polls2Going out30Trivia4Bingo5From members1");
+  expect(screen.getByLabelText("This month and this week")).toHaveTextContent("This month3 🍿, #7To give8To take3");
 });
 
 test("this month: the top five, then you if you're further down", () => {

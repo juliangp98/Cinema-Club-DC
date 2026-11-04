@@ -108,7 +108,7 @@ def _prompt(q, ids):
         "places; if the guide doesn't say, say you're not sure and point to the closest topic.\n"
         'Reply with JSON only: {"topics": [up to 3 topic ids that answer it, best first], "answer": "..."}.\n'
         "answer: at most 70 words, friendly and plain, in the guide's words. Link places exactly like the guide "
-        "does — [words](place-id) with a place id from PLACES, or [words](help:topic-id) — and never any other "
+        "does: [words](place-id) with a place id from PLACES, or [words](help:topic-id), and never any other "
         'URL. Leave answer "" when one topic answers it exactly as asked.\n\n'
         f"ALL TOPICS (id: question):\n{catalog}\n\nTHE LIKELIEST TOPICS IN FULL:\n{full}\n\nPLACES (id: what it is):\n{places}")
     return [{'role': 'system', 'content': system}, {'role': 'user', 'content': q[:300]}]

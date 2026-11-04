@@ -21,7 +21,7 @@ test("records: yours, everyone's sortable, the club's", async () => {
   renderPage(<RecordsTab apiBase="" group={group} viewerId={1} />);
   const you = await screen.findByRole("list", { name: "Your records" });
   expect(within(you).getAllByRole("listitem").map(li => li.textContent))
-    .toEqual(["Trivia80%8 of 10 · best streak 4", "Bingo1 line0 full cards", "Higher or lower7best streak", "Quiz games0right · 3 rounds", "Polls5right picks"]);
+    .toEqual(["Trivia80%8 of 10, best streak 4", "Bingo1 line0 full cards", "Higher or lower7best streak", "Quiz games0right in 3 rounds", "Polls5right picks"]);
   const table = screen.getByRole("table");
   const names = () => within(table).getAllByRole("row").slice(1).map(r => r.cells[0].textContent);
   expect(names()).toEqual(["Bo", "You"]);                                          // by trivia: 90% first

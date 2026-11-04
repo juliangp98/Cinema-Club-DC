@@ -35,13 +35,13 @@ export function recordItems(row, on) {
   if (!row) return [];
   const { trivia: t, bingo: b, quizzes: q } = row.stats;
   return [
-    on.trivia && { label: "Trivia", value: pct(t.correct, t.answered), sub: t.answered ? `${t.correct} of ${t.answered} · best streak ${t.streak}` : "None answered yet" },
+    on.trivia && { label: "Trivia", value: pct(t.correct, t.answered), sub: t.answered ? `${t.correct} of ${t.answered}, best streak ${t.streak}` : "None answered yet" },
     on.bingo && { label: "Bingo", value: plural(b.lines, "line"), sub: plural(b.cards, "full card") },
     on.hl && { label: "Higher or lower", value: q?.best_streak || 0, sub: "best streak" },
-    on.quizzes && { label: "Quiz games", value: q?.right || 0, sub: `right · ${plural(q?.rounds || 0, "round")}` },
+    on.quizzes && { label: "Quiz games", value: q?.right || 0, sub: `right in ${plural(q?.rounds || 0, "round")}` },
     on.challenges && { label: "Challenges", value: `${row.stats.challenges?.won || 0}–${row.stats.challenges?.lost || 0}`,
-                       sub: [row.stats.challenges?.streak > 1 ? `won · lost · ${row.stats.challenges.streak} in a row` : "won · lost",
-                             row.stats.challenges?.titles ? `🏆 ${plural(row.stats.challenges.titles, "title")}` : null].filter(Boolean).join(" · ") },
+                       sub: [row.stats.challenges?.streak > 1 ? `won–lost, ${row.stats.challenges.streak} in a row` : "won–lost",
+                             row.stats.challenges?.titles ? `🏆 ${plural(row.stats.challenges.titles, "title")}` : null].filter(Boolean).join(", ") },
     { label: "Polls", value: row.correct, sub: "right picks" },
   ];
 }
@@ -64,7 +64,7 @@ const COLUMNS = [
     show: r => pct(r.stats.trivia.correct, r.stats.trivia.answered) },
   { key: "streak", label: "Streak", on: o => o.trivia, sort: r => r.stats.trivia.streak, show: r => r.stats.trivia.streak },
   { key: "bingo", label: "Bingo", on: o => o.bingo, sort: r => r.stats.bingo.lines * 10 + r.stats.bingo.cards,
-    show: r => `${r.stats.bingo.lines} · ${r.stats.bingo.cards} full` },
+    show: r => `${r.stats.bingo.lines} (${r.stats.bingo.cards} full)` },
   { key: "hl", label: "H or L", on: o => o.hl, sort: r => r.stats.quizzes?.best_streak || 0, show: r => r.stats.quizzes?.best_streak || 0 },
   { key: "quiz", label: "Quiz right", on: o => o.quizzes, sort: r => r.stats.quizzes?.right || 0, show: r => r.stats.quizzes?.right || 0 },
   { key: "challenges", label: "Challenges", on: o => o.challenges,
@@ -141,7 +141,7 @@ export function MemberBingo({ apiBase, groupId, userId, name }) {
   return (
     <div className="member-bingo">
       <div className="member-bingo-card">
-        <p className="ui-hint">{data.month_label} · {status}</p>
+        <p className="ui-hint">{data.month_label}: {status}</p>
         <BingoGrid squares={data.squares} label={`${name}'s card`} compact />
       </div>
       {data.history.length > 0 && (
@@ -152,7 +152,7 @@ export function MemberBingo({ apiBase, groupId, userId, name }) {
               <li key={h.month}>
                 <MiniBingo cells={h.cells} line={h.line} full={h.full} size="md"
                            label={`${h.month_label}: ${h.full ? "full card" : h.line ? "a line" : `${h.filled} of 8`}`} />
-                {h.month_label} · {h.full ? "full" : h.line ? "line" : `${h.filled}/8`}
+                {h.month_label}: {h.full ? "full" : h.line ? "line" : `${h.filled}/8`}
               </li>
             ))}
           </ul>
@@ -189,7 +189,7 @@ function Rivals({ apiBase, groupId, userId, name }) {
       {vs?.played > 0 && <p className="ch-versus-you">Against you: <strong>{name} {vs.won}–{vs.lost}</strong>{vs.tied ? ` (${plural(vs.tied, "tie")})` : ""}</p>}
       <ul className="rail-list">
         {data.rivals.map(r => (
-          <li key={r.user.id}><PersonLink user={r.user} /> · {r.won}–{r.lost}{r.tied ? `–${r.tied}` : ""} in {plural(r.played, "challenge")}</li>
+          <li key={r.user.id}><PersonLink user={r.user} /> {r.won}–{r.lost}{r.tied ? `–${r.tied}` : ""} in {plural(r.played, "challenge")}</li>
         ))}
       </ul>
     </Panel>
@@ -203,7 +203,7 @@ export function ClubBingo({ apiBase, groupId, viewerId }) {
   const [open, setOpen] = useState(null);
   if (!data?.enabled || !data.cards.length) return null;
   return (
-    <Panel as="div" tone="tile" className="club-bingo" title={`The club's cards · ${data.month_label}`} kicker
+    <Panel as="div" tone="tile" className="club-bingo" title={`The club's ${data.month_label} cards`} kicker
            hint="A gold edge is a line. Tap one to see it.">
       <ul className="club-bingo-row" aria-label="The club's cards">
         {data.cards.map(c => {

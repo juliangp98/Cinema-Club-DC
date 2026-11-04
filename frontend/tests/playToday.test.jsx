@@ -70,3 +70,11 @@ test("old links land on the new pages", async () => {
   play("/play?tab=records");
   expect(await screen.findByTestId("where")).toHaveTextContent("/play/records");
 });
+
+test("the Kernels page: the boards in their grid, the page itself left as a page", async () => {
+  mockApi({ "GET /api/kernels": null, "GET /api/groups/1/leaderboard": { rows: [] } });
+  const { container } = play("/play/kernels");
+  expect(container.querySelector(".play-page")).toHaveClass("play-on-kernels");
+  expect(container.querySelectorAll(".play-kernels")).toHaveLength(1);           // only the boards' grid, not the page
+  expect(container.querySelector(".play-page")).not.toHaveClass("play-kernels");
+});

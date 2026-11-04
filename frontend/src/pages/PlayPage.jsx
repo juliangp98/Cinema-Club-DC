@@ -136,7 +136,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
     </>
   );
   return (
-    <div className={`page play-page play-${section}`}>
+    <div className={`page play-page play-on-${section}`}>
       <PageHeader title="Play" tour={TOURS[section]} />
       <KernelStrip k={k} month={month} viewerId={user.id} />
       <RouteTabs tabs={PAGES} label="Play" />

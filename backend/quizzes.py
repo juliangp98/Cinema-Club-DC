@@ -475,8 +475,8 @@ def _reviews_view(state, done, round_id=None):
 # ─── Emoji plot ───────────────────────────────────────────────────────────────
 
 EMOJI_SYSTEM = ("You turn film plots into emoji puzzles. Reply with 4 to 7 emojis and nothing else: no words, "
-                "letters, numbers or flags that spell out the title. Hint at the story — its people, places and "
-                "what happens — not the title itself.")
+                "letters, numbers or flags that spell out the title. Hint at the story (its people, places and "
+                "what happens), not the title itself.")
 
 
 def clean_emojis(text):

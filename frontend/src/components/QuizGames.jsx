@@ -11,11 +11,11 @@ import { changed, send, useJson } from "../api";
 // /play in Discord).
 export const QUIZ_GAMES = [
   { key: "higher_lower", label: "↕️ Higher or lower",
-    hint: "A film and its year — did the next one come out before or after? +1 kernel a right call, up to 5 a day; a miss ends the run." },
+    hint: "A film and its year: did the next one come out before or after? +1 kernel a right call, up to 5 a day. A miss ends the run." },
   { key: "who_said", label: "🗣️ Who said it",
     hint: "A line from a film and four of its characters. +1 kernel for the right one, up to 5 a day." },
   { key: "still", label: "🖼️ Guess the still",
-    hint: "A still from a film, close up — zoom out if you need to. 3, 2 or 1 kernels by how much you saw, up to 5 a day." },
+    hint: "A still from a film, close up. Zoom out if you need to. 3, 2 or 1 kernels by how much you saw, up to 5 a day." },
   { key: "reviews", label: "📝 Guess from the reviews",
     hint: "A line from a review (members' Letterboxd diaries first, never named; TMDB's after), another if you need it. 3, 2 or 1 kernels, up to 5 a day." },
   { key: "emoji", label: "🎭 Emoji plot",
@@ -107,7 +107,7 @@ function Still({ r, busy, onAnswer, apiBase }) {
   return (
     <>
       <img className="quiz-still" src={`${apiBase}${r.image}`} alt={r.done ? `A still from ${r.film.title}` : "A still, close up"} />
-      <p className="ui-hint">{r.done ? `${r.film.title}${r.film.year ? ` (${r.film.year})` : ""}` : `Step ${r.step} of 3 · worth ${r.worth} 🍿 now`}</p>
+      <p className="ui-hint">{r.done ? `${r.film.title}${r.film.year ? ` (${r.film.year})` : ""}` : `Step ${r.step} of 3, worth ${r.worth} 🍿 now`}</p>
       <Choices r={r} busy={busy} onAnswer={onAnswer} />
       <More r={r} busy={busy} onAnswer={onAnswer} label="🔍 Zoom out" />
       <Result r={r} />
@@ -165,13 +165,13 @@ function Game({ g, apiBase, groupId }) {
       const next = await send(`${apiBase}/api/quizzes/${path}`, "POST", { group_id: groupId, ...body });
       setR(next);
       if (next.last?.paid) changed("kernels");      // your total, the month's board and the movers catch up
-    } catch (e) { setError(e.data?.error || "Couldn't do that — try again."); }
+    } catch (e) { setError(e.data?.error || "Couldn't do that. Try again."); }
     finally { setBusy(false); }
   }
   const Round = ROUNDS[g.kind];
   return (
     <Panel tone="gold" className="quiz-game" title={`${g.emoji} ${g.label}`}
-           hint={`${g.by_step ? "3 / 2 / 1 🍿" : `+${g.each} 🍿 a right call`} · ${r ? r.left_today : g.cap - g.earned_today} left today${g.best && !g.by_step ? ` · best ${g.best}` : ""}`}
+           hint={`${g.by_step ? "3, 2 or 1 🍿" : `+${g.each} 🍿 a right call`}, ${r ? r.left_today : g.cap - g.earned_today} left today${g.best && !g.by_step ? `, best ${g.best}` : ""}`}
            actions={(!r || r.done) && (
              <button type="button" className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => call("start", { kind: g.kind })}>
                {r ? "🔁 Play again" : "▶ Play"}

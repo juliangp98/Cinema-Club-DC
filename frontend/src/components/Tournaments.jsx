@@ -5,6 +5,7 @@ import Avatar from "../ui/Avatar";
 import Sheet, { SheetTitle } from "../ui/Sheet";
 import { Segmented } from "../ui/TicketRow";
 import { untilText } from "./PollList";
+import { MetaRow } from "../ui/Facts";
 import { AnnounceChoice, GameSet, PeoplePick, REVEALS, SEEN, STAKES, useAnnounce, useGameSet } from "./Challenges";
 
 // Tournaments (tournaments.py): a bracket of 1-v-1 challenges for three or
@@ -39,16 +40,18 @@ function nextStep(t) {
 export function TournamentCard({ t, onOpen }) {
   const step = nextStep(t);
   const people = t.players.filter(p => !["declined", "expired"].includes(p.status));
-  const closes = t.status === "open" && <> · <strong className="pv-card-closes">entries close {untilText(t.closes_at)}</strong></>;
   return (
     <article className={`ch-card tour-card status-${t.status === "running" ? "open" : t.status}`}>
       <button type="button" className="ch-card-main" onClick={onOpen}>
         <span className={`ui-badge ${{ open: "go", running: "go", done: "gold" }[t.status] || ""}`}>{TOURNAMENT_STATUS[t.status]}</span>
-        <span className="ch-card-title">🏆 {t.format_label} · {t.games_line}</span>
-        <span className="ch-card-meta">
-          {t.created_by.name} · {entrants(t).length} in{t.stake ? ` · ${t.stake} 🍿 entry · pot ${t.pot} 🍿 · ${t.payout_label}` : " · for bragging rights"}
-          {closes}{t.backing.count > 0 && ` · ${t.backing.total} 🍿 backing`}
-        </span>
+        <span className="ch-card-title">🏆 {t.format_label}: {t.games_line}</span>
+        <MetaRow label="About it" items={[
+          { icon: "👤", text: t.created_by.name },
+          { icon: "👥", text: `${entrants(t).length} in` },
+          { icon: "🍿", text: t.stake ? `${t.stake} each, pot ${t.pot}, ${t.payout_label.toLowerCase()}` : "For bragging rights" },
+          t.status === "open" && { icon: "⏰", text: `entries close ${untilText(t.closes_at)}`, strong: true },
+          t.backing.count > 0 && { icon: "🤝", text: `${t.backing.total} 🍿 backing` },
+        ]} />
         <span className="ch-people">
           {people.map(p => (
             <span key={p.user.id} className={`ch-person${p.place === 1 ? " winner" : ""}${t.status === "running" && !p.alive ? " out" : ""}`}>
@@ -97,7 +100,7 @@ export function NewTournament({ apiBase, groupId, settings, options, viewerId, o
       });
       changed("kernels");
       onMade(made);
-    } catch (e) { setError(e.data?.error || "Couldn't set that up — try again."); }
+    } catch (e) { setError(e.data?.error || "Couldn't set that up. Try again."); }
     finally { setBusy(false); }
   }
 
@@ -117,7 +120,7 @@ export function NewTournament({ apiBase, groupId, settings, options, viewerId, o
         <label className="share-label" htmlFor="tour-seats">Open seats (anyone in the club can take one)</label>
         <input id="tour-seats" type="number" className="share-input ch-number" min={0} max={Math.min(options.max_seats, hi - 1 - players.length)}
                value={seats} onChange={e => setSeats(Math.max(0, Math.min(options.max_seats, hi - 1 - players.length, Number(e.target.value) || 0)))} />
-        <p className="ui-hint">{total} of {lo}–{hi} players with you{total < lo ? ` — it needs ${lo - total} more` : ""}.</p>
+        <p className="ui-hint">{total} of {lo}–{hi} players with you{total < lo ? `. It needs ${lo - total} more` : ""}.</p>
 
         <span className="share-label">Entry (each player, into the prize pot)</span>
         <Segmented label="Entry" options={STAKES.filter(n => n <= settings.max_stake).map(n => ({ status: String(n), label: n ? `${n} 🍿` : "None" }))}
@@ -129,15 +132,15 @@ export function NewTournament({ apiBase, groupId, settings, options, viewerId, o
         <p className="ui-hint">
           {stake > settings.available ? `You have ${settings.available} 🍿 to put in.`
             : !stake ? "Just for bragging rights."
-            : payout === "all" ? `Pot: ${pot} 🍿 with ${total} in — all to the winner.`
-            : `Pot: ${pot} 🍿 with ${total} in — ${prizes(pot, payout).map((n, i) => `${MEDALS[i + 1]} ${n}`).join(" · ")}.`}
+            : payout === "all" ? `Pot: ${pot} 🍿 with ${total} in, all to the winner.`
+            : `Pot: ${pot} 🍿 with ${total} in: ${prizes(pot, payout).map((n, i) => `${MEDALS[i + 1]} ${n}`).join(", ")}.`}
         </p>
         <span className="share-label">Seeds</span>
         <Segmented label="Seeds" options={SEEDINGS} value={seeding} onChange={v => v && setSeeding(v)} />
         <span className="share-label">Entries close</span>
         <Segmented label="Entries close" options={Object.entries(settings.deadlines).map(([status, label]) => ({ status, label }))}
                    value={deadline} onChange={v => v && setDeadline(v)} />
-        <p className="ui-hint">It starts sooner if everyone answers and the seats fill — or when you start it.</p>
+        <p className="ui-hint">It starts sooner if everyone answers and the seats fill, or when you start it.</p>
         <span className="share-label">Each match stays open</span>
         <Segmented label="Each match stays open" options={Object.entries(options.match_times).map(([status, label]) => ({ status, label }))}
                    value={matchTime} onChange={v => v && setMatchTime(v)} />

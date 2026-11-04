@@ -107,12 +107,12 @@ test("a new tournament: round robin, three invited, 60 / 30 / 10", async () => {
   const send = sheet.getByRole("button", { name: "🏆 Send the invites" });
   await userEvent.click(await sheet.findByRole("button", { name: /Bo/ }));
   expect(send).toBeDisabled();
-  expect(sheet.getByText(/it needs 1 more/)).toBeInTheDocument();
+  expect(sheet.getByText(/It needs 1 more/)).toBeInTheDocument();
   await userEvent.click(sheet.getByRole("button", { name: /Cy/ }));
   await userEvent.click(sheet.getByRole("button", { name: /Di/ }));
   await userEvent.click(sheet.getByRole("button", { name: "5 🍿" }));
   await userEvent.click(sheet.getByRole("button", { name: "60 / 30 / 10" }));
-  expect(sheet.getByText("Pot: 20 🍿 with 4 in — 🥇 12 · 🥈 6 · 🥉 2.")).toBeInTheDocument();
+  expect(sheet.getByText("Pot: 20 🍿 with 4 in: 🥇 12, 🥈 6, 🥉 2.")).toBeInTheDocument();
   await userEvent.click(send);
   expect(calls.find(c => c.method === "POST").body).toMatchObject({
     group_id: 1, format: "round_robin", players: [2, 3, 5], stake: 5, payout: "top3", seeding: "random", deadline: "tonight",
@@ -162,7 +162,7 @@ test("decided: the round robin's standings, medals and prizes", async () => {
   mockApi({ "GET /api/tournaments/4": done });
   renderPage(<Routes><Route path="/tournaments/:tournamentId" element={<TournamentPage apiBase="" user={{ id: 1 }} />} /></Routes>,
              { route: "/tournaments/4" });
-  expect(await screen.findByText(/Prizes: 🥇 6 🍿 · 🥈 2 🍿 · 🥉 1 🍿/)).toBeInTheDocument();
+  expect(await screen.findByText(/Prizes: 🥇 6 🍿, 🥈 2 🍿, 🥉 1 🍿/)).toBeInTheDocument();
   const players = within(screen.getByText("Players").closest(".ch-players")).getAllByRole("listitem").map(li => li.textContent);
   expect(players[0]).toMatch(/Bo.*🥇 Champion.*\+3 🍿/);
   expect(players[2]).toMatch(/Ana.*🥉 Third.*−2 🍿/);

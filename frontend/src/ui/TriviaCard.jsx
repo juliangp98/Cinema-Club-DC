@@ -22,7 +22,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   if (!data.enabled) {
     return runsClub(role) ? (
       <p className="ui-note">🧠 Movie trivia is off for the club. <Link to="/club?tab=settings#settings-games">Turn it on in Club settings</Link></p>
-    ) : offNote ? <p className="ui-note">🧠 Movie trivia isn't on in this club yet — a club organizer or admin can turn it on.</p> : null;
+    ) : offNote ? <p className="ui-note">🧠 Movie trivia isn't on in this club yet. A club organizer or admin can turn it on.</p> : null;
   }
   const daily = data.question;
   const q = shown || (daily && !daily.mine ? daily : data.waiting || daily);
@@ -37,7 +37,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
       setShown(next);
       if (next.mine?.correct) changed("kernels");    // your total and the boards catch up
     } catch (e) {
-      setError(e.data?.error || "Couldn't do that — try again.");
+      setError(e.data?.error || "Couldn't do that. Try again.");
       reload();
     }
     setBusy(false);
@@ -51,7 +51,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
   if (!q) {                         // anytime only, nothing asked yet
     return (
       <Panel tone="gold" className="trivia-card" aria-label="Movie trivia" title="🎲 Movie trivia"
-             hint="A question whenever you like · +1 🍿 for a right one (up to 5 a day)">
+             hint="A question whenever you like, +1 🍿 for a right one (up to 5 a day)">
         {busy === "another" ? <Loading context="games" label="Finding a question" compact /> : another}
         {error && <p className="trivia-error" role="status">{error}</p>}
       </Panel>
@@ -65,8 +65,8 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
            title={q.anytime ? "🎲 Anytime trivia" : "🧠 Question of the day"}
            aside={q.difficulty && <span className={`ui-badge ${LEVEL_TONE[q.difficulty] || ""}`}>{q.difficulty}</span>}
            hint={answered ? (q.anytime || !data.anytime ? "" : "Want more? Play an anytime question")
-             : q.anytime && q.kernels_left_today === 0 ? "One try · just for fun (today's anytime kernels are used up)"
-             : `One try · +${q.kernels} 🍿 if you're right`}>
+             : q.anytime && q.kernels_left_today === 0 ? "One try, just for fun (today's anytime kernels are used up)"
+             : `One try, +${q.kernels} 🍿 if you're right`}>
       <p className="trivia-q">{q.prompt}</p>
       <div className="trivia-options" role="group" aria-label="Answers">
         {q.options.map((o, i) => {

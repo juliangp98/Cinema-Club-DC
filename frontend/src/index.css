@@ -1122,7 +1122,7 @@ button.feed-title:hover { color: var(--amber); }
    the boards on their own page (no side column trailing below the games). */
 .play-strip { margin-top: -0.25rem; }          /* the columns: .ui-split */
 @media (min-width: 1024px) { .play-strip { display: none; } .play-tiles .phone-only { display: none; } }
-@media (max-width: 1023px) { .play-today .play-side { display: none; } }
+@media (max-width: 1023px) { .play-on-today .play-side { display: none; } }
 .play-turn { margin-bottom: 1.25rem; }
 .play-turn .ui-panel-title { display: block; margin-bottom: 0.5rem; }
 .play-turn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }

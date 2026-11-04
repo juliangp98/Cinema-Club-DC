@@ -501,7 +501,7 @@ def create(group, user, data, now=None, rematch_of=None):
     if question(ch, 0, 0) is None:                              # nothing to ask about: don't leave it hanging
         db.session.delete(ch)
         db.session.commit()
-        return None, "There's nothing to play that with yet — try another game."
+        return None, "There's nothing to play that with yet. Try another game."
     notify_invites(ch, opponents)
     if ch.visibility == 'club':
         notify_open(ch)
@@ -556,7 +556,7 @@ def set_games(ch, user, data):
     ch.questions = plan[0]['questions'] or 0
     db.session.commit()
     if question(ch, 0, 0) is None:
-        return "There's nothing to play that with yet — try another game."
+        return "There's nothing to play that with yet. Try another game."
     posts_changed(ch)
     return None
 
@@ -610,7 +610,7 @@ def back(ch, user, backing_id, amount):
     if not betting_open(ch):
         return 'Backing is closed for this one.'
     if player(ch, user.id):
-        return "You're in this one — you can't back a player too."
+        return "You're in this one, so you can't back a player too."
     if not _active_membership(user, ch.group_id):
         return 'Only club members can back a player.'
     if not any(p.user_id == backing_id and p.status in ('accepted', 'invited') for p in ch.players):

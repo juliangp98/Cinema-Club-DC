@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useJson } from "../api";
+import { MetaRow } from "../ui/Facts";
 import "../pages/Polls.css";
 
 export const SCORING_LABELS = {
@@ -14,8 +15,8 @@ export const POLL_STATUS = { open: "Open", closed: "Voting closed", scored: "Res
 // When members see a scored poll's answers (Poll.reveal).
 export const REVEAL_LABELS = { final: "All at once", live: "Live" };
 export const REVEAL_HINTS = {
-  final: "Members see the answers and standings together when you finalize — everyone's picks are in, then the reveal.",
-  live: "Each answer shows as soon as you set it, and that category stops taking votes — so timing counts. Kernels reach totals when you finalize.",
+  final: "Members see the answers and standings together when you finalize: everyone's picks are in, then the reveal.",
+  live: "Each answer shows as soon as you set it, and that category stops taking votes, so timing counts. Kernels reach totals when you finalize.",
 };
 
 // "in 3 days", "in 5 hours", "in 20 minutes" — how long until a deadline.
@@ -71,11 +72,14 @@ function PollCard({ poll: p, onOpen }) {
       <button type="button" className="pv-card-main" onClick={onOpen}>
         <span className={`ui-badge ${{ open: "go", scored: "gold" }[p.status] || ""}`}>{POLL_STATUS[p.status] || p.status}</span>
         <span className="pv-card-title">{p.title}</span>
-        <span className="pv-card-meta">
-          {TYPE_LABELS[p.poll_type] || "Poll"} · {SCORING_LABELS[p.scoring_mode]}{p.reveal === "live" && p.scoring_mode !== "none" ? " · Live answers" : ""}
-          {" · "}{total} {total === 1 ? "category" : "categories"}{" · "}{p.voters || 0} voted
-          {open && p.closes_at && <> · <strong className="pv-card-closes">closes {untilText(p.closes_at)}</strong></>}
-        </span>
+        <MetaRow label="About it" items={[
+          { icon: p.poll_type === "prediction" ? "🔮" : "🗳️", text: TYPE_LABELS[p.poll_type] || "Poll" },
+          { icon: "🍿", text: SCORING_LABELS[p.scoring_mode] },
+          p.reveal === "live" && p.scoring_mode !== "none" && { icon: "📡", text: "Live answers" },
+          { icon: "📋", text: `${total} ${total === 1 ? "category" : "categories"}` },
+          { icon: "👥", text: `${p.voters || 0} voted` },
+          open && p.closes_at && { icon: "⏰", text: `closes ${untilText(p.closes_at)}`, strong: true },
+        ]} />
         {open && total > 0 && (
           <span className="pv-progress" aria-label={`You've picked ${picked} of ${total}`}>
             <span className="pv-progress-bar"><span style={{ width: `${(picked / total) * 100}%` }} /></span>

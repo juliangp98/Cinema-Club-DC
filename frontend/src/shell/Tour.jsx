@@ -15,7 +15,7 @@ import { SITE_NAME } from "../site";
 
 const SLIDES = [
   { emoji: "🎬", title: `Welcome to ${SITE_NAME}`,
-    body: "Everything playing at your city's independent and repertory theatres — film prints, Q&As, one-night-only screenings — in one place, and a club to see them with." },
+    body: "Everything playing at your city's independent and repertory theatres (film prints, Q&As, one-night-only screenings) in one place, and a club to see them with." },
   { emoji: "🎟️", title: "Make plans together",
     body: "Tap any screening to say you're Going or Maybe. Your club sees who's going and can talk about it; afterwards, check in to say you went." },
   { emoji: "🍿", title: "Your club", club: true,
@@ -26,7 +26,7 @@ const SLIDES = [
 
 // Last of all (R13): an invitation to set up Your taste, or leave it for later.
 const TASTE = { emoji: "✨", title: "Make it yours",
-  body: "Tell us the genres, films, people and theatres you love — and what you're not into — and Discover and each theatre's page lead with films for you. Change it any time in Me → Settings." };
+  body: "Tell us the genres, films, people and theatres you love (and what you're not into), and Discover and each theatre's page lead with films for you. Change it any time in Me → Settings." };
 
 const STEPS = [
   { target: "nav:/", page: "/", title: "Discover",
@@ -254,7 +254,7 @@ export function PageTour({ tour, onFinish }) {
   }, [onFinish]);
   const toHelp = () => { onFinish(); navigate(`/help#${tour.help}`); };
   const card = { emoji: "📖", title: "There's more in Help",
-                 body: `Everything about ${tour.title} — with links straight to each thing — is in Help.` };
+                 body: `Everything about ${tour.title}, with links straight to each thing, is in Help.` };
   return createPortal(
     <div className={`tour-layer tour-${i < steps.length ? "spotlight" : "slides"}`}>
       {i < steps.length ? (

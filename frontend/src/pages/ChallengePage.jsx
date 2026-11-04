@@ -40,7 +40,7 @@ function Ballot({ apiBase, q, busy, onAnswer, onTimeUp }) {
   const Round = ROUNDS[q.kind];
   return (
     <Panel tone="gold" className="ch-ballot" title={`${q.emoji} ${q.label}`}
-           hint={`${q.rounds > 1 ? `Game ${q.round + 1} of ${q.rounds} · ` : ""}Question ${q.q + 1}${q.kind === "higher_lower" ? "" : ` of ${q.of}`} · ${q.score} 🍿 scored`}>
+           hint={`${q.rounds > 1 ? `Game ${q.round + 1} of ${q.rounds}, q` : "Q"}uestion ${q.q + 1}${q.kind === "higher_lower" ? "" : ` of ${q.of}`}. ${q.score} 🍿 scored`}>
       {q.ends_at && <Clock endsAt={q.ends_at} onUp={onTimeUp} />}
       <Round r={q} busy={busy} apiBase={apiBase} onAnswer={onAnswer} />
     </Panel>
@@ -106,7 +106,7 @@ export default function ChallengePage({ apiBase }) {
       changed("kernels");
       if (action === "rematch") navigate(`/challenges/${d.id}`);
       else setC(d);
-    } catch (e) { setError(e.data?.error || "That didn't work — try again."); }
+    } catch (e) { setError(e.data?.error || "That didn't work. Try again."); }
     finally { setBusy(false); }
   }
 
@@ -117,7 +117,7 @@ export default function ChallengePage({ apiBase }) {
       setC(prev => ({ ...prev, ...d.challenge }));
       setQ(d.question);
       if (!d.question) changed("kernels");
-    } catch (e) { setError(e.data?.error || "Couldn't open your turn — try again."); }
+    } catch (e) { setError(e.data?.error || "Couldn't open your turn. Try again."); }
   }
 
   async function answer(choice) {
@@ -128,7 +128,7 @@ export default function ChallengePage({ apiBase }) {
       setC(prev => ({ ...prev, ...d.challenge }));
       setQ(d.question);
       if (!d.question) { setLast(d.answered); changed("kernels"); }
-    } catch (e) { setError(e.data?.error || "Couldn't save that — try again."); play(); }
+    } catch (e) { setError(e.data?.error || "Couldn't save that. Try again."); play(); }
     finally { setBusy(false); }
   }
 
@@ -145,10 +145,10 @@ export default function ChallengePage({ apiBase }) {
                   meta={[{ label: CHALLENGE_STATUS[c.status], gold: c.status === "open" }, { label: lengthLine(c) },
                          { label: tour ? tour.title : stakesLine(c) }, { label: c.reveal === "live" ? "Scores live" : "Scores sealed" },
                          { label: c.visibility === "club" ? "The club sees it" : "Just the players" }]} />
-      {tour && <p className="pv-desc">A match in the <Link to={`/tournaments/${tour.id}`}>{tour.title.replace("🏆 ", "")}</Link> tournament — one winner goes on; a tie goes to the faster player, then the higher seed.</p>}
-      {c.gauntlet && <p className="pv-desc">{c.rounds.map(r => `${r.emoji} ${r.label}`).join(" → ")} · most games won takes it</p>}
+      {tour && <p className="pv-desc">A match in the <Link to={`/tournaments/${tour.id}`}>{tour.title.replace("🏆 ", "")}</Link> tournament. One winner goes on; a tie goes to the faster player, then the higher seed.</p>}
+      {c.gauntlet && <p className="pv-desc">{c.rounds.map(r => `${r.emoji} ${r.label}`).join(" → ")}. Most games won takes it.</p>}
       {c.status === "open" && (
-        <p className="pv-closes">⏰ Closes {dayDateAt(c.closes_at)} — {untilText(c.closes_at)} · started by {c.created_by.name}</p>
+        <p className="pv-closes">⏰ Closes {dayDateAt(c.closes_at)} ({untilText(c.closes_at)}). Started by {c.created_by.name}.</p>
       )}
       <p className="ui-hint ch-kernels-note">The kernels you score decide the winner{tour ? "." : `; the pot${c.backing.allowed ? " and backing" : ""} is what changes hands.`}</p>
 
@@ -174,8 +174,8 @@ export default function ChallengePage({ apiBase }) {
             {y.can_cancel && <button className="btn btn-sm btn-ghost pv-danger" disabled={busy}
                                      onClick={() => window.confirm("Call it off? Nobody's stake changes hands.") && act("cancel")}>Call it off</button>}
           </div>
-          {y.can_play && <p className="ui-hint">30 seconds a question — once you start, the clock runs.</p>}
-          {last && <p className="quiz-result" role="status">✅ You've played{c.status === "open" ? " — the results come once everyone has." : "!"}</p>}
+          {y.can_play && <p className="ui-hint">30 seconds a question. Once you start, the clock runs.</p>}
+          {last && <p className="quiz-result" role="status">✅ You've played{c.status === "open" ? ". The results come once everyone has." : "!"}</p>}
           {y.status === "finished" && !last && c.status === "open" && <p className="ui-hint">You've played. Waiting on the others.</p>}
         </section>
       )}
@@ -187,28 +187,28 @@ export default function ChallengePage({ apiBase }) {
             <li key={p.user.id} className={p.winner ? "winner" : ""}>
               <Avatar user={p.user} size={28} link />
               <PersonLink user={p.user} className="ch-player-name" />
-              <span className="ch-player-status">{STATUS_ICONS[p.status]} {STATUS_WORDS[p.status]}{p.seat ? " · took a seat" : ""}</span>
+              <span className="ch-player-status">{STATUS_ICONS[p.status]} {STATUS_WORDS[p.status]}{p.seat ? ", took a seat" : ""}</span>
               {p.score != null && <strong className="ch-player-score">
-                {p.winner && "🏆 "}{c.gauntlet && p.rounds_won != null ? `${p.rounds_won} game${p.rounds_won === 1 ? "" : "s"} · ` : ""}{p.score} 🍿 scored
+                {p.winner && "🏆 "}{c.gauntlet && p.rounds_won != null ? `${p.rounds_won} game${p.rounds_won === 1 ? "" : "s"}, ` : ""}{p.score} 🍿 scored
               </strong>}
               {p.net != null && c.stake > 0 && <span className={netClass(p.net)}>{signed(p.net)} 🍿</span>}
               {p.backers > 0 && <span className="ui-hint">{p.backers} backing</span>}
             </li>
           ))}
         </ul>
-        {c.seats_left > 0 && c.status === "open" && <p className="ui-hint">🪑 {c.seats_left} open seat{c.seats_left === 1 ? "" : "s"} — anyone in the club can take one.</p>}
+        {c.seats_left > 0 && c.status === "open" && <p className="ui-hint">🪑 {c.seats_left} open seat{c.seats_left === 1 ? "" : "s"}. Anyone in the club can take one.</p>}
       </Panel>
 
       {c.backing.allowed && !tour && (
         <Panel as="div" className="ch-backing" title="🍿 Backing" kicker
-               hint={`${c.backing.total} 🍿 from ${c.backing.count} member${c.backing.count === 1 ? "" : "s"}${c.backing.open ? " · open until the first player finishes" : " · closed"}`}>
+               hint={`${c.backing.total} 🍿 from ${c.backing.count} member${c.backing.count === 1 ? "" : "s"}${c.backing.open ? ", open until the first player finishes" : ", closed"}`}>
           <Backing backing={c.backing} players={backable} available={c.available} busy={busy}
                    onBack={y.can_back ? (who, amount) => act("back", { user_id: who, amount }) : null} />
         </Panel>
       )}
 
       {c.status === "done" && c.results && <Results c={c} />}
-      {c.status === "cancelled" && <p className="pv-empty">Called off — nothing changed hands.</p>}
+      {c.status === "cancelled" && <p className="pv-empty">Called off. Nothing changed hands.</p>}
     </div>
   );
 }

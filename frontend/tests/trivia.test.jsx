@@ -33,7 +33,7 @@ test("answering the question of the day", async () => {
   });
   renderPage(<TriviaCard apiBase="" groupId={1} role="member" />);
   expect(await screen.findByRole("region", { name: /Question of the day/ })).toHaveClass("ui-panel");
-  expect(screen.getByText("One try · +2 🍿 if you're right")).toHaveClass("ui-hint");
+  expect(screen.getByText("One try, +2 🍿 if you're right")).toHaveClass("ui-hint");
   await userEvent.click(screen.getByRole("button", { name: /Hitchcock/ }));
   expect(calls.at(-1)).toEqual({ method: "POST", path: "/api/trivia/answer", body: { group_id: 1, question_id: 7, choice: 0 } });
   expect(await screen.findByRole("status")).toHaveTextContent("✅ Right! +2 🍿 3 of 4 got it so far.");
@@ -58,5 +58,5 @@ test("how hard a question is, and what a hard one pays (R15)", async () => {
   renderPage(<TriviaCard apiBase="" groupId={1} role="member" />);
   const card = await screen.findByRole("region", { name: /Question of the day/ });
   expect(card.querySelector(".ui-panel-aside .ui-badge")).toHaveTextContent("hard");
-  expect(screen.getByText("One try · +3 🍿 if you're right")).toBeInTheDocument();
+  expect(screen.getByText("One try, +3 🍿 if you're right")).toBeInTheDocument();
 });

@@ -201,7 +201,7 @@ def picks(group, viewer):
             why.append(f"You're dead even at {h['won']}–{h['lost']}.")
             score, tag = score + 2, 'even'
         if r['streak'] >= 2:
-            why.append(f"They've won {r['streak']} in a row — someone has to end it.")
+            why.append(f"They've won {r['streak']} in a row. Someone has to end it.")
             score += 2
             tag = 'streak' if tag in ('fresh', 'easy', 'wild') else tag
         if rate is not None and r['played'] >= 3 and rate >= 60:
@@ -209,7 +209,7 @@ def picks(group, viewer):
             score += 1
             tag = 'top' if tag in ('fresh', 'wild') else tag
         if gap >= 15:
-            why.append(f"They've got {gap} 🍿 more than you — a bigger pot is on the table.")
+            why.append(f"They've got {gap} 🍿 more than you: a bigger pot is on the table.")
             score += 1
             tag = 'fish' if tag in ('fresh', 'wild') else tag
         elif gap <= -15:
@@ -383,7 +383,7 @@ def _fallback(h, n):
     if h.get('avg_rating', 0) >= 4.2:
         lines.append(f"THEM rates films {h['avg_rating']}★ on average. Everything's a masterpiece when your standards are on vacation.")
     if 0 < h.get('avg_rating', 5) <= 2.8:
-        lines.append(f"THEM averages {h['avg_rating']}★. A critic nobody asked for — let's see them answer some questions instead.")
+        lines.append(f"THEM averages {h['avg_rating']}★. A critic nobody asked for. Let's see them answer some questions instead.")
     if h.get('late_pct', 0) >= 60 and h.get('went', 0) >= 3:
         lines.append(f"{h['late_pct']}% of THEM's screenings start after 9 p.m. Challenge them early; they peak after dark.")
     if h.get('trivia_pct') is not None and h['trivia_pct'] < 50:

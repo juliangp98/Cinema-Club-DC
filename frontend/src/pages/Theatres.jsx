@@ -195,7 +195,7 @@ export function TheatrePage({ apiBase, groupId }) {
           : tickets === "soon" ? (all.data.announced?.length
             ? <div className="poster-grid">{all.data.announced.map(a => <AnnouncedCard key={a.movie.id} a={a} />)}</div>
             : <p className="pv-empty">Nothing announced here right now.</p>)
-          : !all.data.films?.length ? <p className="pv-empty">{tickets ? "Nothing matches — try All." : "Nothing on the schedule yet — check back soon."}</p>
+          : !all.data.films?.length ? <p className="pv-empty">{tickets ? "Nothing matches. Try All." : "Nothing on the schedule yet. Check back soon."}</p>
           : <div className="poster-grid">{all.data.films.map(c => <PosterCard key={c.movie.id} card={c} />)}</div>}
       </section>
     </div>

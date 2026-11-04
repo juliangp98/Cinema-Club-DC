@@ -150,7 +150,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
         navigate(`/polls/${made.id}`);
       }
     } catch (e) {
-      setError(e.data?.error || (editing ? "Couldn't save the changes — try again." : "Couldn't create the poll — try again."));
+      setError(e.data?.error || (editing ? "Couldn't save the changes. Try again." : "Couldn't create the poll. Try again."));
     } finally { setSaving(false); }
   }
 

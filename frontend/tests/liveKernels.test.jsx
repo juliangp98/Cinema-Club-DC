@@ -57,7 +57,7 @@ test("Today's boards follow what you earn: your kernels, the month's board and t
   });
   play("/play");
   const side = await screen.findByRole("complementary", { name: "Kernels and standings" });
-  const panel = title => within(side).getByText(title).closest(".ui-panel");
+  const panel = title => within(side).getByText(title, { selector: ".ui-panel-title" }).closest(".ui-panel");
   await within(side).findByText("Your kernels");
   expect(within(panel("Your kernels")).getByText("🍿 0")).toBeInTheDocument();
   expect(within(panel("Still on the table today")).getByText("🎯 5")).toBeInTheDocument();

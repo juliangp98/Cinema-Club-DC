@@ -50,7 +50,7 @@ export const PAGE_TOURS = {
   ] },
   film: { title: "a film's page", help: "film-theatre-pages", steps: [
     { target: ".film-actions", title: "Keep track",
-      body: "＋ Watchlist it — even before it's booked — and you can hear when a theatre books it or tickets go on sale." },
+      body: "＋ Watchlist it, even before it's booked, and you can hear when a theatre books it or tickets go on sale." },
     { target: ".film-club", title: "Your club", body: "Who's going, who wants to see it, and who's seen it." },
     { target: ".film-venues", title: "Where it's playing", body: "Pick a theatre to see just its showings." },
     { target: ".film-days", title: "Pick a showing", body: "Tap a time to RSVP, see who's going and discuss it." },
@@ -97,7 +97,7 @@ export const PAGE_TOURS = {
   ] },
   tournament: { title: "a tournament", help: "tournaments", steps: [
     { target: ".ch-actions", title: "Your move", body: "Join, take a seat — or, once it's under way, play your match: a 1-v-1 challenge, 30 seconds a question." },
-    { target: ".ch-players", title: "Who's in", body: "Seeds, who's still alive, and — at the end — the medals and the prizes." },
+    { target: ".ch-players", title: "Who's in", body: "Seeds, who's still alive and, at the end, the medals and the prizes." },
     { target: ".ch-backing", title: "Back a winner", body: "Not playing? Put kernels on who'll win it all, until the first match is decided." },
     { target: ".tour-bracket", title: "The bracket", body: "Every match: winners' and losers' brackets and the grand final — or the round robin's standings and its final. Tap a match to watch or play it." },
   ] },

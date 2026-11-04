@@ -870,6 +870,30 @@ a.share-state { color: var(--green); }
 .ui-stat-label { font-size: var(--fs-xs); color: var(--muted); }
 .ui-stat-value { font-size: var(--fs-xl); color: var(--cream); line-height: 1.2; }
 .ui-stat-sub { font-size: var(--fs-xs); color: var(--muted); }
+.ui-stats.sm { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.45rem; }   /* compact: a card's numbers */
+.ui-stats.sm .ui-stat { padding: 0.45rem 0.6rem; }
+.ui-stats.sm .ui-stat-value { font-size: var(--fs-lg); }
+
+/* Numbers people can scan (ui/Facts.jsx, ui/VersusBar.jsx), instead of
+   run-on lines joined with dots. Facts: label/value chips. MetaRow: a card's
+   details, each with its icon, spaced apart. VersusBar: numbers as bars. */
+.ui-facts { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0; }
+.ui-fact { display: inline-flex; align-items: baseline; gap: 0.35rem; padding: 0.15rem 0.6rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: var(--fs-xs); }
+.ui-fact dt { color: var(--muted); }
+.ui-fact dd { margin: 0; color: var(--cream); font-weight: 600; }
+.ui-fact.good dd { color: var(--green); }
+.ui-fact.bad dd { color: var(--soft-red); }
+.ui-fact.gold dd { color: var(--amber); }
+.ui-meta { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; font-size: var(--fs-xs); color: var(--muted); }
+.ui-meta-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ui-meta strong { color: var(--amber); font-weight: 600; }
+.ui-versus { display: flex; flex-direction: column; gap: 0.25rem; font-size: var(--fs-xs); color: var(--muted); }
+.ui-versus-row { display: grid; grid-template-columns: minmax(3rem, auto) 1fr auto; align-items: center; gap: 0.5rem; }
+.ui-versus-row strong { color: var(--cream); text-align: right; }
+.ui-versus-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.ui-versus-bar span { display: block; height: 100%; background: var(--amber); }
+.ui-versus-bar.you span { background: var(--green); }
 /* A small table of numbers (7g: Records): sortable column heads, your row in gold. */
 .ui-table-wrap { overflow-x: auto; }
 .ui-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
