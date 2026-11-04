@@ -4,6 +4,7 @@ import { runsClub } from "../roles";
 import { changed, useJson, send } from "../api";
 import Panel from "./Panel";
 import Loading from "./Loading";
+import { Segmented } from "./TicketRow";
 
 // Club trivia (R10d), only once a club organizer or admin turns it on (they see
 // where to do that; everyone else sees nothing): the question of the day, and — if the
@@ -12,12 +13,16 @@ import Loading from "./Loading";
 const LETTERS = "ABCD";
 // How hard a question is (R15) — and so what it's worth.
 const LEVEL_TONE = { easy: "go", medium: "gold", hard: "strong" };
+// The next anytime question's level (Phase 3): any, or the one you pick when there's one.
+const LEVELS = [{ status: "any", label: "Any" }, { status: "easy", label: "Easy" }, { status: "medium", label: "Medium" },
+                { status: "hard", label: "Hard" }];
 
 export default function TriviaCard({ apiBase, groupId, role, offNote = false }) {
   const { data, reload } = useJson(`${apiBase}/api/trivia/today?group_id=${groupId}`);
   const [shown, setShown] = useState(null);          // a question answered or asked for since loading
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);            // "another" (a question coming) or "answer"
+  const [level, setLevel] = useState("any");
   if (!data) return null;
   if (!data.enabled) {
     return runsClub(role) ? (
@@ -36,6 +41,7 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
       const next = await send(`${apiBase}/api/trivia/${path}`, "POST", { group_id: groupId, ...body });
       setShown(next);
       if (next.mine?.correct) changed("kernels");    // your total and the boards catch up
+      if (next.mine) changed("games");               // and the trivia page's numbers
     } catch (e) {
       setError(e.data?.error || "Couldn't do that. Try again.");
       reload();
@@ -43,9 +49,13 @@ export default function TriviaCard({ apiBase, groupId, role, offNote = false }) 
     setBusy(false);
   }
   const another = data.anytime && canPlay && (
-    <button type="button" className="btn btn-sm" disabled={!!busy} onClick={() => post("another", {})}>
-      🎲 {q ? "Another question" : "Play a question"}
-    </button>
+    <div className="trivia-another">
+      <button type="button" className="btn btn-sm" disabled={!!busy}
+              onClick={() => post("another", level === "any" ? {} : { difficulty: level })}>
+        🎲 {q ? "Another question" : "Play a question"}
+      </button>
+      <Segmented label="Next question's level" options={LEVELS} value={level} onChange={v => v && setLevel(v)} />
+    </div>
   );
 
   if (!q) {                         // anytime only, nothing asked yet

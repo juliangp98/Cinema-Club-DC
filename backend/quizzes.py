@@ -126,19 +126,37 @@ def _brief(f, year=True):
 
 # ─── Higher or lower ──────────────────────────────────────────────────────────
 
+DECADE_FILMS = 12                   # a decade is a mode once the pool has this many films from it
+
+
+def _hl_films(group, decade=None):
+    """The films a run draws from: any with a year, or (Phase 3) one decade's."""
+    return [f for f in _films(group)[0] if f.year and (not decade or f.year // 10 * 10 == decade)]
+
+
+def decades(group):
+    """[{value, label}]: Higher or lower's modes, classic first, then each
+    decade with enough films to make a run."""
+    counts = {}
+    for f in _hl_films(group):
+        counts[f.year // 10 * 10] = counts.get(f.year // 10 * 10, 0) + 1
+    return [{'value': None, 'label': 'Classic'}] + [{'value': d, 'label': f'{d}s'}
+                                                    for d in sorted(counts) if counts[d] >= DECADE_FILMS]
+
+
 def _next_film(rng, films, current, seen):
     near = [f for f in films if f.year and f.year != current['year'] and f.key not in seen
             and abs(f.year - current['year']) <= SPREAD]
     return rng.choice(near) if near else None
 
 
-def _hl_start(group, rng, avoid=frozenset()):
-    films = [f for f in _films(group)[0] if f.year]
+def _hl_start(group, rng, avoid=frozenset(), decade=None):
+    films = _hl_films(group, decade)
     if len(films) < 2:
         return None
     first = rng.choice(_fresh(films, avoid))
     nxt = _next_film(rng, films, {'year': first.year}, {first.key})
-    return nxt and {'chain': [_brief(first), _brief(nxt)]}
+    return nxt and {'chain': [_brief(first), _brief(nxt)], **({'decade': decade} if decade else {})}
 
 
 def _hl_answer(group, state, choice, rng):
@@ -147,7 +165,7 @@ def _hl_answer(group, state, choice, rng):
     right = (choice == 'before') == (nxt['year'] < cur['year'])
     if not right:
         return False, True
-    films = [f for f in _films(group)[0] if f.year]
+    films = _hl_films(group, state.get('decade'))
     new = _next_film(rng, films, nxt, {c['key'] for c in state['chain']})
     if not new:
         return True, True                                  # out of films: a perfect run
@@ -158,7 +176,8 @@ def _hl_answer(group, state, choice, rng):
 def _hl_view(state, done):
     chain = state['chain']
     shown = [*chain[:-1], {**chain[-1], 'year': chain[-1]['year'] if done else None}]
-    return {'current': shown[-2], 'next': shown[-1], 'history': shown[:-2]}
+    return {'current': shown[-2], 'next': shown[-1], 'history': shown[:-2],
+            'decade': f"{state['decade']}s" if state.get('decade') else None}
 
 
 # ─── Who said it ──────────────────────────────────────────────────────────────
@@ -570,9 +589,10 @@ def _check(group, user, kind):
     return "Only club members can play." if err else None
 
 
-def start(group, user, kind, source='site', rng=None):
-    """Your round of `kind`: the one you're in the middle of, or a new one.
-    Returns (round, error)."""
+def start(group, user, kind, source='site', rng=None, decade=None):
+    """Your round of `kind`: the one you're in the middle of, or a new one
+    (Higher or lower: in `decade`, one of decades(), or any year). Returns
+    (round, error)."""
     from app import db, QuizRound
     err = _check(group, user, kind)
     if err:
@@ -582,7 +602,9 @@ def start(group, user, kind, source='site', rng=None):
         return r, None
     rng = rng or random.Random()
     avoid = recent(user.id, group.id, kind)
-    state = RULES[kind][0](group, rng, avoid=avoid) or (avoid and RULES[kind][0](group, rng))   # a repeat beats nothing
+    mode = {'decade': decade} if kind == 'higher_lower' and decade in {d['value'] for d in decades(group)} else {}
+    state = (RULES[kind][0](group, rng, avoid=avoid, **mode)
+             or (avoid and RULES[kind][0](group, rng, **mode)))         # a repeat beats nothing
     if not state:
         return None, "There's nothing to play with yet. Try again later."
     r = QuizRound(group_id=group.id, user_id=user.id, kind=kind, day=today(group), state_json=json.dumps(state), source=source)

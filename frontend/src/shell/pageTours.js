@@ -5,7 +5,8 @@
 // off, phones) are skipped, as in the welcome tour.
 // Which tour the page at `pathname` has (the ? in the top bar), or null.
 const ROUTES = [[/^\/$/, "discover"], [/^\/calendar$/, "calendar"], [/^\/browse$/, "browse"], [/^\/theatres\/[^/]+$/, "theatre"],
-                [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/play\/challenges$/, "play-challenges"], [/^\/club$/, "club"],
+                [/^\/films\/[^/]+$/, "film"], [/^\/feed$/, "feed"], [/^\/play$/, "play"], [/^\/play\/challenges$/, "play-challenges"],
+                [/^\/play\/trivia$/, "play-trivia"], [/^\/play\/bingo$/, "play-bingo"], [/^\/play\/games\/higher-lower$/, "play-higher-lower"], [/^\/club$/, "club"],
                 [/^\/polls\/(?!new$)[^/]+$/, "poll"], [/^\/challenges\/[^/]+$/, "challenge"], [/^\/tournaments\/[^/]+$/, "tournament"],
                 [/^\/me$/, "me"]];
 export const tourFor = pathname => ROUTES.find(([re]) => re.test(pathname))?.[1] || null;
@@ -73,6 +74,23 @@ export const PAGE_TOURS = {
     { target: ".ch-head", title: "Start one", body: "Challenge members to a game or a gauntlet for a pot of kernels, or start a tournament for three or more." },
     { target: ".ch-arena", title: "Your record", body: "Your wins and losses, your nemesis and your best game, and the club's best." },
     { target: ".ch-scout", title: "Who to challenge", body: "Picked by your record, theirs and the kernels, with a game to try. Compare habits, or ask for a roast 🔥." },
+  ] },
+  "play-trivia": { title: "Trivia", help: "trivia", steps: [
+    { target: ".trivia-card", title: "Today's question", body: "The club's question of the day. One try; the harder it is, the more it pays." },
+    { target: ".trivia-another", title: "Anytime questions", body: "More whenever you like, if your club has them on. Pick a level, or leave it on Any." },
+    { target: "#trivia-you", title: "Your numbers", body: "Right answers, accuracy and your streak of daily questions, by difficulty, for this month, this year or all time." },
+    { target: "#trivia-club", title: "The club", body: "Who's answered the most right. Your row is in gold." },
+  ] },
+  "play-higher-lower": { title: "Higher or lower", help: "quiz-games", steps: [
+    { target: ".game-modes", title: "Pick your films", body: "Classic draws from any year, or play one decade at a time." },
+    { target: ".quiz-game", title: "Your run", body: "Did the next film come out before or after? A miss ends the run." },
+    { target: "#hl-you", title: "Your runs", body: "Your best streak, your average and your best in each decade." },
+    { target: "#hl-club", title: "The club's best", body: "Everyone's longest run this month, this year or all time." },
+  ] },
+  "play-bingo": { title: "Bingo", help: "bingo", steps: [
+    { target: ".bingo-card", title: "This month's card", body: "It fills in by itself as you check in to screenings." },
+    { target: "#bingo-you", title: "Your bingo", body: "Cards played, lines, full cards and kernels, your best month and the square you fill most." },
+    { target: "#bingo-club", title: "The club", body: "Who's filled the most cards." },
   ] },
   club: { title: "the Club page", help: "club", steps: [
     { target: ".club-hero", title: "Your club", body: "Its theatres, how many members, and your role." },

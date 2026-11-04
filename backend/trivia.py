@@ -264,10 +264,15 @@ def waiting_anytime(group, user):
             .order_by(TriviaQuestion.id.desc()).first())
 
 
-def another(group, user):
+LEVELS = ('easy', 'medium', 'hard')
+LEVEL_TRIES = 8                        # questions made, at most, looking for the level asked for
+
+
+def another(group, user, level=None):
     """An anytime question for `user` (R10d): their unanswered one if there is
     one (no skipping to an easier one), else a new one about something they
-    haven't been asked lately. Returns (question, error)."""
+    haven't been asked lately; `level` (easy | medium | hard, Phase 3) asks
+    for that difficulty, or the closest one found. Returns (question, error)."""
     from sqlalchemy.exc import IntegrityError
     from app import db, TriviaQuestion, require_role
     if not group or not group.trivia_anytime:
@@ -282,8 +287,14 @@ def another(group, user):
     mine = TriviaQuestion.query.filter(TriviaQuestion.group_id == group.id, TriviaQuestion.day >= day - REPEAT_AFTER,
                                        (TriviaQuestion.asked_by == user.id) | (TriviaQuestion.slot == 'daily')).all()
     n = sum(1 for q in mine if q.asked_by == user.id and q.day == day) + 1
-    made = make_question(group, day, rng=random.Random(f'{group.id}:{user.id}:{day.isoformat()}:{n}'),
-                         recent={q.ref for q in mine})
+    made = None
+    for attempt in range(LEVEL_TRIES if level in LEVELS else 1):
+        tried = make_question(group, day, rng=random.Random(f'{group.id}:{user.id}:{day.isoformat()}:{n}:{attempt}'),
+                              recent={q.ref for q in mine})
+        if tried and (not made or _closer(tried, made, level)):
+            made = tried
+        if not tried or level not in LEVELS or made.get('difficulty') == level:
+            break
     if not made:
         return None, "We're out of questions for now. Try again tomorrow."
     q = _save(group, day, f'{user.id}:{n}', made, asked_by=user.id)
@@ -293,6 +304,12 @@ def another(group, user):
         db.session.rollback()
         return waiting_anytime(group, user), None
     return q, None
+
+
+def _closer(a, b, level):
+    """Whether question `a` is nearer the asked-for level than `b`."""
+    at = lambda m: abs(LEVELS.index(m.get('difficulty') or 'medium') - LEVELS.index(level))
+    return at(a) < at(b)
 
 
 def as_dict(q, user=None, reveal=False):

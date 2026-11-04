@@ -83,6 +83,7 @@ How each is read: [docs/scrapers.md](docs/scrapers.md).
 │   ├── digest.py              # The Monday digest on the site: published weekly, the Feed card
 │   ├── discord_servers.py     # Each club's Discord server: setup codes, connecting, the home server
 │   ├── trivia.py, bingo.py, quizzes.py, play.py, kernels.py, club_stats.py   # Games and standings
+│   ├── game_pages.py   # Play's Trivia, Higher or lower and Bingo pages: your numbers, history, the club's board
 │   ├── letterboxd.py, taste.py, help_ai.py, ai.py, …
 │   ├── scraper.py + scrapers/ # One scraper per theatre chain, and the sync into the database
 │   └── entrypoint.sh          # Docker start: prepare_db, settings check, gunicorn

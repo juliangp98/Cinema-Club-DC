@@ -1143,6 +1143,24 @@ button.feed-title:hover { color: var(--amber); }
 .play-tile.hot .play-tile-line { color: var(--cream); }
 .play-actions { margin: 0 0 0.75rem; }
 .play-kernels { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; align-items: start; }
+
+/* Play's game pages (Phase 3, components/GamePages.jsx): the game on top, then
+   your numbers, your history and the club's board. */
+.game-page { display: flex; flex-direction: column; gap: 1rem; }
+.game-section { display: flex; flex-direction: column; gap: 0.6rem; }
+.game-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.game-section-head .ui-settings-group-title { margin: 0; }
+.game-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.game-history li { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.55rem 0.75rem; background: var(--card-bg);
+  border: 1px solid var(--card-border); border-radius: var(--card-radius); }
+.game-history-what { color: var(--cream); font-size: var(--fs-sm); }
+.game-history-answer { color: var(--muted); font-size: var(--fs-sm); }
+.game-history-answer strong { color: var(--cream); }
+.game-board td:first-child, .game-board th:first-child { width: 2.5rem; color: var(--muted); }
+.game-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.game-back { margin: 0; font-size: var(--fs-sm); }
+.trivia-another { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.quiz-more { margin: 0.5rem 0 0; }
 @media (max-width: 599px) {                    /* phones: two tiles a row, the icon on top */
   .play-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   .play-tile { grid-template-columns: 1fr; padding: 0.8rem; min-height: 0; }

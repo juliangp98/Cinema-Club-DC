@@ -61,7 +61,7 @@ function HigherLower({ r, busy, onAnswer }) {
           <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onAnswer("after")}>After {r.current.year} ➡️</button>
         </div>
       )}
-      {!r.done && <p className="ui-hint">Streak: {r.challenge ? r.round_score : r.score}</p>}
+      {!r.done && <p className="ui-hint">Streak: {r.challenge ? r.round_score : r.score}{r.decade ? `, in the ${r.decade}` : ""}</p>}
     </>
   );
 }
@@ -154,7 +154,9 @@ function Trivia({ r, busy, onAnswer }) {
 export const ROUNDS = { higher_lower: HigherLower, who_said: WhoSaid, still: Still, reviews: Reviews, emoji: EmojiPlot,
                         trivia: Trivia };
 
-function Game({ g, apiBase, groupId }) {
+// One game, played in place. `decade` (Higher or lower's page): new runs in
+// that decade; `more`: a link under it (to the game's own page).
+export function Game({ g, apiBase, groupId, decade = null, more = null }) {
   const [r, setR] = useState(g.round);
   const [busy, setBusy] = useState(false);           // "start" (a new round coming) or "answer"
   const [error, setError] = useState(null);
@@ -165,6 +167,7 @@ function Game({ g, apiBase, groupId }) {
       const next = await send(`${apiBase}/api/quizzes/${path}`, "POST", { group_id: groupId, ...body });
       setR(next);
       if (next.last?.paid) changed("kernels");      // your total, the month's board and the movers catch up
+      if (next.done) changed("games");               // and the game's page
     } catch (e) { setError(e.data?.error || "Couldn't do that. Try again."); }
     finally { setBusy(false); }
   }
@@ -173,7 +176,8 @@ function Game({ g, apiBase, groupId }) {
     <Panel tone="gold" className="quiz-game" title={`${g.emoji} ${g.label}`}
            hint={`${g.by_step ? "3, 2 or 1 🍿" : `+${g.each} 🍿 a right call`}, ${r ? r.left_today : g.cap - g.earned_today} left today${g.best && !g.by_step ? `, best ${g.best}` : ""}`}
            actions={(!r || r.done) && (
-             <button type="button" className="btn btn-sm btn-primary" disabled={!!busy} onClick={() => call("start", { kind: g.kind })}>
+             <button type="button" className="btn btn-sm btn-primary" disabled={!!busy}
+                     onClick={() => call("start", { kind: g.kind, ...(decade ? { decade } : {}) })}>
                {r ? "🔁 Play again" : "▶ Play"}
              </button>
            )}>
@@ -183,6 +187,7 @@ function Game({ g, apiBase, groupId }) {
           {r && <Round r={r} busy={!!busy} apiBase={apiBase} onAnswer={choice => call("answer", { round_id: r.id, choice })} />}
         </>}
       {error && <p className="trivia-error" role="status">{error}</p>}
+      {more && <p className="ui-hint quiz-more">{more}</p>}
     </Panel>
   );
 }
@@ -195,5 +200,12 @@ export default function QuizGames({ apiBase, groupId, canRun }) {
       <p className="ui-note">🎮 No quiz games are on yet. <Link to="/club?tab=settings#settings-games">Turn them on in Club settings</Link></p>
     ) : <p className="ui-note">🎮 No quiz games are on in this club yet.</p>;
   }
-  return <div className="quiz-games">{data.games.map(g => <Game key={g.kind} g={g} apiBase={apiBase} groupId={groupId} />)}</div>;
+  return (
+    <div className="quiz-games">
+      {data.games.map(g => (
+        <Game key={g.kind} g={g} apiBase={apiBase} groupId={groupId}
+              more={g.kind === "higher_lower" && <Link to="/play/games/higher-lower">Decades, your runs and the club's best →</Link>} />
+      ))}
+    </div>
+  );
 }

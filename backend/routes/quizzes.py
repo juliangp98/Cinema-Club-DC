@@ -30,10 +30,29 @@ def quiz_games():
 @app.route('/api/quizzes/start', methods=['POST'])
 @require_auth
 def quiz_start():
-    """{group_id, kind}: your round of a game (the open one, or a new one)."""
+    """{group_id, kind, decade?}: your round of a game (the open one, or a new
+    one; Higher or lower in a decade, one of quizzes.decades)."""
     import quizzes
     data = request.json or {}
-    return _round(*quizzes.start(_group(data), current_user(), data.get('kind')))
+    return _round(*quizzes.start(_group(data), current_user(), data.get('kind'), decade=_as_int(data.get('decade'))))
+
+
+# ─── Play's game pages (Phase 3, game_pages.py) ───────────────────────────────
+
+@app.route('/api/play/<game>')
+@require_auth
+def game_page(game):
+    """?group_id=&period=month|year|all: a game page's numbers: yours, your
+    history, the club's board and the game's modes (trivia, higher-lower, bingo)."""
+    import game_pages
+    pages = {'trivia': game_pages.trivia, 'higher-lower': game_pages.higher_lower, 'bingo': game_pages.bingo}
+    if game not in pages:
+        return jsonify({'error': 'Not found'}), 404
+    group_id = request.args.get('group_id', type=int)
+    err = require_group_member(group_id)
+    if err:
+        return err
+    return jsonify(pages[game](db.session.get(Group, group_id), current_user(), request.args.get('period', 'month')))
 
 
 @app.route('/api/quizzes/answer', methods=['POST'])

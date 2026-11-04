@@ -282,3 +282,49 @@ def test_trivia_tables_from_before_anytime_are_rebuilt():
         db.session.add(TriviaQuestion(group_id=1, day=old.day, slot='5:1', asked_by=5, kind='quote', prompt='Q2?',
                                       options_json='["a","b","c","d"]', answer=0))
         db.session.commit()                                                      # a second question the same day fits now
+
+
+# ── the trivia page (Phase 3, game_pages.py) ──
+
+def page(c, who='Bo', game='trivia', period='month'):
+    return client(c[who]).get(f'/api/play/{game}', query_string={'group_id': c['G'], 'period': period})
+
+
+def test_the_trivia_page(club):
+    """Your numbers (a streak of right daily answers, by difficulty), your latest answers with the
+    right one, and the club's board; for club members only."""
+    turn_on(club)
+    anytime_on(club)
+    daily = today(club)['question']
+    answer(club, 'Bo', daily, right_answer(daily['id']))
+    extra = another(club, 'Bo').json
+    answer(club, 'Bo', extra, (right_answer(extra['id']) + 1) % 4)
+    p = page(club).json
+    you = p['you']
+    assert (you['answered'], you['correct'], you['streak'], you['best_streak']) == (2, 1, 1, 1)
+    assert sum(lv['answered'] for lv in you['levels'].values()) == 2 and you['kernels'] == daily['kernels']
+    assert [h['id'] for h in p['history']] == [extra['id'], daily['id']]
+    assert not p['history'][0]['correct'] and p['history'][1]['yours'] == p['history'][1]['answer'] and p['history'][1]['daily']
+    assert [r['user']['name'] for r in p['board']] == ['Bo'] and 'email' not in p['board'][0]['user']
+    assert page(club, 'Out').status_code == 403 and page(club, game='nope').status_code == 404
+
+
+def test_an_anytime_question_at_a_difficulty(club, monkeypatch):
+    """Ask for easy, medium or hard: the first question made at that level, or the closest one found."""
+    import itertools
+    import trivia
+    turn_on(club)
+    anytime_on(club)
+    real = trivia.make_question
+
+    def levels(*order):
+        made = itertools.chain(order, itertools.repeat(order[-1]))
+        monkeypatch.setattr(trivia, 'make_question', lambda *a, **k: (lambda q: q and {**q, 'difficulty': next(made)})(real(*a, **k)))
+
+    ask = lambda level: client(club['Bo']).post('/api/trivia/another', json={'group_id': club['G'], 'difficulty': level}).json
+    levels('easy', 'medium', 'hard', 'easy')
+    q = ask('hard')
+    assert q['difficulty'] == 'hard' and q['kernels'] == trivia.worth('anytime', 'hard')
+    answer(club, 'Bo', q, right_answer(q['id']))
+    levels('easy', 'medium', 'easy')
+    assert ask('hard')['difficulty'] == 'medium'                                    # none found: the closest

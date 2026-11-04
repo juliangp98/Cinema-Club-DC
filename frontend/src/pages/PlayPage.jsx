@@ -2,8 +2,6 @@ import { useEffect } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import PageHeader from "../ui/PageHeader";
 import RouteTabs from "../ui/RouteTabs";
-import TriviaCard from "../ui/TriviaCard";
-import BingoCard from "../ui/BingoCard";
 import PollList from "../components/PollList";
 import QuizGames from "../components/QuizGames";
 import ChallengesSection from "../components/Challenges";
@@ -12,13 +10,16 @@ import { waitingItems } from "../ui/GamesSummary";
 import { useJson } from "../api";
 import { useShell } from "../shell/AppShell";
 import { runsClub } from "../roles";
-import { ClubBingo, RecordsTab } from "../components/GameRecords";
+import { RecordsTab } from "../components/GameRecords";
+import { BingoPage, HigherLowerPage, TriviaPage } from "../components/GamePages";
 
 // Play: the club's games. Today (/play) is the hub: what's waiting on you,
 // then a tile for each part, beside your kernels and the boards on wide
 // screens. Each part has its own page (/play/challenges, /play/trivia…), so
 // none crowds the others. On phones the boards are their own page
-// (/play/kernels) instead of trailing below every game. Old links
+// (/play/kernels) instead of trailing below every game. Trivia, Bingo and
+// Higher or lower (/play/games/higher-lower, under Games) have pages with
+// depth (Phase 3): your numbers, history, the club's board, modes. Old links
 // (/play#trivia, ?tab=records) land on the new pages.
 
 const PAGES = [
@@ -32,7 +33,8 @@ const PAGES = [
   { key: "kernels", label: "Kernels", to: "/play/kernels" },
 ];
 const KEYS = new Set(PAGES.map(p => p.key));
-const TOURS = { today: "play", challenges: "play-challenges" };
+const TOURS = { today: "play", challenges: "play-challenges", trivia: "play-trivia", bingo: "play-bingo" };
+const GAME_PAGES = ["higher-lower"];          // /play/games/<game>
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -97,7 +99,7 @@ function Today({ summary, canRun }) {
 export default function PlayPage({ user, apiBase, groupId }) {
   const { role, group } = useShell() || {};
   const canRun = runsClub(role);
-  const { section = "today" } = useParams();
+  const { section = "today", game } = useParams();
   const { hash } = useLocation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -117,6 +119,7 @@ export default function PlayPage({ user, apiBase, groupId }) {
   }, [section, old]);
 
   if (!KEYS.has(section)) return <Navigate to="/play" replace />;
+  if (game && (section !== "games" || !GAME_PAGES.includes(game))) return <Navigate to={`/play/${section}`} replace />;
   if (!groupId) {
     return (
       <div className="page">
@@ -137,23 +140,21 @@ export default function PlayPage({ user, apiBase, groupId }) {
   );
   return (
     <div className={`page play-page play-on-${section}`}>
-      <PageHeader title="Play" tour={TOURS[section]} />
+      <PageHeader title="Play" tour={game ? `play-${game}` : TOURS[section]} />
       <KernelStrip k={k} month={month} viewerId={user.id} />
       <RouteTabs tabs={PAGES} label="Play" />
       <div className={rail ? "play-layout ui-split" : "play-layout"}>
         <div className="play-main">
           {section === "today" && <Today summary={summary} canRun={canRun} />}
           {section === "challenges" && <ChallengesSection apiBase={apiBase} groupId={groupId} viewerId={user.id} canRun={canRun} />}
-          {section === "trivia" && <TriviaCard apiBase={apiBase} groupId={groupId} role={role} offNote />}
-          {section === "bingo" && <>
-            <BingoCard apiBase={apiBase} groupId={groupId} role={role} offNote />
-            <ClubBingo apiBase={apiBase} groupId={groupId} viewerId={user.id} />
-          </>}
+          {section === "trivia" && <TriviaPage apiBase={apiBase} groupId={groupId} role={role} viewerId={user.id} />}
+          {section === "bingo" && <BingoPage apiBase={apiBase} groupId={groupId} role={role} viewerId={user.id} />}
           {section === "polls" && <>
             {canRun && <p className="play-actions"><Link to="/polls/new" className="btn btn-sm btn-primary">＋ New poll</Link></p>}
             <PollList apiBase={apiBase} groupId={groupId} canRun={canRun} />
           </>}
-          {section === "games" && <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />}
+          {section === "games" && !game && <QuizGames apiBase={apiBase} groupId={groupId} canRun={canRun} />}
+          {game === "higher-lower" && <HigherLowerPage apiBase={apiBase} groupId={groupId} viewerId={user.id} canRun={canRun} />}
           {section === "records" && group && <RecordsTab apiBase={apiBase} group={group} viewerId={user.id} />}
           {section === "kernels" && <div className="play-kernels">{boards}</div>}
         </div>

@@ -201,3 +201,25 @@ def test_everyones_card_and_a_members_with_their_past_cards(club):
     assert [h['month'] for h in mine['history']] == [bingo.month_of(prev)] and mine['history'][0]['filled'] == 0
     assert client(club['Cy']).get(f"/api/bingo/people/{club['Out']}", query_string={'group_id': club['G']}).status_code == 404
     assert client(club['Out']).get('/api/bingo/club', query_string={'group_id': club['G']}).status_code == 403
+
+
+def test_the_bingo_page(club):
+    """Phase 3: your cards played, lines, full cards, kernels, best month and most-filled square,
+    your past cards, and the club's board (only members who've played)."""
+    import bingo
+    from app import app, db, BingoCard
+    turn_on(club)
+    keys = ['film', 'pre1960', 'horror', 'matinee', 'long', 'double', 'watchlist', 'new_theatre']
+    set_card(club, keys)
+    with app.app_context():
+        prev = datetime.now().replace(day=1) - timedelta(days=1)
+        db.session.add(BingoCard(group_id=club['G'], month=bingo.month_of(prev), squares_json=json.dumps(keys)))
+        db.session.commit()
+    sid, _ = show('NOSFERATU', this_month(2, 14), fmt='35mm')
+    went(club['Bo'], sid)
+    p = client(club['Bo']).get('/api/play/bingo', query_string={'group_id': club['G'], 'period': 'all'}).json
+    you = p['you']
+    assert (you['played'], you['lines'], you['cards']) == (1, 1, 0) and you['kernels'] > 0
+    assert you['best']['filled'] == 6 and you['favorite']['count'] == 1
+    assert [h['month'] for h in p['history']] == [bingo.month_of(prev)]
+    assert [r['user']['name'] for r in p['board']] == ['Bo']

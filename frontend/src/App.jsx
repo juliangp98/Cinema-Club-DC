@@ -212,6 +212,8 @@ export default function App() {
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/play/:section" element={
             <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
+          <Route path="/play/:section/:game" element={
+            <RequireSignIn user={user}><PlayPage user={user} apiBase={API_BASE} groupId={scopeGroupId} /></RequireSignIn>} />
           <Route path="/club" element={
             <RequireSignIn user={user}><ClubPage user={user} apiBase={API_BASE} /></RequireSignIn>} />
           {/* The Club page has the old Members and Leaderboard pages as tabs (R6b). */}

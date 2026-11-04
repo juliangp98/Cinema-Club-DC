@@ -148,3 +148,38 @@ def test_still_on_the_table_today(club):
     left = today()
     assert left['total'] == 9 and left['parts'][0] == {'key': 'higher_lower', 'label': 'Higher or lower', 'left': 4,
                                                         'to': '/play/games'}
+
+
+# ── Higher or lower's page and decades (Phase 3, game_pages.py) ──
+
+def chain_years(rid):
+    from app import app, db, QuizRound
+    with app.app_context():
+        return [f['year'] for f in json.loads(db.session.get(QuizRound, rid).state_json)['chain']]
+
+
+def test_higher_or_lower_in_a_decade_and_its_page(club, monkeypatch):
+    """Classic, or a decade with enough films (every film in the run from it); the page: your runs,
+    best and average, best by mode, your latest runs and the club's best streaks."""
+    import quizzes
+    monkeypatch.setattr(quizzes, 'DECADE_FILMS', 2)
+    turn_on(club, higher_lower=True)
+    page = lambda: client(club['bo']).get('/api/play/higher-lower', query_string={'group_id': club['G']}).json
+    modes = page()['modes']
+    assert modes[0] == {'value': None, 'label': 'Classic'} and {'value': 1970, 'label': '1970s'} in modes
+    r = client(club['bo']).post('/api/quizzes/start', json={'group_id': club['G'], 'kind': 'higher_lower', 'decade': 1970}).json
+    assert r['decade'] == '1970s'
+    r = answer(club, r['id'], truth(r['id'])).json
+    if not r['done']:
+        r = answer(club, r['id'], 'after' if truth(r['id']) == 'before' else 'before').json
+    assert r['done'] and r['score'] == 1 and all(1970 <= y < 1980 for y in chain_years(r['id']))
+    r = start(club, 'higher_lower').json                                            # classic
+    assert r['decade'] is None
+    r = answer(club, r['id'], 'after' if truth(r['id']) == 'before' else 'before').json
+    p = page()
+    assert (p['you']['runs'], p['you']['best'], p['you']['average']) == (2, 1, 0.5)
+    assert p['you']['by_mode'] == [{'label': 'Classic', 'best': 0}, {'label': '1970s', 'best': 1}]
+    assert [h['mode'] for h in p['history']] == ['Classic', '1970s'] and p['left_today'] == 4
+    assert [(b['user']['name'], b['best'], b['runs']) for b in p['board']] == [('Bo', 1, 2)]
+    odd = client(club['bo']).post('/api/quizzes/start', json={'group_id': club['G'], 'kind': 'higher_lower', 'decade': 1890}).json
+    assert odd['decade'] is None                                                    # not a mode: classic

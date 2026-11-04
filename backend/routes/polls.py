@@ -312,15 +312,17 @@ def trivia_today():
 @app.route('/api/trivia/another', methods=['POST'])
 @require_auth
 def trivia_another():
-    """{group_id}: an anytime question for you (if the club has them on) —
-    your unanswered one if you have one."""
+    """{group_id, difficulty?}: an anytime question for you (if the club has
+    them on), at that difficulty if one's found; your unanswered one if you
+    have one."""
     import trivia
-    group_id = _as_int((request.json or {}).get('group_id'))
+    data = request.json or {}
+    group_id = _as_int(data.get('group_id'))
     err = require_group_member(group_id)
     if err:
         return err
     user = current_user()
-    q, error = trivia.another(db.session.get(Group, group_id), user)
+    q, error = trivia.another(db.session.get(Group, group_id), user, level=data.get('difficulty'))
     if error:
         return jsonify({'error': error}), 400
     return jsonify(trivia.as_dict(q, user))
