@@ -37,8 +37,11 @@ def summary(group, user):
 
         def brief(c):                                 # a tournament's match: "🏆 Winners' round 1"
             t = challenges._tournament_of(c)
+            others = [p.user.name for p in c.players if p.user_id != user.id and p.user
+                      and p.status not in ('declined', 'expired')]
             return {'id': c.id, 'game': f"🏆 {t['match']}" if t else ' '.join(challenges.label(c.kind)),
-                    'by': c.creator.name if c.creator else None}
+                    'by': c.creator.name if c.creator else None,
+                    'against': ', '.join(others[:3]) + (f' and {len(others) - 3} more' if len(others) > 3 else '')}
         out['challenges'] = {'invites': [brief(c) for c in mine if challenges.player(c, user.id).status == 'invited'],
                              'your_turn': [brief(c) for c in mine if challenges.player(c, user.id).status == 'accepted'],
                              'tournaments': [{'id': t.id, 'title': tournaments.title(t), 'by': t.creator.name if t.creator else None}

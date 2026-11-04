@@ -12,7 +12,7 @@ const SUMMARY = {
   trivia: { to_answer: true, waiting: false, anytime: false, answered: false, correct: false },
   bingo: { month_label: "November", filled: 5, line: true, full: false, cells: [] },
   polls: [{ id: 4, title: "Election night", you_voted: false }, { id: 5, title: "Oscars", you_voted: true }],
-  challenges: { invites: [{ id: 9, by: "Ana", game: "🧠 Trivia" }], your_turn: [{ id: 8, game: "🏆 Winners' round 1" }],
+  challenges: { invites: [{ id: 9, by: "Ana", game: "🧠 Trivia" }], your_turn: [{ id: 8, game: "🏆 Winners' round 1", against: "Bo" }],
                 tournaments: [] },
   kernels: { kernels: 14, allowance: { give_left: 10, take_left: 3 }, today: { total: 6 } },
 };
@@ -33,7 +33,7 @@ test("Today: what's waiting on you first, then a tile for each part", async () =
   play("/play");
   const turn = within(await screen.findByRole("region", { name: "Your turn" }));
   expect(turn.getAllByRole("listitem").map(li => li.textContent)).toEqual([
-    "⚔️Ana challenged you: 🧠 TriviaAnswer", "⚔️Your turn: 🏆 Winners' round 1Play", "🧠Today's trivia questionAnswer",
+    "⚔️Ana challenged you: 🧠 TriviaAnswer", "⚔️Your turn vs Bo: 🏆 Winners' round 1Play", "🧠Today's trivia questionAnswer",
     "🗳️Election nightVote"]);
   expect(turn.getByRole("link", { name: "Vote" })).toHaveAttribute("href", "/polls/4");
   const tiles = within(screen.getByRole("list", { name: "Play" }));

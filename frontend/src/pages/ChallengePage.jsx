@@ -199,7 +199,7 @@ export default function ChallengePage({ apiBase }) {
         {c.seats_left > 0 && c.status === "open" && <p className="ui-hint">🪑 {c.seats_left} open seat{c.seats_left === 1 ? "" : "s"}. Anyone in the club can take one.</p>}
       </Panel>
 
-      {c.backing.allowed && !tour && (
+      {c.backing.allowed && !tour && (c.backing.open || c.backing.count > 0) && (
         <Panel as="div" className="ch-backing" title="🍿 Backing" kicker
                hint={`${c.backing.total} 🍿 from ${c.backing.count} member${c.backing.count === 1 ? "" : "s"}${c.backing.open ? ", open until the first player finishes" : ", closed"}`}>
           <Backing backing={c.backing} players={backable} available={c.available} busy={busy}

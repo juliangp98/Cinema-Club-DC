@@ -414,3 +414,32 @@ def test_who_played_beats_who_didnt(club):
     done = client(club['Ana']).get(f'/api/challenges/{cid}').json
     nets = {p['user']['name']: (p['status'], p['net'], p['winner']) for p in done['players']}
     assert nets == {'Ana': ('finished', 2, True), 'Bo': ('forfeit', -2, False)}
+
+
+def test_decided_the_moment_the_last_player_runs_out_of_time(club):
+    """Found in the Play demo: the last player's last question ran out while they were away. Coming
+    back finishes them (a miss), and that decides it then, not at the deadline."""
+    from app import app, db, ChallengePlayer
+    cid = make(club, opponents=[club['Bo']], questions=1, stake=0).json['id']
+    act(club, 'Bo', cid, 'respond', accept=True)
+    play(club, 'Bo', cid, [True])
+    client(club['Ana']).get(f'/api/challenges/{cid}/play')                       # Ana sees her question, then walks away
+    with app.app_context():
+        p = ChallengePlayer.query.filter_by(challenge_id=cid, user_id=club['Ana']).one()
+        prog = json.loads(p.progress_json)
+        prog['shown_at'] = (datetime.utcnow() - timedelta(seconds=60)).isoformat()
+        p.progress_json = json.dumps(prog)
+        db.session.commit()
+    r = client(club['Ana']).get(f'/api/challenges/{cid}/play').json
+    assert r['question'] is None and r['challenge']['status'] == 'done'
+    assert [p['user']['name'] for p in r['challenge']['players'] if p.get('winner')] == ['Bo']
+
+
+def test_your_turn_says_who_its_against(club):
+    """Found in the Play demo: two "Your turn: 🧠 Trivia" lines on Today looked the same. Each names the
+    other players (not anyone who declined)."""
+    cid = make(club).json['id']
+    turn = lambda: client(club['Ana']).get('/api/play', query_string={'group_id': club['G']}).json['challenges']['your_turn']
+    assert [(c['id'], c['against']) for c in turn()] == [(cid, 'Bo, Cy')]
+    act(club, 'Cy', cid, 'respond', accept=False)
+    assert turn()[0]['against'] == 'Bo'

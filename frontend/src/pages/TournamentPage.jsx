@@ -103,7 +103,7 @@ export default function TournamentPage({ apiBase, user }) {
         {t.seats_left > 0 && t.status === "open" && <p className="ui-hint">🪑 {t.seats_left} open seat{t.seats_left === 1 ? "" : "s"}. Anyone in the club can take one.</p>}
       </Panel>
 
-      {t.backing.allowed && (
+      {t.backing.allowed && (t.backing.open || t.backing.count > 0) && (
         <Panel as="div" className="ch-backing" title="🍿 Back someone to win it all" kicker
                hint={`${t.backing.total} 🍿 from ${t.backing.count} member${t.backing.count === 1 ? "" : "s"}${t.backing.open ? ", open until the first match is decided" : ", closed"}`}>
           <Backing backing={t.backing} players={people.filter(p => p.status === "accepted")} available={t.available} busy={busy}

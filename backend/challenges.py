@@ -331,16 +331,18 @@ def answer(ch, p, choice, now=None):
     got = _record(ch, p, prog, q, None if late else choice, now, timeout=late)
     shown = _view(ch, p, r, i, q, step, True, got)
     shown['over'] = p.status != 'accepted'
-    maybe_settle(ch, now)
     return shown, None
 
 
 def _finish(ch, p, now):
+    """A player is done: by their last answer, or (current()) the clock running
+    out while they were away. If nobody's left to play, that decides it."""
     from app import db
     if p.status == 'accepted':
         p.status, p.finished_at = 'finished', now
         db.session.commit()
         posts_changed(ch)
+        maybe_settle(ch, now)
 
 
 # ─── Who can do what ──────────────────────────────────────────────────────────

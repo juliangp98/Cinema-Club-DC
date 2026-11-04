@@ -172,3 +172,15 @@ test("decided: the round robin's standings, medals and prizes", async () => {
   expect(prizes(16, "top3")).toEqual([11, 4, 1]);
   expect(prizes(9, "all")).toEqual([9]);
 });
+
+test("called off before it started: says so, with no empty bracket", async () => {
+  const off = tournament({ format: "round_robin", format_label: "Round robin + final", title: "🏆 Round robin + final",
+                           status: "cancelled", started_at: null, standings: [], players: [entrant(ana), entrant(bo)],
+                           bracket: { winners: [], losers: [], league: [], final: [] } });
+  mockApi({ "GET /api/tournaments/4": off });
+  renderPage(<Routes><Route path="/tournaments/:tournamentId" element={<TournamentPage apiBase="" user={{ id: 1 }} />} /></Routes>,
+             { route: "/tournaments/4" });
+  expect(await screen.findByText("Called off. Nothing changed hands.")).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Standings" })).toBeNull();
+  expect(screen.queryByText(/top two meet in the final/)).toBeNull();
+});

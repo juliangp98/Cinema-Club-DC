@@ -18,7 +18,7 @@ export function waitingItems(summary) {
                                        to: `/challenges/${c.id}`, action: "Answer" })),
     ...(ch?.tournaments || []).map(t => ({ key: `tt${t.id}`, icon: "🏆", text: `${t.by} invited you to a tournament`,
                                            to: `/tournaments/${t.id}`, action: "Answer" })),
-    ...(ch?.your_turn || []).map(c => ({ key: `ct${c.id}`, icon: "⚔️", text: `Your turn: ${c.game}`,
+    ...(ch?.your_turn || []).map(c => ({ key: `ct${c.id}`, icon: "⚔️", text: `Your turn${c.against ? ` vs ${c.against}` : ""}: ${c.game}`,
                                          to: `/challenges/${c.id}`, action: "Play" })),
     trivia?.to_answer && { key: "t", icon: "🧠", text: "Today's trivia question", to: "/play/trivia", action: "Answer" },
     trivia?.waiting && { key: "w", icon: "🎲", text: "Your anytime question", to: "/play/trivia", action: "Answer" },

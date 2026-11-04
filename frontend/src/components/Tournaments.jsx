@@ -213,6 +213,7 @@ function Rounds({ title, matches, viewerId }) {
 // round robin's standings, its matches and the final.
 export function Bracket({ t, viewerId }) {
   const b = t.bracket;
+  if (t.status === "cancelled" && !t.started_at) return null;     // called off before it started: no bracket to show
   if (t.status === "open") {
     return <p className="ui-hint">The bracket is drawn when entries close: {t.min_players}–{t.max_players} players, seeded {t.seeding === "record" ? "by challenge record" : "at random"}.</p>;
   }

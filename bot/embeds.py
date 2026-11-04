@@ -1422,7 +1422,7 @@ def play_embed(p):
     if ch and (ch['invites'] or ch['your_turn'] or ch.get('tournaments')):
         bits = [f"**{c['by']}** challenged you ({c['game']})" for c in ch['invites'][:3]]
         bits += [f"**{t['by']}** invited you to a tournament" for t in (ch.get('tournaments') or [])[:2]]
-        bits += [f"your turn in {c['game']}" for c in ch['your_turn'][:3]]
+        bits += [f"your turn{' vs ' + c['against'] if c.get('against') else ''} in {c['game']}" for c in ch['your_turn'][:3]]
         lines.append('⚔️ ' + ' · '.join(bits))
     elif ch is not None:
         lines.append('⚔️ Challenge someone: `/play challenge start`')
