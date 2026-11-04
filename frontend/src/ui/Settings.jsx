@@ -77,7 +77,7 @@ export function useSaveStatus() {
       timer.current = setTimeout(() => setStatus(null), 2200);
       return out;
     } catch (e) {
-      setStatus({ ok: false, text: e?.data?.error || e?.message || "Couldn't save that — try again." });
+      setStatus({ ok: false, text: e?.data?.error || e?.message || "Couldn't save that. Try again." });
       return undefined;
     }
   }, []);

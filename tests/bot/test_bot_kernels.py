@@ -48,7 +48,7 @@ def test_kernels_shows_the_total_and_how_to_earn(bot):
     assert e.description == 'polls 0 · going out 7 · from members 2'
     fields = {f.name: f.value for f in e.fields}
     assert fields['Going out'].startswith('Checked in +5 · planned it +2')
-    assert fields['This week'].startswith('10 to give · 3 to take')
+    assert fields['This week'].startswith('10 to give, 3 to take')
     assert '**+5**' in fields['How to earn'] and 'up to 10 a week' in fields['How to earn']
 
 

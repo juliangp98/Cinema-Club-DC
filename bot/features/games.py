@@ -17,7 +17,7 @@ LEADERBOARD_PERIODS = [app_commands.Choice(name=n, value=v) for v, n in (
     ('all', 'All time'), ('year', 'This year'), ('month', 'This month'))]
 
 
-@client.tree.command(name='leaderboard', description='Kernel standings 🍿 — all time, this year or this month')
+@client.tree.command(name='leaderboard', description='Kernel standings 🍿: all time, this year or this month')
 @app_commands.describe(period='Which standings (default: all time)')
 @app_commands.choices(period=LEADERBOARD_PERIODS)
 async def leaderboard(interaction: discord.Interaction, period: app_commands.Choice[str] = None):
@@ -28,7 +28,7 @@ async def leaderboard(interaction: discord.Interaction, period: app_commands.Cho
         board = {}
     rows = board.get('rows') or []
     if not rows:
-        await interaction.followup.send('No standings yet for that stretch — vote in a poll, or check in after a screening!')
+        await interaction.followup.send('No standings yet for that stretch. Vote in a poll, or check in after a screening!')
         return
     lines = []
     for r in rows[:10]:                       # real places (ties share one); members on the site keep theirs
@@ -38,7 +38,7 @@ async def leaderboard(interaction: discord.Interaction, period: app_commands.Cho
                           colour=embeds.AMBER, url=f'{SITE_URL}/club?tab=leaderboard')
     if board.get('hidden'):
         n = board['hidden']
-        embed.set_footer(text=f"+{n} member{'s' if n != 1 else ''} on the site — full standings at {SITE_URL}/club?tab=leaderboard")
+        embed.set_footer(text=f"+{n} member{'s' if n != 1 else ''} on the site. Full standings at {SITE_URL}/club?tab=leaderboard")
     await interaction.followup.send(embed=embed)
 
 
@@ -47,7 +47,7 @@ async def leaderboard(interaction: discord.Interaction, period: app_commands.Cho
 # site): the question of the day, its post in #movies (a second yes), and
 # anytime questions. Answers are private.
 
-TRIVIA_OFF_MSG = "Trivia is off for this club — a club admin can turn it on in Club settings on the site."
+TRIVIA_OFF_MSG = "Trivia is off for this club. A club admin can turn it on in Club settings on the site."
 
 
 def trivia_more_view():
@@ -137,7 +137,7 @@ async def trivia_flow(interaction):
         await interaction.followup.send(embeds.trivia_result(daily) + '\n-# Anytime questions are off for this club.',
                                         ephemeral=True)
     else:
-        await interaction.followup.send('No trivia question today — check back tomorrow.', ephemeral=True)
+        await interaction.followup.send('No trivia question today. Check back tomorrow.', ephemeral=True)
 
 
 
@@ -152,7 +152,7 @@ async def bingo_flow(interaction):
         return
     if not b.get('enabled'):
         await interaction.followup.send(
-            "Bingo is off for this club — a club admin can turn it on in Club settings on the site.", ephemeral=True)
+            "Bingo is off for this club. A club admin can turn it on in Club settings on the site.", ephemeral=True)
         return
     await interaction.followup.send(embed=embeds.bingo_embed(b), ephemeral=True)
 

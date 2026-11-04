@@ -104,7 +104,7 @@ def connect(code, guild_id, guild_name, channel_id, channel_name, can_manage):
         return None, 'Only someone who can manage this server can connect it.'
     row = db.session.get(DiscordSetupCode, clean_code(code))
     if not row or row.used_at or row.expires_at < _now():
-        return None, ("That code doesn't work — it may have expired (codes last 30 minutes). "
+        return None, ("That code doesn't work. It may have expired (codes last 30 minutes). "
                       "Make a new one in Club settings → Discord on the site.")
     group = db.session.get(Group, row.group_id)
     guild_id = str(guild_id)
@@ -136,7 +136,7 @@ def move_channel(guild_id, channel_id, channel_name, can_manage):
         return None, 'Only someone who can manage this server can change its channel.'
     server = db.session.get(DiscordServer, str(guild_id))
     if not server or not server.group_id:
-        return None, "This server isn't connected to a club yet — run /setup with a code from Club settings on the site."
+        return None, "This server isn't connected to a club yet. Run /setup with a code from Club settings on the site."
     server.channel_id, server.channel_name, server.missing_perms = str(channel_id), (channel_name or '')[:100], None
     db.session.commit()
     _changed()

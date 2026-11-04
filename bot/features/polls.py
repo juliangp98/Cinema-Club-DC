@@ -175,7 +175,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
             return
         if opening:
             first = next_unanswered(ballot, -1) if ballot['poll']['status'] == 'open' else None
-            note = ('Welcome back — picking up where you left off.'
+            note = ('Welcome back! Picking up where you left off.'
                     if first is not None and ballot['answered'] else None)
             await show(ballot, first or 0, note=note)
             return
@@ -188,7 +188,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
 
         cat, mode = cats[idx], ballot['poll']['scoring_mode']
         if cat.get('locked'):                      # its answer came in while the ballot was open
-            await show(ballot, idx, page, note="🔒 This one's answer just came in — picks are locked.")
+            await show(ballot, idx, page, note="🔒 This one's answer just came in, so picks are locked.")
             return
         mine = cat['picks'][0] if cat['picks'] else None
         votes, clear, note = [], [], None
@@ -216,7 +216,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
         if e.status == 409:              # voting closed mid-ballot: show it read-only
             try:
                 await show(json.loads(e.body), min(idx, len(json.loads(e.body)['categories']) - 1),
-                           note='🔒 Voting just closed — your earlier picks stand.')
+                           note='🔒 Voting just closed. Your earlier picks stand.')
                 return
             except Exception:
                 pass
@@ -237,7 +237,7 @@ async def handle_vote(interaction, act, pid, idx, arg, page, values):
             note = f"✅ Saved **{names.get(int(values[0]), 'your pick')}** for {cat['title']}."
             idx, page = nxt, 0
     elif act == 'pick' and mode == 'confidence':
-        note = '✅ Saved — now set how sure you are.' if not mine else '✅ Pick changed (same stake).'
+        note = '✅ Saved. Now set how sure you are.' if not mine else '✅ Pick changed (same stake).'
     elif act == 'clear':
         note = 'Pick cleared.'
     elif ballot['answered'] == len(ballot['categories']) and act in ('conf', 'rank'):
@@ -307,8 +307,8 @@ class DraftCreateButton(discord.ui.DynamicItem[discord.ui.Button], template=r'po
             await interaction.followup.send(msg, ephemeral=True)
             return
         said = ("it'll be announced in the club's channel in a moment" if poll.get('announced')
-                else "not announced (your setting for polls you create says Never — share it from the site any time)")
-        await interaction.followup.send(f"✓ **{poll['title']}** is open — {said}. {SITE_URL}/polls/{poll['id']}",
+                else "not announced (your setting for polls you create says Never; share it from the site any time)")
+        await interaction.followup.send(f"✓ **{poll['title']}** is open: {said}. {SITE_URL}/polls/{poll['id']}",
                                         ephemeral=True)
 
 
@@ -326,7 +326,7 @@ async def poll_make(interaction: discord.Interaction, request: str, based_on: ap
         except ValueError:
             msg = None
         if e.status == 403:
-            msg = 'Only organizers and admins can make polls — ask an admin for the Organizer role.'
+            msg = 'Only organizers and admins can make polls. Ask an admin for the Organizer role.'
         await interaction.followup.send(msg if e.status == 403 else api_failure(e, msg or "Couldn't draft that ({status})."),
                                         ephemeral=True)
         return

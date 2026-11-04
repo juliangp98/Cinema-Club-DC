@@ -285,7 +285,7 @@ def another(group, user):
     made = make_question(group, day, rng=random.Random(f'{group.id}:{user.id}:{day.isoformat()}:{n}'),
                          recent={q.ref for q in mine})
     if not made:
-        return None, "We're out of questions for now — try again tomorrow."
+        return None, "We're out of questions for now. Try again tomorrow."
     q = _save(group, day, f'{user.id}:{n}', made, asked_by=user.id)
     try:
         db.session.commit()
@@ -357,7 +357,7 @@ def answer(group, user, question_id, choice, source='site'):
     if not q or q.group_id != group.id or (q.asked_by and q.asked_by != user.id):
         return None, "That question isn't yours to answer."
     if q.day != today(group):
-        return None, "That was an earlier day's question — try today's."
+        return None, "That was an earlier day's question. Try today's."
     if not isinstance(choice, int) or not 0 <= choice < len(json.loads(q.options_json)):
         return None, 'Pick one of the answers.'
     if TriviaAnswer.query.filter_by(question_id=q.id, user_id=user.id).first():

@@ -234,7 +234,7 @@ def test_a_confidence_ballot(polls):
     assert find(polls, view(polls, VEE), 'conf').disabled                                     # the stake waits for a pick
     pick(polls, VEE, 0)
     d = desc(polls, VEE)
-    assert '### Best Actress' in d and 'now set how sure' in d and not find(polls, view(polls, VEE), 'conf').disabled
+    assert '### Best Actress' in d and 'Now set how sure' in d and not find(polls, view(polls, VEE), 'conf').disabled
     click(polls, VEE, find(polls, view(polls, VEE), 'conf'), ['8'])
     assert '**Rose** · 8 🍿' in desc(polls, VEE)
     pick(polls, VEE, 1)

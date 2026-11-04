@@ -59,7 +59,7 @@ export function useGamePosts(apiBase, slug) {
                  skipped: d.status === "skipped" && d.until ? [...rest(prev.skipped), d] : rest(prev.skipped) };
       });
     } catch (e) {
-      setError(e.data?.error || "Couldn't do that — try again.");
+      setError(e.data?.error || "Couldn't do that. Try again.");
       if (e.data?.id) setPosts(prev => ({ ...prev, waiting: prev.waiting.map(p => (p.id === post.id ? e.data : p)) }));
     } finally { setBusy(false); }
   }
@@ -72,7 +72,7 @@ export function SkippedPosts({ skipped, busy, act }) {
     <ul className="game-skipped">
       {skipped.map(post => (
         <li key={post.id}>
-          <span>{postTitle(post)} <span className="ui-hint">· skipped — it can still go up until {post.until}</span></span>
+          <span>{postTitle(post)} <span className="ui-hint">· skipped, but it can still go up until {post.until}</span></span>
           <button type="button" className="btn btn-sm" disabled={busy} onClick={() => act(post, "post")}>Post it after all</button>
         </li>
       ))}

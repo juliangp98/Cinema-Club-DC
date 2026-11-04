@@ -79,4 +79,4 @@ def test_a_theatre_card(bot):
 def test_an_unknown_theatre(bot):
     it = FakeInteraction(uid=9501, name='x')
     asyncio.run(bot.theatre_cmd.callback(it, theatre='nowhere'))
-    assert it.last[1] == "I don't know that theatre — pick one from the list."
+    assert it.last[1] == "I don't know that theatre. Pick one from the list."

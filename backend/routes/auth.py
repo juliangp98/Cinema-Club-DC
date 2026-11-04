@@ -94,7 +94,7 @@ def create_guest():
     mine = User.query.filter(User.is_guest.is_(True), User.guest_ip_hash == h)
     if (mine.filter(User.created_at >= now - timedelta(hours=1)).count() >= GUEST_CAP_PER_HOUR
             or mine.filter(User.created_at >= now - timedelta(days=1)).count() >= GUEST_CAP_PER_DAY):
-        return jsonify({'error': 'Too many new profiles from here — try again later.'}), 429
+        return jsonify({'error': 'Too many new profiles from here. Try again later.'}), 429
     expire_guests()
     guest = User(name='Guest', is_guest=True, is_active=True, avatar_color=random.choice(AVATAR_COLORS),
                  last_seen_at=places.server_now(), guest_ip_hash=h, created_at=now)

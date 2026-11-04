@@ -53,7 +53,7 @@ async def warn_permissions(err, group_id=None):
         return
     _perm_warned.add(group_id)
     if group_id == DEFAULT_GROUP_ID:
-        await dm_owner(f"⚠️ Screening threads can't work in #movies yet — the bot needs: {NEEDED_PERMS}. "
+        await dm_owner(f"⚠️ Screening threads can't work in #movies yet. The bot needs: {NEEDED_PERMS}. "
                        "Grant them in the channel's permissions; I'll pick up where I left off.")
     else:
         await servers.report_club(group_id)
@@ -337,12 +337,12 @@ async def open_discussion(interaction, showtime_id, comment=None):
         return
     except discord.Forbidden as e:
         await warn_permissions(e, club_of(interaction))
-        await interaction.followup.send("Screening threads aren't set up yet — the bot is missing permissions "
+        await interaction.followup.send("Screening threads aren't set up yet: the bot is missing permissions "
                                         "(whoever connected this server has been told).", ephemeral=True)
         return
     except Exception as e:
         print(f'open_discussion failed: {e}')
-        await interaction.followup.send("Couldn't open the discussion — try again in a bit.", ephemeral=True)
+        await interaction.followup.send("Couldn't open the discussion. Try again in a bit.", ephemeral=True)
         return
     title = info['card']['title']
     if comment:
@@ -415,7 +415,7 @@ class ThreadRsvpButton(discord.ui.DynamicItem[discord.ui.Button],
         dt = datetime.fromisoformat(result['start_time'])
         verb = "You're going to" if self.status == 'going' else 'You might go to'
         await interaction.followup.send(
-            f"🎟️ {verb} **{result['movie']['title']}** — {dt.strftime('%a %-m/%-d %-I:%M %p')}. "
+            f"🎟️ {verb} **{result['movie']['title']}** on {dt.strftime('%a %-m/%-d at %-I:%M %p')}. "
             "Change it any time here or with `/rsvp`.", ephemeral=True)
         await alerts.ask_after_going(interaction, result)
 

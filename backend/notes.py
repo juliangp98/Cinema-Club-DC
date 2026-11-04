@@ -66,7 +66,7 @@ def toggle(group, user, showtime_id, tag):
     if tag not in TAGS:
         return None, 'Pick one of the notes.'
     if not Attendance.query.filter_by(user_id=user.id, showtime_id=showtime_id, status='went').first():
-        return None, 'Check in ("Went") first — notes are from people who were there.'
+        return None, 'Check in ("Went") first. Notes are from people who were there.'
     row = ScreeningNote.query.filter_by(user_id=user.id, showtime_id=showtime_id, tag=tag).first()
     if row:
         db.session.delete(row)

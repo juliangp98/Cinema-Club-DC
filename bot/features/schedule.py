@@ -28,11 +28,11 @@ async def link(interaction: discord.Interaction, code: str):
             'discord_username': interaction.user.name,
         })
         await interaction.followup.send(
-            f"🔗 Linked! You're **{result['user']['name']}** on {SITE_NAME} — anything you did "
+            f"🔗 Linked! You're **{result['user']['name']}** on {SITE_NAME}. Anything you did "
             "here (RSVPs, watchlist, profile) is now part of that account.", ephemeral=True)
     except ApiError as e:
         msg = 'That code is invalid.' if e.status == 404 else \
-              'That code expired — grab a fresh one from your profile menu on the site.' if e.status == 410 else \
+              'That code expired. Grab a fresh one from your profile menu on the site.' if e.status == 410 else \
               f'Linking failed ({e.status}).'
         await interaction.followup.send(msg, ephemeral=True)
     except Exception as e:
@@ -43,7 +43,7 @@ TICKET_CHOICES = [app_commands.Choice(name=n, value=v) for v, n in (
     ('available', 'Tickets available'), ('soldout', 'Sold out'), ('soon', 'Coming soon (announced, not on sale yet)'))]
 
 
-@client.tree.command(name='showtimes', description="What's playing across the club's theatres — or who's going")
+@client.tree.command(name='showtimes', description="What's playing across the club's theatres, or who's going")
 @app_commands.describe(
     days='How many days ahead (default 7; ignored if you pick a date)',
     date='Optional: a specific date (or the start of a range)',
@@ -218,7 +218,7 @@ async def fetch_my_watchlist(interaction, member_id=None, start=None, end=None):
 @client.tree.command(name='watch', description='Watchlist: add, remove, or show a member\'s list')
 @app_commands.describe(
     action='Add to / remove from your watchlist, or show a list (default Add)',
-    title='Any film — playing or not (for Add/Remove)',
+    title='Any film, playing or not (for Add/Remove)',
     member='Whose watchlist to show (default you)',
     date='Show only: a date (or start of a range) to filter the list',
     end='Show only: end of a date range (use with date)',
@@ -262,7 +262,7 @@ async def watch(interaction: discord.Interaction, action: app_commands.Choice[st
             **discord_identity(interaction), 'title': title, 'action': act,
         })
     except Exception as e:
-        await reply_failure(interaction, e, '/watch', f"Couldn't find **{title}** — try `/movie` to check what's tracked.",
+        await reply_failure(interaction, e, '/watch', f"Couldn't find **{title}**. Try `/movie` to check what's tracked.",
                             ephemeral=eph)
         return
 
@@ -449,7 +449,7 @@ class FindAlertButton(discord.ui.DynamicItem[discord.ui.Button], template=r'find
             await reply_failure(interaction, e, 'find alert')
             return
         fits = r['fitting_now']
-        now = f" ({embeds.plural(fits, 'film fits', 'films fit')} already — those won't alert)" if fits else ''
+        now = f" ({embeds.plural(fits, 'film fits', 'films fit')} already; those won't alert)" if fits else ''
         how = "I'll DM you" if r.get('dm') else "it'll show in the bell on the site (`/notifications` turns on DMs)"
         await interaction.followup.send(f"🔔 Saved **{r['search']['label']}**{now}. When a theatre books a film that fits, "
                                         f"{how}. Stop it any time in `/notifications`.", ephemeral=True)
@@ -561,7 +561,7 @@ class SpinButton(discord.ui.DynamicItem[discord.ui.Button], template=SURPRISE_ID
             pick = await api.get('/api/internal/discover/surprise', **viewer_args(interaction), when=self.when,
                                  where=_where_value(self.where_code), exclude=','.join(map(str, self.seen)))
         except ApiError as e:
-            msg = ("That's everything playing — no more spins left." if e.status == 404
+            msg = ("That's everything playing. No more spins left." if e.status == 404
                    else f'Spin failed ({e.status}).')
             await tell(interaction, msg)
             return
@@ -596,7 +596,7 @@ async def surprise(interaction: discord.Interaction, when: app_commands.Choice[s
     try:
         pick = await api.get('/api/internal/discover/surprise', **viewer_args(interaction, city), when=w, where=where)
     except ApiError as e:
-        msg = "Nothing's playing that matches — try a wider `when` or another `where`." if e.status == 404 \
+        msg = "Nothing's playing that matches. Try a wider `when` or another `where`." if e.status == 404 \
             else f'Surprise failed ({e.status}).'
         await interaction.followup.send(msg, ephemeral=True)
         return
@@ -625,7 +625,7 @@ async def theatre_cmd(interaction: discord.Interaction, theatre: str, private: b
     try:
         t = await api.get('/api/internal/theatre', **viewer_args(interaction), slug=theatre)
     except Exception as e:
-        await reply_failure(interaction, e, '/theatre', missing="I don't know that theatre — pick one from the list.")
+        await reply_failure(interaction, e, '/theatre', missing="I don't know that theatre. Pick one from the list.")
         return
     view = find_view({'films': t['week'], 'total': t['week_total'], 'browse_path': t['week_path']})
     view.add_item(discord.ui.Button(label='Map', url=embeds.map_url(t)))

@@ -12,7 +12,7 @@ from .shared import SITE_NAME, api, client, is_home_guild
 # Hidden from members without Manage Server by default; admins can grant it to
 # other roles in Server Settings → Integrations.
 
-HOME_ONLY_MSG = f"The AI models are the whole site's — they're changed from the {SITE_NAME} server."
+HOME_ONLY_MSG = f"The AI models are the whole site's. They're changed from the {SITE_NAME} server."
 
 
 async def home_only(interaction):
@@ -32,7 +32,7 @@ async def llm_show(interaction: discord.Interaction):
         s = await llm.status()
     except Exception as e:
         print(f'/llm show failed: {e}')
-        await interaction.followup.send("Couldn't reach the site's AI settings — try again in a bit.", ephemeral=True)
+        await interaction.followup.send("Couldn't reach the site's AI settings. Try again in a bit.", ephemeral=True)
         return
     how = s['how']
     lines = [
@@ -59,14 +59,14 @@ async def llm_set(interaction: discord.Interaction, slot: app_commands.Choice[st
     await interaction.response.defer(ephemeral=True)
     if value and value != 'none' and value not in (await llm.status())['available']:
         await interaction.followup.send(
-            f"`{value}` isn't a chat model Groq serves right now — pick one from the list.", ephemeral=True)
+            f"`{value}` isn't a chat model Groq serves right now. Pick one from the list.", ephemeral=True)
         return
     try:
         await api.post('/api/internal/settings', {'key': f'llm_{slot.value}', 'value': value,
                                                   'guild_id': str(interaction.guild_id)})
     except Exception as e:
         print(f'/llm set failed to save: {e}')
-        await interaction.followup.send("Couldn't save that setting — try again in a bit.", ephemeral=True)
+        await interaction.followup.send("Couldn't save that setting. Try again in a bit.", ephemeral=True)
         return
     s = await llm.refresh(f'/llm set by {interaction.user.display_name}')
     chosen = s[slot.value]

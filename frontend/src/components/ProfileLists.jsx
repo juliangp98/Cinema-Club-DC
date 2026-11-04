@@ -172,7 +172,7 @@ export function CompareTab({ userId, apiBase, onOpen }) {
   ].filter(([, rows]) => rows.length);
   const match = data.taste?.score != null && <TasteMatch match={data.taste} />;
   if (!sections.length) {
-    return <>{match}<div className="list-empty">Nothing lines up yet — add films to your watchlist or RSVP to a screening.</div></>;
+    return <>{match}<div className="list-empty">Nothing lines up yet. Add films to your watchlist or RSVP to a screening.</div></>;
   }
   return <>{match}{sections.map(([title, rows]) => (
     <div key={title} className="compare-section">

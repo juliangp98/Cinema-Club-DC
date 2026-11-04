@@ -270,7 +270,7 @@ def ai_blocked(user):
     Oct 2026): they spend the allowance the Discord chatbot uses too, and
     anyone can sign up once the site is in search results."""
     if not user or user.is_guest or not GroupMembership.query.filter_by(user_id=user.id, status='active').first():
-        return jsonify({'error': '✨ is for club members — the regular search works for everyone.', 'code': 'members'}), 403
+        return jsonify({'error': '✨ is for club members. The regular search works for everyone.', 'code': 'members'}), 403
     return None
 
 
@@ -430,7 +430,7 @@ def _upload(kind):
 @app.errorhandler(413)
 def too_large(_):
     if request.path == '/api/me/letterboxd/watchlist':
-        return jsonify({'error': "That export is too big to upload whole — unzip it and upload just "
+        return jsonify({'error': "That export is too big to upload whole. Unzip it and upload just "
                                  "watchlist.csv from inside."}), 413
     return jsonify({'error': 'That file is over 5 MB. Try a smaller one.'}), 413
 

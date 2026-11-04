@@ -39,7 +39,7 @@ export function WatchAlertPrompt({ apiBase, movieId, digest, onDone,
   }
   return (
     <Prompt question={question} label="How to get alerts" onClose={() => onDone?.()}
-            hint="They'll always show in the 🔔 here. Pick any way you'd also like to be told — nothing is sent otherwise."
+            hint="They'll always show in the 🔔 here. Pick any way you'd also like to be told. Nothing is sent otherwise."
             actions={<>
               <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save}>Save</button>
               <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onDone?.()}>Not now</button>
@@ -67,7 +67,7 @@ export function AttendanceAsk({ apiBase }) {
   };
   return (
     <Prompt question="A Discord DM after screenings you're going to?" label="Did you make it? DMs"
-            hint="To log whether you made it — one tap. Nothing is sent unless you say yes." onClose={() => setDone(true)}
+            hint="To log whether you made it, in one tap. Nothing is sent unless you say yes." onClose={() => setDone(true)}
             actions={<>
               <button type="button" className="btn btn-sm btn-primary" onClick={() => answer(true)}>Yes, DM me</button>
               <button type="button" className="btn btn-sm" onClick={() => answer(false)}>No thanks</button>

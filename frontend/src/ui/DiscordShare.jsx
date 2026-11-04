@@ -278,7 +278,7 @@ export function PollDiscord({ poll, apiBase, onChange }) {
             </>
           ) : (
             <>
-              <span className="share-state">Results are in — not posted yet.</span>
+              <span className="share-state">Results are in, not posted yet.</span>
               <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => share("poll_results")}>
                 Post results in Discord
               </button>

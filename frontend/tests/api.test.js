@@ -27,7 +27,7 @@ test("send: uploads go as they are; no server at all is its own message", async 
   expect(opts.headers).toBeUndefined();                                  // the browser sets the boundary
   globalThis.fetch = vi.fn(async () => { throw new TypeError("Failed to fetch"); });
   const err = await send("/api/x", "POST", {}).catch(e => e);
-  expect([err.status, err.message]).toEqual([0, "Couldn't reach the server — try again."]);
+  expect([err.status, err.message]).toEqual([0, "Couldn't reach the server. Try again."]);
 });
 
 test("getJson: one retry after a server error; remembered unless told not to", async () => {

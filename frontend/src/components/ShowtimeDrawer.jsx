@@ -83,7 +83,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
   const here = encodeURIComponent(window.location.pathname + window.location.search);
   const readOnly = club && shell && !shell.canParticipate;          // read-only in this club (R5c)
   const rsvpNote = readOnly ? { text: "You're read-only in this club." } : club ? null : user?.is_guest
-    ? { text: "Only you see your plans — saved in this browser.", to: `/signin?next=${here}`, label: "Keep your profile" }
+    ? { text: "Only you see your plans (saved in this browser).", to: `/signin?next=${here}`, label: "Keep your profile" }
     : { text: "Only you see your plans." };
   const personal = fn => async (...args) => {
     if (!club && !(await shell.ensureProfile())) return undefined;
@@ -132,7 +132,7 @@ export default function ShowtimeDrawer({ showtimes, user, groupId, apiBase, onCl
             <button
               className={`btn btn-sm drawer-watch${watching ? " btn-primary" : ""}`}
               onClick={onWatch}
-              title={watching ? "On your watchlist — the digest tells you when it's playing" : "Add to watchlist"}
+              title={watching ? "On your watchlist: the digest tells you when it's playing" : "Add to watchlist"}
             >
               {watching ? "✓ On your watchlist" : "＋ Watchlist"}
             </button>

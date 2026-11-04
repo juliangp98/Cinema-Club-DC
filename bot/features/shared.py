@@ -122,7 +122,7 @@ async def on_tree_error(interaction: discord.Interaction, error: app_commands.Ap
     reply instead of leaving the interaction to die silently as 'did not respond'."""
     name = interaction.command.name if interaction.command else '?'
     print(f'/{name} error: {error}')
-    msg = "Something went wrong running that command — try again in a bit."
+    msg = "Something went wrong running that command. Try again in a bit."
     try:
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
@@ -349,7 +349,7 @@ def club():
     return DEFAULT_GROUP_ID if c is _UNSET else c
 
 
-NO_ACCOUNT_MSG = ("Use this in your club's Discord server first — that sets up your account "
+NO_ACCOUNT_MSG = ("Use this in your club's Discord server first. That sets up your account "
                   "(no site sign-up needed).")
 NOT_CONNECTED_MSG = ("This server isn't connected to a club yet. A server admin can connect it: make a code in "
                      "Club settings → Discord on the site, then run /setup here. (/showtimes, /movie, /find, "
@@ -391,9 +391,9 @@ def read_only(err):
     return isinstance(err, ApiError) and err.status == 403 and 'read_only' in (err.body or '')
 
 
-UNREACHABLE_MSG = "Couldn't reach the server — try again in a bit."
+UNREACHABLE_MSG = "Couldn't reach the server. Try again in a bit."
 GONE_MSG = "That screening isn't on the calendar anymore."
-DIGEST_OFF_MSG = ("The Monday digest is off for this club — an organizer can turn it on in Club settings → Theatres "
+DIGEST_OFF_MSG = ("The Monday digest is off for this club. An organizer can turn it on in Club settings → Theatres "
                   "on the site. `/digest preview:True` still shows it just to you.")
 
 

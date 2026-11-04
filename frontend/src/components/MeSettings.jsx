@@ -106,7 +106,7 @@ function DiscordRow({ user, apiBase }) {
   }
   return (
     <SettingRow label="Discord" id="profile-discord"
-                hint={user.discord_linked ? `Linked${user.discord_username ? ` as @${user.discord_username}` : ""} — your site and Discord activity are one.`
+                hint={user.discord_linked ? `Linked${user.discord_username ? ` as @${user.discord_username}` : ""}. Your site and Discord activity are one.`
                   : code ? <>In Discord, run <code>/link {code}</code> — the code expires in 10 minutes.</>
                   : "Link it to RSVP, vote and get DMs in the club's server."}>
       {!user.discord_linked && !code && (oauth
@@ -125,7 +125,7 @@ function DiaryRows({ lb, call, busy }) {
   if (!lb.connected) {
     return (
       <SettingRow label="Diary" id="profile-letterboxd"
-                  hint="Connect your diary and screenings you log there can count as check-ins here — you choose how. We only read your public diary feed.">
+                  hint="Connect your diary and screenings you log there can count as check-ins here (you choose how). We only read your public diary feed.">
         <form className="settings-inline" onSubmit={e => { e.preventDefault(); call("POST", { username: name }); }}>
           <input className="share-input" value={name} onChange={e => setName(e.target.value)} maxLength={60}
                  placeholder="Your Letterboxd username" aria-label="Letterboxd username" />
@@ -205,7 +205,7 @@ function WatchlistRows({ lb, apiBase, save, onChange }) {
   return (
     <>
       <SettingRow label="Watchlist" id="profile-letterboxd-watchlist"
-                  hint={`📓 ${w.films} film${w.films === 1 ? "" : "s"} · ${w.matched} in our listings${when ? ` · imported ${when}` : ""}. Import again whenever your list changes — films you've taken off Letterboxd leave.`}>
+                  hint={`📓 ${w.films} film${w.films === 1 ? "" : "s"} · ${w.matched} in our listings${when ? ` · imported ${when}` : ""}. Import again whenever your list changes; films you've taken off Letterboxd leave.`}>
         {picker}
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={turnOff}>Turn off</button>
       </SettingRow>
@@ -294,7 +294,7 @@ export default function MeSettings({ user, apiBase }) {
         <ProfileSection user={user} apiBase={apiBase} onUpdate={onUpdate} save={save} />
 
         <SettingsSection id="settings-taste" title="Your taste"
-                         intro="What For you goes on — on Discover, theatre pages and /foryou in Discord. Saved as you go.">
+                         intro="What For you goes on: Discover, theatre pages and /foryou in Discord. Saved as you go.">
           <TasteEditor apiBase={apiBase} onChange={t => { setTaste(t); shell.tasteChanged?.(); }} />
         </SettingsSection>
 
@@ -304,7 +304,7 @@ export default function MeSettings({ user, apiBase }) {
         </SettingsSection>
 
         <SettingsSection id="settings-connections" title="Connections"
-                         intro="Discord, Letterboxd and your calendar app — linked to your account here.">
+                         intro="Discord, Letterboxd and your calendar app, linked to your account here.">
           <DiscordRow user={user} apiBase={apiBase} />
           {lb && <LetterboxdRows lb={lb} call={lbCall} busy={lbBusy} apiBase={apiBase} save={save} onChange={setLb} />}
           {!user.is_guest && (
@@ -328,7 +328,7 @@ export default function MeSettings({ user, apiBase }) {
                          onChange={v => lbCall("PUT", { ratings: v })} />
               <SwitchRow label="Let a line from my reviews be a quiz clue" checked={lb.clues !== false} disabled={noLb}
                          hint={noLb ? "Connect Letterboxd (Connections) first."
-                           : "Guess from the reviews may use a sentence of yours — never with your name, and never one that gives the film away."}
+                           : "Guess from the reviews may use a sentence of yours, never with your name and never one that gives the film away."}
                          onChange={v => lbCall("PUT", { clues: v })} />
             </>
           )}
@@ -347,7 +347,7 @@ export default function MeSettings({ user, apiBase }) {
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => shell.logout?.()}>Sign out</button>
           </SettingRow>
           {!user.is_guest && (
-            <SettingRow label="The welcome tour" hint="A quick trip through each main page. Every page also has its own — tap ? at the top.">
+            <SettingRow label="The welcome tour" hint="A quick trip through each main page. Every page also has its own: tap ? at the top.">
               <button type="button" className="btn btn-sm" onClick={() => shell.startTour?.()}>Take the tour</button>
             </SettingRow>
           )}

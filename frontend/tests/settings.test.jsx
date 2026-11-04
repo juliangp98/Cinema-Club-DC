@@ -165,5 +165,5 @@ test("connecting a club's Discord server", async () => {
 
   mockApi({ "GET /api/groups/film-friends/discord": { connected: true, home: true, invite_url: null } });
   renderPage(<ClubDiscord group={group} apiBase="" isAdmin run={run} />);                     // home, not registered yet
-  expect(await screen.findByText(/the bot registers it when it starts/)).toBeInTheDocument();
+  expect(await screen.findByText(/The bot registers it when it starts/)).toBeInTheDocument();
 });

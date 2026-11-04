@@ -60,7 +60,7 @@ test("the leaderboard: a period, its superlatives, kernels as a bar, stats a tap
   expect(rows.map(r => within(r).getAllByRole("link")[1].textContent)).toEqual(["Ana", "Bo"]);
   expect(within(rows[0]).getByRole("img")).toHaveAttribute("aria-label", "polls 1, going out 11");
   await userEvent.click(within(rows[0]).getByText("Stats"));
-  expect(within(rows[0]).getByText("9/10 · 90%")).toBeVisible();
+  expect(within(rows[0]).getByText("9 of 10 (90%)")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "This year" }));
   expect(await screen.findByText("Bo", { selector: ".club-board-row:first-child a.person-link" })).toBeInTheDocument();
   expect(calls.map(c => c.path)).toContain("/api/groups/1/leaderboard?period=year");

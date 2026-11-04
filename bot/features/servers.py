@@ -73,7 +73,7 @@ class ClubPicker(discord.ui.View):
             await self.command._invoke_with_namespace(interaction, self.namespace)
         except Exception as e:
             print(f'club picker: /{self.command.qualified_name} failed: {e}')
-            await tell(interaction, "Something went wrong running that command — try again in a bit.")
+            await tell(interaction, "Something went wrong running that command. Try again in a bit.")
 
 
 async def interaction_check(interaction: discord.Interaction) -> bool:

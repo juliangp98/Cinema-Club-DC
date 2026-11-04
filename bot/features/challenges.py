@@ -179,14 +179,14 @@ class ChallengeButton(discord.ui.DynamicItem[discord.ui.Button],
         elif a == 'back':
             await back_flow(interaction, cid)
         elif a in ('accept', 'decline'):
-            await act(interaction, cid, 'respond', "✓ You're in — tap ▶ Play when you're ready." if a == 'accept' else 'Declined.',
+            await act(interaction, cid, 'respond', "✓ You're in. Tap ▶ Play when you're ready." if a == 'accept' else 'Declined.',
                       accept=a == 'accept')
         elif a == 'join':
-            await act(interaction, cid, 'join', "🪑 You took a seat — tap ▶ Play when you're ready.")
+            await act(interaction, cid, 'join', "🪑 You took a seat. Tap ▶ Play when you're ready.")
         elif a in ('rematch', 'double'):
-            await act(interaction, cid, 'rematch', '🔁 Rematch on — the others are invited.', double=a == 'double')
+            await act(interaction, cid, 'rematch', '🔁 Rematch on. The others are invited.', double=a == 'double')
         elif a == 'end':
-            await act(interaction, cid, 'end', 'Ended — here are the results.')
+            await act(interaction, cid, 'end', 'Ended. Here are the results.')
         else:
             await act(interaction, cid, 'cancel', 'Called off. Nothing changed hands.')
 
@@ -288,7 +288,7 @@ async def back_flow(interaction, cid):
                for p in c['players'] if p['status'] in ('accepted', 'invited')][:25]
     view = discord.ui.View(timeout=None)
     view.add_item(ChallengeBackSelect(cid, options))
-    await interaction.followup.send(f"Back a player in **{c['label']}** — you have {c['backing']['max']} 🍿 at most to put on one.",
+    await interaction.followup.send(f"Back a player in **{c['label']}**. You have {c['backing']['max']} 🍿 at most to put on one.",
                                     view=view, ephemeral=True)
 
 
@@ -434,7 +434,7 @@ async def send_match(user, discord_user_id, cid):
         return
     if c['you']['can_play']:
         t = c.get('tournament') or {}
-        await user.send(embed=embeds.challenge_embed(c, f"🏆 Your {t.get('match', 'match')} is ready — 30 seconds a question."),
+        await user.send(embed=embeds.challenge_embed(c, f"🏆 Your {t.get('match', 'match')} is ready. 30 seconds a question."),
                         view=challenge_view(c))
 
 

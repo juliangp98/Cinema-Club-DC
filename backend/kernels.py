@@ -305,10 +305,10 @@ def toss(giver, recipient_id, group_id, showtime_id, delta, now=None):
         return None, f'You can only take {TAKE_PER_CARD} per person per screening.'
     left = allowance(giver.id, now)
     if after > 0 and after > before and left['give_left'] < 1:
-        return None, f"You've given all {GIVE_PER_WEEK} this week — more on Monday."
+        return None, f"You've given all {GIVE_PER_WEEK} this week. More on Monday."
     if after < 0 and after < before:
         if left['take_left'] < 1:
-            return None, f"You've taken all {TAKE_PER_WEEK} this week — more on Monday."
+            return None, f"You've taken all {TAKE_PER_WEEK} this week. More on Monday."
         lost = sum(max(-r.amount, 0) for r in KernelGift.query.filter_by(recipient_id=recipient_id, week=week))
         if lost >= MAX_TAKEN_PER_WEEK:
             return None, "They've lost enough kernels this week."

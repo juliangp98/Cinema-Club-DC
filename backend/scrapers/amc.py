@@ -50,7 +50,7 @@ def key_check(theatre_id):
         return False, f"Couldn't reach AMC's API to check the key ({e}); the AMC theatres wait."
     if r.status_code in (401, 403):
         return False, ("AMC hasn't authorized the API key yet (it answers \"Unauthorized VendorKey\"), so the AMC "
-                       "theatres wait — they switch on by themselves once it does.")
+                       "theatres wait. They switch on by themselves once it does.")
     return True, ''
 
 

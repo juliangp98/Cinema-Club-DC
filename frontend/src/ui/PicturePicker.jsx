@@ -15,7 +15,7 @@ export default function PicturePicker({ preview, onUpload, onEmoji, onClear, cle
   const run = async (fn) => {
     setBusy(true);
     setError("");
-    try { await fn(); } catch (e) { setError(e.message || "Couldn't save that — try again."); } finally { setBusy(false); }
+    try { await fn(); } catch (e) { setError(e.message || "Couldn't save that. Try again."); } finally { setBusy(false); }
   };
   return (
     <div className="picture-picker">

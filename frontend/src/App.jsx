@@ -36,10 +36,10 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 // Results of "Sign in with Discord" / "Connect Discord", passed back by the
 // backend as ?discord=… or ?discord_error=…
 const DISCORD_NOTICES = {
-  connected: "Discord connected — anything you did in Discord is now part of this account.",
-  expired: "That Discord sign-in expired — please try again.",
+  connected: "Discord connected. Anything you did in Discord is now part of this account.",
+  expired: "That Discord sign-in expired. Please try again.",
   cancelled: "Discord sign-in was cancelled.",
-  failed: "Couldn't reach Discord — please try again.",
+  failed: "Couldn't reach Discord. Please try again.",
   taken: "That Discord account is already connected to a different Cinema Club account.",
   inactive: "That account has been deactivated.",
   unavailable: "Discord sign-in isn't set up on this site yet.",
@@ -51,7 +51,7 @@ function readDiscordNotice() {
   const error = params.get("discord_error");
   const key = error || (params.get("discord") === "connected" ? "connected" : null);
   if (!key) return null;
-  return { text: DISCORD_NOTICES[key] || "Discord sign-in didn't work — please try again.", error: !!error };
+  return { text: DISCORD_NOTICES[key] || "Discord sign-in didn't work. Please try again.", error: !!error };
 }
 
 function Loading() {

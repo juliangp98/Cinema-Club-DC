@@ -128,7 +128,7 @@ function ForYou({ apiBase, onSeen, onClose }) {
       setNote(d.items.length ? `Cleared. ${d.items.length === 1 ? "This one needs" : "These need"} your answer first.` : "");
       onSeen();
     } catch {
-      setNote("Couldn't clear them just now — try again in a bit.");
+      setNote("Couldn't clear them just now. Try again in a bit.");
     }
   }
 

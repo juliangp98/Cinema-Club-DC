@@ -146,7 +146,7 @@ def add(user, data):
     if kind not in ('movie', 'hide', *PEOPLE):
         return 'Pick a film or a person.'
     if len(items(user, kind)) >= LIMIT:
-        return f'That’s {LIMIT} already — remove one first.'
+        return f'That’s {LIMIT} already. Remove one first.'
     if kind in PEOPLE:
         name = ' '.join((data.get('name') or '').split())[:200]
         if len(name) < 2:

@@ -65,7 +65,7 @@ export default function InstallPrompt() {
       <div className="install-text">
         <strong>Add Cinema Club to your home screen</strong>
         {deferred
-          ? <span>It opens like an app, full screen — one tap away.</span>
+          ? <span>It opens like an app, full screen, one tap away.</span>
           : <span>Tap <span className="install-share" aria-label="the Share button">Share <ShareGlyph /></span>, then <b>Add to Home Screen</b>.</span>}
       </div>
       <div className="install-actions">

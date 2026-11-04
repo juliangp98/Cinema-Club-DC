@@ -37,7 +37,7 @@ export default function MePage({ user, apiBase, groupId }) {
         <Panel tone="callout" title="Keep your profile"
                actions={<button className="btn btn-primary" onClick={() => navigate("/signin?next=%2Fme")}>Keep it</button>}>
           <p>This guest profile lives only in this browser and only you can see it. Add an email or Discord to keep your
-             plans and watchlist on every device — and to join a club.</p>
+             plans and watchlist on every device, and to join a club.</p>
         </Panel>
       )}
 

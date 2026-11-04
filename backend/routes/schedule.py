@@ -357,7 +357,7 @@ def films_tmdb_search():
         return jsonify({'results': []})
     results = tmdb_matches(q, current_user().id)
     if results is None:
-        return jsonify({'error': 'Lots of searching — try again in a while.', 'results': []}), 429
+        return jsonify({'error': 'Lots of searching. Try again in a while.', 'results': []}), 429
     return jsonify({'results': results})
 
 
@@ -412,7 +412,7 @@ def search_ai_route():
     now = time.monotonic()
     recent = [t for t in _ai_searches.get(user.id, []) if now - t < 3600]
     if len(recent) >= AI_SEARCHES_PER_HOUR:
-        return jsonify({'error': "That's a lot of AI searches — try the regular search, or again in a while."}), 429
+        return jsonify({'error': "That's a lot of AI searches. Try the regular search, or again in a while."}), 429
     _ai()                                     # the shared AI, with its model-switch notices
     result = search_ai.interpret(group, user, q)
     if result['ai']:
@@ -575,7 +575,7 @@ def og_showtime(showtime_id):
     if s.is_cancelled:
         bits.append('cancelled')
     elif s.off_sale_at:
-        bits.append('off sale — likely sold out')
+        bits.append('off sale, likely sold out')
     elif s.is_sold_out:
         bits.append('sold out')
     description = ' · '.join(bits) + (f"\n{_blurb(s.movie.description)}" if s.movie.description else '')

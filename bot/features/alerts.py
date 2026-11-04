@@ -180,7 +180,7 @@ def attendance_text(screenings):
         diary = ' · 📓 in your Letterboxd diary' if s.get('letterboxd') else ''
         lines.append(f"• **{s['title']}** — {_when_short(s['start_time'])} @ {s['theatre']}{fmt}{diary}")
     return ("🎬 **Did you make it?** You were going to:\n" + '\n'.join(lines) +
-            "\nTap below — it keeps your watch history (and the leaderboard) honest.")
+            "\nTap below to keep your watch history (and the leaderboard) honest.")
 
 
 def attendance_view(screenings):
@@ -344,7 +344,7 @@ class NotifyView(discord.ui.View):
             s = await api.post('/api/internal/notifications/settings', {**self.ident, **change})
         except Exception as e:
             print(f'/notifications save failed: {e}')
-            await tell(interaction, "Couldn't save that — try again in a bit.")
+            await tell(interaction, "Couldn't save that. Try again in a bit.")
             return
         await interaction.edit_original_response(embed=embeds.notify_settings_embed(s), view=NotifyView(self.ident, s))
 
@@ -371,7 +371,7 @@ class AskView(discord.ui.View):
                 await api.post('/api/internal/notifications/settings', {**self.ident, **change})
             except Exception as e:
                 print(f'opt-in save failed: {e}')
-                await tell(interaction, "Couldn't save that — try `/notifications`.")
+                await tell(interaction, "Couldn't save that. Try `/notifications`.")
                 return
             button.disabled, button.label = True, f'✓ {button.label}'
             await interaction.edit_original_response(view=self)
@@ -464,7 +464,7 @@ async def announcements(interaction: discord.Interaction,
                    "Every other theatre's new showtimes are in Monday's digest. "
                    "`/announcements action:Disable` turns one off. (Your own alerts: `/notifications`.)")
         else:
-            msg = ("🔕 Theatre announcements are all off — new showtimes show up in Monday's digest.\n"
+            msg = ("🔕 Theatre announcements are all off, so new showtimes show up in Monday's digest.\n"
                    "`/announcements action:Enable` posts a theatre's new showtimes here as they drop.")
         await interaction.followup.send(msg, ephemeral=True)
         return
@@ -478,7 +478,7 @@ async def announcements(interaction: discord.Interaction,
             'group_id': club(), 'theatre_slug': theatre, 'action': act,
         })
     except ApiError as e:
-        msg = "I don't know that theatre — pick one from the list." if e.status == 404 \
+        msg = "I don't know that theatre. Pick one from the list." if e.status == 404 \
             else f"Couldn't update announcements ({e.status})."
         await interaction.followup.send(msg, ephemeral=True)
         return
@@ -493,10 +493,10 @@ async def announcements(interaction: discord.Interaction,
         return
     # Everyone sees what changed (and who changed it) — the setting is shared.
     who = interaction.user.mention
-    note = (f"🔔 {who} turned on new-showtime announcements for **{name}** — its drops will post here."
+    note = (f"🔔 {who} turned on new-showtime announcements for **{name}**. Its drops will post here."
             if result['enabled'] else
-            f"🔕 {who} turned off new-showtime announcements for **{name}** — "
-            "its new showtimes will be in Monday's digest.")
+            f"🔕 {who} turned off new-showtime announcements for **{name}**. "
+            "Its new showtimes will be in Monday's digest.")
     try:
         await interaction.channel.send(note, allowed_mentions=discord.AllowedMentions.none())
     except Exception as e:
@@ -522,7 +522,7 @@ DIGEST_COOLDOWN_SEC = 30 * 60
 _digest_posted = {}   # channel id -> monotonic time of the last /digest post there
 
 
-@client.tree.command(name='digest', description="This week's digest — post it here, or preview it just for you")
+@client.tree.command(name='digest', description="This week's digest: post it here, or preview it just for you")
 @app_commands.describe(preview='Show it only to you instead of posting it in the channel')
 async def digest_now(interaction: discord.Interaction, preview: bool = False):
     if preview:
@@ -541,7 +541,7 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
     if ago < DIGEST_COOLDOWN_SEC:
         mins = max(1, round(ago / 60))
         await interaction.response.send_message(
-            f"The digest was posted here {mins} min ago — use `/digest preview:True` to see it just for you.",
+            f"The digest was posted here {mins} min ago. Use `/digest preview:True` to see it just for you.",
             ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
@@ -552,7 +552,7 @@ async def digest_now(interaction: discord.Interaction, preview: bool = False):
         _digest_posted[interaction.channel_id] = time.monotonic()
         await interaction.followup.send('Digest posted.', ephemeral=True)
     else:
-        await interaction.followup.send("Couldn't post the digest right now — try again in a bit.", ephemeral=True)
+        await interaction.followup.send("Couldn't post the digest right now. Try again in a bit.", ephemeral=True)
 
 
 register(items=(AttendanceButton,), loops=(announce_loop, digest_loop, attendance_loop, notify_loop,))

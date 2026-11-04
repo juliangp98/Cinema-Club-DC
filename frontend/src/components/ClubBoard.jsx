@@ -33,8 +33,8 @@ function Stats({ s }) {
     ["Screenings", s.screenings], ["On film", s.film_prints], ["Theatres", s.theatres], ["Late shows", s.late],
     ["Crew nights", s.crew_nights], ["Weeks in a row", s.week_streak], ["First going", s.first_going],
     ["Comments", s.comments],
-    ["Trivia", t.answered ? `${t.correct}/${t.answered} · ${t.accuracy}%` : "—"], ["Trivia streak", t.streak],
-    ["Bingo", s.bingo.lines || s.bingo.cards ? `${s.bingo.lines} line${s.bingo.lines === 1 ? "" : "s"} · ${s.bingo.cards} card${s.bingo.cards === 1 ? "" : "s"}` : "—"],
+    ["Trivia", t.answered ? `${t.correct} of ${t.answered} (${t.accuracy}%)` : "—"], ["Trivia streak", t.streak],
+    ["Bingo", s.bingo.lines || s.bingo.cards ? `${s.bingo.lines} line${s.bingo.lines === 1 ? "" : "s"}, ${s.bingo.cards} card${s.bingo.cards === 1 ? "" : "s"}` : "—"],
     ...(s.quizzes?.rounds ? [["Quiz games", s.quizzes.rounds], ["Best streak", s.quizzes.best_streak]] : []),
   ];
   return (
@@ -87,7 +87,7 @@ export default function ClubBoard({ group, apiBase, viewerId }) {
                   <KernelBar breakdown={r.breakdown} total={r.kernels} most={most} />
                 </span>
                 <span className="club-score"><strong>🍿 {r.kernels}</strong>
-                  <small>{r.correct} correct · {r.attendance} screening{r.attendance === 1 ? "" : "s"}</small></span>
+                  <small>{r.correct} correct, {r.attendance} screening{r.attendance === 1 ? "" : "s"}</small></span>
               </div>
               <details className="club-board-more">
                 <summary>Stats</summary>
@@ -98,7 +98,7 @@ export default function ClubBoard({ group, apiBase, viewerId }) {
         </ol>
       )}
       <p className="ui-hint">Kernels from scored polls, going out (check in after a screening, be first to go, crew nights),
-        trivia and bingo (when they're on) and what members give each other — counted in the period they were earned.
+        trivia and bingo (when they're on) and what members give each other, counted in the period they were earned.
         Ties: correct picks, then screenings.</p>
     </div>
   );

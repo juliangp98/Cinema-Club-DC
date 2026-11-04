@@ -17,7 +17,7 @@ test("the rail: what's waiting, bingo, kernels — each a way into Play", () => 
   expect(within(todo).getAllByRole("link").map(a => [a.textContent, a.getAttribute("href")])).toEqual([
     ["🧠 Today's trivia question", "/play/trivia"], ["🗳️ Vote: Best of fall", "/polls/4"]]);
   expect(screen.getByRole("link", { name: /Bingo · October/ })).toHaveAttribute("href", "/play/bingo");
-  expect(screen.getByRole("link", { name: /Your kernels/ })).toHaveTextContent("10 to give · 3 to take this week");
+  expect(screen.getByRole("link", { name: /Your kernels/ })).toHaveTextContent("10 to give and 3 to take this week");
 });
 
 test("the rail when you're caught up; nothing without a summary", () => {

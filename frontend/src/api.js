@@ -123,7 +123,7 @@ export async function send(url, method = "POST", body) {
       body: body === undefined || form ? body : JSON.stringify(body),
     });
   } catch {
-    throw new HttpError(0, { error: "Couldn't reach the server — try again." });
+    throw new HttpError(0, { error: "Couldn't reach the server. Try again." });
   }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new HttpError(r.status, data);

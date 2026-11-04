@@ -154,7 +154,7 @@ export default function GroupDiscovery({ user, setUser, apiBase, activeGroupId, 
 
           <section className="clubs-section">
             <SectionTitle>Find a club</SectionTitle>
-            <SearchField className="group-search" label="Search clubs" placeholder="Search clubs by name — Enter to search"
+            <SearchField className="group-search" label="Search clubs" placeholder="Search clubs by name (Enter to search)"
                          value={query} onChange={setQuery} onSubmit={handleSearch} onClear={handleClearSearch} />
             {loadingPublic && publicGroups.length === 0 ? (
               <p className="pv-empty">Loading…</p>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 // While films load (R7b): a spinning reel and a movie line that fits where
 // you are, changing every few seconds. Still for people who prefer reduced
-// motion. LoadError is the matching "that didn't work — try again".
+// motion. LoadError is the matching "that didn't work. Try again".
 
 const LINES = {
   discover: [["Round up the usual suspects.", "Casablanca"], ["Show me the movies!", "after Jerry Maguire"],

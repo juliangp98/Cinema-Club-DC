@@ -171,7 +171,7 @@ def my_letterboxd():
         if error == 'not_found':
             return jsonify({'error': f'There\'s no Letterboxd member called "{name}".'}), 400
         if error:
-            return jsonify({'error': "Couldn't reach Letterboxd — try again in a bit."}), 502
+            return jsonify({'error': "Couldn't reach Letterboxd. Try again in a bit."}), 502
         if (user.letterboxd_username or '').lower() != name.lower():
             LetterboxdEntry.query.filter_by(user_id=user.id).delete()
         user.letterboxd_username, user.letterboxd_sync = name, True
@@ -216,7 +216,7 @@ def my_letterboxd_watchlist():
     if error == 'empty':
         return jsonify({'error': 'That watchlist has no films in it.'}), 400
     if error:
-        return jsonify({'error': "That isn't a Letterboxd watchlist export — use the zip from Letterboxd → "
+        return jsonify({'error': "That isn't a Letterboxd watchlist export. Use the zip from Letterboxd → "
                                  "Settings → Import & Export → Export your data, or the watchlist.csv inside it."}), 400
     result = letterboxd.import_watchlist(user, rows)
     return jsonify({**letterboxd.status(user), 'imported': result, 'ask_alerts': user.letterboxd_watch_alerts is None})
@@ -232,7 +232,7 @@ def sync_my_letterboxd():
         return jsonify({'error': 'Connect your Letterboxd diary first.'}), 400
     result = letterboxd.sync(user)
     if 'error' in result:
-        return jsonify({'error': "Couldn't read your diary just now — try again in a bit."}), 502
+        return jsonify({'error': "Couldn't read your diary just now. Try again in a bit."}), 502
     return jsonify({**letterboxd.status(user), **result})
 
 

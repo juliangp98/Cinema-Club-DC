@@ -26,7 +26,7 @@ function Answer({ a }) {
   if (a.loading) return <Panel tone="gold" className="help-answer" title="✨ Thinking…" />;
   return (
     <Panel tone="gold" className="help-answer" title={a.answer ? "✨ AI answer" : "✨ Best matches"}
-           hint={a.answer ? "From the topics below — AI can get things wrong" : a.note}>
+           hint={a.answer ? "From the topics below. AI can get things wrong" : a.note}>
       {a.answer && <p><RichText text={a.answer} /></p>}
       {a.topics?.length > 0 && (
         <ul className="help-answer-topics">
@@ -62,7 +62,7 @@ export default function HelpPage({ apiBase = "" }) {
     try {
       setAsked({ q: question, ...(await send(`${apiBase}/api/help/ask`, "POST", { q: question })) });
     } catch (err) {
-      setAsked({ q: question, topics: rank(question).map(i => i.id), note: err.data?.error || "Couldn't ask right now — here are the closest topics." });
+      setAsked({ q: question, topics: rank(question).map(i => i.id), note: err.data?.error || "Couldn't ask right now. Here are the closest topics." });
     }
   }
 
@@ -113,7 +113,7 @@ export default function HelpPage({ apiBase = "" }) {
           ))}
         </section>
       ))}
-      {!q && <p className="ui-hint help-foot"><RichText text={`Start a club in your city: ${SITE_NAME} is open source — [run your own](repo).`} /></p>}
+      {!q && <p className="ui-hint help-foot"><RichText text={`Start a club in your city: ${SITE_NAME} is open source: [run your own](repo).`} /></p>}
       </div>
       </div>
     </div>

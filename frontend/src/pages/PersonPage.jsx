@@ -32,7 +32,7 @@ export default function PersonPage({ user, apiBase, groupId }) {
       <div className="page">
         <PageHeader title={hidden ? "Not in your clubs" : "Member not found"} back={BACK} />
         <p className="pv-empty">
-          {hidden ? "You can see the members of clubs you're in." : "There's no one here — they may have left."}{" "}
+          {hidden ? "You can see the members of clubs you're in." : "There's no one here. They may have left."}{" "}
           <Link to="/club?tab=members">See your club's members →</Link>
         </p>
       </div>

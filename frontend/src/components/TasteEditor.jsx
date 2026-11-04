@@ -19,7 +19,7 @@ export default function TasteEditor({ apiBase, onChange }) {
   const [kind, setKind] = useState("director");
   useEffect(() => {
     getJson(`${apiBase}/api/me/taste`, { cache: false }).then(setT)
-      .catch(() => setError("Couldn't load your taste — try again in a bit."));
+      .catch(() => setError("Couldn't load your taste. Try again in a bit."));
   }, [apiBase]);
 
   async function save(method, path, body) {

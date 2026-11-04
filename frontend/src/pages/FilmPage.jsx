@@ -208,7 +208,7 @@ export default function FilmPage({ user, apiBase, groupId }) {
             </div>
             <div className="film-announced-hint">
               {!user ? "Sign in and add it to your watchlist to hear the moment tickets go on sale."
-                : watching ? "It's on your watchlist — we'll tell you the moment tickets go on sale."
+                : watching ? "It's on your watchlist. We'll tell you the moment tickets go on sale."
                 : "Add it to your watchlist and we'll tell you the moment tickets go on sale."}
               {a.url && <> · <a href={a.url} target="_blank" rel="noreferrer">The theatre's page ↗</a></>}
             </div>

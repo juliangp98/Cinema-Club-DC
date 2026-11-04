@@ -59,7 +59,7 @@ test("running the games: what's waiting, and a skipped post posted after all", a
   });
   renderPage(<GamesRunPanel apiBase="" slug="club" />);
   expect(await screen.findByRole("link", { name: "👀 1 waiting for your OK →" })).toHaveAttribute("href", "/club?tab=settings#game-posts");
-  expect(screen.getByText(/skipped — it can still go up until 10 PM/)).toBeInTheDocument();
+  expect(screen.getByText(/skipped, but it can still go up until 10 PM/)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Post it after all" }));
   expect(calls.find(c => c.method === "POST").body).toEqual({ action: "post" });
   expect(screen.queryByRole("button", { name: "Post it after all" })).toBeNull();

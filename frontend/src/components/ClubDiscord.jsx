@@ -59,12 +59,12 @@ export default function ClubDiscord({ group, apiBase, isAdmin, run, onConnected 
             Server Settings → Integrations).
           </p>
         )}
-        {info.home && <p className="ui-hint">This is the site's own server — the bot's home, set in its settings.</p>}
+        {info.home && <p className="ui-hint">This is the site's own server: the bot's home, set in its settings.</p>}
       </>
     );
   }
   if (info.connected) {                 // the home club, before the bot has registered its server
-    return <p className="ui-hint" id="club-settings-discord-server">Connected to the site's own server — the bot registers it when it starts.</p>;
+    return <p className="ui-hint" id="club-settings-discord-server">Connected to the site's own server. The bot registers it when it starts.</p>;
   }
   if (!isAdmin) {
     return <p className="ui-hint" id="club-settings-discord-server">No Discord server is connected. A club admin can connect one here.</p>;
@@ -75,7 +75,7 @@ export default function ClubDiscord({ group, apiBase, isAdmin, run, onConnected 
                   hint="Opens Discord: pick your club's server (you need Manage Server there).">
         {info.invite_url
           ? <a className="btn btn-sm btn-discord" href={info.invite_url} target="_blank" rel="noopener noreferrer">Add to Discord ↗</a>
-          : <span className="ui-hint">The bot isn't running yet — try again in a bit.</span>}
+          : <span className="ui-hint">The bot isn't running yet. Try again in a bit.</span>}
       </SettingRow>
       <SettingRow stack label="2. Connect it"
                   hint={code ? `In the channel the bot should post in, run this. It works once, for ${code.minutes} minutes; this page updates when it's done.`

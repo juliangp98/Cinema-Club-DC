@@ -63,7 +63,7 @@ export function TheatresPage({ apiBase }) {
           ))}
         </section>
       ))}
-      {films === 0 && <p className="pv-empty">Nothing's scheduled at any theatre right now — check back soon.</p>}
+      {films === 0 && <p className="pv-empty">Nothing's scheduled at any theatre right now. Check back soon.</p>}
     </div>
   );
 }

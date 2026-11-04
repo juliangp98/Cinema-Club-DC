@@ -365,8 +365,8 @@ def compare(mine, theirs):
 ROAST_SYSTEM = (
     "You write ONE short, playful roast (one or two sentences, under 40 words) of a film-club member's movie habits, "
     "for a friend about to challenge them to a movie quiz. Call the rival THEM and the challenger YOU, exactly like that "
-    "(capitals). Use only the facts given, and compare THEM with YOU where it's funny. Roast habits only — never looks, "
-    "identity, health, money or anything not given. Affectionate trash talk: PG-13, no slurs, no swearing, at most one emoji. "
+    "(capitals). Use only the facts given, and compare THEM with YOU where it's funny. Roast habits only, never looks, "
+    "identity, health, money or anything not given. Affectionate trash talk: PG-13, no slurs, no swearing, at most one emoji, no em dashes. "
     "Reply with the roast only.")
 
 

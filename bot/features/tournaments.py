@@ -103,12 +103,12 @@ class TournamentButton(discord.ui.DynamicItem[discord.ui.Button],
         elif a == 'back':
             await tournament_back_flow(interaction, tid)
         elif a in ('accept', 'decline'):
-            await tournament_act(interaction, tid, 'respond', "✓ You're in — your first match comes once it starts." if a == 'accept'
+            await tournament_act(interaction, tid, 'respond', "✓ You're in. Your first match comes once it starts." if a == 'accept'
                       else 'Declined.', accept=a == 'accept')
         elif a == 'join':
-            await tournament_act(interaction, tid, 'join', '🪑 You took a seat — your first match comes once it starts.')
+            await tournament_act(interaction, tid, 'join', '🪑 You took a seat. Your first match comes once it starts.')
         elif a == 'start':
-            await tournament_act(interaction, tid, 'start', '🏁 Started — the first matches are open.')
+            await tournament_act(interaction, tid, 'start', '🏁 Started. The first matches are open.')
         else:
             await tournament_act(interaction, tid, 'cancel', 'Called off. Nothing changed hands.')
 
@@ -161,7 +161,7 @@ async def tournament_back_flow(interaction, tid):
                for p in t['players'] if p['status'] == 'accepted'][:25]
     view = discord.ui.View(timeout=None)
     view.add_item(TournamentBackSelect(tid, options))
-    await interaction.followup.send(f"Back someone to win **{t['title']}** — {t['backing']['max']} 🍿 at most.",
+    await interaction.followup.send(f"Back someone to win **{t['title']}** ({t['backing']['max']} 🍿 at most).",
                                     view=view, ephemeral=True)
 
 
@@ -186,7 +186,7 @@ async def tournament_flow(interaction, fmt, kind, people, stake=None, seats=None
         await reply_failure(interaction, e, '/play tournament start')
         return
     note = '🏆 Tournament set up' + (' and posted in the channel' if t.get('posted') else '') + \
-        '. It starts once everyone has answered and the seats are taken — or tap 🏁 Start it now.'
+        '. It starts once everyone has answered and the seats are taken, or when you tap 🏁 Start.'
     await interaction.followup.send(embed=embeds.tournament_embed(t, note), view=tournament_view(t), ephemeral=True)
 
 

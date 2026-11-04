@@ -37,6 +37,7 @@ Rules:
 - For awards: use the real nominees if they are known to you. If nominations aren't announced yet, use likely contenders
   and say in "notes" that they're predicted and should be updated when nominations come out.
 - Never invent showtimes. "notes" is one short sentence for the organizer (or "").
+- Plain words in titles and the description; no em dashes.
 """
 
 

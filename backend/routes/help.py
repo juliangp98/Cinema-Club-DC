@@ -23,18 +23,18 @@ def help_ask():
         return blocked
     q = str((request.json or {}).get('q') or '').strip()
     if len(help_ai.words(q)) < 2:
-        return jsonify({'error': 'Ask a little more — a few words about what you want to do.'}), 400
+        return jsonify({'error': 'Ask a little more: a few words about what you want to do.'}), 400
     if hit := help_ai.cached(q[:300]):              # asked before (by anyone): free
         return jsonify(hit)
     now = time.monotonic()
     recent = [t for t in _asks.get(user.id, []) if now - t < 3600]
     if len(recent) >= ASKS_PER_HOUR:
         return jsonify({'ai': False, 'topics': help_ai.retrieve(q)[:3], 'answer': None,
-                        'note': "That's a lot of questions this hour — here are the closest topics."})
+                        'note': "That's a lot of questions this hour. Here are the closest topics."})
     _ai()                                          # the shared AI, with its model-switch notices
     result = help_ai.ask(q[:300])
     if result['ai'] and not result['cached']:
         _asks[user.id] = recent + [now]
     if not result['ai']:
-        result['note'] = "The AI isn't available right now — here are the closest topics."
+        result['note'] = "The AI isn't available right now. Here are the closest topics."
     return jsonify(result)

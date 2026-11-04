@@ -414,7 +414,7 @@ def internal_link_verify():
     if not user:
         return jsonify({'error': 'Invalid code'}), 404
     if not user.discord_link_code_expires or user.discord_link_code_expires < _utcnow_naive():
-        return jsonify({'error': 'Code expired — generate a new one on the site'}), 410
+        return jsonify({'error': 'Code expired. Make a new one on the site'}), 410
 
     # One site account per Discord account. A Discord-only account (made by
     # using the bot first) merges into this one; another site account just

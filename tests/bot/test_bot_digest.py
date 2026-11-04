@@ -145,7 +145,7 @@ def post(digest):
 
 def test_the_discord_post(post):
     content, embed, tagged, plans = post
-    assert [f.name for f in embed.fields] == ["🎟️ Who's going", '🤝 Make plans — nobody’s going yet', '💎 Rare this week',
+    assert [f.name for f in embed.fields] == ["🎟️ Who's going", '🤝 Make plans (nobody’s going yet)', '💎 Rare this week',
                                               '🆕 Opening this week', '⏳ Last chance', '👀 On your watchlists', '📊 Last week']
     assert embed.footer.text.startswith('New on the calendar: AFI +23\n')
     assert 'one night only · 35mm · 1974' in embed.fields[2].value

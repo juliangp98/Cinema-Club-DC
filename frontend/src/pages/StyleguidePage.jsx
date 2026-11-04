@@ -80,7 +80,7 @@ export default function StyleguidePage() {
 
       <SectionTitle>Page width</SectionTitle>
       <p className="ui-hint">Every page is one width: <code>.page</code> uses <code>--page-max</code> (index.css) and nothing else
-        sets a page width — a page that needs columns splits that width (.ui-split) instead.</p>
+        sets a page width. A page that needs columns splits that width (.ui-split) instead.</p>
 
       <SectionTitle>Buttons</SectionTitle>
       <div className="styleguide-row">
@@ -179,7 +179,7 @@ export default function StyleguidePage() {
         <Panel tone="tile" title="Tile" kicker>Compact, for side rails.</Panel>
       </div>
       <Panel tone="callout" title="Callout" actions={<button type="button" className="btn btn-primary">Do the thing</button>}>
-        <p>A big title with its action beside it — the one thing a page wants you to do next.</p>
+        <p>A big title with its action beside it: the one thing a page wants you to do next.</p>
       </Panel>
       <Prompt question="A question asked in place?" hint="Prompt: a hint, anything to pick, buttons beside it, × to put it away."
               onClose={() => {}}
@@ -219,7 +219,7 @@ export default function StyleguidePage() {
       </div>
 
       <SectionTitle>Tickets</SectionTitle>
-      <p className="ui-hint">TicketChips filter by ticket status (kept in the address); TicketRow is one showing — time, theatre,
+      <p className="ui-hint">TicketChips filter by ticket status (kept in the address); TicketRow is one showing: time, theatre,
         RSVP, tickets, add to calendar. Sold out, or off sale (gone from the theatre's site, likely sold out), still takes RSVPs.</p>
       <TicketChips value={tickets} onChange={setTickets} />
       <TicketRow showtime={{ ...SAMPLE_SHOW, is_sold_out: true, off_sale: true, user_rsvp: rsvp }} apiBase="" onRsvp={(_, v) => setRsvp(v)} />
@@ -235,7 +235,7 @@ export default function StyleguidePage() {
       <BingoGrid squares={SAMPLE_SQUARES} label="Sample card" compact />
 
       <SectionTitle>Sheets</SectionTitle>
-      <p className="ui-hint">Sheet: a panel over the page for details (a showing, a member's card) — × or Escape closes it.</p>
+      <p className="ui-hint">Sheet: a panel over the page for details (a showing, a member's card). × or Escape closes it.</p>
       <button type="button" className="btn" onClick={() => setSheet(true)}>Open a sheet</button>
       {sheet && (
         <Sheet label="Sample sheet" onClose={() => setSheet(false)}>

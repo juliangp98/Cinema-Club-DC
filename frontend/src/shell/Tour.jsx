@@ -19,9 +19,9 @@ const SLIDES = [
   { emoji: "🎟️", title: "Make plans together",
     body: "Tap any screening to say you're Going or Maybe. Your club sees who's going and can talk about it; afterwards, check in to say you went." },
   { emoji: "🍿", title: "Your club", club: true,
-    body: "The feed shows what your club is up to, and the Club page who's in it and how the month's going. Earn kernels by going out, in polls and in games — and give a few to each other." },
+    body: "The feed shows what your club is up to, and the Club page who's in it and how the month's going. Earn kernels by going out, in polls and in games, and give a few to each other." },
   { emoji: "🔕", title: "Nothing sent without a yes",
-    body: "No emails, Discord DMs or push notifications unless you turn them on — and nothing posts to Discord unless you choose to. It's all in your profile." },
+    body: "No emails, Discord DMs or push notifications unless you turn them on, and nothing posts to Discord unless you choose to. It's all in your profile." },
 ];
 
 // Last of all (R13): an invitation to set up Your taste, or leave it for later.
@@ -34,21 +34,21 @@ const STEPS = [
   { target: "nav:/calendar", page: "/calendar", title: "Calendar",
     body: "Every showtime at your club's theatres. Filter by theatre, format or time; tap one to RSVP, see who's going, or add it to your own calendar." },
   { target: "nav:/feed", page: "/feed", title: "Feed", club: true,
-    body: "What the club's up to — plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
+    body: "What the club's up to: plans, check-ins, comments and Monday recaps. Tap 🍿 Kernels on a screening to give (or take) a few." },
   { target: "nav:/play", page: "/play", title: "Play", club: true,
-    body: "Every poll, open and past, plus trivia, bingo and quiz games when your club turns them on — beside your kernels, this month's standings and this week's movers." },
+    body: "What's waiting on you, then a page for each part: challenges, trivia, bingo, polls and the quiz games, with your kernels and the club's standings." },
   { target: "nav:/theatres", page: "/theatres", title: "Theatres",
     body: "Each theatre's page: what's on, how to get there, and what members say about the screenings there." },
   { target: ".topbar-citymenu", title: "Your city",
-    body: "Which city's theatres and showtimes you see. It started with a guess from your time zone — change it here any time." },
+    body: "Which city's theatres and showtimes you see. It started with a guess from your time zone. Change it here any time." },
   { target: ".topbar-groupmenu", title: "Your clubs", club: true,
-    body: "In more than one club? Switch here — the calendar, feed and games follow." },
+    body: "In more than one club? Switch here, and the calendar, feed and games follow." },
   { target: ".topbar-bell", title: "The bell",
     body: "Club activity and your alerts. Alerts are opt-in: watchlist a film, or tap 🔔 Alert me on a Browse search, to hear when a theatre books it." },
   { target: "account", page: "/me", title: "You",
     body: "Your lists, and your Settings: profile, taste, notifications, Discord and Letterboxd. Replay this tour, or find Help, here any time." },
   { target: ".topbar-tour", page: "/me", title: "A tour of any page",
-    body: "On any page, tap ? up here for a quick tour of what that page does — and where its Help is." },
+    body: "On any page, tap ? up here for a quick tour of what that page does, and where its Help is." },
 ];
 
 const visible = el => el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;

@@ -25,12 +25,12 @@ import film_pool
 
 # key: (emoji, label, what it is, kernels per right answer)
 GAMES = {
-    'higher_lower': ('↕️', 'Higher or lower', 'A film and its year — did the next one come out before or after? '
+    'higher_lower': ('↕️', 'Higher or lower', 'A film and its year: did the next one come out before or after? '
                      'Keep the streak going.', 1),
     'who_said': ('🗣️', 'Who said it', 'A line from a film and four of its characters: who says it?', 1),
-    'still': ('🖼️', 'Guess the still', 'A still from a film, close up — zoom out if you need to. '
+    'still': ('🖼️', 'Guess the still', 'A still from a film, close up. Zoom out if you need to. '
               'The less you see, the more it pays.', 3),
-    'reviews': ('📝', 'Guess from the reviews', 'A line from a review — another if you need it. '
+    'reviews': ('📝', 'Guess from the reviews', 'A line from a review, and another if you need it. '
                 'The fewer it takes, the more it pays.', 3),
     'emoji': ('🎭', 'Emoji plot', "A film's story told in emojis: which film is it?", 1),
 }
@@ -584,7 +584,7 @@ def start(group, user, kind, source='site', rng=None):
     avoid = recent(user.id, group.id, kind)
     state = RULES[kind][0](group, rng, avoid=avoid) or (avoid and RULES[kind][0](group, rng))   # a repeat beats nothing
     if not state:
-        return None, "There's nothing to play with yet — try again later."
+        return None, "There's nothing to play with yet. Try again later."
     r = QuizRound(group_id=group.id, user_id=user.id, kind=kind, day=today(group), state_json=json.dumps(state), source=source)
     db.session.add(r)
     db.session.commit()
@@ -602,7 +602,7 @@ def answer(group, user, round_id, choice, rng=None):
     if err:
         return None, err
     if r.status == 'done':
-        return None, "That round is over — start another."
+        return None, "That round is over. Start another."
     state = json.loads(r.state_json)
     if choice == 'more':                                       # still / reviews: show more instead of answering
         if r.kind not in BY_STEP or state['step'] >= 3:

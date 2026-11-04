@@ -26,7 +26,7 @@ export default function CalendarLinks({ apiBase, clubId }) {
     if (!window.confirm("Make a new link? Calendars subscribed to the old one stop updating; you'll need to subscribe again.")) return;
     setError("");
     send(`${apiBase}/api/me/calendar/reset`, "POST", groupId ? { group_id: groupId } : {})
-      .then(setLinks, () => setError("Couldn't make a new link — try again."));
+      .then(setLinks, () => setError("Couldn't make a new link. Try again."));
   }
 
   const rows = clubId

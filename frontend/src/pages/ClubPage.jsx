@@ -167,7 +167,7 @@ export function LeaveClub({ group, apiBase, userId, onLeft }) {
       await send(`${apiBase}/api/groups/${group.slug}/members/${userId}`, "DELETE");
       onLeft();
     } catch (e) {
-      setError(e.data?.error || "Couldn't leave right now — try again.");
+      setError(e.data?.error || "Couldn't leave right now. Try again.");
     } finally { setBusy(false); }
   }
   return (

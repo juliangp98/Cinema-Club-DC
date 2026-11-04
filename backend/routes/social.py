@@ -620,7 +620,7 @@ def delete_message(message_id):
     if not msg or msg.user_id != user.id:
         return jsonify({'error': 'Not found'}), 404
     if not msg.deletable_on_site:
-        return jsonify({'error': 'This was posted in Discord — delete it there.'}), 400
+        return jsonify({'error': 'This was posted in Discord. Delete it there.'}), 400
     if msg.discord_message_id:
         thread = ShowtimeThread.query.filter_by(showtime_id=msg.showtime_id, group_id=msg.group_id).first()
         if thread:

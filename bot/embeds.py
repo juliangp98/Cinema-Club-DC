@@ -67,7 +67,7 @@ def drop_embed(event):
     date_min, date_max = p.get('date_min'), p.get('date_max')
 
     if p.get('first_scrape'):
-        title = f"🎬 Now tracking {name} — {n} showtimes added"
+        title = f"🎬 Now tracking {name} ({n} showtimes)"
     else:
         title = f"🎬 {name} just dropped {n} new showtimes"
 
@@ -152,7 +152,7 @@ def _showtime_line(s, include_counts=True):
     if s.get('format_label'):
         line += f" · {s['format_label']}"
     if s.get('off_sale'):
-        line += ' *(off sale — likely sold out)*'
+        line += ' *(off sale, likely sold out)*'
     elif s.get('is_sold_out'):
         line += ' *(sold out)*'
     if include_counts and (s.get('attendees') or s.get('attendees_more')):
@@ -261,7 +261,7 @@ def profile_embed(profile, own=False):
                           url=f"{SITE_URL}/people/{u['id']}" if u.get('id') else SITE_URL)
     genres = ', '.join(g['label'] for g in profile.get('genres') or [])
     embed.add_field(name='Favorite genres', inline=False, value=genres or (
-        'None yet — pick some below (and the rest of Your taste on the site); they shape /foryou and the chatbot.' if own
+        'None yet. Pick some below (and the rest of Your taste on the site); they shape /foryou and the chatbot.' if own
         else 'Kept private' if profile.get('taste_hidden') else '—'))
     if u.get('letterboxd_username'):
         handle = u['letterboxd_username']
@@ -307,7 +307,7 @@ def compare_embed(data, limit=5):
         embed.add_field(name=f"🎨 Taste match: {t['score']}%", inline=False,
                         value=f"You both love {shared}"[:1024] if shared else 'Nothing in common yet.')
     if not embed.fields:
-        embed.description = "Nothing lines up yet — add films with `/watch` and RSVP with `/rsvp`."
+        embed.description = "Nothing lines up yet. Add films with `/watch` and RSVP with `/rsvp`."
     embed.set_footer(text='Their profile on the site has the full picture')
     return embed
 
@@ -324,7 +324,7 @@ def history_embed(data, limit=15, check_in=False):
     embed = discord.Embed(title='🎞️ Your watch history' if you else f"🎞️ {data.get('name', 'Someone')}'s watch history",
                           colour=AMBER)
     if not items:
-        embed.description = ("Nothing logged yet — RSVP to a screening, then check in (**Went**) afterwards."
+        embed.description = ("Nothing logged yet. RSVP to a screening, then check in (**Went**) afterwards."
                              if you else "Nothing logged yet.")
         return embed
     lines = []
@@ -335,7 +335,7 @@ def history_embed(data, limit=15, check_in=False):
     if len(items) > limit:
         lines.append(f"…and {len(items) - limit} more on the site")
     if check_in:
-        lines.append('\nDid you make it to the 🎟️ ones? Check in below — it keeps your history and kernels right.')
+        lines.append('\nDid you make it to the 🎟️ ones? Check in below to keep your history and kernels right.')
     embed.description = '\n'.join(lines)[:4096]
     seen = sum(1 for i in items if i['status'] != 'missed')
     embed.set_footer(text=f"{plural(seen, 'screening', 'screenings')} · ✅ checked in · 🎟️ RSVP'd going"
@@ -401,7 +401,7 @@ def digest_message(digest, tag_watchers=False):
 
     plans = digest.get('plans', [])
     if plans:
-        _add_field(embed, '🤝 Make plans — nobody’s going yet',
+        _add_field(embed, '🤝 Make plans (nobody’s going yet)',
                    [f"**{p['title']}** — {_names(p['wanters'], 2, p.get('wanters_more', 0))} want to see it · next "
                     f"{_short_when(p['start_time'])} @ {p['theatre']}" for p in plans])
     _add_field(embed, '💎 Rare this week',      # the reasons already name the print format
@@ -452,7 +452,7 @@ def digest_message(digest, tag_watchers=False):
         embed.add_field(name='📊 Last week', value=' · '.join(bits)[:1024], inline=False)
 
     if not embed.fields:
-        embed.description = 'A quiet week — nothing on the calendar yet.'
+        embed.description = 'A quiet week. Nothing on the calendar yet.'
     drops = digest.get('new_on_calendar') or []
     new_line = ('New on the calendar: ' + ' · '.join(f"{d['theatre']} +{d['showtimes']}" for d in drops[:5]) + '\n') \
         if drops else ''
@@ -515,7 +515,7 @@ def ballot_embed(ballot, idx, note=None):
         lines[-1] += f" · **{ballot['answered']}/{len(cats)} answered**"
         lines.append(f"Your pick: {_pick_line(cat, mode)}")
         if cat.get('locked'):
-            lines.append("🔒 *This one's answer is in — picks are locked.*")
+            lines.append("🔒 *This one's answer is in, so picks are locked.*")
     if 'split' in cat:
         win = cat.get('correct_option_id')
         rows = []
@@ -547,7 +547,7 @@ def ballot_embed(ballot, idx, note=None):
                         value=f"**{score['kernels']} 🍿** · {score['correct']} of {score['total']} right · "
                               f"#{score['place']} of {score['of']}{so_far}")
     live = poll.get('reveal') == 'live' and mode != 'none'
-    footer = {'open': 'Picks save as you go — finish any time, here or on the site.'
+    footer = {'open': 'Picks save as you go. Finish any time, here or on the site.'
                       + (' Answers show as they come in.' if live else ''),
               'closed': 'Voting has closed — ' + ('answers show as they come in.' if live else 'results come once it’s scored.'),
               'scored': 'Final results.'}.get(status, '')
@@ -562,7 +562,7 @@ def poll_opened_embed(p):
     live = ' · answers show as they come in' if p.get('reveal') == 'live' and p.get('scoring_mode') != 'none' else ''
     deadline = f"\n{closes_line(p['closes_at'])}" if p.get('closes_at') else ''
     embed.description = (f"{plural(n, 'category', 'categories')}{by}\n{POLL_MODES.get(p.get('scoring_mode'), '')}{live}"
-                         f"{deadline}\n\nTap **Vote** — your ballot is private and picks save as you go.")
+                         f"{deadline}\n\nTap **Vote**: your ballot is private, and picks save as you go.")
     _live_standings(embed, p)
     return embed
 
@@ -616,7 +616,7 @@ def poll_results_embed(p):
     embed = discord.Embed(title=f"🏆 Results: {p['title']}"[:256], colour=AMBER, url=f"{SITE_URL}/polls/{p['poll_id']}")
     top = p.get('top') or []
     if not top:
-        embed.description = 'Scored — nobody voted this time.'
+        embed.description = 'Scored, but nobody voted this time.'
         return embed
     lines = [f"{MEDALS[i]} {actor_ref(t['name'], t.get('discord_user_id')) if t.get('name') else '*a member on the site*'}"
              f" — **{t['kernels']} 🍿** ({t['correct']} correct)" for i, t in enumerate(top)]
@@ -651,7 +651,7 @@ def thread_card_embed(card):
     if card.get('maybe') or card.get('maybe_more'):
         who.append(f"**Maybe:** {_people(card.get('maybe') or [], on_site=card.get('maybe_more', 0))}")
     lines.append(' · '.join(who) if who else '*Nobody has RSVP’d yet.*')
-    lines.append('-# Discuss in the thread below — comments here and on the site stay in sync.')
+    lines.append('-# Discuss in the thread below. Comments here and on the site stay in sync.')
     embed = discord.Embed(title=card['title'][:256], url=f"{SITE_URL}{card['site_path']}",
                           description='\n'.join(lines), colour=AMBER)
     if card.get('poster_url'):
@@ -735,7 +735,7 @@ def foryou_embed(result):
     films, total = result['films'], result['total']
     embed = discord.Embed(title='✨ For you', colour=AMBER, url=f"{SITE_URL}{result['browse_path']}")
     if not films:
-        embed.description = ("Nothing for you in the next two weeks yet — theatres add films every week."
+        embed.description = ("Nothing for you in the next two weeks yet. Theatres add films every week."
                              if result.get('taste_set') else
                              "Tell us what you like and this fills with films for you: pick genres with `/profile`, "
                              f"or set favorite films, people and theatres in Your taste on the site: {SITE_URL}/me?tab=settings#settings-taste")
@@ -832,7 +832,7 @@ def invite_embed(d):
     if d.get('started'):
         lines.append('-# This screening has started.')
     else:
-        lines.append('-# Tap Going or Maybe — it updates here and on the site.')
+        lines.append('-# Tap Going or Maybe. It updates here and on the site.')
     embed = discord.Embed(title=c['title'][:256], url=f"{SITE_URL}{c['site_path']}",
                           description='\n'.join(lines)[:4000], colour=AMBER)
     thumb = _image_url(c.get('poster_url'))
@@ -847,7 +847,7 @@ def poll_post_embed(p):
         return poll_opened_embed(p)
     embed = discord.Embed(title=f"🔒 Voting closed: {p['title']}"[:256], colour=AMBER,
                           url=f"{SITE_URL}/polls/{p['poll_id']}")
-    embed.description = ('Results are in — see them on the site.' if p.get('status') == 'scored'
+    embed.description = ('Results are in. See them on the site.' if p.get('status') == 'scored'
                          else 'Answers are coming in.' if p.get('decided') else 'Results coming soon.')
     _live_standings(embed, p)
     return embed
@@ -857,7 +857,7 @@ def poll_post_embed(p):
 
 HELP_SECTIONS = [
     ('🎬 Find something to see', [
-        ('/showtimes', "what's playing — pick days, a date, a theatre, tickets; `going:True` for who's going; "
+        ('/showtimes', "what's playing by day, date, theatre or tickets; `going:True` for who's going; "
                        "`city:` another city's"),
         ('/movie', "a film's details and showtimes"),
         ('/foryou', "films picked for you from Your taste and what you've seen"),
@@ -890,14 +890,14 @@ HELP_SECTIONS = [
         ('/poll answers', 'mark the answers, close and finalize (whoever runs the poll)'),
     ]),
     ('👤 You and the club', [
-        ('/profile', "yours, or @someone's — history (and check-ins), watchlist, compare, give kernels"),
+        ('/profile', "yours, or @someone's: history (and check-ins), watchlist, compare, give kernels"),
         ('/club', "the club at a glance: members, theatres, this month's numbers"),
         ('/link', 'optional: connect an existing site account'),
     ]),
     ('📰 Extras', [
         ('/digest', "this week's digest (if your club has it on), or a preview just for you"),
         ('/announcements', "which theatres' new showtimes post in the channel"),
-        ('/quote', 'a random line of cinematic wisdom — or `action:` add, fix, remove and find quotes'),
+        ('/quote', 'a random line of cinematic wisdom, or `action:` add, fix, remove and find quotes'),
         ('/setup', "server admins: connect this server to your club, or move the bot's channel"),
     ]),
 ]
@@ -913,7 +913,7 @@ def give_embed(data, showtime_id=None):
     name, cards, a = data['name'], data.get('cards') or [], data['allowance']
     embed = discord.Embed(title=f"🍿 Give {name} kernels", colour=AMBER, url=f'{SITE_URL}/feed')
     if not cards:
-        embed.description = (f"Nothing to give for yet — kernels go to what {name} does on a screening "
+        embed.description = (f"Nothing to give for yet. Kernels go to what {name} does on a screening "
                              "(going, checking in, commenting).")
         return embed
     lines = []
@@ -933,7 +933,7 @@ def announced_embed(items, title):
     """/showtimes tickets:Coming soon — announced films, tickets not on sale yet."""
     embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/calendar?tickets=soon')
     if not items:
-        embed.description = 'Nothing announced for that window — these show up as theatres post upcoming dates.'
+        embed.description = 'Nothing announced for that window. These show up as theatres post upcoming dates.'
         return embed
     lines = [f"**[{_film_title(a['movie'])}]({SITE_URL}/films/{a['movie']['id']})** — {short_day(a['date'])} @ "
              f"{a['theatre'].get('short_name') or a['theatre']['name']}" for a in items[:20]]
@@ -957,7 +957,7 @@ def theatre_embed(t):
                           url=f"{SITE_URL}/theatres/{t['slug']}", description='\n'.join(h for h in head if h))
     week = [f"**[{_film_title(c['movie'])}]({SITE_URL}/films/{c['movie']['id']})** — {_next_line(c)}" for c in t.get('week') or []]
     if t.get('week_total', 0) > len(week):
-        week.append(f"…and {t['week_total'] - len(week)} more — pick one below or see them all on the site")
+        week.append(f"…and {t['week_total'] - len(week)} more. Pick one below or see them all on the site.")
     _add_field(embed, '🎬 This week', week or ['Nothing on the schedule this week.'])
     soon = [f"**{_film_title(a['movie'])}** — {short_day(a['date'])}" for a in t.get('announced') or []]
     _add_field(embed, '🔜 Coming soon (not on sale yet)', soon, limit=5)
@@ -1028,7 +1028,7 @@ def notify_settings_embed(s):
     searches = s.get('searches') or []
     embed.add_field(name=f'Saved searches ({len(searches)})', inline=False, value=(
         '\n'.join(f"• [{x['label']}]({SITE_URL}{x['path']})" for x in searches)[:1000] if searches
-        else '*None yet — on the site, Browse with some filters and tap 🔔 Alert me.*'))
+        else '*None yet. On the site, Browse with some filters and tap 🔔 Alert me.*'))
     return embed
 
 
@@ -1050,12 +1050,12 @@ def kernels_embed(k):
     embed.add_field(name='Going out', inline=False, value=(
         f"Checked in +{d['went']} · planned it +{d['planned']} · trailblazer +{d['trailblazer']} · crew nights +{d['crew']}"))
     embed.add_field(name='This week', inline=False, value=(
-        f"{a['give_left']} to give · {a['take_left']} to take — 🍿 Give kernels on someone's `/profile`, "
+        f"{a['give_left']} to give, {a['take_left']} to take. 🍿 Give kernels on someone's `/profile`, "
         f"or the feed at {SITE_URL}/feed (resets Monday)"))
     embed.add_field(name='How to earn', inline=False, value='\n'.join([
         f"• Check in after a screening: **+{r['went']}** (+{r['planned']} more if you'd said you were going)",
         f"• Be first going to a screening: **+1** for each member who joins (up to {r['trailblazer_max']})",
-        f"• Crew night — {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
+        f"• Crew night, when {r['crew_min']}+ members check in to the same screening: **+{r['crew']}** each",
         '• Right picks in scored polls',
         *([f"• Trivia question of the day: {by_level(r['trivia'])} for a right answer (`/play solo`)"] if r.get('trivia') else []),
         *([f"• Anytime trivia: {by_level(r['trivia_anytime']['each'])} each, up to {r['trivia_anytime']['per_day']} a day"]
@@ -1095,7 +1095,7 @@ def bingo_card_post_embed(post):
     sq = post['squares']
     lines = [f"{s['emoji']} **{s['label']}** — *{s['hint']}*" for s in sq]
     embed = discord.Embed(title=f"🎱 {post['month_label']}'s repertory bingo card", colour=AMBER, url=f'{SITE_URL}/play/bingo',
-                          description='Fills in by itself when you check in ("Went") to screenings this month — '
+                          description='Fills in by itself when you check in ("Went") to screenings this month. '
                                       'the middle is free.\n\n' + '\n'.join(lines))
     embed.set_footer(text=f"A line of 3 is bingo: +{post['rules']['line']} 🍿 · the full card +{post['rules']['full']} 🍿 · yours: /play solo")
     return embed
@@ -1124,7 +1124,7 @@ def quiz_round_embed(r):
     if r['kind'] == 'higher_lower':
         cur, nxt = r['current'], r['next']
         if r['done']:
-            body = (f"{said}\n{_year_film(nxt)} came out in **{nxt['year']}** — "
+            body = (f"{said}\n{_year_film(nxt)} came out in **{nxt['year']}**, "
                     f"{'before' if nxt['year'] < cur['year'] else 'after'} {_year_film(cur)}.\n\n"
                     f"Streak: **{r['score']}**")
         else:
@@ -1179,15 +1179,15 @@ def challenge_embed(c, note=None):
         length = (f"{len(c['rounds'])} games: " + ', '.join(f"{r['emoji']} {r['label']}" for r in c['rounds'])
                   + ' — most games won takes it')
     else:
-        length = f"{c['questions']} questions" if c.get('questions') else 'one run — longest streak wins'
+        length = f"{c['questions']} questions" if c.get('questions') else 'one run, longest streak wins'
     lines = [f"Started by **{c['created_by']['name']}** · {length}", _stakes(c)]
     if c['status'] == 'open':
         lines.append(closes_line(c['closes_at']).replace('Voting closes', 'Closes'))
         lines.append('Scores show as each player finishes.' if c['reveal'] == 'live' else 'Scores stay sealed until everyone has played.')
         if c['seats_left']:
-            lines.append(f"🪑 {c['seats_left']} open seat{'s' if c['seats_left'] != 1 else ''} — anyone in the club can join")
+            lines.append(f"🪑 {c['seats_left']} open seat{'s' if c['seats_left'] != 1 else ''}. Anyone in the club can join.")
     elif c['status'] == 'cancelled':
-        lines.append('Called off — nothing changed hands.')
+        lines.append('Called off. Nothing changed hands.')
     rows = []
     for p in c['players']:
         score = f" — **{p['score']}**" if p.get('score') is not None else ''
@@ -1209,7 +1209,7 @@ def challenge_embed(c, note=None):
         lines += ['', note]
     t = c.get('tournament')
     if t:                                                  # a tournament's match
-        lines.insert(0, f"{t['title']} · **{t['match']}** — one winner goes on")
+        lines.insert(0, f"{t['title']} · **{t['match']}**. One winner goes on.")
     title = (f"{status} {t['match']}: {c['emoji']} {c['label']}" if t else
              f"{status} {c['emoji']} {c['label']}{'' if c.get('gauntlet') else ' challenge'}")
     embed = discord.Embed(title=title[:256], colour=AMBER, description='\n'.join(lines)[:4000], url=f"{SITE_URL}/challenges/{c['id']}")
@@ -1241,7 +1241,7 @@ def challenge_post_embed(p):
         lines.append(f"\n🍿 {p['backing']['total']} 🍿 backing from {p['backing']['count']}"
                      + (' · back a player until the first one finishes' if p['backing']['open'] else ''))
     if p['status'] == 'open' and p['seats_left']:
-        lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''} — tap Join")
+        lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''}: tap Join")
     return discord.Embed(title=head.get(p['status'], head['open'])[:256], colour=AMBER, description='\n'.join(lines)[:4000],
                          url=f"{SITE_URL}/challenges/{p['challenge_id']}")
 
@@ -1271,7 +1271,7 @@ def tournament_embed(t, note=None):
         lines.append(f"Needs {t['min_players']}–{t['max_players']} players"
                      + (f" · 🪑 {t['seats_left']} open seat{'s' if t['seats_left'] != 1 else ''}" if t['seats_left'] else ''))
     elif t['status'] == 'cancelled':
-        lines.append('Called off — nothing changed hands.')
+        lines.append('Called off. Nothing changed hands.')
     rows = []
     for p in sorted(people, key=lambda p: (p['place'] or 9, p['seed'] or 99)):
         seed = f"#{p['seed']} " if p['seed'] else ''
@@ -1292,7 +1292,7 @@ def tournament_embed(t, note=None):
     if b['allowed'] and (b['count'] or b['open']):
         lines += ['', f"🍿 **Backing:** {b['total']} 🍿 from {b['count']}" + (' · open until the first match is decided' if b['open'] else '')]
     if t['you'].get('match'):
-        lines += ['', '▶ **Your match is ready** — 30 seconds a question.']
+        lines += ['', '▶ **Your match is ready.** 30 seconds a question.']
     if note:
         lines += ['', note]
     embed = discord.Embed(title=f"{TOURNAMENT_STATUS.get(t['status'], '🏆')}: {t['format_label']}"[:256], colour=AMBER,
@@ -1313,7 +1313,7 @@ def tournament_post_embed(p):
         lines.append(closes_line(p['closes_at']).replace('Voting closes', 'Entries close'))
         lines.append('In: ' + ', '.join(who(x['name']) for x in p['players'] if x['status'] == 'accepted'))
         if p['seats_left']:
-            lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''} — tap Join")
+            lines.append(f"🪑 {p['seats_left']} open seat{'s' if p['seats_left'] != 1 else ''}: tap Join")
     if p['status'] == 'done':
         lines += ['', *[f"{PLACES[n]} {who(name)}" for n, name in enumerate(p['places'], 1) if name or n == 1]]
     ms = p.get('matches') or []
@@ -1390,9 +1390,9 @@ def review_note(post, error=None):
                  if post['kind'] == 'trivia' and post.get('answer') is not None else '')
         return f"👀 Waiting for your OK: here's {what} as it'll look in the club's channel.{extra}"
     if status == 'skipped' and post.get('until'):
-        return f"⏭️ Skipped — nothing was posted. Changed your mind? You can post it after all until {post['until']}."
-    return {'approved': "✅ Approved — it goes up in the club's channel in a minute.", 'posted': "✅ Posted in the club's channel.",
-            'skipped': '⏭️ Skipped — nothing was posted.', 'expired': '⌛ Too late — nothing was posted.'}.get(status, '')
+        return f"⏭️ Skipped, so nothing was posted. Changed your mind? You can post it after all until {post['until']}."
+    return {'approved': "✅ Approved. It goes up in the club's channel in a minute.", 'posted': "✅ Posted in the club's channel.",
+            'skipped': '⏭️ Skipped. Nothing was posted.', 'expired': '⌛ Too late. Nothing was posted.'}.get(status, '')
 
 
 def play_embed(p):
@@ -1402,12 +1402,12 @@ def play_embed(p):
     t = p.get('trivia')
     if t:
         if t['to_answer']:
-            lines.append("🧠 **Today's trivia question is waiting** — one try")
+            lines.append("🧠 **Today's trivia question is waiting** (one try)")
         elif t['answered']:
             lines.append(f"🧠 Today's question: {'✅ you got it' if t['correct'] else '❌ missed'}"
                          + (' · more anytime' if t['anytime'] else ' · a new one tomorrow'))
         elif t['anytime']:
-            lines.append('🎲 Anytime trivia is on — play a question whenever you like')
+            lines.append('🎲 Anytime trivia is on: play a question whenever you like')
     b = p.get('bingo')
     if b:
         grid = '\n'.join(' '.join('🟩' if b['cells'][r * 3 + c] else '⬛' for c in range(3)) for r in range(3))
@@ -1436,7 +1436,7 @@ def play_embed(p):
                  f"{k['allowance']['take_left']} to take this week")
     embed = discord.Embed(title=f"🎮 Play at {p.get('club') or 'the club'}", colour=AMBER, url=f'{SITE_URL}/play',
                           description='\n\n'.join(lines))
-    embed.set_footer(text='Tap a button to play — only you see it · how to earn kernels: 🍿 My kernels')
+    embed.set_footer(text='Tap a button to play (only you see it). How to earn kernels: 🍿 My kernels')
     return embed
 
 
@@ -1453,7 +1453,7 @@ def bingo_embed(b):
              + (f" — {s['by']['title']}" if s.get('by') else f" — {s['home']['title']} (at home)" if s.get('home')
                 else f" — *{s['hint']}*") for s in sq if s['key'] != 'free']
     status = ('🎉 **Full card!**' if b['full'] else '🎉 **Bingo!** Now the full card…' if b['line']
-              else f"{b['filled']} of 8 — a line of 3 (the middle's free) is bingo")
+              else f"{b['filled']} of 8. A line of 3 (the middle's free) is bingo")
     embed = discord.Embed(title=f"🎱 Repertory bingo · {b['month_label']}", colour=AMBER, url=f'{SITE_URL}/play/bingo',
                           description=f"{grid}\n\n{status}\n\n" + '\n'.join(lines))
     leaders = [f"{r['user']['name']} {r['filled']}/8" + (' 🎉' if r['line'] else '') for r in b.get('club', [])[:6]]
@@ -1472,8 +1472,8 @@ def trivia_result(q):
     right = q['options'][q['answer']]
     st = q.get('stats') or {}
     earned = q.get('earned', q.get('kernels', 2))
-    head = (f"✅ Right — **{right}**!" + (f" +{earned} 🍿" if earned else '') if q['mine']['correct']
-            else f"❌ Not quite — it was **{right}**.")
+    head = (f"✅ Right, it's **{right}**!" + (f" +{earned} 🍿" if earned else '') if q['mine']['correct']
+            else f"❌ Not quite. It was **{right}**.")
     if q.get('anytime'):
         return head
     return f"{head}\n-# {st.get('correct', 0)} of {st.get('answered', 0)} got it so far. New question tomorrow."
@@ -1481,9 +1481,9 @@ def trivia_result(q):
 
 def help_embed():
     """/help: the main commands, grouped, one line each."""
-    embed = discord.Embed(title='🍿 CinemaBot — quick guide', colour=AMBER, url=f'{SITE_URL}/help',
+    embed = discord.Embed(title='🍿 CinemaBot quick guide', colour=AMBER, url=f'{SITE_URL}/help',
                           description='No setup needed: commands work as soon as you use them here.\n'
-                                      f'📖 **Full guide** — how everything works, on the site and here: {SITE_URL}/help')
+                                      f'📖 **Full guide** to how everything works, on the site and here: {SITE_URL}/help')
     for name, rows in HELP_SECTIONS:
         embed.add_field(name=name, inline=False, value='\n'.join(f'`{cmd}` — {what}' for cmd, what in rows))
     embed.set_footer(text=f'Everything else (calendar, Discover, your lists) → {SITE_URL}')
@@ -1498,7 +1498,7 @@ def setup_done_embed(club_name, channel, missing, connected):
     title = f'✅ Connected to {club_name}' if connected else f'✅ {club_name} posts here now'
     embed = discord.Embed(title=title, colour=AMBER, url=f'{SITE_URL}/club?tab=settings#club-settings-discord-server')
     embed.description = (f"I'll post in {mention}: schedule drops for the theatres the club turns on, the Monday "
-                         "digest, game posts and screening threads — whatever the club chooses in Club settings.\n"
+                         "digest, game posts and screening threads, whatever the club chooses in Club settings.\n"
                          "Anyone here who uses a command joins the club; nobody needs a site account.")
     if missing:
         embed.add_field(name="⚠️ I can't do everything here yet", inline=False,
@@ -1510,7 +1510,7 @@ def setup_done_embed(club_name, channel, missing, connected):
 def missing_permissions_message(server_name, channel, missing):
     """A DM to whoever connected a server when the bot loses something it needs."""
     where = getattr(channel, 'mention', None) or 'its channel'
-    return (f"Heads up — in **{server_name}** I can't do everything in {where} anymore. "
+    return (f"Heads up: in **{server_name}** I can't do everything in {where} anymore. "
             f"I need: {', '.join(missing)}. (Server Settings → Integrations, or the channel's permissions.)")
 
 

@@ -140,7 +140,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
             </SettingRow>
             <SwitchRow label="Listed on the Clubs page" checked={!!group.is_public} onChange={set("is_public")}
                        hint={group.is_public ? "Anyone signed in can find the club and ask to join; an admin approves each request."
-                         : "Invite-only: hidden from the Clubs page, and nobody can ask to join — members come in by your invite (Members)."} />
+                         : "Invite-only: hidden from the Clubs page, and nobody can ask to join. Members come in by your invite (Members)."} />
             <div className="ui-setting stack">
               <div className="ui-setting-text">
                 <label className="ui-setting-label" htmlFor="club-desc">Description</label>
@@ -239,7 +239,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
         </SettingsSection>
 
         <SettingsSection id="settings-discord" title="Discord"
-                         intro="The club's Discord server: the bot posts there (what you choose here), and members use its commands — anyone who does joins the club.">
+                         intro="The club's Discord server: the bot posts there (what you choose here), and members use its commands. Anyone who does joins the club.">
           <ClubDiscord group={group} apiBase={apiBase} isAdmin={isAdmin} run={run} onConnected={() => onChanged?.()} />
         </SettingsSection>
 
@@ -253,7 +253,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
             <Panel as="div" className="game-setting" title="🧠 Trivia: question of the day"
                    aside={<Switch label="Trivia: question of the day" checked={!!group.trivia?.enabled} onChange={set("trivia_enabled")} />}>
               <p className="ui-hint">One question a day, the same for everyone, about films and classic quotes. A right answer is worth
-                1, 2 or 3 kernels — easy, medium or hard.</p>
+                1, 2 or 3 kernels (easy, medium or hard).</p>
               <SwitchRow label="Play anytime" checked={!!group.trivia?.anytime} onChange={set("trivia_anytime")}
                          hint="Extra questions whenever members like (on Play, or /play solo in Discord): +1 kernel (+2 if hard), up to 5 a day." />
               {(group.trivia?.enabled || group.trivia?.anytime) && (
@@ -275,7 +275,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
                            hint="Films members log that month fill the film squares, for those who've connected Letterboxd. A line that needs one is +3, the card +10." />
                 {postRow("Post each month's card", "On the 1st, with its squares; Ask first can reshuffle it before it goes up.",
                          "bingo_card_post", group.bingo?.card_post)}
-                {postRow("Post wins", "“Ana got bingo! 🎉” — naming only members whose sharing settings say Always for game wins.",
+                {postRow("Post wins", "“Ana got bingo! 🎉” It names only members whose sharing settings say Always for game wins.",
                          "bingo_wins_post", group.bingo?.wins_post, NEVER_ALWAYS)}
               </>)}
             </Panel>
@@ -290,7 +290,7 @@ export default function ClubSettings({ group, apiBase, viewerId, isAdmin = true,
 
             <Panel as="div" className="game-setting" title="⚔️ Challenges"
                    aside={<Switch label="Challenges" checked={!!group.challenges?.enabled} onChange={set("challenges_enabled")} />}>
-              <p className="ui-hint">Members challenge each other in the club's games — one game or a gauntlet, the same questions for
+              <p className="ui-hint">Members challenge each other in the club's games: one game or a gauntlet, the same questions for
                 everyone, kernels from each player into a pot for the winner. Uses the games that are on.</p>
               {group.challenges?.enabled && (<>
                 <SettingRow stack label="Most a player can stake" hint="Each challenge's stake is the same for every player, from 0 up to this.">

@@ -83,7 +83,7 @@ function Surprise({ apiBase, groupId }) {
         </div>
       ) : (
         <div className="surprise-empty">
-          <p>{state === "empty" ? "Nothing left to suggest for then — try a wider window." : "Can't decide? Let the projector pick."}</p>
+          <p>{state === "empty" ? "Nothing left to suggest for then. Try a wider window." : "Can't decide? Let the projector pick."}</p>
           <button className="btn btn-primary" onClick={() => spin()} disabled={state === "loading"}>
             🎲 {state === "loading" ? "Picking…" : "Pick a film"}
           </button>
@@ -235,7 +235,7 @@ export function DoubleFeatures({ items, scope = "" }) {
       <SectionTitle link={{ to: `/discover/doubles${moreQuery(scope)}`, label: "See all →" }}>
         Double features
       </SectionTitle>
-      <p className="shelf-blurb">Two films, one theatre, one evening — with time for a drink in between.</p>
+      <p className="shelf-blurb">Two films, one theatre, one evening, with time for a drink in between.</p>
       <div className="doubles">
         {items.slice(0, 6).map((d, i) => <DoubleCard key={i} d={d} />)}
       </div>
@@ -247,7 +247,7 @@ export function DoubleFeatures({ items, scope = "" }) {
 export function Announced({ items }) {
   return (
     <section className="shelf">
-      <SectionTitle>Announced — tickets soon</SectionTitle>
+      <SectionTitle>Announced, tickets soon</SectionTitle>
       <p className="shelf-blurb">Coming, but not on sale yet. Watchlist one and we'll tell you the moment tickets are.</p>
       <div className="shelf-row">
         {items.map(a => <AnnouncedCard key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}
@@ -313,7 +313,7 @@ function JoinClub({ user }) {
     <Panel tone="callout" title={user ? "Find your club" : "Better with a club"}
            actions={<Link className="btn btn-primary" to={user ? "/groups" : "/signin?next=%2Fgroups"}>{user ? "Browse clubs" : "Sign in"}</Link>}>
       <p>
-        Clubs see who's going to what, plan screenings together, vote in polls and talk films — on the site and in Discord.
+        Clubs see who's going to what, plan screenings together, vote in polls and talk films, on the site and in Discord.
         {user ? " Join one to see it here." : " Sign in to join one; browsing what's playing is open to everyone."}
       </p>
     </Panel>

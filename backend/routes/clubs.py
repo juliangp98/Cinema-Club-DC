@@ -497,7 +497,7 @@ def join_group(slug):
     if existing:
         return jsonify({'error': 'Already a member or request pending', 'status': existing.status}), 409
     if not group.is_public:                  # invite-only: an admin's invite is the way in
-        return jsonify({'error': "This club is invite-only — ask one of its admins for an invite."}), 403
+        return jsonify({'error': "This club is invite-only. Ask one of its admins for an invite."}), 403
 
     membership = GroupMembership(user_id=user.id, group_id=group.id, role='member', status='pending')
     db.session.add(membership)

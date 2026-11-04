@@ -9,7 +9,7 @@ import { mockApi, renderPage } from "./support";
 // Tickets (R15): All · Available · Sold out · Coming soon on Browse and the
 // Calendar (and in the Filters sheet), kept in the address; announced films
 // show on the day a theatre expects them. A showing gone from a theatre's
-// site is "Off sale — likely sold out" (Phase 8).
+// site is "Off sale, likely sold out" (Phase 8).
 
 const announced = { movie: { id: 9, title: "NEXT WEEK", year: 1999 }, theatre: { slug: "suns", name: "Suns Cinema", short_name: "Suns", color: "#c33" },
                     date: "2026-10-21" };
@@ -19,7 +19,7 @@ const browseReply = (films = [], soon = []) => ({ films, total: films.length, ne
 test("Browse: the ticket chips filter through the address, and announced films come first", async () => {
   const calls = mockApi({ "GET /api/theatres": [], "GET /api/discover/browse": browseReply([], [announced]) });
   renderPage(<BrowsePage apiBase="" groupId={null} user={null} />, { route: "/browse" });
-  expect(await screen.findByText("Announced — tickets soon")).toBeInTheDocument();
+  expect(await screen.findByText("Announced, tickets soon")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /NEXT WEEK/ })).toHaveAttribute("href", "/films/9");
   expect(screen.queryByText(/Nothing matches/)).toBeNull();
   const chips = screen.getByRole("group", { name: "Tickets" });
@@ -54,7 +54,7 @@ test("a showing gone from the theatre's site says it's off sale, and can still b
   const show = (extra) => ({ id: 1, start_time: "2099-10-21T19:00:00", end_time: null, purchase_link: "https://example.test/t",
                              theatre: { slug: "afi", name: "AFI Silver" }, is_sold_out: true, ...extra });
   const { unmount } = renderPage(<TicketRow showtime={show({ off_sale: true })} apiBase="" onRsvp={() => {}} />);
-  expect(screen.getByText("Off sale — likely sold out")).toBeInTheDocument();
+  expect(screen.getByText("Off sale, likely sold out")).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Your RSVP" })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: /Tickets/ })).toBeNull();
   unmount();

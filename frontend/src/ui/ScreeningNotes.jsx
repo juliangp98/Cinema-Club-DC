@@ -27,7 +27,7 @@ export default function ScreeningNotes({ apiBase, groupId, showtimeId }) {
   async function toggle(tag) {
     setError(null);
     send(`${apiBase}/api/notes`, "POST", { group_id: groupId, showtime_id: showtimeId, tag })
-      .then(setView, e => setError(e.data?.error || "Couldn't save that — try again."));
+      .then(setView, e => setError(e.data?.error || "Couldn't save that. Try again."));
   }
   const shown = view.can_add ? view.tags : view.tags.filter(t => t.count);
   return (
@@ -58,7 +58,7 @@ export function TheatreNotes({ apiBase, groupId, slug }) {
       <SectionTitle action={<span className="theatre-notes-span">{data.screenings} screening{data.screenings === 1 ? "" : "s"} · last 6 months</span>}>
         <span id="theatre-notes-title">What the club says</span>
       </SectionTitle>
-      <p className="shelf-blurb">From members who checked in here — the print, the sound, the crowd.</p>
+      <p className="shelf-blurb">From members who checked in here: the print, the sound, the crowd.</p>
       <ul className="note-tiles">
         {data.tags.map(t => (
           <li key={t.key} className={`note-tile${t.heads_up ? " heads-up" : ""}`}>

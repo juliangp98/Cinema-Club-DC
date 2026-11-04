@@ -92,7 +92,7 @@ export function faqLd(items) {
 const PRIVATE = /^\/(me|club|feed|play|polls|people|groups|signin|auth|invite|styleguide)(\/|$)/;
 const ROUTES = [
   [/^\/$/, () => ({})],
-  [/^\/calendar$/, () => ({ title: "Calendar", description: `Every showtime at ${city.phrase} repertory and independent theatres, day by day — film prints, Q&As, one-night-only shows and what's coming soon.` })],
+  [/^\/calendar$/, () => ({ title: "Calendar", description: `Every showtime at ${city.phrase} repertory and independent theatres, day by day: film prints, Q&As, one-night-only shows and what's coming soon.` })],
   [/^\/browse$/, () => ({ title: "Browse films", description: `Browse every film playing at ${city.phrase} repertory and independent theatres by date, theatre, genre, decade, format and mood.` })],
   [/^\/theatres$/, () => ({ title: "Theatres", description: `${city.phrase} independent and repertory theatres${knownFor().replace(/ —$/, ":")} what's on at each, maps and how to get there.` })],
   [/^\/theatres\/[^/]+$/, () => ({ title: "Theatre" })],

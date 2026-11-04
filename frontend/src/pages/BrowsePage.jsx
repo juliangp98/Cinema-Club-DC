@@ -60,7 +60,7 @@ export function SaveSearch({ apiBase, groupId, query }) {
       if (ok) { setSaved(saved.filter(s => s.id !== mine.id)); setNote("Alerts off for this search."); }
     } else {
       const d = await send(`${apiBase}/api/searches`, "POST", { params: search, group_id: groupId || null })
-        .catch(e => ({ failed: e.data?.error || "Couldn't save that — try again in a bit." }));
+        .catch(e => ({ failed: e.data?.error || "Couldn't save that. Try again in a bit." }));
       if (!d.failed) {
         setSaved([...saved, d.search]);
         setNote(`Saved. We'll tell you when a theatre books a new film that fits${d.fitting_now
@@ -226,7 +226,7 @@ export default function BrowsePage({ apiBase, groupId, user }) {
         <>
           {soon.length > 0 && (
             <>
-              <SectionTitle>Announced — tickets soon</SectionTitle>
+              <SectionTitle>Announced, tickets soon</SectionTitle>
               <div className="poster-grid browse-soon">{soon.map(a => <AnnouncedCard key={`${a.theatre.slug}:${a.movie.id}`} a={a} />)}</div>
             </>
           )}

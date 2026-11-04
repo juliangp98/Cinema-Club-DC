@@ -61,7 +61,7 @@ class ProfileView(discord.ui.View):
             profile = await api.post('/api/internal/profile', {**ident, **fields})
         except Exception as e:
             print(f'/profile save failed: {e}')
-            await tell(interaction, "Couldn't save that — try again in a bit.")
+            await tell(interaction, "Couldn't save that. Try again in a bit.")
             return
         await interaction.edit_original_response(embed=embeds.profile_embed(profile, own=True),
                                                  view=ProfileView(ident, profile))
@@ -99,7 +99,7 @@ class ProfileButton(discord.ui.DynamicItem[discord.ui.Button], template=r'prof:(
         await interaction.response.defer(ephemeral=True, thinking=True)
         own = self.discord_id == str(interaction.user.id)
         if own and self.what in ('cmp', 'give'):
-            await tell(interaction, "That's you — pick someone else's profile.")
+            await tell(interaction, "That's you. Pick someone else's profile.")
             return
         await {'hist': send_history, 'watch': send_watchlist, 'cmp': send_compare,
                'give': send_give}[self.what](interaction, None if own else self.discord_id)
@@ -156,7 +156,7 @@ async def send_compare(interaction, member_discord_id):
     await interaction.followup.send(embed=embeds.compare_embed(data), ephemeral=True)
 
 
-@client.tree.command(name='profile', description="Your profile — or a member's: history, watchlist, compare, give kernels")
+@client.tree.command(name='profile', description="Your profile or a member's: history, watchlist, compare, give kernels")
 @app_commands.describe(member='Whose profile to see (default: yours, with edit controls)')
 async def profile(interaction: discord.Interaction, member: discord.User = None):
     await interaction.response.defer(ephemeral=True)

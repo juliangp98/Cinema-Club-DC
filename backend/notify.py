@@ -28,7 +28,7 @@ TYPES = {
     'bingo_card': ('Bingo: a new card', 'On the 1st, with this month\u2019s squares.'),
     'bingo_win': ('Bingo: your line or full card', 'When your check-ins complete a line or the card, with the kernels.'),
     'poll_result': ('Polls: your results', 'When a poll you voted in is finalized: your kernels and your place. In the bell only.'),
-    'challenge_invite': ('Challenges: someone challenges you', 'An invite to a challenge or tournament, with what’s on the line — and when your tournament match is ready. It waits in the bell until you answer or play.'),
+    'challenge_invite': ('Challenges: someone challenges you', 'An invite to a challenge or tournament, with what’s on the line, and when your tournament match is ready. It waits in the bell until you answer or play.'),
     'challenge_result': ('Challenges: results and backing', 'How a challenge or tournament you played or backed came out, and when someone backs you. In the bell only.'),
     'challenge_open': ('Challenges: new ones to watch and back', 'When members start a challenge or tournament the club can see. In the bell only.'),
     'reviews': ('A game post is waiting for your OK', 'Club organizers and admins: the question of the day or the month\u2019s card, when Club settings say Ask first.'),
@@ -372,7 +372,7 @@ def save_search(user, params, group_id=None, now=None, city=None):
     if same:
         return same, len({m for m, _ in search_matches(same, now)}), None
     if SavedSearch.query.filter_by(user_id=user.id).count() >= MAX_SEARCHES:
-        return None, 0, f'You can save up to {MAX_SEARCHES} searches — remove one first.'
+        return None, 0, f'You can save up to {MAX_SEARCHES} searches. Remove one first.'
     s = SavedSearch(user_id=user.id, group_id=group_id, params_json=raw, label=search_label(p),
                     city=None if group_id else places.viewer_city(user, None, city or places.asked_city()))
     db.session.add(s)
@@ -532,7 +532,7 @@ def _describe_challenge(kind, p):
                 'link': link}
     net = f"{p.get('net', 0):+d} 🍿".replace('-', '−')
     if p.get('status') == 'cancelled':
-        return {'headline': f"Called off: {p.get('game', '')}", 'detail': "Not enough players — nothing changed hands.", 'link': link}
+        return {'headline': f"Called off: {p.get('game', '')}", 'detail': "Not enough players, so nothing changed hands.", 'link': link}
     won = ', '.join(p.get('winners') or []) or 'Nobody'
     if p.get('backed') is not None:
         how = net if p.get('net') else f"nobody backed {won}, so your {p.get('amount', 0)} 🍿 came back"

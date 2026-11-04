@@ -26,7 +26,7 @@ export function PushDevice({ apiBase, onSettings }) {
     setBusy(true); setMsg("");
     try {
       if (await Notification.requestPermission() !== "granted") {
-        setMsg("Notifications are blocked for this site — allow them in your browser's site settings, then try again.");
+        setMsg("Notifications are blocked for this site. Allow them in your browser's site settings, then try again.");
         return;
       }
       const reg = await navigator.serviceWorker.ready;
@@ -35,7 +35,7 @@ export function PushDevice({ apiBase, onSettings }) {
       setSub(s);
       onSettings(d);
     } catch {
-      setMsg("Couldn't turn on push here — try again in a bit.");
+      setMsg("Couldn't turn on push here. Try again in a bit.");
     } finally { setBusy(false); }
   }
   async function turnOff() {
@@ -49,7 +49,7 @@ export function PushDevice({ apiBase, onSettings }) {
   }
   async function test() {
     const ok = await post("test", {}).then(() => true, () => false);
-    setMsg(ok ? "Sent — it should pop up in a moment." : "Couldn't send a test just now.");
+    setMsg(ok ? "Sent! It should pop up in a moment." : "Couldn't send a test just now.");
   }
 
   let body;
@@ -97,7 +97,7 @@ export default function NotifySettings({ apiBase, save = fn => fn() }) {
     setS(cur => ({ ...cur, searches: cur.searches.filter(x => x.id !== id) }));
   }, "Removed");
 
-  if (failed) return <p className="ui-hint">Couldn't load your notification settings — try again in a bit.</p>;
+  if (failed) return <p className="ui-hint">Couldn't load your notification settings. Try again in a bit.</p>;
   if (!s) return null;
   const groups = [];
   for (const t of s.types_info) {
@@ -107,7 +107,7 @@ export default function NotifySettings({ apiBase, save = fn => fn() }) {
   return (
     <div className="notify-settings">
       <SettingsGroup title="Where alerts reach you">
-        <SwitchRow label="Site bell" hint="Always on — every alert is kept here." checked disabled onChange={() => {}} />
+        <SwitchRow label="Site bell" hint="Always on: every alert is kept here." checked disabled onChange={() => {}} />
         {CHANNELS.filter(([key]) => key !== "push" || s.push_ready).map(([key, name, missing]) => (
           <div key={key}>
             <SwitchRow label={name} hint={s.available[key] ? null : missing} checked={s.channels[key]} disabled={!s.available[key]}

@@ -111,7 +111,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     try {
       d = await send(`${apiBase}/api/search/ai`, "POST", { q: q.trim(), ...(groupId ? { group_id: groupId } : {}) });
     } catch (e) {
-      setError(e.data?.error || "Couldn't reach the AI — try again.");
+      setError(e.data?.error || "Couldn't reach the AI. Try again.");
       return;
     } finally { setThinking(false); }
     const text = `${d.ai ? "✨ " : ""}Showing: ${d.explain}${d.note ? ` — ${d.note}` : ""}`;
@@ -124,7 +124,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
     if (t.movie_id) { navigate(`/films/${t.movie_id}`); return; }
     send(`${apiBase}/api/films/from-tmdb`, "POST", { tmdb_id: t.tmdb_id })
       .then(d => navigate(`/films/${d.movie_id}`))
-      .catch(() => setError("Couldn't open that film — try again in a bit."));
+      .catch(() => setError("Couldn't open that film. Try again in a bit."));
   }
 
   let i = -1;
@@ -164,7 +164,7 @@ export default function SearchBox({ initial = "", onSearch, onApply, apiBase = "
                       </span>
                       <span className="searchbox-option-hint">
                         {key === "films" ? (x.playing ? `Next: ${nextLabel(x.next)} · ${x.theatre}` : "Not playing right now")
-                          : key === "tmdb" ? (x.movie_id ? "Not playing right now" : "Not listed here yet — open it to watchlist")
+                          : key === "tmdb" ? (x.movie_id ? "Not playing right now" : "Not listed here yet. Open it to watchlist")
                           : key === "people" ? `${ROLE[x.role] || "Person"} · ${x.count} film${x.count === 1 ? "" : "s"} playing`
                           : x.hint}
                       </span>

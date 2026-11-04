@@ -160,7 +160,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
     try {
       await send(`${apiBase}/api/polls/${pollId}`, "DELETE");
       navigate("/play/polls");
-    } catch (e) { setError(e.data?.error || "Couldn't delete it — try again."); }
+    } catch (e) { setError(e.data?.error || "Couldn't delete it. Try again."); }
   }
 
   const back = editing ? { to: `/polls/${pollId}`, label: "The poll" } : { to: "/play/polls", label: "Play" };
@@ -196,7 +196,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
           <div className="pv-scope">
             <span className="pv-label">Based on</span>
             <Segmented label="Based on" options={SCOPES} value={scope} onChange={setScope} />
-            <span className="ui-hint">{scope === "playing" ? "Options come from films playing at the club's theatres." : "Any films — not tied to what's playing."}</span>
+            <span className="ui-hint">{scope === "playing" ? "Options come from films playing at the club's theatres." : "Any films, not tied to what's playing."}</span>
           </div>
           <div className="pv-examples">
             {EXAMPLES.map(x => <button key={x} type="button" className="chip" onClick={() => setAsk(x)}>{x}</button>)}
@@ -218,7 +218,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
           <div className="pv-set">
             <span className="pv-label">How it's scored</span>
             <p>{TYPE_LABELS[form.poll_type]} · {SCORING_LABELS[form.scoring_mode]}{scored ? ` · Answers: ${REVEAL_LABELS[form.reveal].toLowerCase()}` : ""}</p>
-            <p className="ui-hint">Members have voted, so this stays as it is — their picks were made for it.</p>
+            <p className="ui-hint">Members have voted, so this stays as it is: their picks were made for it.</p>
           </div>
         ) : (
           <>
@@ -265,7 +265,7 @@ export default function PollEditorPage({ apiBase, activeGroupId }) {
             )}
           </div>
           <p className="ui-hint">
-            {deadline === "at" ? "It closes by itself then, on the club's clock — set it to when the ceremony or the weekend starts."
+            {deadline === "at" ? "It closes by itself then, on the club's clock. Set it to when the ceremony or the weekend starts."
                                : "Open until you tap Close voting."}
           </p>
         </div>}

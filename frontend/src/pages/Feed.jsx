@@ -55,8 +55,8 @@ export function KernelPanel({ people, allowance, error, busy, onToss }) {
   return (
     <div className="kernel-panel">
       <p className="kernel-allowance">
-        This week you have <strong>{allowance.give_left}</strong> to give · <strong>{allowance.take_left}</strong> to take
-        <span className="ui-hint"> — up to 3 each per screening (or take 1). Resets Monday.</span>
+        This week you have <strong>{allowance.give_left}</strong> to give and <strong>{allowance.take_left}</strong> to take.
+        <span className="ui-hint"> Up to 3 each per screening (or take 1). Resets Monday.</span>
       </p>
       <ul className="kernel-rows">
         {people.map(p => (
@@ -394,7 +394,7 @@ function RecapCard({ card, viewerId, onOpenShowtime }) {
 // Monday's digest (Club settings → Theatres): the week's picks as they were
 // published, plus the viewer's own watchlist films playing that week.
 const DIGEST_SECTIONS = [
-  ["plans", "🤝", "Make plans — nobody's going yet", x => `${x.wanted} members want to see it`],
+  ["plans", "🤝", "Make plans (nobody's going yet)", x => `${x.wanted} members want to see it`],
   ["rare", "💎", "Rare this week", x => x.reasons?.join(" · ")],
   ["opening", "🆕", "Opening this week", x => (x.theatres > 1 ? `at ${x.theatres} theatres` : null)],
   ["last_chance", "⏳", "Last chance", () => "last showing"],
@@ -438,7 +438,7 @@ export function DigestCard({ card, onOpenShowtime }) {
           )}
         </ul>
       )}
-      {!sections.length && !d.yours.length && <p className="feed-activity">A quiet week — nothing stood out.</p>}
+      {!sections.length && !d.yours.length && <p className="feed-activity">A quiet week. Nothing stood out.</p>}
     </article>
   );
 }
@@ -577,7 +577,7 @@ export default function Feed({ user, apiBase, groupId, filter = null, limit = nu
     try {
       d = await send(`${apiBase}/api/kernels/toss`, "POST", { group_id: groupId, showtime_id: showtimeId, user_id: userId, delta });
     } catch (e) {
-      return e.data?.error || "Couldn't do that — try again in a bit.";
+      return e.data?.error || "Couldn't do that. Try again in a bit.";
     }
     setAllowance(d.allowance);
     changed("kernels");                     // the kernel widgets and boards catch up

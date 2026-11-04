@@ -289,7 +289,7 @@
     {
      "id": "which-city",
      "q": "Which city's showtimes am I seeing?",
-     "a": "Your city's. In a club, the club's city; otherwise the one in the city menu at the top of the page — it starts with a guess from your time zone, and you can change it there any time (it's remembered). The menu only shows once the site covers more than one city. A film's page lists every city's showings, yours first, and a theatre outside your city says which city it's in."
+     "a": "Your city's. In a club, the club's city; otherwise the one in the city menu at the top of the page. It starts with a guess from your time zone, and you can change it there any time (it's remembered). The menu only shows once the site covers more than one city. A film's page lists every city's showings, yours first, and a theatre outside your city says which city it's in."
     },
     {
      "id": "page-tours",
@@ -299,7 +299,7 @@
     {
      "id": "ask-help",
      "q": "Can I ask Help a question in my own words?",
-     "a": "Yes — signed in, type it in the search box at the top of Help and tap ✨ Ask. The answer comes only from these topics, with links straight to the right place (which lights up when you land on it), and the topics it came from underneath. Without an account, the search box finds topics by their words."
+     "a": "Yes. Signed in, type it in the search box at the top of Help and tap ✨ Ask. The answer comes only from these topics, with links straight to the right place (which lights up when you land on it), and the topics it came from underneath. Without an account, the search box finds topics by their words."
     },
     {
      "id": "where-settings",
@@ -309,12 +309,12 @@
     {
      "id": "need-account",
      "q": "Do I need an account?",
-     "a": "No — anyone can browse. The first time you RSVP, add to a watchlist or react, you get a private guest profile in this browser. Keep it by adding an email or signing in with Discord ([account menu → Keep your profile](me)); otherwise it stays on this device only."
+     "a": "No, anyone can browse. The first time you RSVP, add to a watchlist or react, you get a private guest profile in this browser. Keep it by adding an email or signing in with Discord ([account menu → Keep your profile](me)); otherwise it stays on this device only."
     },
     {
      "id": "sign-in",
      "q": "How do I sign in?",
-     "a": "With an email link (no passwords — we send you a link that signs you in) or with Discord."
+     "a": "With an email link (no passwords: we send you a link that signs you in) or with Discord."
     },
     {
      "id": "clubs",
@@ -324,7 +324,7 @@
     {
      "id": "run-your-own",
      "q": "Can I start a club like this in my city?",
-     "a": "Yes — Cinema Club DC is open source. The site, the theatre scrapers and the Discord bot all run from [its code on GitHub](repo), with guides for deploying it and setting up your own bot. Point the scrapers at your city's theatres and run your own copy. (Here, [clubs](clubs) are for the DC area's theatres.)"
+     "a": "Yes, Cinema Club DC is open source. The site, the theatre scrapers and the Discord bot all run from [its code on GitHub](repo), with guides for deploying it and setting up your own bot. Point the scrapers at your city's theatres and run your own copy. (Here, [clubs](clubs) are for the DC area's theatres.)"
     },
     {
      "id": "leave-club",
@@ -350,12 +350,12 @@
     {
      "id": "search",
      "q": "How do I search or filter?",
-     "a": "Type in [the search box](search) for films, people, theatres or genres — or describe what you want (\"a 70mm epic this weekend\") and tap ✨ (for club members). [Browse has the full filters](browse-filters): theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."
+     "a": "Type in [the search box](search) for films, people, theatres or genres, or describe what you want (\"a 70mm epic this weekend\") and tap ✨ (for club members). [Browse has the full filters](browse-filters): theatre, region, on film, time of day, rarity, decade, genre, mood and more. Every Browse view is a link you can share."
     },
     {
      "id": "tickets",
-     "q": "Can I hide sold-out showings — or see what's coming?",
-     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) . [Watchlist one](help:watchlist) to hear the moment tickets go on sale. A showing that disappears from a theatre's site says “Off sale — likely sold out” (some theatres just drop a full show); it counts as sold out, and your RSVP stays. Discover's suggestions only ever pick showings you can still get into."
+     "q": "Can I hide sold-out showings, or see what's coming?",
+     "a": "Use the ticket chips on [the Calendar](calendar-tickets), [Browse](browse-tickets) and each theatre's page (or Filters → Tickets): All, Available, Sold out, or Coming soon. All and Coming soon also show films a theatre has announced but isn't selling tickets for yet, on the day it expects them (“Tickets soon”) . [Watchlist one](help:watchlist) to hear the moment tickets go on sale. A showing that disappears from a theatre's site says “Off sale, likely sold out” (some theatres just drop a full show); it counts as sold out, and your RSVP stays. Discover's suggestions only ever pick showings you can still get into."
     },
     {
      "id": "film-theatre-pages",
@@ -381,7 +381,7 @@
     {
      "id": "plans-calendar",
      "q": "Can I see my plans in my own calendar?",
-     "a": "Yes — [Settings → Connections](me-calendar) on the Me page: subscribe once in Google Calendar or Apple / Outlook and your plans (or the club's) stay in sync. Anyone with the link can see it, so keep it to yourself; New link turns the old one off."
+     "a": "Yes, in [Settings → Connections](me-calendar) on the Me page: subscribe once in Google Calendar or Apple / Outlook and your plans (or the club's) stay in sync. Anyone with the link can see it, so keep it to yourself; New link turns the old one off."
     }
    ]
   },
@@ -392,12 +392,12 @@
     {
      "id": "watchlist",
      "q": "What's the watchlist for?",
-     "a": "Films you want to see — even ones that aren't playing yet. When a theatre books (or announces) one, you can [get an alert](help:alert-kinds); your club can see what you want to see too. Already keep one on Letterboxd? [Bring it in](help:letterboxd-watchlist)."
+     "a": "Films you want to see, even ones that aren't playing yet. When a theatre books (or announces) one, you can [get an alert](help:alert-kinds); your club can see what you want to see too. Already keep one on Letterboxd? [Bring it in](help:letterboxd-watchlist)."
     },
     {
      "id": "plans-history",
      "q": "Where are my plans and history?",
-     "a": "On [the Me page](me-lists): your watchlist, what you're going to, and your watch history. Tap anyone's picture or name to open their page — its Compare shows what you both want to see and are going to."
+     "a": "On [the Me page](me-lists): your watchlist, what you're going to, and your watch history. Tap anyone's picture or name to open their page. Its Compare shows what you both want to see and are going to."
     }
    ]
   },
@@ -418,37 +418,37 @@
     {
      "id": "taste-who",
      "q": "Who can see my taste?",
-     "a": "Only you, unless you switch on “Show my taste on my profile” in [Settings → Privacy and sharing](settings-privacy) — then people in your clubs see it on your profile and with /profile in Discord."
+     "a": "Only you, unless you switch on “Show my taste on my profile” in [Settings → Privacy and sharing](settings-privacy); then people in your clubs see it on your profile and with /profile in Discord."
     },
     {
      "id": "for-you",
      "q": "What's “For you”?",
-     "a": "A row near the top of [Discover](discover-for-you) (and “For you here” on each theatre's page) with films playing in the next two weeks that fit your taste — each says why: a favorite director, a genre you love, on 35mm, at a theatre you like. It also learns from what you watchlist, plan, see and rate well on Letterboxd. Films you've already seen are left out. [Theatres](theatres) shows how many are for you at each one."
+     "a": "A row near the top of [Discover](discover-for-you) (and “For you here” on each theatre's page) with films playing in the next two weeks that fit your taste, each saying why: a favorite director, a genre you love, on 35mm, at a theatre you like. It also learns from what you watchlist, plan, see and rate well on Letterboxd. Films you've already seen are left out. [Theatres](theatres) shows how many are for you at each one."
     },
     {
      "id": "not-for-me",
-     "q": "A pick isn't for me — can I get rid of it?",
+     "q": "A pick isn't for me. Can I get rid of it?",
      "a": "Tap “Not for me” under it: it's gone from For you. You'll find it under Not for me in [Your taste](profile-taste) if you change your mind."
     },
     {
      "id": "not-into",
      "q": "What does “Not into” do?",
-     "a": "Films in a genre you're not into rank lower — they only show up when something else about them is a strong fit (say, a favorite director's)."
+     "a": "Films in a genre you're not into rank lower. They only show up when something else about them is a strong fit (say, a favorite director's)."
     },
     {
      "id": "favorites-booked",
      "q": "Will I hear when a favorite's film is booked?",
-     "a": "Yes — when a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in [the 🔔 bell](bell) (by DM, email or push too only if you've turned those on). Switch it off under [Settings → Notifications → A favorite's film is booked](notify-which)."
+     "a": "Yes. When a theatre books one of your favorite films, or a film by a director, actor or writer in Your taste, it lands in [the 🔔 bell](bell) (by DM, email or push too only if you've turned those on). Switch it off under [Settings → Notifications → A favorite's film is booked](notify-which)."
     },
     {
      "id": "taste-match",
      "q": "What's taste match?",
-     "a": "If someone shows their taste, their profile (and Compare — on the site, or 🤝 Compare on their /profile in Discord) shows how alike your tastes are, and what you both love."
+     "a": "If someone shows their taste, their profile (and Compare, on the site or with 🤝 Compare on their /profile in Discord) shows how alike your tastes are, and what you both love."
     },
     {
      "id": "picks-discord",
      "q": "Can I see my picks in Discord?",
-     "a": "Yes — /foryou shows your For you picks privately, with why each one is there."
+     "a": "Yes. /foryou shows your For you picks privately, with why each one is there."
     },
     {
      "id": "genres",
@@ -479,7 +479,7 @@
     {
      "id": "screening-notes",
      "q": "What are screening notes?",
-     "a": "If your club turns them on, people who checked in to a screening can tag the night — gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."
+     "a": "If your club turns them on, people who checked in to a screening can tag the night: gorgeous print, sound trouble, packed house, great Q&A… They show on the screening, in the feed, and on theatre pages."
     },
     {
      "id": "club-city",
@@ -540,7 +540,7 @@
     {
      "id": "others-bingo",
      "q": "Can I see other members' bingo cards?",
-     "a": "Yes — under your card on [Play](play-bingo), the club's cards this month sit in one row (a gold edge is a line). Tap one to see its squares and the films that filled them. Each member's page has their card too, and their last six months."
+     "a": "Yes. Under your card on [Play](play-bingo), the club's cards this month sit in one row (a gold edge is a line). Tap one to see its squares and the films that filled them. Each member's page has their card too, and their last six months."
     },
     {
      "id": "records",
@@ -550,7 +550,7 @@
     {
      "id": "games-discord",
      "q": "Do the games post in the club's Discord?",
-     "a": "Only if a club organizer or admin says so, in [Club settings → Games](club-settings-discord), on each game's card: the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an organizer or admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card — if nobody does, it isn't posted. Skipped one by mistake? Post it after all (on Play, in [Club settings](club-game-posts) or from the DM) until 10 PM for the question, or the month's end for the card. Posts never ping anyone."
+     "a": "Only if a club organizer or admin says so, in [Club settings → Games](club-settings-discord), on each game's card: the question of the day and each month's bingo card can be Never, Ask first or Always, and bingo wins Never or Always. With Ask first, an organizer or admin sees the post exactly as it'll look (on the site, or by DM) and can post it, skip it, swap the question or reshuffle the card. If nobody does, it isn't posted. Skipped one by mistake? Post it after all (on Play, in [Club settings](club-game-posts) or from the DM) until 10 PM for the question, or the month's end for the card. Posts never ping anyone."
     },
     {
      "id": "join-requests",
@@ -560,7 +560,7 @@
     {
      "id": "bingo-win-name",
      "q": "Will a bingo win post name me?",
-     "a": "Only if your [Settings → Privacy and sharing](profile-sharing) says Always for My game wins (it starts at Never) — otherwise the post just says someone got bingo."
+     "a": "Only if your [Settings → Privacy and sharing](profile-sharing) says Always for My game wins (it starts at Never). Otherwise the post just says someone got bingo."
     },
     {
      "id": "game-reminders",
@@ -575,7 +575,7 @@
     {
      "id": "give-kernels",
      "q": "Can I give kernels to people?",
-     "a": "Yes — tap 🍿 Kernels on a screening in [the feed](feed) (or, in Discord, 🍿 Give kernels on someone's /profile). Each week you have 10 to give and 3 to take (up to 3 to a person per screening, or take 1). Nobody loses more than 5 a week or goes below zero, and it always shows who gave or took."
+     "a": "Yes. Tap 🍿 Kernels on a screening in [the feed](feed) (or, in Discord, 🍿 Give kernels on someone's /profile). Each week you have 10 to give and 3 to take (up to 3 to a person per screening, or take 1). Nobody loses more than 5 a week or goes below zero, and it always shows who gave or took."
     }
    ]
   },
@@ -596,7 +596,7 @@
     {
      "id": "monday-digest",
      "q": "What's the Monday digest?",
-     "a": "The week ahead in one card: films members want and nobody's going to yet, rare screenings, what's opening, last chances, open polls — and, at the top, the films on your own watchlist that are playing. A club organizer or admin turns it on in [Club settings → Theatres](club-settings-digest); then it's published every Monday at 10 AM in [the feed](feed-filters), with a note in [the 🔔 bell](bell), and posted in the club's Discord server if one is connected. The bell note is on unless you turn it off; to get it by email, push or Discord DM as well, turn that on in [Settings → Notifications](notify-which)."
+     "a": "The week ahead in one card: films members want and nobody's going to yet, rare screenings, what's opening, last chances, open polls and, at the top, the films on your own watchlist that are playing. A club organizer or admin turns it on in [Club settings → Theatres](club-settings-digest); then it's published every Monday at 10 AM in [the feed](feed-filters), with a note in [the 🔔 bell](bell), and posted in the club's Discord server if one is connected. The bell note is on unless you turn it off; to get it by email, push or Discord DM as well, turn that on in [Settings → Notifications](notify-which)."
     },
     {
      "id": "clear-alerts",
@@ -611,7 +611,7 @@
     {
      "id": "phone-push",
      "q": "Can I get notifications on my phone?",
-     "a": "Yes — in [Settings → Notifications](notify-settings), turn on push for this device. On iPhone, add the site to your Home Screen first."
+     "a": "Yes. In [Settings → Notifications](notify-settings), turn on push for this device. On iPhone, add the site to your Home Screen first."
     }
    ]
   },
@@ -632,12 +632,12 @@
     {
      "id": "discord-shows",
      "q": "What shows up in the club's Discord?",
-     "a": "Only what you choose. In [Settings → Privacy and sharing](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you — and Always or Never for a bingo win naming you. Each club's Discord server shows only that club, and only members who've linked Discord and are in that server ever appear there."
+     "a": "Only what you choose. In [Settings → Privacy and sharing](profile-sharing), pick Ask, Always or Never for your RSVPs, the polls you create, your comments and the Monday digest naming you, and Always or Never for a bingo win naming you. Each club's Discord server shows only that club, and only members who've linked Discord and are in that server ever appear there."
     },
     {
      "id": "bot",
      "q": "What can the bot do?",
-     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets — going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play today for what's waiting on you (trivia, your bingo card, the quiz games, polls to vote in, your kernels, each a button), /play solo to go straight into one, /play kernels, /play challenge start, list or scout (who you should challenge, with a 🔥 roast), and /play tournament start or list. Polls: /poll list, vote, make, or answers (mark its answers, close and finalize it). And /leaderboard (period: all time, this year or this month). Each command's choices are options Discord lists as you type, like /showtimes; /play and /poll list their parts first (type /play and pick one). People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
+     "a": "Type /help in Discord for the list. Films: /showtimes (by day, theatre or tickets; going:True for who's going), /movie, /foryou, /find (🔔 Alert me saves the search), /surprise and /theatre. Plans: /rsvp, /discuss, /watch and /notifications. Games: /play today for what's waiting on you (trivia, your bingo card, the quiz games, polls to vote in, your kernels, each a button), /play solo to go straight into one, /play kernels, /play challenge start, list or scout (who you should challenge, with a 🔥 roast), and /play tournament start or list. Polls: /poll list, vote, make, or answers (mark its answers, close and finalize it). And /leaderboard (period: all time, this year or this month). Each command's choices are options Discord lists as you type, like /showtimes; /play and /poll list their parts first (type /play and pick one). People: /profile (yours or someone's: history and check-ins, watchlist, compare, give kernels) and /club. Replies to you are private unless they're meant for the channel. It works in each club's own server for that club; in a DM, if you're in more than one, it asks which club you mean."
     }
    ]
   },
@@ -648,7 +648,7 @@
     {
      "id": "letterboxd-connect",
      "q": "How do I connect Letterboxd?",
-     "a": "[Settings → Connections](profile-letterboxd) → Letterboxd has a row for each thing you can connect. Diary: enter your username — we read your public diary feed every few hours. Watchlist: [bring it in from Letterboxd's export](help:letterboxd-watchlist). We never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
+     "a": "[Settings → Connections](profile-letterboxd) → Letterboxd has a row for each thing you can connect. Diary: enter your username and we read your public diary feed every few hours. Watchlist: [bring it in from Letterboxd's export](help:letterboxd-watchlist). We never post to Letterboxd. One site account per Letterboxd account; a club admin can clear a wrong claim."
     },
     {
      "id": "diary-sync",
@@ -668,7 +668,7 @@
     {
      "id": "ratings-shown",
      "q": "Will people see my ratings?",
-     "a": "Only if you turn on “Show my star ratings with my check-ins” in [Settings → Privacy and sharing](settings-privacy) — then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."
+     "a": "Only if you turn on “Show my star ratings with my check-ins” in [Settings → Privacy and sharing](settings-privacy); then your rating and a link to your review appear on that screening in the feed. Disconnecting forgets your username and everything we read."
     }
    ]
   },
@@ -684,7 +684,7 @@
     {
      "id": "public",
      "q": "Is anything public?",
-     "a": "What's playing is public. Your plans, comments and lists are only shown to members of your clubs (a guest profile's are private to you). [Calendar subscription links](me-calendar) work for anyone who has them — New link turns an old one off."
+     "a": "What's playing is public. Your plans, comments and lists are only shown to members of your clubs (a guest profile's are private to you). [Calendar subscription links](me-calendar) work for anyone who has them; New link turns an old one off."
     }
    ]
   }
